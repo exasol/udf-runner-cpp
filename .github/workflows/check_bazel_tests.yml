@@ -8,23 +8,38 @@ on:
 
 env:
   USE_BAZEL_VERSION: 8.3.1
-  UDF_CLIENT_ENV_FILE: /tmp/.udf_client_env
+  BAZEL_PACKAGE_VERSION: 8.3.1
+  JAVA_PREFIX: /usr/lib/jvm/java-17-openjdk-amd64
+  PYTHON3_PREFIX: /usr
+  PYTHON3_VERSION: python3
+  PROTOBUF_BIN: protoc
+  PROTOBUF_LIBRARY_PREFIX: /usr/lib/x86_64-linux-gnu
+  PROTOBUF_INCLUDE_PREFIX: /usr/include
+  ZMQ_LIBRARY_PREFIX: /usr/lib/x86_64-linux-gnu
+  ZMQ_INCLUDE_PREFIX: /usr/include
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
       - name: Search for duplicated error codes
         run: bash find_duplicate_error_codes.sh
 
-      - name: Install UDF Client Dependencies
+      - name: Install system dependencies
         run: |
-          sudo bash scripts/installUdfClientDeps.sh "$UDF_CLIENT_ENV_FILE"
+          sudo apt-get update
+          sudo apt-get install -y curl libprotobuf-dev libzmq3-dev openjdk-17-jdk protobuf-compiler python3-dev python3-numpy valgrind
+      - name: Install bazel
+        run: |
+          BAZEL_PACKAGE_FILE="bazel_$BAZEL_PACKAGE_VERSION-linux-x86_64.deb"
+          BAZEL_PACKAGE_URL="https://github.com/bazelbuild/bazel/releases/download/$BAZEL_PACKAGE_VERSION/$BAZEL_PACKAGE_FILE"
+          curl -L --output /tmp/"$BAZEL_PACKAGE_FILE" "$BAZEL_PACKAGE_URL"
+          sudo apt install -y "/tmp/$BAZEL_PACKAGE_FILE"
+          rm "/tmp/$BAZEL_PACKAGE_FILE"
       - name: Build
         run: |
-          source "$UDF_CLIENT_ENV_FILE"
-          bazel build --lockfile_mode=off --config no-tty -c dbg --config python --config java --config fast-binary --verbose_failures
-        working-directory: ./exaudfclient/
+          bazel build --lockfile_mode=off --config no-tty -c dbg --config fast-binary --verbose_failures //:udf_runner_cpp_v1_gen //:udf_runner_cpp_v1_static_gen
+        working-directory: ./udf-runner-cpp/v1
 
   tests:
     runs-on: ubuntu-24.04
@@ -32,60 +47,30 @@ jobs:
      fail-fast: false
      matrix:
         include:
-          - test: "//javacontainer/test:ExaStackTraceCleanerTest"
-            name: "ExaStackTraceCleanerTest"
-            java_version: "openjdk-11-jdk"
-          - test: "//javacontainer/test:ExaStackTraceCleanerTest"
-            name: "ExaStackTraceCleanerTest"
-            java_version: "openjdk-17-jdk"
-          - test: "//javacontainer/test:javacontainer-test-extractor-legacy"
-            name: "javacontainer-test-extractor-legacy"
-            java_version: "openjdk-11-jdk"
-          - test: "//javacontainer/test:javacontainer-test-extractor-v2"
-            name: "javacontainer-test-extractor-v2"
-            java_version: "openjdk-11-jdk"
-          - test: "//javacontainer/script_options/..."
-            name: "javacontainer-script_options"
-            java_version: ""
-          - test: "//exaudflib/test/..."
+          - test: "//exaudflib/test:exaudflib-test"
             name: "exaudflib"
-            java_version: ""
-          - test: "//script_options_parser/ctpg/..."
+          - test: "//script_options_parser/ctpg/test:script-options-ctpg-parser-test"
             name: "script_options_parser_ctpg"
-            java_version: ""
-          - test: "//script_options_parser/legacy/..."
+          - test: "//script_options_parser/legacy/test:script-options-legacy-parser-test"
             name: "script_options_parser_legacy"
-            java_version: ""
-          - test: "--run_under='valgrind --leak-check=yes' --config=valgrind //javacontainer/test:javacontainer-test-extractor-legacy"
-            name: "javacontainer-test-extractor-legacy-with-valgrind"
-            java_version: "openjdk-11-jdk"
-          - test: "--run_under='valgrind --leak-check=yes' --config=valgrind //javacontainer/test:javacontainer-test-extractor-v2"
-            name: "javacontainer-test-extractor-v2-with-valgrind"
-            java_version: "openjdk-11-jdk"
-          - test: "--run_under='valgrind --leak-check=yes' --config=valgrind //script_options_parser/ctpg/..."
+          - test: "--run_under='valgrind --leak-check=yes' --config=valgrind //exaudflib/test:exaudflib-test"
+            name: "exaudflib_with_valgrind"
+          - test: "--run_under='valgrind --leak-check=yes' --config=valgrind //script_options_parser/ctpg/test:script-options-ctpg-parser-test"
             name: "script_options_parser_ctpg_with_valgrind"
-            java_version: ""
-          - test: "--run_under='valgrind --leak-check=yes' --config=valgrind //script_options_parser/legacy/..."
+          - test: "--run_under='valgrind --leak-check=yes' --config=valgrind //script_options_parser/legacy/test:script-options-legacy-parser-test"
             name: "script_options_parser_legacy_with_valgrind"
-            java_version: ""
-          - test: "--config=asan //javacontainer/test:javacontainer-test-extractor-legacy"
-            name: "javacontainer-test-extractor-legacy-with-asan"
-            java_version: "openjdk-11-jdk"
-          - test: "--config=asan //javacontainer/test:javacontainer-test-extractor-v2"
-            name: "javacontainer-test-extractor-v2-with-asan"
-            java_version: "openjdk-11-jdk"
-          - test: "--config=asan //script_options_parser/ctpg/..."
+          - test: "--config=asan //exaudflib/test:exaudflib-test"
+            name: "exaudflib_with_asan"
+          - test: "--config=asan //script_options_parser/ctpg/test:script-options-ctpg-parser-test"
             name: "script_options_parser_ctpg_with_asan"
-            java_version: ""
-          - test: "--config=asan //script_options_parser/legacy/..."
+          - test: "--config=asan //script_options_parser/legacy/test:script-options-legacy-parser-test"
             name: "script_options_parser_legacy_with_asan"
-            java_version: ""
     steps:
       - uses: actions/checkout@v6
-      - name: Install JDK and ZMQ
+      - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ${{ matrix.java_version }} libzmq3-dev valgrind
+          sudo apt-get install -y curl libprotobuf-dev libzmq3-dev openjdk-17-jdk protobuf-compiler python3-dev python3-numpy valgrind
       - name: Install bazel
         run: | 
           BAZEL_PACKAGE_FILE="bazel_$BAZEL_PACKAGE_VERSION-linux-x86_64.deb"
@@ -97,8 +82,8 @@ jobs:
           BAZEL_PACKAGE_VERSION: "8.3.1"
       - name: Run tests
         run: |
-          bazel test ${{ matrix.additional_args }} ${{ matrix.test }}
-        working-directory: ./exaudfclient/base
+          bazel test ${{ matrix.test }}
+        working-directory: ./udf-runner-cpp/v1/base
         env:
           OPENSSL_LIBRARY_PREFIX: "/usr/lib/x86_64-linux-gnu"
           OPENSSL_INCLUDE_PREFIX: "/usr/include/openssl"

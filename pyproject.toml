@@ -1,7 +1,7 @@
 [project]
-name = "exasol-script-languages"
+name = "udf-runner-cpp"
 version = "10.2.0"
-description = "Script Languages"
+description = "Base for other udf based runners"
 
 license = "MIT"
 
@@ -14,7 +14,7 @@ authors = [
 
 readme = 'README.md'  # Markdown files are supported
 
-keywords = ['exasol', 'udf', 'script-languages']
+keywords = ['exasol', 'udf', 'cpp', 'bazel']
 
 
 dependencies = [
@@ -32,8 +32,8 @@ requires-poetry = ">=2.3.0"
 package-mode = false
 
 [project.urls]
-repository = "https://github.com/exasol/script-languages"
-homepage = "https://github.com/exasol/script-languages"
+repository = "https://github.com/exasol/udf-runner-cpp"
+homepage = "https://github.com/exasol/udf-runner-cpp"
 
 [dependency-groups]
 
