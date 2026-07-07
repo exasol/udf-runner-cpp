@@ -52,11 +52,11 @@ With Bazel defines you can specify which language support is actually compiled i
     --define benchmark=true # This language is only for test and development purpose and benchmarks the performance of the C++ Implementation
 
 
-The main target is //:udf_runner_cpp_v1.
+The main build target is //:udf_runner_cpp_v1_gen, which produces the `udf_runner_cpp_v1` binary.
 
 ## Visualizing the build dependencies
 
-Bazel allows to query the dependencies of a target. Furthermore, it can export the dependencies as .dot file. With Graphviz you can generate figures from the .dot file. The script visualize_deps.sh and visualize_all.sh wrap this process. The script visualize_all.sh visualizes the dependencies of the main target //:udf_runner_cpp_v1. The script visualize_deps.sh visualizes the dependencies of given targets.
+Bazel allows to query the dependencies of a target. Furthermore, it can export the dependencies as .dot file. With Graphviz you can generate figures from the .dot file. The script visualize_deps.sh and visualize_all.sh wrap this process. The script visualize_all.sh visualizes the dependencies of the main build target //:udf_runner_cpp_v1_gen. The script visualize_deps.sh visualizes the dependencies of given targets.
 
     visualize_deps.sh <targets>
 
@@ -70,7 +70,7 @@ The usage of multiple linker namespace requires some precautions in the build pr
 
 ## Precautions in the build process
 
-In the build process you need to be cautious which libraries you link together and that no link leaks symbols from a library in one namespace to a library in the other namespace. Furthermore, you have to build a shared library with all dependency linked to it as output target. In our case, we have two main output targets: //:udf_runner_cpp_v1 and //:libexaudflib.so. Both get loaded into different linker namespaces. The language container live in the same namespace as //:udf_runner_cpp_v1. This namespace must not know anyhing about protobuf and zeromq, because it is possible that a language container may load protobuf or zeromq in a different version. Protobuf and zeromq are only known in the namespace of //:libexaudflib.so. The target //:libexaudflib.so depends on //base/exaudflib:exaudflib which contains the logic of the exaudflib. You must not depend on //base/exaudflib:exaudflib in //:udf_runner_cpp_v1 or the langauge container, because this would leak zeromq and protobuf. If you need to depend on the other dependency of //base/exaudflib:exaudflib which not depend on protobuf or zeromq them self, such as //base/exaudflib:script_data_transfer_objects, //base/exaudflib:script_data_transfer_objects_wrapper, //base/script_options_parser:scriptoptionlines, use either their target as self, the collection of libraries //base/exaudflib:exaudflib-deps or the collection of headers //base/exaudflib:header.
+In the build process you need to be cautious which libraries you link together and that no link leaks symbols from a library in one namespace to a library in the other namespace. Furthermore, you have to build a shared library with all dependency linked to it as output target. In our case, the main build target is //:udf_runner_cpp_v1_gen and one of its main produced binaries is `udf_runner_cpp_v1`, alongside //:libexaudflib.so. Both get loaded into different linker namespaces. The language container live in the same namespace as `udf_runner_cpp_v1`. This namespace must not know anyhing about protobuf and zeromq, because it is possible that a language container may load protobuf or zeromq in a different version. Protobuf and zeromq are only known in the namespace of //:libexaudflib.so. The target //:libexaudflib.so depends on //base/exaudflib:exaudflib which contains the logic of the exaudflib. You must not depend on //base/exaudflib:exaudflib in the top-level runner target or the langauge container, because this would leak zeromq and protobuf. If you need to depend on the other dependency of //base/exaudflib:exaudflib which not depend on protobuf or zeromq them self, such as //base/exaudflib:script_data_transfer_objects, //base/exaudflib:script_data_transfer_objects_wrapper, //base/script_options_parser:scriptoptionlines, use either their target as self, the collection of libraries //base/exaudflib:exaudflib-deps or the collection of headers //base/exaudflib:header.
 
 ## Precautions in the implementations
 

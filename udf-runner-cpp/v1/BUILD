@@ -117,23 +117,23 @@ sh_library(
     })
 )
 
-SLOW_WRAPPER_BINARY="""$(location //:wrapper_generator_bin) "$(location cpp_runner_bin)" "$(location udf_runner_cpp_v1)" "$(location @exaudfclient_base//:exaudfclient.template.sh)" """
-FAST_BINARY="""cp "$(location cpp_runner_bin)" "$(location udf_runner_cpp_v1)" """
+SLOW_WRAPPER_BINARY="""$(location //:wrapper_generator_bin) "$(location cpp_runner_bin)" "$@" "$(location @exaudfclient_base//:exaudfclient.template.sh)" """
+FAST_BINARY="""cp "$(location cpp_runner_bin)" "$@" """
 CREATE_BINARY_SCRIPT=select({
         "@exaudfclient_base//:fast_binary": FAST_BINARY,
         "@exaudfclient_base//:slow_wrapper": SLOW_WRAPPER_BINARY,
         "//conditions:default": FAST_BINARY
     })
 genrule(
-    name = "udf_runner_cpp_v1",
+    name = "udf_runner_cpp_v1_gen",
     cmd = CREATE_BINARY_SCRIPT,
     outs = ["udf_runner_cpp_v1"],
     srcs = [":cpp_runner_bin", "@exaudfclient_base//:libexaudflib_complete.so", "@exaudfclient_base//:exaudfclient.template.sh", "//:wrapper_generator_bin"],
     output_to_bindir = True
 )
 
-SLOW_WRAPPER_STATIC_BINARY="""$(location //:wrapper_generator_bin) "$(location cpp_runner_static)" "$(location udf_runner_cpp_v1_static)" "$(location @exaudfclient_base//:exaudfclient.template.sh)" """
-FAST_BINARY_STATIC="""cp "$(location cpp_runner_static)" "$(location udf_runner_cpp_v1_static)" """
+SLOW_WRAPPER_STATIC_BINARY="""$(location //:wrapper_generator_bin) "$(location cpp_runner_static)" "$@" "$(location @exaudfclient_base//:exaudfclient.template.sh)" """
+FAST_BINARY_STATIC="""cp "$(location cpp_runner_static)" "$@" """
 CREATE_STATIC_BINARY_SCRIPT=select({
         "@exaudfclient_base//:fast_binary": FAST_BINARY_STATIC,
         "@exaudfclient_base//:slow_wrapper": SLOW_WRAPPER_STATIC_BINARY,
@@ -141,7 +141,7 @@ CREATE_STATIC_BINARY_SCRIPT=select({
     })
 
 genrule(
-    name = "udf_runner_cpp_v1_static",
+    name = "udf_runner_cpp_v1_static_gen",
     cmd = CREATE_STATIC_BINARY_SCRIPT,
     outs = ["udf_runner_cpp_v1_static"],
     srcs = [":cpp_runner_static", "@exaudfclient_base//:libexaudflib_complete.so", "@exaudfclient_base//:exaudfclient.template.sh", "//:wrapper_generator_bin"],

@@ -37,7 +37,7 @@ jobs:
           rm "/tmp/$BAZEL_PACKAGE_FILE"
       - name: Build
         run: |
-          bazel build --lockfile_mode=off --config no-tty -c dbg --config fast-binary --verbose_failures //:udf_runner_cpp_v1 //:udf_runner_cpp_v1_static
+          bazel build --lockfile_mode=off --config no-tty -c dbg --config fast-binary --verbose_failures //:udf_runner_cpp_v1_gen //:udf_runner_cpp_v1_static_gen
         working-directory: ./udf-runner-cpp/v1
 
   tests:
