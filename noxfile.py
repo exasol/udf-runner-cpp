@@ -19,7 +19,7 @@ def get_oft_jar(session: nox.Session) -> Path:
 
 def run_oft_for_udf_client(session: nox.Session, *args) -> None:
     oft_jar = get_oft_jar(session)
-    udf_client_base_dir = ROOT / "exaudfclient"
+    udf_client_base_dir = ROOT / "udf-runner-cpp" / "v1"
     udf_client_src_dir = udf_client_base_dir / "base"
 
     with session.chdir(ROOT):
