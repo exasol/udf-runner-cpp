@@ -3,9 +3,9 @@ build --lockfile_mode=off --copt='-std=c++17' --force_pic --action_env=PROTOBUF_
 build:benchmark --define benchmark=true
 build:java  --define java=true --action_env=JAVA_PREFIX
 build:python --define python=true --action_env=NUMPY_PREFIX --action_env=PYTHON3_SYSPATH --action_env=PYTHON3_PREFIX --action_env=PYTHON3_VERSION
-build:fast-binary --define binary_type=fast_binary //:exaudfclient
-build:slow-wrapper --define binary_type=slow_wrapper //:exaudfclient
-build:static-binary //:exaudfclient_static
+build:fast-binary --define binary_type=fast_binary //:udf_runner_cpp_v1_gen
+build:slow-wrapper --define binary_type=slow_wrapper //:udf_runner_cpp_v1_gen
+build:static-binary //:udf_runner_cpp_v1_static_gen
 build:test-binaries --config=static-binary --config=slow-wrapper
 build:verbose --copt='-v' --subcommands --verbose_failures --announce_rc
 #TODO test linkopts="-flto"
