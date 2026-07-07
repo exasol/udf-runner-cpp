@@ -12,6 +12,7 @@ env:
   JAVA_PREFIX: /usr/lib/jvm/java-17-openjdk-amd64
   PYTHON3_PREFIX: /usr
   PYTHON3_VERSION: python3
+  PROTOBUF_BIN: protoc
   PROTOBUF_LIBRARY_PREFIX: /usr/lib/x86_64-linux-gnu
   PROTOBUF_INCLUDE_PREFIX: /usr/include
   ZMQ_LIBRARY_PREFIX: /usr/lib/x86_64-linux-gnu
