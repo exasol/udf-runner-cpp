@@ -1,6 +1,6 @@
 # What is the udf-runner-cpp?
 
-The udf-runner-cpp connects to the database via [ZeroMQ](http://zeromq.org/) and fetches the tuples which then get processed by the user-defined functions (UDFs). This repository contains the C++ runner, the benchmark and streaming VM support.
+The udf-runner-cpp connects to the database via [ZeroMQ](https://zeromq.org/) and fetches the tuples which then get processed by the user-defined functions (UDFs). This repository contains the C++ runner, the benchmark and streaming VM support.
 
 # How to build the udf-runner-cpp?
 
