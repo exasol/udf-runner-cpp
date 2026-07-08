@@ -1,17 +1,16 @@
-# What is the exaudfclient?
+# What is the udf-runner-cpp?
 
-The exaudfclient connects to the database via [ZeroMQ](http://zeromq.org/) and fetches the tuples which then get processed by the user-defined functions (UDFs). Currently, the exaudfclient supports UDFs in the language Python, Java and R. Further languages can be integrated via language binding between C/C++ and the desired langauge. Python 3, Java and R use [SWIG](http://www.swig.org/) for the language binding.
+The udf-runner-cpp connects to the database via [ZeroMQ](http://zeromq.org/) and fetches the tuples which then get processed by the user-defined functions (UDFs). This repository contains C++ runner, the benchmark and streaming VM support.
 
-# How to build the exaudfclient?
+# How to build the udf-runner-cpp?
 
 ## Prerequisites
 
 For the build system:
 
-- Open JDK 11
 - bazel-7.2.1 for more details see [Bazel documentation](https://docs.bazel.build/versions/master/install.html)
 
-The exaudfclient was tested with the following versions of its dependencies:
+The udf-runner-cpp is tested with the following versions of its dependencies:
 
 - swig-2.0.4 or swig-3.0.12
 - protobuf 3.12.4
@@ -21,14 +20,11 @@ The exaudfclient was tested with the following versions of its dependencies:
 
 For the language support:
 
-- Python 3.10 for pythoncontainer
-    - for Python 3 the build requires [Numpy](https://www.numpy.org/) and [Pandas](https://pandas.pydata.org/) in addition for the Pandas Dataframe Support
-- OpenJDK 11 for javacontainer
-- R 4.4 for the rcontainer
+- no additional language-specific toolchains are required for the retained runner modes in this repo
 
 ## Start a build
 
-The exaudfclient is a multi-language projects. Therefore, we are using [Bazel](https://docs.bazel.build/versions/master/bazel-overview.html) as build system, because it provide build support for many languages and allows to mix these languages. Because the exaudfclient has language bindings to Python 2/3, Java and R, we need specify where Bazel can find the correponding library- and header-files. This is done by Environment Variables.
+The udf-runner-cpp is built with [Bazel](https://docs.bazel.build/versions/master/bazel-overview.html). In this repository, the remaining build-time environment variables are used for protobuf and zeromq discovery.
 
 For executing the build locally, you can use the script 
 
@@ -44,11 +40,9 @@ and set the Environment Variables via Docker.
 
 Both build script can receive parameters, such as Bazel commandline parameter, Bazel define (--define {key}={value}) and targets. 
 
-With Bazel defines you can specify which language support is actually compiled into you exaudfclient executbale. The currently supported defines are
+With Bazel defines you can specify which retained VM support is compiled into your udf-runner-cpp executable. The currently supported defines are
 
-    --define java=true
-    --define r=true
-    --define python=true
+    --define bash=true
     --define benchmark=true # This language is only for test and development purpose and benchmarks the performance of the C++ Implementation
 
 
@@ -60,11 +54,11 @@ Bazel allows to query the dependencies of a target. Furthermore, it can export t
 
     visualize_deps.sh <targets>
 
-# How is the exaudfclient structured?
+# How is the udf-runner-cpp structured?
 
-The exaudfclient consists mainly out of three parts the main function in [exa_udfclient.cc](exa_udfclient.cc), the libexaudf and the language implementations. The first part the main function actually only loads the two other parts. However, in this case it is important how it loads the two other parts, because we need the libexaudf in a different linker namespace than the language implementation to prevent library conflicts. The libexaudf uses  [ZeroMQ](http://zeromq.org/) and  [Protobuf](https://developers.google.com/protocol-buffers/) to communicate with the Exsol Database, but UDFs could be use the same libraries in a different version which would lead to library conflict. The following figure shows the dependencies between the components.
+The udf-runner-cpp consists mainly of three parts: the main function in [exa_udfclient.cc](exa_udfclient.cc), the libexaudf, and the retained language implementations. The first part actually only loads the two other parts. However, in this case it is important how it loads the two other parts, because we need the libexaudf in a different linker namespace than the language implementation to prevent library conflicts. The libexaudf uses [ZeroMQ](http://zeromq.org/) and [Protobuf](https://developers.google.com/protocol-buffers/) to communicate with the Exasol database, but UDFs could use the same libraries in a different version which would lead to library conflicts. The following figure shows the dependencies between the components.
 
-![exaudfclient dependencies](docs/exaudfclient.png)
+![udf-runner-cpp dependencies](docs/exaudfclient.png)
 
 The usage of multiple linker namespace requires some precautions in the build process and in the implementation. 
 

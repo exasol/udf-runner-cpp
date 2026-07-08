@@ -1,8 +1,6 @@
 build --lockfile_mode=off --copt='-std=c++17' --force_pic --action_env=PROTOBUF_BIN --action_env=PROTOBUF_LIBRARY_PREFIX --action_env=PROTOBUF_INCLUDE_PREFIX
 # TODO add environment variables for R libraries
 build:benchmark --define benchmark=true
-build:java  --define java=true --action_env=JAVA_PREFIX
-build:python --define python=true --action_env=NUMPY_PREFIX --action_env=PYTHON3_SYSPATH --action_env=PYTHON3_PREFIX --action_env=PYTHON3_VERSION
 build:fast-binary --define binary_type=fast_binary //:udf_runner_cpp_v1_gen
 build:slow-wrapper --define binary_type=slow_wrapper //:udf_runner_cpp_v1_gen
 build:static-binary //:udf_runner_cpp_v1_static_gen
@@ -26,5 +24,4 @@ build:valgrind -c dbg
 build:valgrind --copt -g
 build:valgrind --strip=never
 build:valgrind --copt -DVALGRIND_ACTIVE
-build:fix_conda_ar_tool --features=-archive_param_file
 build:plugin_client  --define plugin_client=true

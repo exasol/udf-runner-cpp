@@ -153,7 +153,7 @@ TEST(ScriptOptionLinesTest, test_all_in_one_line_does_first_option_does_work) {
 TEST(ScriptOptionLinesTest, test_values_must_not_contain_spaces) {
     /**
     Verify the wrong behavior and assumptions as described in https://github.com/exasol/script-languages-release/issues/878
-    The parser is actually correct, but the client code incorrectly parses the result (see javacontainer_test.cc - quoted_jvm_option)
+    The parser is actually correct, but the former Java-side client code incorrectly parsed the result.
     */
     size_t pos;
     const std::string original_code =

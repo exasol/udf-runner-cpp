@@ -198,7 +198,7 @@ TEST(ScriptOptionLinesTest, test_when_two_options_plus_code_in_same_line_then_op
 TEST(ScriptOptionLinesTest, test_values_can_contain_spaces) {
     /**
     Verify assumptions as described in https://github.com/exasol/script-languages-release/issues/878
-    The parser is actually correct, but the client code incorrectly parses the result (see javacontainer_test.cc - quoted_jvm_option)
+    The parser is actually correct, but the former Java-side client code incorrectly parsed the result.
     */
     const std::string code =
         "%jvmoption -Dhttp.agent=\"ABC DEF\";\n\n"

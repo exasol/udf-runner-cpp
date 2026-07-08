@@ -13,16 +13,6 @@ config_setting(
 )
 
 config_setting(
-    name = "python",
-    define_values = {"python": "true"},
-)
-
-config_setting(
-    name = "java",
-    define_values = {"java": "true"},
-)
-
-config_setting(
     name = "bash",
     define_values = {"bash": "true"},
 )
