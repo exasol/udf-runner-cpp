@@ -7,15 +7,7 @@ VM_ENABLED_DEPS=select({
         "@exaudfclient_base//:benchmark": ["@exaudfclient_base//benchmark_container:benchmark_container"],
         "//conditions:default": []
     }) + select({
-        "@exaudfclient_base//:java": ["@exaudfclient_base//javacontainer:javacontainer"],
-        "//conditions:default": []
-    }) + select({
         "@exaudfclient_base//:bash": ["@exaudfclient_base//streaming_container:streamingcontainer"],
-        "//conditions:default": []
-    })
-
-VM_PYTHON3_DEPS=select({
-        "@exaudfclient_base//:python": ["@exaudfclient_base//python/python3:pythoncontainer"],
         "//conditions:default": []
     })
 
@@ -55,7 +47,7 @@ cc_library(
         "@exaudfclient_base//exaudflib:header",
         "@exaudfclient_base//utils:utils",
         "@exaudfclient_base//exaudflib:exaudflib-deps",
-    ] + VM_ENABLED_DEPS + VM_PYTHON3_DEPS,
+    ] + VM_ENABLED_DEPS,
     defines = VM_ENABLED_DEFINES,
     data = ["@exaudfclient_base//:libexaudflib_complete.so"],
 )
@@ -77,8 +69,7 @@ cc_binary(
 ## With this binary we simulate an error in our build system, that is a direct depedency to protobuf/zmq,
 ## which then must be detected with the linker namespace tests:
 ## test/linker_namespace_sanity/linker_namespace_sanity.py checks the wrong configuration
-## Besides this the test under test/python3/all/linker_namespace.py checks the normal build, which expects
-## not to find any occurence of the dependencies (protobuf/zmq) in the primary linker namespace.
+## The normal build should not expose protobuf/zmq in the primary linker namespace.
 ##
 ## We need to explicitly declare the dependency of protobuf/zmq here, as the exaudflib is a static lib (//exaudflib:exaudflib)
 ## and hence does not contain dependency information. We cannot declare the shared lib (:exaudflib_complete.so)
@@ -99,8 +90,8 @@ cc_binary(
     data = ["@exaudfclient_base//:libexaudflib_complete.so"],
 )
 
-# Workarround for the hardcoded paths in exaudfclient for libexaudflib_complete.so and python_ext_dataframe.cc
-# - libexaudflib_complete.so and python_ext_dataframe.cc get dynamically loaded, therefore the exaudfclient needs to know their paths
+# Workarround for the hardcoded paths in udf-runner-cpp for libexaudflib_complete.so
+# - libexaudflib_complete.so gets dynamically loaded, therefore the udf-runner-cpp needs to know their path
 # - Most flexible way to provides these paths would environment variables
 # - The exasol database can't provide these paths, because they depend on the container
 # - A workarround to provide these paths would be wrapper bash script which set these environment variables

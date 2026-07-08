@@ -43,9 +43,9 @@ std::vector<std::string> prefixes = {"", " ", "\t", "\f", "\v", "\n", "\r\n", " 
 std::vector<std::string> suffixes = {"", " ", "\t", "\f", "\v"}; //"" for case if there is suffix
 std::vector<std::string> new_lines = {"", "\n", "\r", "\r\n"}; //"" for case if there is no newline
 std::vector<std::string> delimeters = {" ", "\t", "\f", "\v", " \t", "\t ", "\t\f", "\f\t", "\f ", " \f", "\t\v", "\v\t", "\v ", " \v", "\f\v", "\v\f", "  \t", " \t "};
-std::vector<std::string> keywords = {"import", "jvmoption", "scriptclass", "jar", "env"};
-std::vector<std::string> values = {"something", "com.mycompany.MyScriptClass", "LD_LIBRARY_PATH=/nvdriver", "-Xms128m -Xmx1024m -Xss512k", "/buckets/bfsdefault/default/my_code.jar", "something "};
-std::vector<std::string> payloads = {"anything", "\n\ndef my_func:\n\tpass", "class MyJava\n public static void Main() {\n};\n"};
+std::vector<std::string> keywords = {"import", "scriptclass", "env", "some_option"};
+std::vector<std::string> values = {"something", "com.mycompany.MyScriptClass", "LD_LIBRARY_PATH=/nvdriver", "some-value", "something "};
+std::vector<std::string> payloads = {"anything", "\n\ndef my_func:\n\tpass", "class AnyClass\n public static void Main() {\n};\n"};
 
 INSTANTIATE_TEST_SUITE_P(
     ScriptOptionLines,
@@ -174,70 +174,27 @@ INSTANTIATE_TEST_SUITE_P(
 );
 
 
-TEST(ScriptOptionLinesTest, test_when_two_options_plus_code_in_same_line_then_options_parsed_successfully) {
-    /**
-    Verify the correct behavior of new parser for situation as described in https://github.com/exasol/script-languages-release/issues/652.
-    */
-    const std::string code = "%jar /buckets/bucketfs1/jars/exajdbc.jar; %jvmoption -Xms4m; class JAVA_UDF_3 {static void run(ExaMetadata exa, ExaIterator ctx) throws Exception {String host_name = ctx.getString(\"col1\");}}\n/\n;";
-    options_map_t result;
-    parseOptions(code, result);
-    ASSERT_EQ(result.size(), 2);
-
-    const auto jar_option_result = result.find("jar");
-    ASSERT_NE(jar_option_result, result.end());
-    ASSERT_EQ(jar_option_result->second.size(), 1);
-    ASSERT_EQ(jar_option_result->second[0], buildOption("/buckets/bucketfs1/jars/exajdbc.jar", 0, 41));
-
-    const auto jvm_option_result = result.find("jvmoption");
-    ASSERT_NE(jvm_option_result, result.end());
-    ASSERT_EQ(jvm_option_result->second.size(), 1);
-    ASSERT_EQ(jvm_option_result->second[0], buildOption("-Xms4m", 42, 18));
-}
-
-
-TEST(ScriptOptionLinesTest, test_values_can_contain_spaces) {
-    /**
-    Verify assumptions as described in https://github.com/exasol/script-languages-release/issues/878
-    The parser is actually correct, but the client code incorrectly parses the result (see javacontainer_test.cc - quoted_jvm_option)
-    */
-    const std::string code =
-        "%jvmoption -Dhttp.agent=\"ABC DEF\";\n\n"
-        "class JVMOPTION_TEST_WITH_SPACE {\n"
-        "static void run(ExaMetadata exa, ExaIterator ctx) throws Exception {\n\n"
-        "	ctx.emit(\"Success!\");\n"
-        " }\n"
-        "}\n";
-    options_map_t result;
-    parseOptions(code, result);
-    ASSERT_EQ(result.size(), 1);
-
-    const auto jvm_option_result = result.find("jvmoption");
-    ASSERT_NE(jvm_option_result, result.end());
-    ASSERT_EQ(jvm_option_result->second.size(), 1);
-    ASSERT_EQ(jvm_option_result->second[0], buildOption("-Dhttp.agent=\"ABC DEF\"", 0, 34));
-}
-
 TEST(ScriptOptionLinesTest, test_multiple_lines_with_code) {
     /**
     Verify that the parser can read options coming after some code.
     */
     const std::string code =
-        "%jvmoption -Dhttp.agent=\"ABC DEF\"; class Abc{};\n\n"
-        "%jar /buckets/bucketfs1/jars/exajdbc.jar; class DEF{};\n";
+        "%some_option alpha beta; class Abc{};\n\n"
+        "%otheroption gamma; class DEF{};\n";
 
     options_map_t result;
     parseOptions(code, result);
     ASSERT_EQ(result.size(), 2);
 
-    const auto jvm_option_result = result.find("jvmoption");
-    ASSERT_NE(jvm_option_result, result.end());
-    ASSERT_EQ(jvm_option_result->second.size(), 1);
-    ASSERT_EQ(jvm_option_result->second[0], buildOption("-Dhttp.agent=\"ABC DEF\"", 0, 34));
+    const auto option_result = result.find("some_option");
+    ASSERT_NE(option_result, result.end());
+    ASSERT_EQ(option_result->second.size(), 1);
+    ASSERT_EQ(option_result->second[0], buildOption("alpha beta", 0, 24));
 
-    const auto jar_option_result = result.find("jar");
-    ASSERT_NE(jar_option_result, result.end());
-    ASSERT_EQ(jar_option_result->second.size(), 1);
-    ASSERT_EQ(jar_option_result->second[0], buildOption("/buckets/bucketfs1/jars/exajdbc.jar", 49, 41));
+    const auto other_option_result = result.find("otheroption");
+    ASSERT_NE(other_option_result, result.end());
+    ASSERT_EQ(other_option_result->second.size(), 1);
+    ASSERT_EQ(other_option_result->second[0], buildOption("gamma", 39, 19));
 }
 
 
@@ -249,22 +206,22 @@ TEST_P(ScriptOptionLinesEscapeSequenceTest, test_escape_seq_in_option_value) {
     Verify that the parser replaces escape sequences correctly.
     */
     const std::string code =
-        "%jvmoption " + option_value.first + "; class Abc{};\n"
-        "%jar /buckets/bucketfs1/jars/exajdbc.jar; class DEF{};\n";
+        "%some_option " + option_value.first + "; class Abc{};\n"
+        "%otheroption gamma; class DEF{};\n";
 
     options_map_t result;
     parseOptions(code, result);
     ASSERT_EQ(result.size(), 2);
 
-    const auto jvm_option_result = result.find("jvmoption");
-    ASSERT_NE(jvm_option_result, result.end());
-    ASSERT_EQ(jvm_option_result->second.size(), 1);
-    EXPECT_EQ(jvm_option_result->second[0].value, option_value.second);
+    const auto option_result = result.find("some_option");
+    ASSERT_NE(option_result, result.end());
+    ASSERT_EQ(option_result->second.size(), 1);
+    EXPECT_EQ(option_result->second[0].value, option_value.second);
 
-    const auto jar_option_result = result.find("jar");
-    ASSERT_NE(jar_option_result, result.end());
-    ASSERT_EQ(jar_option_result->second.size(), 1);
-    ASSERT_EQ(jar_option_result->second[0].value, "/buckets/bucketfs1/jars/exajdbc.jar");
+    const auto other_option_result = result.find("otheroption");
+    ASSERT_NE(other_option_result, result.end());
+    ASSERT_EQ(other_option_result->second.size(), 1);
+    ASSERT_EQ(other_option_result->second[0].value, "gamma");
 }
 
 /*
@@ -278,26 +235,26 @@ TEST_P(ScriptOptionLinesEscapeSequenceTest, test_escape_seq_in_option_value) {
  */
 const std::vector<std::pair<std::string, std::string>> escape_sequences =
         {
-            std::make_pair("-Dhttp.agent=ABC\\nDEF", "-Dhttp.agent=ABC\nDEF"),
-            std::make_pair("-Dhttp.agent=ABC\\rDEF", "-Dhttp.agent=ABC\rDEF"),
-            std::make_pair("-Dhttp.agent=ABC\\;DEF", "-Dhttp.agent=ABC;DEF"),
-            std::make_pair("-Dhttp.agent=ABC\\\\rDEF", "-Dhttp.agent=ABC\\rDEF"),
-            std::make_pair("-Dhttp.agent=ABC\\aDEF", "-Dhttp.agent=ABC\\aDEF"), //any other escape sequence must stay as is
-            std::make_pair("\\n-Dhttp.agent=ABCDEF", "\n-Dhttp.agent=ABCDEF"),
-            std::make_pair("\\r-Dhttp.agent=ABCDEF", "\r-Dhttp.agent=ABCDEF"),
-            std::make_pair("\\;-Dhttp.agent=ABCDEF", ";-Dhttp.agent=ABCDEF"),
-            std::make_pair("\\\\r-Dhttp.agent=ABCDEF", "\\r-Dhttp.agent=ABCDEF"),
-            std::make_pair("-Dhttp.agent=ABCDEF\\n", "-Dhttp.agent=ABCDEF\n"),
-            std::make_pair("-Dhttp.agent=ABCDEF\\r", "-Dhttp.agent=ABCDEF\r"),
-            std::make_pair("-Dhttp.agent=ABCDEF\\;", "-Dhttp.agent=ABCDEF;"),
-            std::make_pair("-Dhttp.agent=ABCDEF\\\\;", "-Dhttp.agent=ABCDEF\\"),
-            std::make_pair("-Dhttp.agent=ABCDEF\\\\\\;", "-Dhttp.agent=ABCDEF\\;"),
-            std::make_pair("-Dhttp.agent=ABC\\ DEF", "-Dhttp.agent=ABC\\ DEF"), //escaped white space in middle of string must stay as is
-            std::make_pair("\\ -Dhttp.agent=ABCDEF", " -Dhttp.agent=ABCDEF"),
-            std::make_pair("\\  \t -Dhttp.agent=ABCDEF", "  \t -Dhttp.agent=ABCDEF"),
-            std::make_pair("\\t-Dhttp.agent=ABCDEF", "\t-Dhttp.agent=ABCDEF"),
-            std::make_pair("\\f-Dhttp.agent=ABCDEF", "\f-Dhttp.agent=ABCDEF"),
-            std::make_pair("\\v-Dhttp.agent=ABCDEF", "\v-Dhttp.agent=ABCDEF")
+            std::make_pair("ABC\\nDEF", "ABC\nDEF"),
+            std::make_pair("ABC\\rDEF", "ABC\rDEF"),
+            std::make_pair("ABC\\;DEF", "ABC;DEF"),
+            std::make_pair("ABC\\\\rDEF", "ABC\\rDEF"),
+            std::make_pair("ABC\\aDEF", "ABC\\aDEF"), //any other escape sequence must stay as is
+            std::make_pair("\\nABCDEF", "\nABCDEF"),
+            std::make_pair("\\rABCDEF", "\rABCDEF"),
+            std::make_pair("\\;ABCDEF", ";ABCDEF"),
+            std::make_pair("\\\\rABCDEF", "\\rABCDEF"),
+            std::make_pair("ABCDEF\\n", "ABCDEF\n"),
+            std::make_pair("ABCDEF\\r", "ABCDEF\r"),
+            std::make_pair("ABCDEF\\;", "ABCDEF;"),
+            std::make_pair("ABCDEF\\\\;", "ABCDEF\\"),
+            std::make_pair("ABCDEF\\\\\\;", "ABCDEF\\;"),
+            std::make_pair("ABC\\ DEF", "ABC\\ DEF"), //escaped white space in middle of string must stay as is
+            std::make_pair("\\ ABCDEF", " ABCDEF"),
+            std::make_pair("\\  \t ABCDEF", "  \t ABCDEF"),
+            std::make_pair("\\tABCDEF", "\tABCDEF"),
+            std::make_pair("\\fABCDEF", "\fABCDEF"),
+            std::make_pair("\\vABCDEF", "\vABCDEF")
         };
 
 INSTANTIATE_TEST_SUITE_P(
@@ -315,16 +272,16 @@ TEST_P(ScriptOptionLinesRestTest, test_rest_with_tokens) {
     after the options in a line.
     */
     const std::string code =
-        "%jvmoption -Dhttp.agent=abc; class Abc{};" + rest;
+        "%some_option alpha; class Abc{};" + rest;
 
     options_map_t result;
     parseOptions(code, result);
     ASSERT_EQ(result.size(), 1);
 
-    const auto jvm_option_result = result.find("jvmoption");
-    ASSERT_NE(jvm_option_result, result.end());
-    ASSERT_EQ(jvm_option_result->second.size(), 1);
-    ASSERT_EQ(jvm_option_result->second[0], buildOption("-Dhttp.agent=abc", 0, 28));
+    const auto option_result = result.find("some_option");
+    ASSERT_NE(option_result, result.end());
+    ASSERT_EQ(option_result->second.size(), 1);
+    ASSERT_EQ(option_result->second[0], buildOption("alpha", 0, 19));
 }
 
 const std::vector<std::string> rest_strings =
