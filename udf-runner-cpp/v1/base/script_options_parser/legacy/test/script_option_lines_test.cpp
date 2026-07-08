@@ -26,9 +26,9 @@ TEST_P(ScriptOptionLinesWhitespaceTest, WhitespaceExtractOptionLineTest) {
 }
 
 std::vector<std::string> white_space_strings = {"", " ", "\t", "\f", "\v", "\n", " \t", "\t ", "\t\f", "\f\t", "\f ", " \f", "\t\v", "\v\t", "\v ", " \v", "\f\v", "\v\f", "  \t", " \t "};
-std::vector<std::string> keywords = {"%import", "jvmoption", "%scriptclass", "%jar", "%env"};
-std::vector<std::string> values = {"something", "com.mycompany.MyScriptClass", "LD_LIBRARY_PATH=/nvdriver", "-Xms128m -Xmx1024m -Xss512k", "/buckets/bfsdefault/default/my_code.jar"};
-std::vector<std::string> payloads = {"anything", "\n\ndef my_func:\n\tpass", "class MyJava\n public static void Main() {\n};\n"};
+std::vector<std::string> keywords = {"%import", "%scriptclass", "%env", "%some_option"};
+std::vector<std::string> values = {"something", "com.mycompany.MyScriptClass", "LD_LIBRARY_PATH=/nvdriver", "some-value"};
+std::vector<std::string> payloads = {"anything", "\n\ndef my_func:\n\tpass", "class AnyClass\n public static void Main() {\n};\n"};
 
 INSTANTIATE_TEST_SUITE_P(
     ScriptOptionLines,
@@ -120,81 +120,25 @@ TEST(ScriptOptionLinesTest, ignores_any_other_option) {
 }
 
 
-TEST(ScriptOptionLinesTest, test_all_in_one_line_does_second_option_does_not_work) {
-    /**
-    Verify the wrong behavior and assumptions as described in https://github.com/exasol/script-languages-release/issues/652.
-    Here we call `extractOptionLine()` with the keys in the order of the new implementation (first for key 'jvmoption').
-    This is supposed to not work.
-    */
-    size_t pos;
-    const std::string original_code = "%jar /buckets/bucketfs1/jars/exajdbc.jar; %jvmoption -Xms4m; class JAVA_UDF_3 {static void run(ExaMetadata exa, ExaIterator ctx) throws Exception {String host_name = ctx.getString(\"col1\");}}\n/\n;";
-    std::string code = original_code;
-    const std::string res = extractOptionLine(code, "%jvmoption", whitespace, lineEnd, pos);
-    EXPECT_TRUE(res.empty());
-    EXPECT_EQ(code, original_code);
-}
-
-TEST(ScriptOptionLinesTest, test_all_in_one_line_does_first_option_does_work) {
-    /**
-    Verify the wrong behavior and assumptions as described in https://github.com/exasol/script-languages-release/issues/652.
-    Here we call `extractOptionLine()` with the keys in the order of the old implementation (first for key '%jar', then for key 'jvmoption').
-    This is supposed to work.
-    */
-    size_t pos;
-    const std::string original_code = "%jar /buckets/bucketfs1/jars/exajdbc.jar; %jvmoption -Xms4m; class JAVA_UDF_3 {static void run(ExaMetadata exa, ExaIterator ctx) throws Exception {String host_name = ctx.getString(\"col1\");}}\n/\n;";
-    std::string code = original_code;
-    std::string res = extractOptionLine(code, "%jar", whitespace, lineEnd, pos);
-    EXPECT_EQ(res, "/buckets/bucketfs1/jars/exajdbc.jar");
-    EXPECT_EQ(code, " %jvmoption -Xms4m; class JAVA_UDF_3 {static void run(ExaMetadata exa, ExaIterator ctx) throws Exception {String host_name = ctx.getString(\"col1\");}}\n/\n;");
-    res = extractOptionLine(code, "%jvmoption", whitespace, lineEnd, pos);
-    EXPECT_EQ(code, "  class JAVA_UDF_3 {static void run(ExaMetadata exa, ExaIterator ctx) throws Exception {String host_name = ctx.getString(\"col1\");}}\n/\n;");
-}
-
-TEST(ScriptOptionLinesTest, test_values_must_not_contain_spaces) {
-    /**
-    Verify the wrong behavior and assumptions as described in https://github.com/exasol/script-languages-release/issues/878
-    The parser is actually correct, but the former Java-side client code incorrectly parsed the result.
-    */
-    size_t pos;
-    const std::string original_code =
-        "%jvmoption -Dhttp.agent=\"ABC DEF\";\n\n"
-        "class JVMOPTION_TEST_WITH_SPACE {\n"
-        "static void run(ExaMetadata exa, ExaIterator ctx) throws Exception {\n\n"
-        "	ctx.emit(\"Success!\");\n"
-        " }\n"
-        "}\n";
-    std::string code = original_code;
-    std::string res = extractOptionLine(code, "%jvmoption", whitespace, lineEnd, pos);
-    const std::string expected_result_code =
-        "\n\n"
-        "class JVMOPTION_TEST_WITH_SPACE {\n"
-        "static void run(ExaMetadata exa, ExaIterator ctx) throws Exception {\n\n"
-        "	ctx.emit(\"Success!\");\n"
-        " }\n"
-        "}\n";
-    EXPECT_EQ(res, "-Dhttp.agent=\"ABC DEF\"");
-    EXPECT_EQ(code, expected_result_code);
-}
-
 TEST(ScriptOptionLinesTest, test_multiple_lines_with_code) {
     /**
     Verify that the parser can read options coming after some code.
     */
     size_t pos;
     const std::string original_code =
-        "%jvmoption -Dhttp.agent=\"ABC DEF\"; class Abc{};\n\n"
-        "%jar /buckets/bucketfs1/jars/exajdbc.jar; class DEF{};\n";
+        "%option alpha beta; class Abc{};\n\n"
+        "%otheroption gamma; class DEF{};\n";
     std::string code = original_code;
 
-    std::string res = extractOptionLine(code, "%jvmoption", whitespace, lineEnd, pos);
-    EXPECT_EQ(res, "-Dhttp.agent=\"ABC DEF\"");
+    std::string res = extractOptionLine(code, "%option", whitespace, lineEnd, pos);
+    EXPECT_EQ(res, "alpha beta");
     std::string expected_result_code =
         " class Abc{};\n\n"
-        "%jar /buckets/bucketfs1/jars/exajdbc.jar; class DEF{};\n";
+        "%otheroption gamma; class DEF{};\n";
     EXPECT_EQ(code, expected_result_code);
 
-    res = extractOptionLine(code, "%jar", whitespace, lineEnd, pos);
-    EXPECT_EQ(res, "/buckets/bucketfs1/jars/exajdbc.jar");
+    res = extractOptionLine(code, "%otheroption", whitespace, lineEnd, pos);
+    EXPECT_EQ(res, "gamma");
     expected_result_code =
         " class Abc{};\n\n"
         " class DEF{};\n";

@@ -1,6 +1,6 @@
 # What is the udf-runner-cpp?
 
-The udf-runner-cpp connects to the database via [ZeroMQ](http://zeromq.org/) and fetches the tuples which then get processed by the user-defined functions (UDFs). This repository contains C++ runner, the benchmark and streaming VM support.
+The udf-runner-cpp connects to the database via [ZeroMQ](http://zeromq.org/) and fetches the tuples which then get processed by the user-defined functions (UDFs). This repository contains the C++ runner, the benchmark and streaming VM support.
 
 # How to build the udf-runner-cpp?
 
@@ -20,7 +20,7 @@ The udf-runner-cpp is tested with the following versions of its dependencies:
 
 For the language support:
 
-- no additional language-specific toolchains are required for the retained runner modes in this repo
+- no additional language-specific tool-chains are required for the retained runner modes in this repository.
 
 ## Start a build
 
@@ -56,7 +56,7 @@ Bazel allows to query the dependencies of a target. Furthermore, it can export t
 
 # How is the udf-runner-cpp structured?
 
-The udf-runner-cpp consists mainly of three parts: the main function in [exa_udfclient.cc](exa_udfclient.cc), the libexaudf, and the retained language implementations. The first part actually only loads the two other parts. However, in this case it is important how it loads the two other parts, because we need the libexaudf in a different linker namespace than the language implementation to prevent library conflicts. The libexaudf uses [ZeroMQ](http://zeromq.org/) and [Protobuf](https://developers.google.com/protocol-buffers/) to communicate with the Exasol database, but UDFs could use the same libraries in a different version which would lead to library conflicts. The following figure shows the dependencies between the components.
+The udf-runner-cpp consists mainly of three parts: the main function in [exa_udfclient.cc](exa_udfclient.cc), the libexaudf, and the retained language implementations. The first part actually only loads the two other parts. However, in this case it is important how it loads the two other parts, because we need the libexaudf in a different linker namespace than the language implementation to prevent library conflicts. The libexaudf uses [ZeroMQ](https://zeromq.org/) and [Protobuf](https://developers.google.com/protocol-buffers/) to communicate with the Exasol database, but UDFs could use the same libraries in a different version which would lead to library conflicts. The following figure shows the dependencies between the components.
 
 ![udf-runner-cpp dependencies](docs/exaudfclient.png)
 
