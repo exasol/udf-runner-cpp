@@ -4,10 +4,10 @@ load("//:variables.bzl", "VM_ENABLED_DEFINES")
 
 
 VM_ENABLED_DEPS=select({
-        "@exaudfclient_base//:benchmark": ["@exaudfclient_base//benchmark_container:benchmark_container"],
+        "@exaudfclient_base//:benchmark": ["//benchmark_container:benchmark_container"],
         "//conditions:default": []
     }) + select({
-        "@exaudfclient_base//:bash": ["@exaudfclient_base//streaming_container:streamingcontainer"],
+        "@exaudfclient_base//:bash": ["//streaming_container:streamingcontainer"],
         "//conditions:default": []
     })
 

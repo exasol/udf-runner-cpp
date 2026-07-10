@@ -28,4 +28,3 @@ zmq_local_repository = repository_rule(
     implementation=_zmq_local_repository_impl,
     local = True,
     environ = ["ZMQ_LIBRARY_PREFIX","ZMQ_INCLUDE_PREFIX"])
-

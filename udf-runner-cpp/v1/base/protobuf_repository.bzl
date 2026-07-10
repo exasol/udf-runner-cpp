@@ -28,4 +28,3 @@ protobuf_local_repository = repository_rule(
     implementation=_protobuf_local_repository_impl,
     local = True,
     environ = ["PROTOBUF_LIBRARY_PREFIX","PROTOBUF_BIN","PROTOBUF_INCLUDE_PREFIX"])
-

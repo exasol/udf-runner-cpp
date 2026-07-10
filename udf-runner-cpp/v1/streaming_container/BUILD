@@ -4,5 +4,5 @@ cc_library(
     name = "streamingcontainer",
     srcs = ["streamingcontainer.cc","streamingcontainer.h"],
     hdrs = ["streamingcontainer.h"],
-    deps = ["//exaudflib:exaudflib-deps","//exaudflib:header"]
+    deps = ["@exaudfclient_base//exaudflib:exaudflib-deps","@exaudfclient_base//exaudflib:header"]
 )
