@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 
-#include "exa_udf_base.h"
+#include "exa_udfclient_binary_common/exa_udf_base.h"
 #include "exaudflib/vm/swig_vm.h"
 
 class ExaUdfClient : public ExaUdfClientBase {
