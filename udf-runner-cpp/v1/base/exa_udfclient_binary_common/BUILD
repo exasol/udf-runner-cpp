@@ -10,12 +10,16 @@ genrule(
 )
 
 cc_library(
+    name = "exaudflib_output_path_header_lib",
+    hdrs = [":exaudflib_output_path_header"],
+)
+
+cc_library(
     name = "exa_udfclient_binary_common_lib",
     srcs = [
         "exa_lib_loader.cc",
         "exa_set_env.cc",
         "exa_udf_base.cc",
-        ":exaudflib_output_path_header",
     ],
     hdrs = [
         "exa_lib_loader.h",
@@ -23,6 +27,7 @@ cc_library(
         "exa_udf_base.h",
     ],
     deps = [
+        ":exaudflib_output_path_header_lib",
         "//:load_dynamic",
         "//exaudflib:header",
         "//exaudflib:exaudflib-deps",

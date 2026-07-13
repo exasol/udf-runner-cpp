@@ -3,7 +3,7 @@
 #include <cstdlib>
 #include <string>
 
-#include "exaudf_lib_output_path.h"
+#include "exa_udfclient_binary_common/exaudf_lib_output_path.h"
 #include "exaudflib/vm/swig_vm.h"
 #include "exa_udf_base.h"
 #include "exa_lib_loader.h"
