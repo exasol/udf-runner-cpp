@@ -7,4 +7,3 @@ cc_library(
         "debug_message.h", "exceptions.h"
     ],
 )
-

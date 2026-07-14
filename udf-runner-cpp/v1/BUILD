@@ -4,63 +4,29 @@ load("//:variables.bzl", "VM_ENABLED_DEFINES")
 
 
 VM_ENABLED_DEPS=select({
-        "@exaudfclient_base//:benchmark": ["@exaudfclient_base//benchmark_container:benchmark_container"],
+        "@exaudfclient_base//:benchmark": ["//benchmark_container:benchmark_container"],
         "//conditions:default": []
     }) + select({
-        "@exaudfclient_base//:bash": ["@exaudfclient_base//streaming_container:streamingcontainer"],
+        "@exaudfclient_base//:bash": ["//streaming_container:streamingcontainer"],
         "//conditions:default": []
     })
-
-
-genrule(
-    name = "exaudflib_output_path_header",
-    srcs = ["@exaudfclient_base//:libexaudflib_complete.so"],
-    outs = ["exaudf_lib_output_path.h"],
-    cmd = '''
-      echo "#define CUSTOM_LIBEXAUDFLIB_PATH \\"/exaudf/external/$(rlocationpath @exaudfclient_base//:libexaudflib_complete.so)\\"" > $@
-    ''',
-)
-
-## Here it may seem like exaudflib is linked twice; one at "deps" and another at "data"
-## "deps" is basically used by Bazel for compile and link dependencies.
-## "data" basically places the .so file into the runtime-runfiles-location
-## so that it can be loaded using apis like load_library / load_symbol later
-## therefore, it is not linked twice
-cc_library(
-    name = "exa_udfclient_binary_common_lib",
-    srcs = [
-        "exa_udfclient_binary_common/exa_lib_loader.cc",
-        "exa_udfclient_binary_common/exa_set_env.cc",
-        "exa_udfclient_binary_common/exa_udf_base.cc",
-        "exa_udfclient_binary_common/exa_udf_client.cc",
-        "exa_udfclient_binary_common/exa_vm_factory.cc",
-        "//:exaudflib_output_path_header",
-    ],
-    hdrs = [
-        "exa_udfclient_binary_common/exa_lib_loader.h",
-        "exa_udfclient_binary_common/exa_set_env.h",
-        "exa_udfclient_binary_common/exa_udf_base.h",
-        "exa_udfclient_binary_common/exa_udf_client.h",
-        "exa_udfclient_binary_common/exa_vm_factory.h",
-    ],
-    deps = [
-        "@exaudfclient_base//exaudflib:header",
-        "@exaudfclient_base//utils:utils",
-        "@exaudfclient_base//exaudflib:exaudflib-deps",
-    ] + VM_ENABLED_DEPS,
-    defines = VM_ENABLED_DEFINES,
-    data = ["@exaudfclient_base//:libexaudflib_complete.so"],
-)
 
 cc_binary(
     name = "cpp_runner_bin",
     srcs = [
         "exa_udfclient.cc",
+        "exa_udf_client.cc",
+        "exa_udf_client.h",
+        "exa_vm_factory.cc",
+        "exa_vm_factory.h",
         "@exaudfclient_base//:load_dynamic",
     ],
     linkopts = ["-ldl"],
-    deps = [":exa_udfclient_binary_common_lib"],
-    data = ["@exaudfclient_base//:libexaudflib_complete.so"]
+    deps = [
+        "@exaudfclient_base//exa_udfclient_binary_common:exa_udfclient_binary_common_lib",
+    ] + VM_ENABLED_DEPS,
+    defines = VM_ENABLED_DEFINES,
+    data = ["@exaudfclient_base//:libexaudflib_complete.so"],
 )
 
 ## The purpose of the static binaries is to verify if the linker namespace test work correctly.
@@ -79,14 +45,19 @@ cc_binary(
     name = "cpp_runner_static",
     srcs = [
         "exa_udfclient.cc",
+        "exa_udf_client.cc",
+        "exa_udf_client.h",
+        "exa_vm_factory.cc",
+        "exa_vm_factory.h",
         "@exaudfclient_base//:load_dynamic",
     ],
     linkopts = ["-ldl"],
     deps = [
-        ":exa_udfclient_binary_common_lib",
+        "@exaudfclient_base//exa_udfclient_binary_common:exa_udfclient_binary_common_lib",
         "@zmq//:zmq",
         "@protobuf//:protobuf",
-    ],
+    ] + VM_ENABLED_DEPS,
+    defines = VM_ENABLED_DEFINES,
     data = ["@exaudfclient_base//:libexaudflib_complete.so"],
 )
 
