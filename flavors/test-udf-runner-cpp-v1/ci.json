@@ -1,0 +1,15 @@
+{
+  "build_runners": ["ubuntu-24.04"],
+  "test_config": {
+    "default_test_runners": ["ubuntu-24.04"],
+    "test_sets": [
+      {
+        "name": "smoke",
+        "files": [],
+        "folders": ["smoke"],
+        "goal": "release",
+        "generic_language_tests": []
+      }
+    ]
+  }
+}

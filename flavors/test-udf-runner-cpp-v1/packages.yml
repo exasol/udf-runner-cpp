@@ -1,0 +1,26 @@
+build_steps:
+- name: udfclient_deps
+  phases:
+  - name: install_apt_packages
+    apt:
+      packages:
+      - name: coreutils
+        version: 9.4-3ubuntu*
+      - name: locales
+        version: 2.39-0ubuntu*
+      - name: libnss-db
+        version: 2.2.5-3build2
+      - name: libzmq3-dev
+        version: 4.3.5-1build2
+      - name: libprotobuf-dev
+        version: 3.21.12-8.2ubuntu*
+      - name: libssl-dev
+        version: 3.0.13-0ubuntu*
+    variables:
+      PROTOBUF_LIBRARY_PREFIX: /usr/lib/x86_64-linux-gnu
+      PROTOBUF_INCLUDE_PREFIX: /usr/include
+      ZMQ_LIBRARY_PREFIX: /usr/lib/x86_64-linux-gnu
+      ZMQ_INCLUDE_PREFIX: /usr/include
+  validation_cfg:
+    version_mandatory: true
+version: 1.0.0

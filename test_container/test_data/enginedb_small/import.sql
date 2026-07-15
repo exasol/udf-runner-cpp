@@ -1,0 +1,3 @@
+-- Intentionally empty for the initial smoke setup.
+-- The first flavor-CI milestone only checks container bootstrap,
+-- database connectivity, and that the built release payload is mounted.
