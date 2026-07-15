@@ -7,7 +7,7 @@
         "name": "smoke",
         "files": [],
         "folders": ["smoke"],
-        "goal": "release",
+        "goal": "base_test_build_run",
         "generic_language_tests": []
       }
     ]
