@@ -5,17 +5,17 @@ build_steps:
     apt:
       packages:
       - name: coreutils
-        version: 9.4-3ubuntu*
+        version: "*"
       - name: locales
-        version: 2.39-0ubuntu*
+        version: "*"
       - name: libnss-db
-        version: 2.2.5-3build2
+        version: "*"
       - name: libzmq3-dev
-        version: 4.3.5-1build2
+        version: "*"
       - name: libprotobuf-dev
-        version: 3.21.12-8.2ubuntu*
+        version: "*"
       - name: libssl-dev
-        version: 3.0.13-0ubuntu*
+        version: "*"
     variables:
       PROTOBUF_LIBRARY_PREFIX: /usr/lib/x86_64-linux-gnu
       PROTOBUF_INCLUDE_PREFIX: /usr/include

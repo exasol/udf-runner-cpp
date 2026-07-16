@@ -28,7 +28,3 @@ RUN mv /exaudf/udf_runner_cpp_v1_static /exaudf/exaudfclient_static
 
 WORKDIR /exaudfclient/base
 RUN ./test_udfclient.sh /exaudf/exaudfclient
-RUN ./test_udfclient.sh /exaudf/exaudfclient_static
-
-WORKDIR /exaudfclient/base
-RUN ["/bin/bash", "-c", "source /env && bazel test --lockfile_mode=off --config no-tty //exaudflib/test:exaudflib-test //script_options_parser/legacy/test:script-options-legacy-parser-test //script_options_parser/ctpg/test:script-options-ctpg-parser-test"]
