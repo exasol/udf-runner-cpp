@@ -1,15 +1,10 @@
 FROM {{udfclient_deps}}
 
 COPY --from={{build_deps}} /usr /usr
-RUN true
 COPY --from={{build_deps}} /lib /lib
-RUN true
 COPY --from={{build_deps}} /bin /bin
-RUN true
 COPY --from={{build_deps}} /opt /opt
-RUN true
 COPY --from={{build_deps}} /etc /etc
-RUN true
 COPY --from={{build_deps}} /build_info /build_info
 RUN true
 
