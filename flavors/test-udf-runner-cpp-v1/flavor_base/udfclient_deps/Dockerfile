@@ -7,8 +7,8 @@ RUN exaslpm install --package-file /build_info/packages/udfclient_deps_packages.
 
 RUN usermod -l exasolution ubuntu
 RUN groupmod -n exasolution ubuntu
-RUN addgroup --gid 500 exausers
-RUN adduser --disabled-login --uid 500 --gid 500 exadefusr --gecos "First Last,RoomNumber,WorkPhone,HomePhone"
+RUN groupadd --gid 500 exausers
+RUN useradd --uid 500 --gid 500 --no-create-home --shell /usr/sbin/nologin --comment "First Last,RoomNumber,WorkPhone,HomePhone" exadefusr
 
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
