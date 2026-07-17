@@ -16,6 +16,7 @@
 #include <sys/wait.h>
 #include <thread>
 #include <mutex>
+#include <cstring>
 #include <type_traits>
 #include <string>
 using namespace SWIGVMContainers;
