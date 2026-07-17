@@ -7,6 +7,9 @@ class AnalyzeUDFClientDeps(DockerFlavorAnalyzeImageTask):
     def get_build_step(self) -> str:
         return "udfclient_deps"
 
+    def requires_tasks(self):
+        return {"build_deps": AnalyzeBuildDeps}
+
     def get_additional_build_directories_mapping(self) -> Dict[str, str]:
         return {"scripts": "ext/scripts"}
 
@@ -30,7 +33,7 @@ class AnalyzeBuildRun(DockerFlavorAnalyzeImageTask):
         return "build_run"
 
     def requires_tasks(self):
-        return {"build_deps": AnalyzeBuildDeps, "udfclient_deps": AnalyzeUDFClientDeps}
+        return {"udfclient_deps": AnalyzeUDFClientDeps}
 
     def get_additional_build_directories_mapping(self) -> Dict[str, str]:
         return {"exaudfclient": "udf-runner-cpp/v1"}

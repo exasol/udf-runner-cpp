@@ -1,4 +1,4 @@
-FROM exasol/script-language-container:exaslpm-1.3.1-ubuntu-24.04
+FROM {{build_deps}}
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN mkdir -p /build_info/packages
