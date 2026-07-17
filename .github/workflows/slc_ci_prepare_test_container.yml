@@ -33,7 +33,7 @@ jobs:
         env:
           DOCKER_USERNAME: ${{ secrets.CI4_DOCKERHUB_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.CI4_DOCKERHUB_TOKEN }}
-          COMMIT_SHA: ${{ github.sha }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Check for password
         run: grep -rq ${{ secrets.CI4_DOCKERHUB_TOKEN }} .build_output && exit 1 || exit 0

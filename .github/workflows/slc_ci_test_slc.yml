@@ -102,7 +102,7 @@ jobs:
           FLAVOR: ${{ inputs.flavor }}
           TEST_SET_NAME: ${{ matrix.test-set-name }}
           SLC_DIRECTORY: ${{ steps.download-slc.outputs.download-path }}
-          COMMIT_SHA: ${{ github.sha }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Check for password
         run: grep -rq ${{ secrets.CI4_DOCKERHUB_TOKEN }} .build_output && exit 1 || exit 0

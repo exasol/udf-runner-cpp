@@ -91,7 +91,7 @@ jobs:
           DOCKER_USERNAME: ${{ secrets.CI4_DOCKERHUB_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.CI4_DOCKERHUB_TOKEN }}
           BRANCH_NAME: ${{ github.head_ref || github.ref }}
-          COMMIT_SHA: ${{ github.sha }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           FLAVOR: ${{ inputs.flavor }}
           BUILD_MODE: ${{ inputs.build-mode }}
 
