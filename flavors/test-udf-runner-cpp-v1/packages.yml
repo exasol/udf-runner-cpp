@@ -12,6 +12,8 @@ build_steps:
         version: "*"
       - name: libzmq3-dev
         version: "*"
+      - name: cppzmq-dev
+        version: "*"
       - name: libprotobuf-dev
         version: "*"
       - name: libssl-dev
