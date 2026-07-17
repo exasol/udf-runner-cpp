@@ -96,5 +96,8 @@ class SecurityScan(DockerFlavorAnalyzeImageTask):
     def requires_tasks(self):
         return {"release": AnalyzeRelease}
 
+    def get_additional_build_directories_mapping(self) -> Dict[str, str]:
+        return {"scripts": "ext/scripts"}
+
     def get_path_in_flavor(self):
         return "flavor_base"
