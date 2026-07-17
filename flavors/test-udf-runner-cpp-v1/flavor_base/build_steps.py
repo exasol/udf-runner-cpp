@@ -11,7 +11,7 @@ class AnalyzeUDFClientDeps(DockerFlavorAnalyzeImageTask):
         return {"build_deps": AnalyzeBuildDeps}
 
     def get_additional_build_directories_mapping(self) -> Dict[str, str]:
-        return {"scripts": "ext/scripts"}
+        return {}
 
     def get_path_in_flavor(self):
         return "flavor_base"
