@@ -1,0 +1,42 @@
+build_steps:
+- name: build_deps
+  phases:
+  - name: install_apt_packages
+    apt:
+      packages:
+      - name: coreutils
+        version: "*"
+      - name: tar
+        version: "*"
+      - name: curl
+        version: "*"
+      - name: build-essential
+        version: "*"
+      - name: protobuf-compiler
+        version: "*"
+      - name: chrpath
+        version: "*"
+      - name: locales
+        version: "*"
+    variables:
+      PROTOBUF_BIN: /usr/bin/protoc
+  - name: install_bazel
+    tools:
+      bazel:
+        version: "8.3.1"
+  validation_cfg:
+    version_mandatory: true
+- name: base_test_deps
+  phases:
+  - name: install_apt_packages
+    apt:
+      packages:
+      - name: gdb
+        version: "*"
+      - name: valgrind
+        version: "*"
+      - name: strace
+        version: "*"
+  validation_cfg:
+    version_mandatory: true
+version: 1.0.0

@@ -1,0 +1,23 @@
+{
+  "schema_version": 2,
+  "language_definitions": [
+    {
+      "protocol": "localzmq+protobuf",
+      "aliases": ["CPP_BENCHMARK"],
+      "parameters": [{"key": "lang", "value": "benchmark"}],
+      "udf_client_path": {
+        "executable": "/exaudf/exaudfclient"
+      },
+      "deprecation": null
+    },
+    {
+      "protocol": "localzmq+protobuf",
+      "aliases": ["CPP_STREAMING"],
+      "parameters": [{"key": "lang", "value": "streaming"}],
+      "udf_client_path": {
+        "executable": "/exaudf/exaudfclient"
+      },
+      "deprecation": null
+    }
+  ]
+}
