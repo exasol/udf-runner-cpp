@@ -18,6 +18,11 @@ config_setting(
 )
 
 config_setting(
+    name = "test_vm",
+    define_values = {"test_vm": "true"},
+)
+
+config_setting(
     name = "fast_binary",
     define_values = {
         "binary_type": "fast_binary",

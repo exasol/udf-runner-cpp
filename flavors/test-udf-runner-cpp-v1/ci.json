@@ -6,7 +6,7 @@
       {
         "name": "smoke",
         "files": [],
-        "folders": ["smoke"],
+        "folders": ["smoke", "cpp_test"],
         "goal": "base_test_build_run",
         "generic_language_tests": []
       }
