@@ -24,27 +24,27 @@ class TestVmTest(udf.TestCase):
 
     def test_forward_input(self):
         self.query(
-            "CREATE CPP_TEST SET SCRIPT forward_input(value VARCHAR(128)) "
-            "EMITS (value VARCHAR(128)) AS forward_input"
+            "CREATE CPP_TEST SET SCRIPT forward_input(input_text VARCHAR(128)) "
+            "EMITS (output_text VARCHAR(128)) AS forward_input"
         )
-        self.query("CREATE TABLE input_values (value VARCHAR(128))")
+        self.query("CREATE TABLE input_values (input_text VARCHAR(128))")
         self.query("INSERT INTO input_values VALUES ('first'), (NULL), ('last')")
 
         rows = self.query("""
-            SELECT value
-            FROM (SELECT forward_input(value) AS value FROM input_values)
-            ORDER BY value NULLS FIRST
+            SELECT output_text
+            FROM (SELECT forward_input(input_text) AS output_text FROM input_values)
+            ORDER BY output_text NULLS FIRST
         """)
         self.assertRowsEqual([(None,), ("first",), ("last",)], rows)
 
     def test_unsupported_strategy_fails(self):
         self.query(
-            "CREATE CPP_TEST SET SCRIPT unknown_strategy() "
-            "EMITS (value VARCHAR(128)) AS unknown_strategy"
+            "CREATE CPP_TEST SET SCRIPT unknown_strategy(ignored VARCHAR(1)) "
+            "EMITS (output_text VARCHAR(128)) AS unknown_strategy"
         )
 
         with self.assertRaisesRegex(Exception, "unsupported test strategy: unknown_strategy"):
-            self.query("SELECT * FROM unknown_strategy()")
+            self.query("SELECT unknown_strategy('x') FROM DUAL")
 
 
 if __name__ == "__main__":
