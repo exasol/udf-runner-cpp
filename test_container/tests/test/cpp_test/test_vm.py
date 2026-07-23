@@ -43,7 +43,7 @@ class TestVmTest(udf.TestCase):
             "EMITS (output_text VARCHAR(128)) AS unknown_strategy"
         )
 
-        with self.assertRaisesRegex(Exception, "unsupported test strategy: unknown_strategy"):
+        with self.assertRaisesRegex(Exception, "VM error: Internal error: VM crashed"):
             self.query("SELECT unknown_strategy('x') FROM DUAL")
 
 
