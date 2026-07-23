@@ -39,7 +39,8 @@ bool ExaUdfClient::validate_arguments(int argc, char** argv) {
     }
 
     if (!((strcmp(argv[2], "lang=streaming") == 0)
-        || (strcmp(argv[2], "lang=benchmark") == 0))) {
+        || (strcmp(argv[2], "lang=benchmark") == 0)
+        || (strcmp(argv[2], "lang=test") == 0))) {
         usage(argv[0]);
         return false;
     }
@@ -49,7 +50,7 @@ bool ExaUdfClient::validate_arguments(int argc, char** argv) {
 
 void ExaUdfClient::usage(const std::string& programName) {
     std::cerr << "Usage: " << programName
-              << " <socket> lang=streaming|lang=benchmark <scriptOptionsParserVersion=1|2>"
+              << " <socket> lang=streaming|lang=benchmark|lang=test <scriptOptionsParserVersion=1|2>"
               << std::endl;
 }
 

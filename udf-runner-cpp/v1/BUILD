@@ -9,6 +9,9 @@ VM_ENABLED_DEPS=select({
     }) + select({
         "@exaudfclient_base//:bash": ["//streaming_container:streamingcontainer"],
         "//conditions:default": []
+    }) + select({
+        "@exaudfclient_base//:test_vm": ["//test_container:test_container"],
+        "//conditions:default": []
     })
 
 cc_binary(

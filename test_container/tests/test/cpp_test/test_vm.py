@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+
+from exasol_python_test_framework import udf
+
+
+class TestVmTest(udf.TestCase):
+    def setUp(self):
+        self.query("DROP SCHEMA CPP_TEST CASCADE", ignore_errors=True)
+        self.query("CREATE SCHEMA CPP_TEST")
+        self.query("OPEN SCHEMA CPP_TEST")
+
+    def tearDown(self):
+        self.query("DROP SCHEMA CPP_TEST CASCADE", ignore_errors=True)
+
+    def test_emit_metadata(self):
+        self.query(
+            "CREATE CPP_TEST SET SCRIPT emit_metadata(ignored VARCHAR(1)) "
+            "EMITS (script_user VARCHAR(128), script_code VARCHAR(128)) "
+            "AS emit_metadata"
+        )
+
+        rows = self.query("SELECT emit_metadata('x') FROM DUAL")
+        self.assertRowsEqual([("SYS", "emit_metadata")], rows)
+
+    def test_forward_input(self):
+        self.query(
+            "CREATE CPP_TEST SET SCRIPT forward_input(input_text VARCHAR(128)) "
+            "EMITS (output_text VARCHAR(128)) AS forward_input"
+        )
+        self.query("CREATE TABLE input_values (input_text VARCHAR(128))")
+        self.query("INSERT INTO input_values VALUES ('first'), (NULL), ('last')")
+
+        rows = self.query("""
+            SELECT output_text
+            FROM (SELECT forward_input(input_text) AS output_text FROM input_values)
+            ORDER BY output_text NULLS FIRST
+        """)
+        self.assertRowsEqual([(None,), ("first",), ("last",)], rows)
+
+    def test_unsupported_strategy_fails(self):
+        self.query(
+            "CREATE CPP_TEST SET SCRIPT unknown_strategy(ignored VARCHAR(1)) "
+            "EMITS (output_text VARCHAR(128)) AS unknown_strategy"
+        )
+
+        with self.assertRaisesRegex(Exception, "VM error: Internal error: VM crashed"):
+            self.query("SELECT unknown_strategy('x') FROM DUAL")
+
+
+if __name__ == "__main__":
+    udf.main()

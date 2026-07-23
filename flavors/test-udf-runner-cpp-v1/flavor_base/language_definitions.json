@@ -18,6 +18,15 @@
         "executable": "/exaudf/exaudfclient"
       },
       "deprecation": null
+    },
+    {
+      "protocol": "localzmq+protobuf",
+      "aliases": ["CPP_TEST"],
+      "parameters": [{"key": "lang", "value": "test"}],
+      "udf_client_path": {
+        "executable": "/exaudf/exaudfclient"
+      },
+      "deprecation": null
     }
   ]
 }
