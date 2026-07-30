@@ -14,4 +14,4 @@ n/a
 
 ## Internal
 
-* Updated Poetry dependencies
+* Updated Poetry dependencies and added developer guide and added .gitignore
