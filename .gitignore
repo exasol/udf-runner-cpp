@@ -1,0 +1,13 @@
+*tar.gz
+*.pyc
+*log
+.vscode/settings.json
+.env
+.idea
+.build_output/
+*.iml
+dist
+*.swp
+MODULE.bazel.lock
+bazel-*
+.serena
