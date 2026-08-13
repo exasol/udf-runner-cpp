@@ -31,7 +31,7 @@ jobs:
           poetry-version: "2.3.0"
 
       - name: Prepare release changelog
-        run: poetry run nox -s prepare-release -- --tag "$TAG"
+        run: poetry run -- nox -s prepare-release -- --tag "$TAG"
 
       - name: Create draft GitHub release
         env:
