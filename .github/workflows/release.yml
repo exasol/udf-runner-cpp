@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - '**'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing git tag to release (for example: v1.2.3)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -11,8 +17,12 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
 
       - name: Setup Python & Poetry Environment
         uses: exasol/python-toolbox/.github/actions/python-environment@v9
@@ -21,12 +31,11 @@ jobs:
           poetry-version: "2.3.0"
 
       - name: Prepare release changelog
-        run: poetry run nox -s prepare-release -- --tag "$GITHUB_REF_NAME"
+        run: poetry run nox -s prepare-release -- --tag "$TAG"
 
       - name: Create draft GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
         run: |
           changes_file="doc/changes/changes_${TAG}.md"
           test -f "$changes_file"
