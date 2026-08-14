@@ -25,7 +25,7 @@ Related diagrams:
 
 | Call | Data stream | Notes |
 | --- | --- | --- |
-| `Run` | Yes, bidirectional | Input and output belong to the same call. Scalar-return correlation is carried in the data itself. |
+| `Run` | Yes, bidirectional | Each direction carries group and row correlation in the data itself. |
 | `Function` | No | Callback-driven work only. |
 | `Script` | Yes, bidirectional | One direction carries input parameters, the other direction carries table output. |
 
@@ -35,7 +35,7 @@ Related diagrams:
 | --- | --- | --- |
 | `get_connection` | No | Returns connection information. |
 | `get_script` | No | Returns script content. |
-| `execute_query` | Optional | Returns query status and may carry result rows. |
+| `execute_query` | Optional | Returns query status and may carry row-correlated result rows. |
 
 These `UDFRunner`-opened calls are ordinary nested calls, not a separate callback transport.
 
@@ -52,7 +52,35 @@ payload may be sent while the call remains active or together with `CloseCall` i
 - opened by `DB`
 - may carry opening payloads and the first input batch together
 - may stay active while nested calls such as `get_script` or `get_connection` execute
-- output row correlation for scalar returns belongs in the data, not in `Next(...)`
+- group and row correlation belong in the data, not in `Next(...)`
+
+#### Group and Row Correlation
+
+Each `Run` direction may combine multiple logical groups in one `DataRecordBatch`. Its `DataSchema` sets both
+`has_group_id` and `has_row_id` to `true`, adding an ordered reserved prefix before user data columns:
+
+| Position | Column | Purpose |
+| --- | --- | --- |
+| `0` | Group ID | Identifies the logical input group. |
+| `1` | Row ID | Identifies the input row to which an output row maps. |
+| `2+` | User data | Input or output columns defined by the call. |
+
+Groups may span multiple rows. In particular, a `SET ... EMITS` UDF may receive multiple input rows in one group.
+The group ID and row ID columns are correlation fields identified only by this prefix layout, not by field names.
+
+The preferred encodings are:
+
+| Column and direction | Preferred encoding | Compatible fallback |
+| --- | --- | --- |
+| Group ID, either direction | `RunEndEncoded` over unsigned 64-bit IDs when groups contain repeated rows. | Plain unsigned 64-bit. |
+| Row ID, `DB` to `UDFRunner` | `exasol.udf.range_run` extension array. | Plain unsigned 64-bit. |
+| Row ID, `UDFRunner` to `DB`, `RETURNS` UDF | `exasol.udf.range_run` extension array. | Plain unsigned 64-bit. |
+| Row ID, `UDFRunner` to `DB`, `EMITS` UDF | `RunEndEncoded` over unsigned 64-bit IDs. | Plain unsigned 64-bit. |
+
+`exasol.udf.range_run` uses `RunEndEncoded` as its Arrow storage type. Its `run_ends` child is a signed 64-bit
+integer array and its unsigned 64-bit `values` child stores the first row ID for each run; each following logical
+value in that run increases by one. The field sets `ARROW:extension:name` to `exasol.udf.range_run`; no extension
+metadata is required in version 1.
 
 ### `Function`
 
@@ -83,6 +111,8 @@ payload may be sent while the call remains active or together with `CloseCall` i
 - opened by `UDFRunner`
 - returns `Payloads(result_set_status, ...)`
 - may optionally carry a result-row data stream
+- a row-correlated result stream may set `has_group_id` to `false` and `has_row_id` to `true`; its row ID then
+  occupies prefix position `0`
 
 ## Representative Sequences
 

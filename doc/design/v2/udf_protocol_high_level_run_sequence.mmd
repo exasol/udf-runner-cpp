@@ -4,10 +4,10 @@ sequenceDiagram
 
     Note over DB,UDFRunner: Run call opened by DB with flow-controlled bidirectional data exchange
 
-    DB->>UDFRunner: CallOpen(Run, call_metadata) + DataMetaData + first input RecordBatch
+    DB->>UDFRunner: CallOpen(Run, call_metadata) + DataSchema(group ID, row ID) + first input RecordBatch
     UDFRunner-->>DB: Next(byte_budget, reset=false, row_id=n)
-    DB-->>UDFRunner: RecordBatch(input rows starting at n)
-    UDFRunner-->>DB: DataMetaData + first output RecordBatch with row ids for scalar correlation
+    DB-->>UDFRunner: RecordBatch(group ID, row ID, input rows starting at n)
+    UDFRunner-->>DB: DataSchema(group ID, row ID) + first output RecordBatch
     DB->>UDFRunner: Next(byte_budget, reset=false, row_id=m)
-    UDFRunner-->>DB: RecordBatch(output rows starting at m)
+    UDFRunner-->>DB: RecordBatch(group ID, row ID, output rows starting at m)
     DB->>UDFRunner: CallClose(Run)

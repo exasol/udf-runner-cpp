@@ -181,8 +181,14 @@ table Next {
 // direction's column layout as our own native Schema table (see above -- not
 // Arrow's own flatbuffer Schema). It is split from DataRecordBatch because the
 // schema is only needed once, not repeated per batch.
+//
+// When present, correlation fields form an ordered prefix of schema.fields:
+// group ID is field 0; row ID follows it, or is field 0 when no group ID is
+// present. Call-specific rules decide which combinations are required.
 table DataSchema {
   schema: Schema;
+  has_group_id: bool = false;
+  has_row_id: bool = false;
 }
 
 // Precedes the buffers for one RecordBatch in a direction of a call's data
