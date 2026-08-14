@@ -1,0 +1,22 @@
+stateDiagram-v2
+    state "UDFRunner" as UDF {
+        [*] --> UdfIdle
+        UdfIdle --> UdfInitializing: Accept
+        UdfInitializing --> UdfActive: Capabilities
+        UdfActive --> UdfWaitingForInboundData: Receive
+        UdfWaitingForInboundData --> UdfSendingData: Next credit
+        UdfSendingData --> UdfActive: Transfer done
+        UdfWaitingForInboundData --> UdfActive: Message
+    }
+
+    state "DB" as DB {
+        [*] --> DbIdle
+        DbIdle --> DbInitializing: Connect
+        DbInitializing --> DbActive: Capabilities
+        DbActive --> DbHandlingNestedCall: Call
+        DbHandlingNestedCall --> DbActive: Reply
+        DbActive --> DbWaitingForUdfMessage: Wait
+        DbWaitingForUdfMessage --> DbActive: Message
+        DbActive --> DbSendingData: Data transfer
+        DbSendingData --> DbActive: Transfer done
+    }

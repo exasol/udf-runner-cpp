@@ -1,0 +1,227 @@
+// First draft of the wire-level flatbuffer schema for the new UDF protocol.
+
+namespace exasol.udf.protocol;
+
+enum BufferTransport : uint8 {
+  Inline = 0,      // buffers follow immediately on the same socket, unframed
+  Memfd = 1,       // buffers are backed by a memfd passed out of band (e.g. SCM_RIGHTS)
+  OutOfBand = 2,   // some other out-of-band mechanism
+}
+
+// A small, self-owned subset of Apache Arrow's Schema.fbs/Message.fbs shape,
+// NOT Arrow's own flatbuffer types. We define these natively so producing them
+// only requires Arrow's stable public C++ API (Array::length(),
+// Array::null_count(), ArrayData::buffers, Field::type(), ...) -- Arrow's own
+// bare (unframed) IPC message bytes are only reachable via Arrow-internal
+// headers (arrow/ipc/metadata_internal.h, what Flight itself uses), which
+// aren't part of the installed public SDK.
+
+enum Precision : uint8 { Half = 0, Single = 1, Double = 2 }
+enum DateUnit : uint8 { Day = 0, Millisecond = 1 }
+enum TimeUnit : uint8 { Second = 0, Millisecond = 1, Microsecond = 2, Nanosecond = 3 }
+
+table Int { bit_width: int32; is_signed: bool; }
+table FloatingPoint { precision: Precision; }
+table Utf8 {}
+table Binary {}
+table Bool {}
+table Date { unit: DateUnit; }
+table Timestamp { unit: TimeUnit; timezone: string; }
+table Decimal { precision: int32; scale: int32; bit_width: int32 = 128; }
+table List {}
+// Trailing underscore mirrors Arrow's own Schema.fbs naming for this union member.
+table Struct_ {}
+// Run-End Encoded (REE): a compact encoding for runs of values (Arrow's own
+// RunEndEncodedType). Has 0 buffers of its own -- no validity bitmap at this
+// level, per the Arrow columnar spec -- and exactly 2 children in Field's
+// children list, in fixed order: run_ends (an integer type), then values
+// (any type). Reused as the storage type for extension types like a
+// "range run" encoding (runs of s..s+n-1 instead of RLE's repeated value),
+// where n_i is derived as run_ends[i] - run_ends[i-1] instead of being stored.
+table RunEndEncoded {}
+
+union Type {
+  Int, FloatingPoint, Utf8, Binary, Bool, Date, Timestamp, Decimal, List, Struct_,
+  RunEndEncoded,
+}
+
+// Mirrors Arrow's own Schema.fbs KeyValue: a single string/string metadata
+// entry.
+table KeyValue {
+  key: string;
+  value: string;
+}
+
+table Field {
+  name: string (required);
+  nullable: bool;
+  type: Type (required);
+  children: [Field];   // List's single element type, Struct_'s member fields,
+                        // or RunEndEncoded's [run_ends, values] pair
+  // Extension-type annotation, mirroring Arrow's own convention: a field
+  // representing an extension type is serialized using its storage type for
+  // `type` above, with the extension name/params carried here as
+  // ARROW:extension:name / ARROW:extension:metadata entries. A reader that
+  // doesn't recognize the name falls back to the plain storage type.
+  custom_metadata: [KeyValue];
+}
+
+table Schema {
+  fields: [Field];
+}
+
+struct FieldNode {
+  length: int64;
+  null_count: int64;
+}
+
+struct Buffer {
+  offset: int64;
+  length: int64;
+}
+
+table RecordBatchMetadata {
+  length: int64;
+  nodes: [FieldNode];
+  buffers: [Buffer];
+}
+
+table Version {
+  major: uint32;
+  minor: uint32;
+}
+
+table ServerCapabilities {
+  supported_version: Version;
+}
+
+table KeepAlive {}
+
+// A JSON-encoded payload (the common case for call metadata, connection info,
+// script content, etc.) or a raw binary payload (escape hatch for large/binary
+// values that shouldn't be forced through JSON).
+table StringPayload {
+  value: string;
+}
+
+table BinaryPayload {
+  value: [ubyte];
+}
+
+union PayloadValue {
+  StringPayload,
+  BinaryPayload,
+}
+
+// Opens a call. The enclosing connection and StreamMessage's stream_id identify
+// this call for the connection's lifetime. The connection is implicit in the
+// transport session, so it is not encoded in Frame. The same numeric stream_id
+// on a different connection identifies a different logical stream.
+//
+// TODO: one call = one stream_id is a draft-level assumption to fill the gap
+// between the prose model and an actual wire encoding, not a settled decision
+// from the source docs.
+//
+// A call opened while another is active (e.g. a callback opened during Run) is
+// just another independent call -- no parent/child link is carried on the wire.
+// OpenCall carries no payload of its own: opening payloads travel as
+// payloads set on the same StreamMessage instead of a duplicate field here.
+// Additional payloads may also be sent later on the same connection-scoped
+// stream_id while the call remains active.
+table OpenCall {
+  call_name: string;
+}
+
+// One named payload item sent by either side either on an active call's
+// connection-scoped stream_id or on stream_id = 0 without any active call. `name` identifies the
+// payload schema/meaning and therefore which parser to use for `payload` on the
+// receiving side. Examples:
+// - "virtual_schema_request" -> JSON with the virtual-schema request schema
+// - "call_metadata" -> JSON with the call-metadata schema
+// - "kill" -> name only, no payload body required
+table Payload {
+  name: string;
+  payload: PayloadValue;
+}
+
+// A StreamMessage may carry multiple payload items, including the opening
+// payload(s) set alongside open_call on the same StreamMessage. Payloads
+// may also be sent on a connection-scoped stream_id whose call is already active, or on
+// stream_id = 0 without any active call.
+table Payloads {
+  payloads: [Payload];
+}
+
+table Error {
+  code: string;
+  message: string;
+}
+
+// Closes the call on this non-zero stream. When the enclosing StreamMessage
+// also has error set, the close is abnormal; otherwise it is normal.
+table CloseCall {}
+
+// Starts or acknowledges connection shutdown. This field is valid only on the
+// control stream (stream_id = 0). The receiver replies with CloseConnection,
+// then both peers close the underlying transport.
+table CloseConnection {}
+
+// Grants transfer credit for one direction of a call's data stream. size is a
+// byte budget for the permitted transfer window. row_id is the position to
+// resume from when reset is true -- it is a seek position, not a row-
+// correlation field between the two directions.
+table Next {
+  byte_budget: uint32;
+  reset: bool = false;
+  row_id: uint64 = 0;
+}
+
+// Sent once per direction of a call's data stream before, or in the same
+// StreamMessage as, that direction's first DataRecordBatch. It contains this
+// direction's column layout as our own native Schema table (see above -- not
+// Arrow's own flatbuffer Schema). It is split from DataRecordBatch because the
+// schema is only needed once, not repeated per batch.
+table DataSchema {
+  schema: Schema;
+}
+
+// Precedes the buffers for one RecordBatch in a direction of a call's data
+// stream. metadata is our own native RecordBatchMetadata (row count, per-
+// column FieldNode, per-buffer Buffer), populated from a real Arrow
+// RecordBatch's public introspection API (Array::length(), null_count(),
+// ArrayData::buffers) -- not Arrow's own flatbuffer RecordBatch message. The
+// actual column buffers are transported separately per buffer_transport.
+table DataRecordBatch {
+  buffer_transport: BufferTransport = Inline;
+  is_end: bool = false;
+  metadata: RecordBatchMetadata;
+}
+
+// A StreamMessage is the typed composite payload carried inside a Frame. Each
+// field is independently optional, so related parts such as CloseCall and
+// Error can travel in one frame. Error without a close field is a non-terminal,
+// stream-scoped diagnostic. stream_id = 0 is reserved for out-of-call control
+// traffic such as ServerCapabilities, KeepAlive, and CloseConnection.
+table StreamMessage {
+  server_capabilities: ServerCapabilities;
+  keep_alive: KeepAlive;
+  open_call: OpenCall;
+  payloads: Payloads;
+  close_call: CloseCall;
+  close_connection: CloseConnection;
+  next: Next;
+  data_schema: DataSchema;
+  data_record_batch: DataRecordBatch;
+  error: Error;
+}
+
+// The single length-framed message type on the wire. The implicit transport
+// connection and stream_id identify a logical stream. stream_id = 0 is the
+// per-connection control stream used when client and server exchange messages
+// independently of a call. A stream_id is not reused on its connection.
+table Frame {
+  stream_id: uint64;
+  message: StreamMessage;
+}
+
+root_type Frame;
