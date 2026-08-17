@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <string>
 
-#include <nlohmann/json-schema.hpp>
+#include <exasol/udf/v2/json_schema.hpp>
 
 namespace isolated_nlohmann = exasol::udf::v2::third_party::nlohmann;
 
