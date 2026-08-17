@@ -16,3 +16,9 @@ Versions and SHA-256 checksums are pinned in `../MODULE.bazel`.
 
 Arrow is built as a static C++20 library with IPC, Parquet, compression,
 storage, and cloud modules excluded.
+
+The `//:libarrow_c_data_demo.so` target shows how to use Arrow internally
+while keeping Arrow C++ symbols out of a final shared library. It constructs a
+`RecordBatch` in the shared object, exports and imports it through the Arrow C
+Data Interface, links Arrow statically, and keeps the final export surface to
+the small C ABI of the demo itself.
