@@ -17,3 +17,12 @@ cc_test(
     copts = ["-std=c++17"],
     deps = [":json_schema"],
 )
+
+cc_test(
+    name = "json_schema_symbol_leak_test",
+    srcs = ["json_schema_symbol_leak_test.cc"],
+    copts = ["-std=c++17"],
+    linkopts = ["-ldl"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [":json_schema"],
+)
