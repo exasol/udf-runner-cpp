@@ -42,6 +42,10 @@ cc_library(
             "cpp/src/arrow/memory_pool_jemalloc.cc",
             "cpp/src/arrow/memory_pool_mimalloc.cc",
         ]) +
+        glob(["cpp/src/arrow/c/*.cc"], exclude = [
+            "cpp/src/arrow/c/*_test.cc",
+            "cpp/src/arrow/c/*_benchmark.cc",
+        ]) +
         glob(["cpp/src/arrow/array/*.cc"], exclude = [
             "cpp/src/arrow/array/*_benchmark.cc",
             "cpp/src/arrow/array/*_test.cc",
