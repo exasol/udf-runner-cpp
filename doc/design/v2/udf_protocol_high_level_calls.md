@@ -68,6 +68,17 @@ Each `Run` direction may combine multiple logical groups in one `DataRecordBatch
 Groups may span multiple rows. In particular, a `SET ... EMITS` UDF may receive multiple input rows in one group.
 The group ID and row ID columns are correlation fields identified only by this prefix layout, not by field names.
 
+`DataRecordBatch.is_end_of_group` marks whether the group identified by the batch's final row is complete. It is
+defined only for a `Run` direction whose schema sets `has_group_id` to `true`:
+
+- `true` means no later batch in that direction contains the trailing group.
+- `false` means the trailing group continues in a later batch.
+- a change in group ID still delimits each non-trailing group within the same batch.
+- an empty batch does not complete a group.
+
+This is a group-boundary marker, not an end-of-stream marker. Generic stream-completion semantics remain a
+low-level open question and are not encoded in `DataRecordBatch` metadata.
+
 The preferred encodings are:
 
 | Column and direction | Preferred encoding | Compatible fallback |
