@@ -1,5 +1,5 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "additionalProperties": true,
   "required": ["is_subselect"],
@@ -7,10 +7,10 @@
     "is_subselect": { "type": "boolean" },
     "connection_information": { "$ref": "connection_information.schema.json" },
     "connection_name": { "type": "string" },
-    "subselect_column_specification": { "type": "array", "items": { "$ref": "#/$defs/column" } },
-    "parameters": { "type": "array", "items": { "$ref": "#/$defs/key_value" } }
+    "subselect_column_specification": { "type": "array", "items": { "$ref": "#/definitions/column" } },
+    "parameters": { "type": "array", "items": { "$ref": "#/definitions/key_value" } }
   },
-  "$defs": {
+  "definitions": {
     "column": {
       "type": "object",
       "additionalProperties": true,

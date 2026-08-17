@@ -1,0 +1,52 @@
+module(
+    name = "udf_runner_cpp_v2",
+    version = "0.1.0",
+)
+
+bazel_dep(name = "rules_cc", version = "0.2.17")
+
+http_archive = use_repo_rule(
+    "@bazel_tools//tools/build_defs/repo:http.bzl",
+    "http_archive",
+)
+
+http_archive(
+    name = "v2_nlohmann_json",
+    urls = ["https://github.com/nlohmann/json/archive/refs/tags/v3.12.0.tar.gz"],
+    sha256 = "4b92eb0c06d10683f7447ce9406cb97cd4b453be18d7279320f7b2f025c10187",
+    strip_prefix = "json-3.12.0",
+    build_file_content = """
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "nlohmann_json",
+    hdrs = glob(["include/**/*.hpp"]),
+    includes = ["include"],
+)
+""",
+)
+
+http_archive(
+    name = "v2_json_schema_validator",
+    urls = ["https://github.com/pboettch/json-schema-validator/archive/refs/tags/2.4.0.tar.gz"],
+    sha256 = "24cbb114609cc9b43d4018b8d03e082ff5d2f26f5dce8bd36538097267b63af9",
+    strip_prefix = "json-schema-validator-2.4.0",
+    build_file_content = """
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "json_schema_validator",
+    srcs = glob(["src/*.cpp"]),
+    hdrs = glob(["src/**/*.hpp"]),
+    copts = ["-std=c++17"],
+    includes = ["src"],
+    # Keep this source-level namespace rewrite private to the dependency.
+    local_defines = ["nlohmann=exasol::udf::v2::third_party::nlohmann"],
+    deps = ["@v2_nlohmann_json//:nlohmann_json"],
+)
+""",
+)

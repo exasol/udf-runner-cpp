@@ -1,0 +1,5 @@
+filegroup(
+    name = "all_schemas",
+    srcs = glob(["*.schema.json"]),
+    visibility = ["//visibility:public"],
+)

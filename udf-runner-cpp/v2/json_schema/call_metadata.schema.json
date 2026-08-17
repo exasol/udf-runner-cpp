@@ -1,5 +1,5 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "additionalProperties": true,
   "required": [
@@ -23,11 +23,11 @@
     "scope_user": { "type": "string" },
     "input_iter_type": { "enum": ["EXACTLY_ONCE", "MULTIPLE"] },
     "output_iter_type": { "enum": ["EXACTLY_ONCE", "MULTIPLE"] },
-    "input_columns": { "type": "array", "items": { "$ref": "#/$defs/column" } },
-    "output_columns": { "type": "array", "items": { "$ref": "#/$defs/column" } },
+    "input_columns": { "type": "array", "items": { "$ref": "#/definitions/column" } },
+    "output_columns": { "type": "array", "items": { "$ref": "#/definitions/column" } },
     "single_call_mode": { "type": "boolean" }
   },
-  "$defs": {
+  "definitions": {
     "column": {
       "type": "object",
       "additionalProperties": true,
