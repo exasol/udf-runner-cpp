@@ -6,8 +6,8 @@ This document describes the high-level protocol calls built on top of the generi
 
 This document covers:
 
-- `Run`, `Function`, and `Script`
-- `get_connection`, `get_script`, and `execute_query`
+- `Run` and Function operations
+- `get_connection` and `get_script`
 - which calls carry data streams
 - representative message sequences
 - DB/UDFRunner scheduling policy
@@ -26,8 +26,7 @@ Related diagrams:
 | Call | Data stream | Notes |
 | --- | --- | --- |
 | `Run` | Yes, bidirectional | Each direction carries group and row correlation in the data itself. |
-| `Function` | No | Callback-driven work only. |
-| `Script` | Yes, bidirectional | One direction carries input parameters, the other direction carries table output. |
+| Function operation | No | One of `default_output_columns`, `virtual_schema_adapter`, `generate_sql_for_import_spec`, or `generate_sql_for_export_spec`. |
 
 ### `UDFRunner`-opened calls
 
@@ -35,7 +34,6 @@ Related diagrams:
 | --- | --- | --- |
 | `get_connection` | No | Returns connection information. |
 | `get_script` | No | Returns script content. |
-| `execute_query` | Optional | Returns query status and may carry row-correlated result rows. |
 
 These `UDFRunner`-opened calls are ordinary nested calls, not a separate callback transport.
 
@@ -50,7 +48,7 @@ payload may be sent while the call remains active or together with `CloseCall` i
 ### `Run`
 
 - opened by `DB`
-- may carry opening payloads and the first input batch together
+- carries `call_metadata` with the opening message and may carry the first input batch together
 - may stay active while nested calls such as `get_script` or `get_connection` execute
 - group and row correlation belong in the data, not in `Next(...)`
 
@@ -93,45 +91,38 @@ integer array and its unsigned 64-bit `values` child stores the first row ID for
 value in that run increases by one. The field sets `ARROW:extension:name` to `exasol.udf.range_run`; no extension
 metadata is required in version 1.
 
-### `Function`
+### Function Operations
 
-- opened by `DB`
+- opened by `DB` with one of the Function operation names
+- each call carries `call_metadata` with the opening message
 - has no attached data stream in the current model
-- relies on nested calls for callback-style interaction
-
-### `Script`
-
-- opened by `DB`
-- uses one bidirectional data stream
-- input and output directions may use different schemas
+- has the operation-specific request and result payloads defined in
+  [udf_protocol_high_level_payloads.md](udf_protocol_high_level_payloads.md)
 
 ### `get_connection`
 
 - opened by `UDFRunner`
-- returns `Payloads(connection_information, ...)`
+- returns `Payloads(connection_information)`
 - may still carry additional named payload traffic while active
 
 ### `get_script`
 
 - opened by `UDFRunner`
-- returns `Payloads(script, ...)`
+- returns `Payloads(script)`
 - may still carry additional named payload traffic while active
 
-### `execute_query`
+## Payload Contracts
 
-- opened by `UDFRunner`
-- returns `Payloads(result_set_status, ...)`
-- may optionally carry a result-row data stream
-- a row-correlated result stream may set `has_group_id` to `false` and `has_row_id` to `true`; its row ID then
-  occupies prefix position `0`
+The complete call-metadata, script-metadata, Function, and nested-call payload contracts are defined in
+[udf_protocol_high_level_payloads.md](udf_protocol_high_level_payloads.md). `StringPayload` is used directly for
+scalar strings; JSON is used only where a payload has structured fields.
 
 ## Representative Sequences
 
 The current design keeps the high-level sequences intentionally simple:
 
-- nested callback-style calls execute while a parent `Run`, `Function`, or `Script` call remains active
-- `Run` may combine opening call metadata, input schema announcement, and the first input batch
-- `execute_query` may or may not open a result-row data stream after its status result
+- nested callback-style calls execute while a parent `Run` or Function call remains active
+- `Run` combines `OpenCall`, `call_metadata`, input schema announcement, and the first input batch when practical
 
 See [udf_protocol_high_level_nested_calls.svg](udf_protocol_high_level_nested_calls.svg) and
 [udf_protocol_high_level_run_sequence.svg](udf_protocol_high_level_run_sequence.svg).
@@ -157,8 +148,9 @@ call orchestration and do not alter the generic Client/Server stream rules in th
 See [udf_protocol_high_level_endpoint_scheduling.svg](udf_protocol_high_level_endpoint_scheduling.svg).
 
 ## Forward-Looking Ideas Still Open
-
-- whether `UDFRunner` may open its own pquery-style call to `DB` beyond the current `execute_query` shape
+<>
+- `Script` and `execute_query` call shapes and data streams
+- whether `UDFRunner` may open its own pquery-style call to `DB`
 - whether table-prefetch-like declarations should be added for future call setup
 
 ## Relationship To Other Docs
@@ -166,3 +158,4 @@ See [udf_protocol_high_level_endpoint_scheduling.svg](udf_protocol_high_level_en
 - low-level framing and generic stream rules live in [udf_protocol_low_level.md](udf_protocol_low_level.md)
 - generic open/close call behavior lives in [udf_protocol_call_lifecycle.md](udf_protocol_call_lifecycle.md)
 - generic data-stream behavior lives in [udf_protocol_data_stream.md](udf_protocol_data_stream.md)
+- high-level payload contracts live in [udf_protocol_high_level_payloads.md](udf_protocol_high_level_payloads.md)

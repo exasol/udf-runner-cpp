@@ -6,6 +6,7 @@ Detailed protocol references in this directory:
 - [udf_protocol_call_lifecycle.md](udf_protocol_call_lifecycle.md)
 - [udf_protocol_data_stream.md](udf_protocol_data_stream.md)
 - [udf_protocol_high_level_calls.md](udf_protocol_high_level_calls.md)
+- [udf_protocol_high_level_payloads.md](udf_protocol_high_level_payloads.md)
 
 # General Information
 
@@ -124,7 +125,7 @@ The new protocol changes a security-sensitive interface between the database and
 
 # How Other Databases Solve That Problem
 
-TODO: Add comparative research for Oracle, PostgreSQL, MySQL, SQL Server, and other relevant systems once the transport direction is narrowed.
+TODO: Link the technology overview, details and selection reasoning
 
 # Solution Approaches
 

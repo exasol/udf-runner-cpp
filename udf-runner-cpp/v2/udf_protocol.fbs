@@ -93,6 +93,8 @@ table Version {
 
 table ServerCapabilities {
   supported_version: Version;
+  // TODO: high level protocol
+  // TODO: number of worker
 }
 
 table KeepAlive {}
@@ -117,10 +119,6 @@ union PayloadValue {
 // this call for the connection's lifetime. The connection is implicit in the
 // transport session, so it is not encoded in Frame. The same numeric stream_id
 // on a different connection identifies a different logical stream.
-//
-// TODO: one call = one stream_id is a draft-level assumption to fill the gap
-// between the prose model and an actual wire encoding, not a settled decision
-// from the source docs.
 //
 // A call opened while another is active (e.g. a callback opened during Run) is
 // just another independent call -- no parent/child link is carried on the wire.

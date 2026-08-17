@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "database_name", "database_version", "session_id", "statement_id",
+    "node_count", "node_id", "vm_id", "maximal_memory_limit", "script_schema",
+    "input_iter_type", "output_iter_type", "input_columns", "output_columns",
+    "single_call_mode"
+  ],
+  "properties": {
+    "database_name": { "type": "string" },
+    "database_version": { "type": "string" },
+    "session_id": { "type": "string", "pattern": "^[0-9]+$" },
+    "statement_id": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+    "node_count": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+    "node_id": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+    "vm_id": { "type": "string", "pattern": "^[0-9]+$" },
+    "maximal_memory_limit": { "type": "string", "pattern": "^[0-9]+$" },
+    "meta_info": { "type": "string" },
+    "script_schema": { "type": "string" },
+    "current_user": { "type": "string" },
+    "current_schema": { "type": "string" },
+    "scope_user": { "type": "string" },
+    "input_iter_type": { "enum": ["EXACTLY_ONCE", "MULTIPLE"] },
+    "output_iter_type": { "enum": ["EXACTLY_ONCE", "MULTIPLE"] },
+    "input_columns": { "type": "array", "items": { "$ref": "#/$defs/column" } },
+    "output_columns": { "type": "array", "items": { "$ref": "#/$defs/column" } },
+    "single_call_mode": { "type": "boolean" }
+  },
+  "$defs": {
+    "column": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "type_name"],
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "enum": ["UNSUPPORTED", "DOUBLE", "INT32", "INT64", "NUMERIC", "TIMESTAMP", "DATE", "STRING", "BOOLEAN"] },
+        "type_name": { "type": "string" },
+        "size": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "precision": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "scale": { "type": "integer", "minimum": 0, "maximum": 4294967295 }
+      }
+    }
+  }
+}

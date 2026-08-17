@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["is_subselect"],
+  "properties": {
+    "is_subselect": { "type": "boolean" },
+    "connection_information": { "$ref": "connection_information.schema.json" },
+    "connection_name": { "type": "string" },
+    "subselect_column_specification": { "type": "array", "items": { "$ref": "#/$defs/column" } },
+    "parameters": { "type": "array", "items": { "$ref": "#/$defs/key_value" } }
+  },
+  "$defs": {
+    "column": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "type_name"],
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "enum": ["UNSUPPORTED", "DOUBLE", "INT32", "INT64", "NUMERIC", "TIMESTAMP", "DATE", "STRING", "BOOLEAN"] },
+        "type_name": { "type": "string" },
+        "size": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "precision": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "scale": { "type": "integer", "minimum": 0, "maximum": 4294967295 }
+      }
+    },
+    "key_value": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["key", "value"],
+      "properties": { "key": { "type": "string" }, "value": { "type": "string" } }
+    }
+  }
+}

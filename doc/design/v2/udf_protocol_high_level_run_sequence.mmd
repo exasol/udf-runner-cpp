@@ -4,7 +4,7 @@ sequenceDiagram
 
     Note over DB,UDFRunner: Run call opened by DB with flow-controlled bidirectional data exchange
 
-    DB->>UDFRunner: CallOpen(Run, call_metadata) + DataSchema(group ID, row ID) + first input RecordBatch
+    DB->>UDFRunner: CallOpen(Run) + Payloads(call_metadata) + DataSchema(group ID, row ID) + first input RecordBatch
     UDFRunner-->>DB: Next(byte_budget, reset=false, row_id=n)
     DB-->>UDFRunner: RecordBatch(group ID, row ID, input rows starting at n, is_end_of_group=true)
     UDFRunner-->>DB: DataSchema(group ID, row ID) + first output RecordBatch
