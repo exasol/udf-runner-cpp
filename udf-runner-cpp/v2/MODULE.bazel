@@ -1,0 +1,6 @@
+module(
+    name = "udf_runner_cpp_v2",
+    version = "0.1.0",
+)
+
+bazel_dep(name = "rules_cc", version = "0.2.17")

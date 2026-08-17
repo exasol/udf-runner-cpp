@@ -1,0 +1,11 @@
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_test(
+    name = "json_schema_validation_test",
+    srcs = ["json_schema_validation_test.cc"],
+    data = ["//json_schema:all_schemas"],
+    copts = ["-std=c++17"],
+    deps = ["//third_party/json_schema_validator"],
+)
