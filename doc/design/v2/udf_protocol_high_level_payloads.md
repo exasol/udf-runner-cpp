@@ -110,5 +110,5 @@ Example:
 
 ## Deferred Calls
 
-`Script`, `execute_script`, and `execute_query` are not part of the current normative call set. They remain future
-extensions and have no payload or data-stream contract in this version.
+`Script` and `execute_query` are not part of the current normative call set. They remain future extensions and
+have no payload or data-stream contract in this version.

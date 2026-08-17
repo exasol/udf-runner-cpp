@@ -17,7 +17,6 @@
     "node_id": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
     "vm_id": { "type": "string", "pattern": "^[0-9]+$" },
     "maximal_memory_limit": { "type": "string", "pattern": "^[0-9]+$" },
-    "meta_info": { "type": "string" },
     "script_schema": { "type": "string" },
     "current_user": { "type": "string" },
     "current_schema": { "type": "string" },
