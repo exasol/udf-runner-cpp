@@ -3,6 +3,18 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(default_visibility = ["//visibility:public"])
 
+alias(
+    name = "arrow_core",
+    actual = "@v2_arrow//:arrow_core",
+)
+
+cc_test(
+    name = "arrow_core_test",
+    srcs = ["arrow_core_test.cc"],
+    copts = ["-std=c++20"],
+    deps = [":arrow_core"],
+)
+
 cc_library(
     name = "json_schema",
     hdrs = ["include/exasol/udf/v2/json_schema.hpp"],
