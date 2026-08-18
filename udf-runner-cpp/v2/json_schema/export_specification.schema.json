@@ -1,5 +1,5 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "additionalProperties": true,
   "required": ["has_truncate", "has_replace"],
@@ -10,9 +10,9 @@
     "source_column_names": { "type": "array", "items": { "type": "string" } },
     "connection_information": { "$ref": "connection_information.schema.json" },
     "connection_name": { "type": "string" },
-    "parameters": { "type": "array", "items": { "$ref": "#/$defs/key_value" } }
+    "parameters": { "type": "array", "items": { "$ref": "#/definitions/key_value" } }
   },
-  "$defs": {
+  "definitions": {
     "key_value": {
       "type": "object",
       "additionalProperties": true,
