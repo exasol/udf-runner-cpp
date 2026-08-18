@@ -2,11 +2,11 @@
 
 Detailed protocol references in this directory:
 
-- [udf_protocol_low_level.md](udf_protocol_low_level.md)
-- [udf_protocol_call_lifecycle.md](udf_protocol_call_lifecycle.md)
-- [udf_protocol_data_stream.md](udf_protocol_data_stream.md)
-- [udf_protocol_high_level_calls.md](udf_protocol_high_level_calls.md)
-- [udf_protocol_high_level_payloads.md](udf_protocol_high_level_payloads.md)
+- [low_level.md](low_level.md)
+- [call_lifecycle.md](call_lifecycle.md)
+- [data_stream.md](data_stream.md)
+- [high_level_calls.md](high_level_calls.md)
+- [high_level_payloads.md](high_level_payloads.md)
 
 # General Information
 

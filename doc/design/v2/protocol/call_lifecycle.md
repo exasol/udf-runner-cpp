@@ -14,7 +14,7 @@ This document covers:
 
 Related diagram:
 
-- [udf_protocol_call_lifecycle.svg](udf_protocol_call_lifecycle.svg)
+- [call_lifecycle.svg](call_lifecycle.svg)
 
 ## Call Abstraction
 
@@ -88,7 +88,7 @@ Nested calls are a generic mechanism, not a special-case callback transport:
 ## Relationship To Data Streams
 
 This document only records that a call may carry at most one bidirectional data stream. The detailed data-stream
-rules are defined in [udf_protocol_data_stream.md](udf_protocol_data_stream.md).
+rules are defined in [data_stream.md](data_stream.md).
 
 ## Open Questions
 

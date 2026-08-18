@@ -15,7 +15,7 @@ This document covers:
 
 Related diagram:
 
-- [udf_protocol_data_stream_flow.svg](udf_protocol_data_stream_flow.svg)
+- [data_stream_flow.svg](data_stream_flow.svg)
 
 ## Model
 

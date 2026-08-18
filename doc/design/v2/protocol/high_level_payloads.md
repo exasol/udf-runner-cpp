@@ -20,7 +20,7 @@ calls; the last received values apply to subsequent calls. It is not carried on 
 ## Call Metadata
 
 Every `Run` and Function call carries one `call_metadata` JSON payload in the same `StreamMessage` as `OpenCall`.
-It conforms to [call_metadata.schema.json](../../../udf-runner-cpp/v2/json_schema/call_metadata.schema.json) and
+It conforms to [call_metadata.schema.json](../../../../udf-runner-cpp/v2/json_schema/call_metadata.schema.json) and
 supplies the per-invocation execution context and the input/output iterator and column definitions. The script name
 and source are deliberately excluded because they are connection-scoped script metadata.
 
@@ -61,7 +61,7 @@ The virtual-schema request and all Function results retain their existing string
 defined by the respective script API, not by this transport protocol.
 
 `import_specification` conforms to
-[import_specification.schema.json](../../../udf-runner-cpp/v2/json_schema/import_specification.schema.json).
+[import_specification.schema.json](../../../../udf-runner-cpp/v2/json_schema/import_specification.schema.json).
 Example:
 
 ```json
@@ -74,7 +74,7 @@ Example:
 ```
 
 `export_specification` conforms to
-[export_specification.schema.json](../../../udf-runner-cpp/v2/json_schema/export_specification.schema.json).
+[export_specification.schema.json](../../../../udf-runner-cpp/v2/json_schema/export_specification.schema.json).
 Example:
 
 ```json
@@ -96,7 +96,7 @@ Example:
 | `get_script` | `script_name`: `StringPayload` | `script`: `StringPayload` |
 
 `connection_information` conforms to
-[connection_information.schema.json](../../../udf-runner-cpp/v2/json_schema/connection_information.schema.json).
+[connection_information.schema.json](../../../../udf-runner-cpp/v2/json_schema/connection_information.schema.json).
 Example:
 
 ```json

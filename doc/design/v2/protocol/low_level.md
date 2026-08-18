@@ -2,7 +2,7 @@
 
 This document captures the low-level wire rules for the new UDF protocol. It intentionally excludes
 high-level call semantics and scheduling policy; those live in
-[udf_protocol_high_level_calls.md](udf_protocol_high_level_calls.md).
+[high_level_calls.md](high_level_calls.md).
 
 ## Scope
 
@@ -15,12 +15,12 @@ This document covers:
 - transport binding and buffer handoff
 
 The generic data-stream rules are defined in the companion
-[udf_protocol_data_stream.md](udf_protocol_data_stream.md). They apply below the high-level `DB`/`UDFRunner`
+[data_stream.md](data_stream.md). They apply below the high-level `DB`/`UDFRunner`
 protocol layer.
 
 Related diagrams:
 
-- [udf_protocol_low_level_connection_lifecycle.svg](udf_protocol_low_level_connection_lifecycle.svg)
+- [low_level_connection_lifecycle.svg](low_level_connection_lifecycle.svg)
 
 ## Roles
 
@@ -101,7 +101,7 @@ At the low level, a session progresses through:
 3. normal call/control traffic
 4. a two-way `CloseConnection` exchange on stream `0`, followed by transport close; or abort
 
-See [udf_protocol_low_level_connection_lifecycle.svg](udf_protocol_low_level_connection_lifecycle.svg).
+See [low_level_connection_lifecycle.svg](low_level_connection_lifecycle.svg).
 
 ## Close Semantics
 
