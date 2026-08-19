@@ -1,0 +1,10 @@
+flowchart LR
+    External[External owner] -->|injects| Factory[WorkerFactory]
+    Acceptor[SocketAcceptor\nlistening endpoint] -->|accepted fd| Queue[Reusable worker pool]
+    Factory -->|creates worker| Queue
+    Queue -->|one fd per invocation| Worker[Worker callable]
+    Worker -->|create context| Manager[ContextManager]
+    Manager -->|owns connection context| Context[Protocol Context]
+    Context --> Socket[Socket abstraction]
+    Socket --> Transport[Unix stream socket\nfuture TCP/TLS binding]
+    Context --> V2[Protocol v2 interface]

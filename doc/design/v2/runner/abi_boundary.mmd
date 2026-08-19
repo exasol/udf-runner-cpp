@@ -1,0 +1,12 @@
+flowchart LR
+    Cpp[Private C++ types\nclasses, exceptions, Arrow C++]
+    Handles[C ABI\nopaque handles and callback/vtables]
+    Data[Arrow C Data Interface\nArrowArray / ArrowSchema]
+    Facade[Header-only C++ facade\nRAII, typed adapters, exceptions]
+    Consumer[C or other-language consumer]
+
+    Cpp --> Handles
+    Handles --- Data
+    Handles --> Consumer
+    Facade --> Handles
+    Facade --> Data

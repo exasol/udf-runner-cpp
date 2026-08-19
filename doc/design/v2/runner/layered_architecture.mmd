@@ -1,0 +1,11 @@
+flowchart TB
+    Facade[Header-only C++ facade\nRAII, typed adapters, C++ callables]
+    CAbi[Stable C ABI\nopaque handles, vtables, status/error values]
+    Arrow[Arrow C Data Interface\nArrowArray and ArrowSchema]
+    Impl[Private C++ implementation\nsockets, acceptor, worker pool, contexts]
+    Protocol[Protocol v2\nframing, streams, calls, payloads]
+
+    Facade --> CAbi
+    CAbi --> Impl
+    CAbi --- Arrow
+    Impl --> Protocol
