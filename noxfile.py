@@ -1,11 +1,8 @@
 import argparse
-import json
 import nox
-import os
+from packaging.version import InvalidVersion, Version
 from pathlib import Path
-import re
-from urllib.error import HTTPError
-from urllib.request import Request, urlopen
+import subprocess
 
 from exasol.slc_ci_setup.nox.tasks import *
 
@@ -16,98 +13,100 @@ ROOT = Path(__file__).parent
 nox.options.sessions = []
 
 
-def _parse_release_tag(tag: str) -> tuple[int, int, int]:
-    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", tag)
-    if not match:
-        raise ValueError("Release tag must be MAJOR.MINOR.PATCH.")
-    return tuple(int(part) for part in match.groups())
-
-
-def _fetch_github_releases(repository: str, token: str) -> list[dict]:
-    releases = []
-    page = 1
-    while True:
-        request = Request(
-            f"https://api.github.com/repos/{repository}/releases?per_page=100&page={page}",
-            headers={
-                "Accept": "application/vnd.github+json",
-                "Authorization": f"Bearer {token}",
-                "X-GitHub-Api-Version": "2022-11-28",
-            },
-        )
-        try:
-            with urlopen(request) as response:
-                page_releases = json.load(response)
-        except HTTPError as error:
-            break
-
-        releases.extend(page_releases)
-        if len(page_releases) < 100:
-            break
-        page += 1
-
-    return releases
-
-
-def _is_tag_on_main_history(repository: str, token: str, tag: str) -> bool:
-    request = Request(
-        f"https://api.github.com/repos/{repository}/compare/{tag}...main",
-        headers={
-            "Accept": "application/vnd.github+json",
-            "Authorization": f"Bearer {token}",
-            "X-GitHub-Api-Version": "2022-11-28",
-        },
-    )
+def _parse_release_tag(tag: str) -> Version:
     try:
-        with urlopen(request) as response:
-            compare_response = json.load(response)
-    except HTTPError as error:
+        version = Version(tag)
+    except InvalidVersion as error:
+        raise ValueError(f"Invalid release tag '{tag}'.") from error
+
+    # Tag shall not contain alpha-numeric suffixes, eg: "1.0.0-alpha".
+    if version.is_prerelease or version.is_devrelease:
+        raise ValueError("Release tag must be a final release version.")
+    return version
+
+
+def _is_tag_on_main_history(tag: str) -> bool:
+    main_ref = "origin/main"
+    ref_exists = subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", main_ref],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if ref_exists.returncode != 0:
+        main_ref = "main"
+
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", tag, main_ref],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode not in (0, 1):
+        stderr = result.stderr.strip()
         raise RuntimeError(
-            f"Failed to compare tag '{tag}' with main on GitHub: {error.code} {error.reason}"
-        ) from error
+            f"Failed to verify whether tag '{tag}' is on '{main_ref}': {stderr or 'unknown error'}"
+        )
 
-    # status tells if the tag is behind, ahead or identical to main.
-    status = compare_response.get("status")
-    if status == "behind" or status == "identical":
-        return True
-    return False
+    return result.returncode == 0
 
 
-def _is_tag_latest(repository: str, token: str, tag: str) -> bool:
-    releases = _fetch_github_releases(repository, token)
+def _is_tag_latest(tag: str) -> bool:
+    requested_version = _parse_release_tag(tag)
+    tags = subprocess.run(
+        ["git", "tag", "--list"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if tags.returncode != 0:
+        stderr = tags.stderr.strip()
+        raise RuntimeError(f"Failed to list git tags: {stderr or 'unknown error'}")
+
     released_versions = []
-    for release in releases:
-        if release.get("draft") or release.get("prerelease"):
+    for release_tag in tags.stdout.splitlines():
+        if release_tag == tag:
             continue
-
-        release_tag = release.get("tag_name", "")
-        released_version = _parse_release_tag(release_tag)
+        try:
+            released_version = _parse_release_tag(release_tag)
+        except ValueError:
+            continue
         released_versions.append(released_version)
 
     if not released_versions:
         return True
 
     latest_version = max(released_versions)
-    requested_version = _parse_release_tag(tag)
-    return requested_version > latest_version
+    return requested_version >= latest_version
+
+
+@nox.session(name="check-release", python=False)
+def validate_release(session: nox.Session):
+    """Validate supplied release tag is on origin/main and is the latest release."""
+    parser = argparse.ArgumentParser(
+        usage=f"nox -s {session.name} -- --version <version>",
+    )
+    parser.add_argument("--version", required=True, help="version for the Release that gets prepared.")
+    tag = parser.parse_args(session.posargs).version
+
+    is_tag_on_main = _is_tag_on_main_history(tag)
+    is_tag_latest = _is_tag_latest(tag)
+    if not is_tag_on_main or not is_tag_latest:
+        session.error("Release tag is not on origin/main or is not the latest.")
 
 
 @nox.session(name="prepare-release", python=False)
 def prepare_release(session: nox.Session):
     """Prepare changelog files for the supplied release tag."""
     parser = argparse.ArgumentParser(
-        usage=f"nox -s {session.name} -- --tag <tag>",
+        usage=f"nox -s {session.name} -- --version <version>",
     )
-    parser.add_argument("--tag", required=True, help="Release tag")
-    tag = parser.parse_args(session.posargs).tag
+    parser.add_argument("--version", required=True, help="version for the Release that gets prepared.")
+    tag = parser.parse_args(session.posargs).version
 
-    repository = os.environ.get("GITHUB_REPOSITORY")
-    token = os.environ.get("GH_TOKEN")
-
-    is_tag_on_main = _is_tag_on_main_history(repository, token, tag)
-    is_tag_latest = _is_tag_latest(repository, token, tag)
-    if not is_tag_on_main or not is_tag_latest:
-        session.error("Release tag is not on origin/main or is not the latest.")
+    is_tag_latest = _is_tag_latest(tag)
+    if not is_tag_latest:
+        session.error("Release tag is not the latest.")
 
     changes_dir = ROOT / "doc" / "changes"
     unreleased_file = changes_dir / "unreleased.md"
