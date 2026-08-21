@@ -51,7 +51,7 @@ def _is_tag_on_main_history(tag: str) -> bool:
     return result.returncode == 0
 
 
-def _is_tag_latest(tag: str) -> bool:
+def _check_tag(tag: str) -> int:
     requested_version = _parse_release_tag(tag)
     tags = subprocess.run(
         ["git", "tag", "--list"],
@@ -65,36 +65,40 @@ def _is_tag_latest(tag: str) -> bool:
 
     released_versions = []
     for release_tag in tags.stdout.splitlines():
-        if release_tag == tag:
-            continue
         try:
             released_version = _parse_release_tag(release_tag)
         except ValueError:
             continue
         released_versions.append(released_version)
 
-    if not released_versions:
-        return True
+    if not released_versions: # if no tag exists, then requested tag is latest
+        return 1
 
     latest_version = max(released_versions)
-    return requested_version >= latest_version
+    if requested_version < latest_version:
+        return -1
+    if requested_version > latest_version:
+        return 1
+    return 0
 
 
-@nox.session(name="check-release", python=False)
+# invoke this session after creating and pushing the tag
+@nox.session(name="validate-release", python=False)
 def validate_release(session: nox.Session):
     """Validate supplied release tag is on origin/main and is the latest release."""
     parser = argparse.ArgumentParser(
-        usage=f"nox -s {session.name} -- --version <version>",
+        usage=f"nox -s {session.name} -- --tag <tag>",
     )
-    parser.add_argument("--version", required=True, help="version for the Release that gets prepared.")
-    tag = parser.parse_args(session.posargs).version
+    parser.add_argument("--tag", required=True, help="tag for the Release that gets validated.")
+    tag = parser.parse_args(session.posargs).tag
 
     is_tag_on_main = _is_tag_on_main_history(tag)
-    is_tag_latest = _is_tag_latest(tag)
-    if not is_tag_on_main or not is_tag_latest:
+    tag_version_cmp = _check_tag(tag) # returns 0 if tag is most recent
+    if not is_tag_on_main or tag_version_cmp != 0:
         session.error("Release tag is not on origin/main or is not the latest.")
 
 
+#invoke this session before creating and pushing the tag
 @nox.session(name="prepare-release", python=False)
 def prepare_release(session: nox.Session):
     """Prepare changelog files for the supplied release tag."""
@@ -102,15 +106,15 @@ def prepare_release(session: nox.Session):
         usage=f"nox -s {session.name} -- --version <version>",
     )
     parser.add_argument("--version", required=True, help="version for the Release that gets prepared.")
-    tag = parser.parse_args(session.posargs).version
+    version = parser.parse_args(session.posargs).version
 
-    is_tag_latest = _is_tag_latest(tag)
-    if not is_tag_latest:
-        session.error("Release tag is not the latest.")
+    version_cmp = _check_tag(version) # returns 1 if version is highest
+    if version_cmp != 1:
+        session.error("Release version is not the latest.")
 
     changes_dir = ROOT / "doc" / "changes"
     unreleased_file = changes_dir / "unreleased.md"
-    changes_file = changes_dir / f"changes_{tag}.md"
+    changes_file = changes_dir / f"changes_{version}.md"
     changelog_file = changes_dir / "changelog.md"
 
     if not unreleased_file.is_file():
@@ -123,7 +127,7 @@ def prepare_release(session: nox.Session):
     if not changelog.startswith(changelog_heading):
         session.error(f"Unexpected changelog heading in: {changelog_file}")
 
-    release_entry = f"* [{tag}](changes_{tag}.md)\n"
+    release_entry = f"* [{version}](changes_{version}.md)\n"
     changelog_file.write_text(
         f"{changelog_heading}\n{release_entry}{changelog[len(changelog_heading):].lstrip()}"
     )
