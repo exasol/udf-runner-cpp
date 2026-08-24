@@ -103,12 +103,12 @@ def validate_release(session: nox.Session):
     tag = parser.parse_args(session.posargs).tag
 
     is_tag_on_main = _is_tag_on_main_history(tag)
-    tag_version_cmp = _check_tag(tag)  #  returns 0 if tag is most recent
+    tag_version_cmp = _check_tag(tag)  # returns 0 if tag is most recent
     if not is_tag_on_main or tag_version_cmp != 0:
         session.error("Release tag is not on origin/main or is not the latest.")
 
 
-#  invoke this session before creating and pushing the tag
+# invoke this session before creating and pushing the tag
 @nox.session(name="prepare-release", python=False)
 def prepare_release(session: nox.Session):
     """Prepare changelog files for the supplied release tag."""
@@ -118,7 +118,7 @@ def prepare_release(session: nox.Session):
     parser.add_argument("--version", required=True, help="version for the release that gets prepared.")
     version = parser.parse_args(session.posargs).version
 
-    version_cmp = _check_tag(version)  #  returns 1 if version is highest
+    version_cmp = _check_tag(version)  # returns 1 if version is highest
     if version_cmp != 1:
         session.error("Release version is not the latest.")
 
