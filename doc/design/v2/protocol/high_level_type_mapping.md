@@ -46,6 +46,14 @@ The type family and source declaration metadata use the following field metadata
 
 These keys are diagnostic and reconstruction metadata. They do not override the Arrow-compatible physical type.
 
+The high-level JSON column definition supplies conversion parameters without requiring an implementation to parse
+`type_name`. Existing properties retain their API meaning: `size` is the character length for `CHAR`/`VARCHAR` or the
+declared hash size for `HASHTYPE`; `precision` is decimal, timestamp, or interval leading-field precision; and
+`scale` is reserved for decimal scale. `size_unit` distinguishes `BYTE` from `BIT` for `HASHTYPE`.
+`character_set`, `srid`, and `fractional_second_precision` provide the additional parsed parameters needed by the
+string, geometry, and day-to-second interval mappings. `type_name` remains the complete source declaration for
+diagnostics and reconstruction.
+
 ### Legacy v1 category replacement
 
 The v1 protocol used `DOUBLE`, `INT32`, `INT64`, `NUMERIC`, `TIMESTAMP`, and `STRING` as internal categories, and
