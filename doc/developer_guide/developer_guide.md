@@ -95,11 +95,11 @@ When you need the retained VM surfaces, enable the corresponding Bazel defines:
 
 ## Release Process
 
-1. Create an issue for preparing release
-2. Call nox session prepare-release with appropriate version
+1. Create an issue to prepare release
+2. Call nox session prepare-release with the appropriate version
 3. Commit the docs and changelog to a developer branch and create a pull request
 4. Submit for approval
-5. Once approved, merge to main
+5. Once approved, merge into `main` branch
 6. Create a tag and push to remote
 
 

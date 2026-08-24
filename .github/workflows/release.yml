@@ -25,7 +25,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
 
-      - name: Setup Python & Poetry Environment
+      - name: Set up Python & Poetry Environment
         uses: exasol/python-toolbox/.github/actions/python-environment@v9
         with:
           python-version: "3.10"
