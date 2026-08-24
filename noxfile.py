@@ -19,7 +19,7 @@ def _parse_release_tag(tag: str) -> Version:
     except InvalidVersion as error:
         raise ValueError(f"Invalid release tag '{tag}'.") from error
 
-    # Tag shall not contain alpha-numeric suffixes, eg: "1.0.0-alpha".
+    # Tag shall not contain alpha-numeric suffixes, e.g.: "1.0.0-alpha".
     if version.is_prerelease or version.is_devrelease:
         raise ValueError("Release tag must be a final release version.")
     return version
@@ -53,6 +53,16 @@ def _is_tag_on_main_history(tag: str) -> bool:
 
 def _check_tag(tag: str) -> int:
     requested_version = _parse_release_tag(tag)
+    fetch_tags = subprocess.run(
+        ["git", "fetch", "--tags"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if fetch_tags.returncode != 0:
+        stderr = fetch_tags.stderr.strip()
+        raise RuntimeError(f"Failed to fetch git tags: {stderr or 'unknown error'}")
+
     tags = subprocess.run(
         ["git", "tag", "--list"],
         capture_output=True,
@@ -71,7 +81,7 @@ def _check_tag(tag: str) -> int:
             continue
         released_versions.append(released_version)
 
-    if not released_versions: # if no tag exists, then requested tag is latest
+    if not released_versions:  # if no tag exists, then requested tag is latest
         return 1
 
     latest_version = max(released_versions)
@@ -89,26 +99,26 @@ def validate_release(session: nox.Session):
     parser = argparse.ArgumentParser(
         usage=f"nox -s {session.name} -- --tag <tag>",
     )
-    parser.add_argument("--tag", required=True, help="tag for the Release that gets validated.")
+    parser.add_argument("--tag", required=True, help="tag for the release that gets validated.")
     tag = parser.parse_args(session.posargs).tag
 
     is_tag_on_main = _is_tag_on_main_history(tag)
-    tag_version_cmp = _check_tag(tag) # returns 0 if tag is most recent
+    tag_version_cmp = _check_tag(tag)  #  returns 0 if tag is most recent
     if not is_tag_on_main or tag_version_cmp != 0:
         session.error("Release tag is not on origin/main or is not the latest.")
 
 
-#invoke this session before creating and pushing the tag
+#  invoke this session before creating and pushing the tag
 @nox.session(name="prepare-release", python=False)
 def prepare_release(session: nox.Session):
     """Prepare changelog files for the supplied release tag."""
     parser = argparse.ArgumentParser(
         usage=f"nox -s {session.name} -- --version <version>",
     )
-    parser.add_argument("--version", required=True, help="version for the Release that gets prepared.")
+    parser.add_argument("--version", required=True, help="version for the release that gets prepared.")
     version = parser.parse_args(session.posargs).version
 
-    version_cmp = _check_tag(version) # returns 1 if version is highest
+    version_cmp = _check_tag(version)  #  returns 1 if version is highest
     if version_cmp != 1:
         session.error("Release version is not the latest.")
 
