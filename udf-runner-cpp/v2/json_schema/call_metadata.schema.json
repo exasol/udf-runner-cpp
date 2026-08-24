@@ -34,8 +34,8 @@
       "required": ["name", "type_name"],
       "properties": {
         "name": { "type": "string" },
-        "type": { "enum": ["UNSUPPORTED", "DOUBLE", "INT32", "INT64", "NUMERIC", "TIMESTAMP", "DATE", "STRING", "BOOLEAN"] },
-        "type_name": { "type": "string" },
+        "type": { "enum": ["DOUBLE PRECISION", "DECIMAL", "DATE", "TIMESTAMP", "TIMESTAMP WITH LOCAL TIME ZONE", "CHAR", "VARCHAR", "BOOLEAN", "HASHTYPE", "GEOMETRY", "INTERVAL YEAR TO MONTH", "INTERVAL DAY TO SECOND"] },
+        "type_name": { "type": "string", "description": "The complete Exasol SQL type declaration, including parameters where applicable." },
         "size": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
         "precision": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
         "scale": { "type": "integer", "minimum": 0, "maximum": 4294967295 }

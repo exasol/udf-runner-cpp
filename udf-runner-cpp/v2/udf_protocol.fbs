@@ -19,14 +19,21 @@ enum BufferTransport : uint8 {
 enum Precision : uint8 { Half = 0, Single = 1, Double = 2 }
 enum DateUnit : uint8 { Day = 0, Millisecond = 1 }
 enum TimeUnit : uint8 { Second = 0, Millisecond = 1, Microsecond = 2, Nanosecond = 3 }
+enum IntervalUnit : uint8 { YearMonth = 0, DayTime = 1, MonthDayNano = 2 }
 
 table Int { bit_width: int32; is_signed: bool; }
 table FloatingPoint { precision: Precision; }
 table Utf8 {}
 table Binary {}
+table FixedSizeBinary { byte_width: int32; }
 table Bool {}
 table Date { unit: DateUnit; }
 table Timestamp { unit: TimeUnit; timezone: string; }
+// Arrow calendar interval storage:
+// YearMonth: signed int32 total months.
+// DayTime: signed int32 days plus signed int32 milliseconds.
+// MonthDayNano: signed int32 months, signed int32 days, and signed int64 nanoseconds.
+table Interval { unit: IntervalUnit; }
 table Decimal { precision: int32; scale: int32; bit_width: int32 = 128; }
 table List {}
 // Trailing underscore mirrors Arrow's own Schema.fbs naming for this union member.
@@ -41,7 +48,7 @@ table Struct_ {}
 table RunEndEncoded {}
 
 union Type {
-  Int, FloatingPoint, Utf8, Binary, Bool, Date, Timestamp, Decimal, List, Struct_,
+  Int, FloatingPoint, Utf8, Binary, FixedSizeBinary, Bool, Date, Timestamp, Interval, Decimal, List, Struct_,
   RunEndEncoded,
 }
 

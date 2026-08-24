@@ -141,6 +141,8 @@ must use `Inline` buffers.
 - named metadata payload bodies such as connection objects or script content: typically JSON
 
 This document only records the mapping at a protocol level. It does not redefine the `.fbs` schema itself.
+Data streams carry Arrow-compatible physical schemas and buffers; Exasol column selection and logical metadata are
+defined by the high-level protocol.
 
 ## Open Questions
 

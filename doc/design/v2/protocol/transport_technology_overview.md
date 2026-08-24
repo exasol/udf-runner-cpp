@@ -52,6 +52,10 @@ identity, multiplexing, structured cancellation, or remote deployment.
 
 ## Serialization Formats
 
+For the v2 protocol's high-level Exasol column contract and its Arrow-compatible record-batch representation, see
+[high_level_type_mapping.md](high_level_type_mapping.md), including the GeoArrow WKB representation for geometry
+values.
+
 | Format | Characteristics | Best fit | Main limitation |
 | --- | --- | --- | --- |
 | Native vectors | Engine-owned in-memory data structures. | In-process and shared-memory execution. | Couples UDF code to an engine ABI and memory-lifetime rules. |

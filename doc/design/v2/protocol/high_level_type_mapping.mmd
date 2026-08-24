@@ -1,0 +1,41 @@
+flowchart TD
+    A[Exasol documented SQL types] --> B[official type family and declared parameters]
+    B --> N{Numeric}
+    N -->|DOUBLE PRECISION| ND[FloatingPoint Double]
+    N -->|DECIMAL p,s, s > 0| DEC[Decimal 128: precision p, scale s]
+    N -->|DECIMAL p,0 and p <= 9| I32[Int signed 32]
+    N -->|DECIMAL p,0 and 10 <= p <= 18| I64[Int signed 64]
+    N -->|DECIMAL p,0 and p > 18| D0[Decimal 128: scale 0]
+    B --> T{Timestamp}
+    T -->|p = 0| TS0[Timestamp seconds]
+    T -->|1 <= p <= 3| TS1[Timestamp milliseconds]
+    T -->|4 <= p <= 6| TS2[Timestamp microseconds]
+    T -->|7 <= p <= 9| TS3[Timestamp nanoseconds]
+    T -->|WITH LOCAL TIME ZONE| UTC[Normalize to UTC; timezone UTC]
+    B --> I{Intervals}
+    I -->|INTERVAL YEAR p TO MONTH| YM[Struct years:int32 + months:int32 + Exasol extension]
+    I -->|INTERVAL DAY lfp TO SECOND fsp| DT[Interval MonthDayNano: months=0 + days + nanoseconds]
+    B --> H[HASHTYPE]
+    H --> HW[FixedSizeBinary declared byte width]
+    B --> G[GEOMETRY]
+    G --> W[Binary + geoarrow.wkb; WKB and SRID metadata]
+    B --> C["CHAR(n) / VARCHAR(n) / DATE / BOOLEAN"]
+    C --> P[Utf8 / Date Day / Bool / Int]
+    B --> U{Unsupported or invalid}
+    U --> R[Reject schema conversion]
+    DT --> O
+    YM --> O
+
+    ND --> O[Arrow-compatible protocol types]
+    DEC --> O
+    I32 --> O
+    I64 --> O
+    D0 --> O
+    TS0 --> O
+    TS1 --> O
+    TS2 --> O
+    TS3 --> O
+    UTC --> O
+    HW --> O
+    W --> O
+    P --> O

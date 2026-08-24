@@ -23,6 +23,9 @@ Every `Run` and Function call carries one `call_metadata` JSON payload in the sa
 It conforms to [call_metadata.schema.json](../../../../udf-runner-cpp/v2/json_schema/call_metadata.schema.json) and
 supplies the per-invocation execution context and the input/output iterator and column definitions. The script name
 and source are deliberately excluded because they are connection-scoped script metadata.
+Column `type` values use official Exasol type families, while `type_name` carries the complete parameterized Exasol
+SQL declaration. Their Arrow physical representation and metadata rules are defined in
+[high_level_type_mapping.md](high_level_type_mapping.md).
 
 ```json
 {
