@@ -22,6 +22,7 @@ dependencies = [
 "exasol-script-languages-container-ci (>=5.2.1, <6.0.0)",
 "exasol-script-languages-container-ci-setup (>=4.4.1, <5.0.0)",
 "nox>=2026.4.10",
+"packaging>=24.2",
 ]
 
 
@@ -40,8 +41,7 @@ homepage = "https://github.com/exasol/udf-runner-cpp"
 
 dev = [
     "toml>=0.10.2",
-    "gitpython>=3.1.0, <4.0.0",
-    "nox>=2026.4.10"
+    "gitpython>=3.1.0, <4.0.0"
 ]
 
 [build-system]
