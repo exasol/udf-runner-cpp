@@ -38,6 +38,16 @@ def run_oft_for_udf_client(session: nox.Session, *args) -> None:
         )
 
 
+@nox.session(name="validate-json-schemas", python=False)
+def validate_json_schemas(session: nox.Session):
+    """Validate v2 JSON schemas, references, and external JSON examples."""
+    # The udf-runner-cpp directory contains a hyphen and cannot be imported as a dotted Python module.
+    session.run(
+        "python",
+        str(ROOT / "udf-runner-cpp" / "v2" / "json_schema" / "validate_schemas.py"),
+    )
+
+
 @nox.session(name="run-oft", python=False)
 def run_oft_udf_client_plaintext(session: nox.Session):
     """

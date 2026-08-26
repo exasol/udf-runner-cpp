@@ -86,19 +86,7 @@ the original decimal physical representation; the source metadata remains availa
 
 Example field metadata (the physical type is `Decimal(128, precision=12, scale=2)`):
 
-```json
-{
-  "name": "AMOUNT",
-  "nullable": true,
-  "arrow_storage_type": "Decimal(128)",
-  "metadata": {
-    "exasol:type_name": "DECIMAL(12,2)",
-    "exasol:type_family": "DECIMAL",
-    "exasol:precision": "12",
-    "exasol:scale": "2"
-  }
-}
-```
+See the [decimal field metadata example](examples/decimal_field_metadata.json).
 
 ### Strings
 
@@ -125,18 +113,7 @@ and [the Arrow columnar format](https://arrow.apache.org/docs/format/Columnar.ht
 
 Example UTC timestamp field:
 
-```json
-{
-  "name": "CREATED_AT",
-  "nullable": false,
-  "arrow_storage_type": "Timestamp(Microsecond, UTC)",
-  "metadata": {
-    "exasol:type_name": "TIMESTAMP(6) WITH LOCAL TIME ZONE",
-    "exasol:type_family": "TIMESTAMP WITH LOCAL TIME ZONE",
-    "exasol:precision": "6"
-  }
-}
-```
+See the [timestamp field metadata example](examples/timestamp_field_metadata.json).
 
 ### HASHTYPE
 
@@ -151,18 +128,7 @@ the Arrow type.
 
 Example:
 
-```json
-{
-  "name": "DIGEST",
-  "nullable": true,
-  "arrow_storage_type": "FixedSizeBinary(32)",
-  "metadata": {
-    "exasol:type_name": "HASHTYPE(256 BIT)",
-    "exasol:type_family": "HASHTYPE",
-    "exasol:hash_byte_width": "32"
-  }
-}
-```
+See the [HASHTYPE field metadata example](examples/hashtype_field_metadata.json).
 
 See [Exasol HASHTYPE documentation](https://docs.exasol.com/db/latest/sql_references/data_types/datatypedetails.htm?Highlight=hashtype).
 
@@ -191,36 +157,11 @@ fixed-duration value, text, or generic binary; calendar interval semantics must 
 
 Example year-month interval field:
 
-```json
-{
-  "name": "AGE",
-  "nullable": true,
-  "arrow_storage_type": "Struct<years: Int32, months: Int32>",
-  "metadata": {
-    "exasol:type_name": "INTERVAL YEAR(4) TO MONTH",
-    "exasol:type_family": "INTERVAL YEAR TO MONTH",
-    "exasol:interval_leading_precision": "4",
-    "ARROW:extension:name": "exasol.interval.year_month",
-    "ARROW:extension:metadata": "{\"layout\":\"years:int32,months:int32\"}"
-  }
-}
-```
+See the [year-month interval field metadata example](examples/year_month_interval_field_metadata.json).
 
 Example day-time interval field:
 
-```json
-{
-  "name": "ELAPSED",
-  "nullable": true,
-  "arrow_storage_type": "Interval(MonthDayNano)",
-  "metadata": {
-    "exasol:type_name": "INTERVAL DAY(6) TO SECOND(3)",
-    "exasol:type_family": "INTERVAL DAY TO SECOND",
-    "exasol:interval_leading_precision": "6",
-    "exasol:interval_fractional_precision": "3"
-  }
-}
-```
+See the [day-time interval field metadata example](examples/day_time_interval_field_metadata.json).
 
 ### GEOMETRY
 
@@ -239,15 +180,7 @@ geometry objects are `POINT`, `LINESTRING`, `POLYGON`, `MULTIPOINT`, `MULTILINES
 
 Example extension metadata:
 
-```json
-{
-  "ARROW:extension:name": "geoarrow.wkb",
-  "ARROW:extension:metadata": "{\"crs\":\"4326\",\"crs_type\":\"srid\"}",
-  "exasol:type_name": "GEOMETRY(4326)",
-  "exasol:type_family": "GEOMETRY",
-  "exasol:srid": "4326"
-}
-```
+See the [GeoArrow extension metadata example](examples/geometry_extension_metadata.json).
 
 See [GeoArrow extension types](https://geoarrow.org/extension-types.html) and [Exasol geometry documentation](https://docs.exasol.com/db/latest/sql_references/data_types/datatypedetails.htm).
 

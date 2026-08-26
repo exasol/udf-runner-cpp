@@ -26,33 +26,10 @@ and source are deliberately excluded because they are connection-scoped script m
 Column `type` values use official Exasol type families, while `type_name` carries the complete parameterized Exasol
 SQL declaration. Their Arrow physical representation and metadata rules are defined in
 [high_level_type_mapping.md](high_level_type_mapping.md).
+The shared column-definition contract is defined in [column.schema.json](../../../../udf-runner-cpp/v2/json_schema/column.schema.json)
+and is referenced by both call metadata and import specifications.
 
-```json
-{
-  "database_name": "EXASOL",
-  "database_version": "8.0",
-  "session_id": "42",
-  "statement_id": 1,
-  "node_count": 1,
-  "node_id": 0,
-  "vm_id": "7",
-  "maximal_memory_limit": "1073741824",
-  "script_schema": "SYS",
-  "input_iter_type": "EXACTLY_ONCE",
-  "output_iter_type": "EXACTLY_ONCE",
-  "input_columns": [
-    {
-      "name": "AMOUNT",
-      "type": "DECIMAL",
-      "type_name": "DECIMAL(12,2)",
-      "precision": 12,
-      "scale": 2
-    }
-  ],
-  "output_columns": [],
-  "single_call_mode": false
-}
-```
+See the [call metadata example](examples/call_metadata.json).
 
 In a column definition, `type` is the official Exasol type family constrained by the schema's `exasol_type` enum, while `type_name` is the complete SQL
 declaration. Parsed parameters such as `precision` and `scale` are included where applicable. The corresponding
@@ -61,43 +38,7 @@ Arrow physical storage type and field metadata are defined by the [high-level ty
 The existing `size`, `precision`, and `scale` properties remain part of the column API. The following definitions show
 how the additional mapped types expose their parameters without requiring the consumer to parse `type_name`:
 
-```json
-[
-  {
-    "name": "NAME",
-    "type": "VARCHAR",
-    "type_name": "VARCHAR(128)",
-    "size": 128,
-    "character_set": "UTF8"
-  },
-  {
-    "name": "DIGEST",
-    "type": "HASHTYPE",
-    "type_name": "HASHTYPE(32 BYTE)",
-    "size": 32,
-    "size_unit": "BYTE"
-  },
-  {
-    "name": "LOCATION",
-    "type": "GEOMETRY",
-    "type_name": "GEOMETRY(4326)",
-    "srid": 4326
-  },
-  {
-    "name": "AGE",
-    "type": "INTERVAL YEAR TO MONTH",
-    "type_name": "INTERVAL YEAR(4) TO MONTH",
-    "precision": 4
-  },
-  {
-    "name": "ELAPSED",
-    "type": "INTERVAL DAY TO SECOND",
-    "type_name": "INTERVAL DAY(6) TO SECOND(9)",
-    "precision": 6,
-    "fractional_second_precision": 9
-  }
-]
-```
+See the [column definitions example](examples/column_definitions.json).
 
 Unsigned 64-bit values are decimal strings so JSON implementations do not lose precision.
 
@@ -118,29 +59,11 @@ defined by the respective script API, not by this transport protocol.
 
 `import_specification` conforms to
 [import_specification.schema.json](../../../../udf-runner-cpp/v2/json_schema/import_specification.schema.json).
-Example:
-
-```json
-{
-  "is_subselect": true,
-  "connection_name": "REMOTE_CONNECTION",
-  "subselect_column_specification": [{ "name": "ID", "type": "DECIMAL", "type_name": "DECIMAL(18,0)", "precision": 18, "scale": 0 }],
-  "parameters": [{ "key": "encoding", "value": "UTF-8" }]
-}
-```
+See the [import specification example](examples/import_specification.json).
 
 `export_specification` conforms to
 [export_specification.schema.json](../../../../udf-runner-cpp/v2/json_schema/export_specification.schema.json).
-Example:
-
-```json
-{
-  "has_truncate": true,
-  "has_replace": false,
-  "source_column_names": ["ID", "NAME"],
-  "connection_name": "REMOTE_CONNECTION"
-}
-```
+See the [export specification example](examples/export_specification.json).
 
 ## Nested Calls
 
@@ -153,16 +76,7 @@ Example:
 
 `connection_information` conforms to
 [connection_information.schema.json](../../../../udf-runner-cpp/v2/json_schema/connection_information.schema.json).
-Example:
-
-```json
-{
-  "kind": "JDBC",
-  "address": "jdbc:example://host/database",
-  "user": "user",
-  "password": "secret"
-}
-```
+See the [connection information example](examples/connection_information.json).
 
 ## Deferred Calls
 

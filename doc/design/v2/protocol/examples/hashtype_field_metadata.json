@@ -1,0 +1,10 @@
+{
+  "name": "DIGEST",
+  "nullable": true,
+  "arrow_storage_type": "FixedSizeBinary(32)",
+  "metadata": {
+    "exasol:type_name": "HASHTYPE(256 BIT)",
+    "exasol:type_family": "HASHTYPE",
+    "exasol:hash_byte_width": "32"
+  }
+}

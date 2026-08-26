@@ -1,0 +1,11 @@
+{
+  "name": "ELAPSED",
+  "nullable": true,
+  "arrow_storage_type": "Interval(MonthDayNano)",
+  "metadata": {
+    "exasol:type_name": "INTERVAL DAY(6) TO SECOND(3)",
+    "exasol:type_family": "INTERVAL DAY TO SECOND",
+    "exasol:interval_leading_precision": "6",
+    "exasol:interval_fractional_precision": "3"
+  }
+}
