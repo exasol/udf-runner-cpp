@@ -2,7 +2,9 @@
 
 This document is the normative high-level type-conversion contract for v2 data-stream column schemas. The protocol uses a
 self-owned subset of Arrow's schema model in `udf_protocol.fbs`; it does not import Arrow's FlatBuffers schema.
-`Field.custom_metadata` carries logical-type and extension annotations as string key/value pairs.
+`Field.custom_metadata` carries only conversion-specific extension annotations as string key/value pairs.
+The high-level column definition in `call_metadata` supplies the Exasol type family and all declared type parameters;
+this document defines the corresponding Arrow storage representation and conversion-specific metadata.
 
 The conversion is performed from the declared Exasol column type, never from values observed in a batch. A field's
 `nullable` flag is preserved independently of its physical type. A conversion that is not defined here fails schema
@@ -31,28 +33,13 @@ alternate Exasol type names.
 | `INTERVAL YEAR TO MONTH` | `Struct<years: Int32, months: Int32>` + `exasol.interval.year_month` | Preserve the complete Exasol year/month range. |
 | `INTERVAL DAY TO SECOND` | `Interval(MonthDayNano)` | Encode zero months, signed days, and nanoseconds. |
 
-The type family and source declaration metadata use the following field metadata keys:
+The column properties and their API meaning are defined by the [Call Metadata contract](high_level_payloads.md#call-metadata).
 
-| Key | Value |
-| --- | --- |
-| `exasol:type_name` | Original Exasol type declaration or type name. |
-| `exasol:type_family` | Official Exasol type family from the table above. |
-| `exasol:precision` | Decimal or timestamp precision, when declared. |
-| `exasol:scale` | Decimal scale, when declared. |
-| `exasol:character_length` | Declared `CHAR`/`VARCHAR` character length, when applicable. |
-| `exasol:character_set` | Declared `ASCII` or `UTF8` character set, when applicable. |
-| `exasol:srid` | Decimal SRID text, when applicable. |
-| `exasol:hash_byte_width` | Canonical fixed-width byte count, when applicable. |
-
-These keys are diagnostic and reconstruction metadata. They do not override the Arrow-compatible physical type.
-
-The high-level JSON column definition supplies conversion parameters without requiring an implementation to parse
-`type_name`. Existing properties retain their API meaning: `size` is the character length for `CHAR`/`VARCHAR` or the
-declared hash size for `HASHTYPE`; `precision` is decimal, timestamp, or interval leading-field precision; and
-`scale` is reserved for decimal scale. `size_unit` distinguishes `BYTE` from `BIT` for `HASHTYPE`.
-`character_set`, `srid`, and `fractional_second_precision` provide the additional parsed parameters needed by the
-string, geometry, and day-to-second interval mappings. `type_name` remains the complete source declaration for
-diagnostics and reconstruction.
+The official Exasol documentation defines each type's SQL syntax, aliases, parameter limits, and default values. This
+document defines only the base type-family to Arrow mapping and the conversion-critical parameter handling. See the
+[Exasol data type overview](https://docs.exasol.com/db/latest/sql_references/data_types/datatypesoverview.htm) and
+[Exasol data type details](https://docs.exasol.com/db/latest/sql_references/data_types/datatypedetails.htm) for the
+complete SQL type definitions.
 
 ### Legacy v1 category replacement
 
@@ -66,8 +53,7 @@ the canonical representation of SQL `DECIMAL`. `UNSUPPORTED` is a conversion fai
 
 ### Numeric values
 
-Exasol defines `DECIMAL(p,s)` with `1 <= p <= 36`, `0 <= s <= 36`, and `s <= p`; the defaults are `p = 18` and
-`s = 0`. Select the smallest Arrow decimal width that supports the declared precision:
+For a declared `DECIMAL(p,s)`, select the smallest Arrow decimal width that supports the declared precision.
 
 - `DOUBLE PRECISION` maps to `FloatingPoint(Double)`.
 - `1 <= p <= 9` maps to `Decimal(32)` with `bit_width = 32`.
@@ -75,11 +61,6 @@ Exasol defines `DECIMAL(p,s)` with `1 <= p <= 36`, `0 <= s <= 36`, and `s <= p`;
 - `19 <= p <= 36` maps to `Decimal(128)` with `bit_width = 128`.
 - All three mappings preserve `precision = p` and `scale = s`, including scale-zero decimals. Consumers may cast a
   decimal to an integer when appropriate, but observed values never change the protocol representation.
-- Preserve the original type name, precision, and scale in field metadata.
-
-The Exasol aliases `INTEGER` and `BIGINT`, where exposed by metadata, are represented using their resolved
-`DECIMAL` precision and scale rather than treated as undocumented independent types.
-
 For every decimal field, `0 <= scale <= precision` is required. Decimal conversion is parameter-preserving and
 value-preserving within the declared range. The selected decimal width is the smallest width supported by Arrow for
 the declared precision.
@@ -90,20 +71,20 @@ See the [decimal field metadata example](examples/decimal_field_metadata.json).
 
 ### Strings
 
-`CHAR(n)` and `VARCHAR(n)` map to `Utf8`. Exasol permits `1 <= n <= 2000` for `CHAR(n)`, with default `n = 1`,
-and `1 <= n <= 2,000,000` for `VARCHAR(n)`. Preserve the source type name, declared character length, and
-`ASCII`/`UTF8` character set. `CHAR` padding remains an Exasol logical concern; it is not a reason to use
+`CHAR(n)` and `VARCHAR(n)` map to `Utf8`. Preserve the declared character length and `ASCII`/`UTF8` character set.
+The official Exasol documentation defines the valid lengths and character-set syntax.
+`CHAR` padding remains an Exasol logical concern; it is not a reason to use
 `FixedSizeBinary`, and the mapping does not reinterpret character data as bytes. An empty Exasol string is `NULL`
 and therefore follows the nullable-field semantics.
 
 ### Date and time
 
 - `DATE` maps to `Date(Day)`.
-- `TIMESTAMP(p)` maps to `Timestamp(unit, "")`. Exasol permits `0 <= p <= 9`, with default `p = 3`.
+- `TIMESTAMP(p)` maps to `Timestamp(unit, "")`; the declared fractional precision selects the unit.
 - Timestamp unit selection is: `p = 0` seconds; `1 <= p <= 3` milliseconds; `4 <= p <= 6` microseconds; and
   `7 <= p <= 9` nanoseconds.
 - `TIMESTAMP(p) WITH LOCAL TIME ZONE` is normalized to UTC using the session time zone and maps to
-  `Timestamp(unit, "UTC")`. Preserve the original type name and precision in metadata.
+  `Timestamp(unit, "UTC")`.
 
 UTC normalization is a semantic normalization, not lossless preservation of the original session-local
 representation. Exasol internally stores these values normalized to UTC, while input and output are interpreted in
@@ -118,13 +99,13 @@ See the [timestamp field metadata example](examples/timestamp_field_metadata.jso
 ### HASHTYPE
 
 `HASHTYPE(n BYTE)` maps to `FixedSizeBinary(byte_width = n)`. `HASHTYPE(m BIT)` maps to
-`FixedSizeBinary(byte_width = m / 8)`. Exasol permits `1 <= n <= 1024` bytes, or `8 <= m <= 8192` bits, and `m`
-must be a multiple of 8. The default is `HASHTYPE(16 BYTE)`. Invalid declarations are rejected.
+`FixedSizeBinary(byte_width = m / 8)`. The declared unit is supplied through `size_unit`; bit declarations must be
+byte-aligned and invalid declarations are rejected. The official Exasol documentation defines the valid sizes and
+input/display formats.
 
 Exasol accepts hexadecimal, UUID, Base64, and Base64URL strings as SQL input syntax; UUID input is supported only for
-`HASHTYPE(16 BYTE)`. Transport raw hash bytes rather than any of those textual forms. Preserve the source type name
-and canonical byte width in metadata. The `HASHTYPE_FORMAT` display setting, including UUID display, does not change
-the Arrow type.
+`HASHTYPE(16 BYTE)`. Transport raw hash bytes rather than any of those textual forms. The `HASHTYPE_FORMAT` display
+setting, including UUID display, does not change the Arrow type.
 
 Example:
 
@@ -137,8 +118,7 @@ See [Exasol HASHTYPE documentation](https://docs.exasol.com/db/latest/sql_refere
 `INTERVAL YEAR(p) TO MONTH` maps to an Arrow `Struct_` with two children, `years: Int(32, signed)` and
 `months: Int(32, signed)`, annotated with `ARROW:extension:name = "exasol.interval.year_month"`. Encode the
 normalized signed year and month components rather than a total-month integer. This preserves Exasol's complete
-range, including `-999999999-11` through `999999999-11`. Preserve the declared leading-field precision in
-`exasol:interval_leading_precision` and the complete SQL declaration in `exasol:type_name`.
+range. The extension metadata describes the struct layout.
 
 The standard Arrow `YEAR_MONTH` interval is not sufficient for this mapping because it stores one signed 32-bit
 total-month value. Exasol permits `999999999` years and `11` months, which requires
@@ -147,11 +127,10 @@ extension therefore stores the year and month components separately, preserving 
 overflow or loss of calendar semantics.
 
 `INTERVAL DAY(lfp) TO SECOND(fsp)` maps to Arrow `Interval(MonthDayNano)`. Encode `months = 0`, the signed day count,
-and the time-of-day component as signed nanoseconds. Preserve `lfp` in `exasol:interval_leading_precision`, `fsp`
-in `exasol:interval_fractional_precision`, and the complete SQL declaration in `exasol:type_name`.
+and the time-of-day component as signed nanoseconds.
 
-Exasol currently documents effective millisecond accuracy; encode those milliseconds as nanoseconds by multiplying by
-`1,000,000`. If Exasol enables true `fsp = 9` storage, place the nanosecond value directly in the same Arrow type.
+Encode the source fractional seconds as nanoseconds. If the source accuracy is milliseconds, multiply by
+`1,000,000`; if nanosecond accuracy is available, place the nanosecond value directly in the same Arrow type.
 This represents the complete day range and future nanosecond precision. Do not convert either interval to a timestamp,
 fixed-duration value, text, or generic binary; calendar interval semantics must remain explicit.
 
@@ -167,7 +146,7 @@ See the [day-time interval field metadata example](examples/day_time_interval_fi
 
 `GEOMETRY(srid)` uses variable-size Arrow `Binary` storage with GeoArrow's WKB extension. Exasol's supported
 geometry objects are `POINT`, `LINESTRING`, `POLYGON`, `MULTIPOINT`, `MULTILINESTRING`, `MULTIPOLYGON`, and
-`GEOMETRYCOLLECTION`. `srid` is optional and defaults to `0`, meaning no coordinate system:
+`GEOMETRYCOLLECTION`.
 
 - `ARROW:extension:name` is exactly `geoarrow.wkb`.
 - `ARROW:extension:metadata` is UTF-8 JSON.
@@ -175,7 +154,6 @@ geometry objects are `POINT`, `LINESTRING`, `POLYGON`, `MULTIPOINT`, `MULTILINES
 - For an absent or zero SRID, omit CRS metadata. Omit `edges` to select planar/linear edge semantics.
 - Do not infer an EPSG authority from an Exasol SRID or force one geometry subtype: one column may contain the
   supported geometry object types listed above.
-- Preserve the source type name and SRID in `exasol:*` metadata when needed for diagnostics or reconstruction.
 - WKT may be accepted at the SQL boundary, but WKB is the canonical Arrow transport representation.
 
 Example extension metadata:
@@ -193,10 +171,8 @@ The complete Exasol SQL type surface considered by this mapping is:
 `INTERVAL DAY(lfp) TO SECOND(fsp)`, `GEOMETRY(srid)`, `HASHTYPE(n BYTE)`,
 `HASHTYPE(m BIT)`, `CHAR(n)`, and `VARCHAR(n)`.
 
-`INTERVAL YEAR(p) TO MONTH` uses leading-field precision `1 <= p <= 9`, default `p = 2`. `INTERVAL DAY(lfp) TO
-SECOND(fsp)` uses leading-field precision `1 <= lfp <= 9` and fractional-second precision `0 <= fsp <= 9`, with
-defaults `lfp = 2` and `fsp = 3`. Both interval types now have mappings above; the year-month struct mapping
-preserves the complete declared range.
+Both interval mappings preserve the declared leading and fractional-second precision supplied by the dedicated column
+properties. The official Exasol documentation defines the valid precision ranges and omitted-parameter behavior.
 
 See the authoritative [Exasol data type overview](https://docs.exasol.com/db/latest/sql_references/data_types/datatypesoverview.htm)
 and [data type details](https://docs.exasol.com/db/latest/sql_references/data_types/datatypedetails.htm).
@@ -217,9 +193,8 @@ required extension metadata. Future mappings may add Arrow interval types, nativ
 
 | Mapping | Classification | Reason |
 | --- | --- | --- |
-| `DOUBLE PRECISION`, `DATE`, `CHAR(n)`, `VARCHAR(n)`, `BOOLEAN` | Value-preserving | Source declaration metadata is retained. |
-| Positive-scale `DECIMAL` | Parameter- and value-preserving | Decimal precision, scale, and bit width are explicit. |
-| `DECIMAL` | Parameter- and value-preserving | The smallest Decimal32/64/128 width is selected from declared precision; source parameters remain in metadata. |
+| `DOUBLE PRECISION`, `DATE`, `CHAR(n)`, `VARCHAR(n)`, `BOOLEAN` | Value-preserving | The Arrow representation preserves the values and declared semantics. |
+| `DECIMAL` | Parameter- and value-preserving | The smallest Decimal32/64/128 width is selected from declared precision and scale. |
 | `TIMESTAMP(p)` | Precision- and value-preserving | The smallest sufficient Arrow unit is selected. |
 | `TIMESTAMP ... WITH LOCAL TIME ZONE` | Value-preserving after UTC normalization | Original session-local representation is not preserved. |
 | `HASHTYPE` | Byte-for-byte and width-preserving | Raw bytes and declared width are transported. |

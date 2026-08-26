@@ -19,17 +19,16 @@ flowchart TD
     B --> G[GEOMETRY]
     G --> W[Binary + geoarrow.wkb; WKB and SRID metadata]
     B --> C["CHAR(n) / VARCHAR(n) / DATE / BOOLEAN"]
-    C --> P[Utf8 / Date Day / Bool / Int]
+    C --> P[Utf8 / Date Day / Bool]
     B --> U{Unsupported or invalid}
     U --> R[Reject schema conversion]
     DT --> O
     YM --> O
 
     ND --> O[Arrow-compatible protocol types]
-    DEC --> O
-    I32 --> O
-    I64 --> O
-    D0 --> O
+    D32 --> O
+    D64 --> O
+    D128 --> O
     TS0 --> O
     TS1 --> O
     TS2 --> O

@@ -40,10 +40,7 @@ def read_example(name: str) -> object:
 
 def validate_mapping_examples() -> None:
     decimal = read_example("decimal_field_metadata.json")
-    assert decimal["metadata"]["exasol:type_family"] == "DECIMAL"
-    precision = int(decimal["metadata"]["exasol:precision"])
-    scale = int(decimal["metadata"]["exasol:scale"])
-    assert 0 <= scale <= precision
+    assert "metadata" not in decimal
     assert decimal["arrow_storage_type"] == "Decimal(64)"
 
     for precision, expected_width in ((9, 32), (10, 64), (18, 64), (19, 128), (36, 128)):
@@ -56,22 +53,30 @@ def validate_mapping_examples() -> None:
         assert width == expected_width
 
     timestamp = read_example("timestamp_field_metadata.json")
-    assert timestamp["metadata"]["exasol:type_family"] == "TIMESTAMP WITH LOCAL TIME ZONE"
+    assert "metadata" not in timestamp
 
     hashtype = read_example("hashtype_field_metadata.json")
-    assert 1 <= int(hashtype["metadata"]["exasol:hash_byte_width"]) <= 1024
+    assert "metadata" not in hashtype
 
     year_month = read_example("year_month_interval_field_metadata.json")
+    assert set(year_month["metadata"]) == {
+        "ARROW:extension:name",
+        "ARROW:extension:metadata",
+    }
     assert year_month["metadata"]["ARROW:extension:name"] == "exasol.interval.year_month"
 
     day_time = read_example("day_time_interval_field_metadata.json")
-    assert day_time["metadata"]["exasol:type_family"] == "INTERVAL DAY TO SECOND"
+    assert "metadata" not in day_time
 
     geometry = read_example("geometry_extension_metadata.json")
+    assert set(geometry) == {
+        "ARROW:extension:name",
+        "ARROW:extension:metadata",
+    }
     assert geometry["ARROW:extension:name"] == "geoarrow.wkb"
     extension_metadata = json.loads(geometry["ARROW:extension:metadata"])
     assert extension_metadata["crs_type"] == "srid"
-    assert extension_metadata["crs"] == geometry["exasol:srid"]
+    assert extension_metadata["crs"] == "4326"
 
 
 def validate_schemas() -> None:

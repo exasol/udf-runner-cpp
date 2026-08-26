@@ -1,7 +1,4 @@
 {
   "ARROW:extension:name": "geoarrow.wkb",
-  "ARROW:extension:metadata": "{\"crs\":\"4326\",\"crs_type\":\"srid\"}",
-  "exasol:type_name": "GEOMETRY(4326)",
-  "exasol:type_family": "GEOMETRY",
-  "exasol:srid": "4326"
+  "ARROW:extension:metadata": "{\"crs\":\"4326\",\"crs_type\":\"srid\"}"
 }

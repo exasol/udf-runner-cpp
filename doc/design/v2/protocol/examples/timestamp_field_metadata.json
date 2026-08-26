@@ -1,10 +1,5 @@
 {
   "name": "CREATED_AT",
   "nullable": false,
-  "arrow_storage_type": "Timestamp(Microsecond, UTC)",
-  "metadata": {
-    "exasol:type_name": "TIMESTAMP(6) WITH LOCAL TIME ZONE",
-    "exasol:type_family": "TIMESTAMP WITH LOCAL TIME ZONE",
-    "exasol:precision": "6"
-  }
+  "arrow_storage_type": "Timestamp(Microsecond, UTC)"
 }
