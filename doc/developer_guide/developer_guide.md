@@ -92,6 +92,17 @@ When you need the retained VM surfaces, enable the corresponding Bazel defines:
 - `--define benchmark=true`
 - `--define test_vm=true`
 
+
+## Release Process
+
+1. Create an issue to prepare release
+2. Call nox session prepare-release with the appropriate version
+3. Commit the docs and changelog to a developer branch and create a pull request
+4. Submit for approval
+5. Once approved, merge into `main` branch
+6. Create a tag and push to remote
+
+
 ## Architecture Notes
 
 The runner is split into two linker namespaces:
