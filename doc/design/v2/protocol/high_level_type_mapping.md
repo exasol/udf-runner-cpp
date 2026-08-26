@@ -19,7 +19,7 @@ alternate Exasol type names.
 | Exasol type family | Arrow-compatible representation | Contract |
 | --- | --- | --- |
 | `DOUBLE PRECISION` | `FloatingPoint(Double)` | Preserve nullable field semantics. |
-| `DECIMAL` | signed `Int(32)`, signed `Int(64)`, or `Decimal(128)` | Apply declared precision and scale rules below; integer types are storage choices only. |
+| `DECIMAL` | `Decimal(32)`, `Decimal(64)`, or `Decimal(128)` | Select the smallest decimal width that preserves the declared precision and scale. |
 | `TIMESTAMP` | `Timestamp(unit, "")` | Select the smallest unit preserving declared precision. |
 | `TIMESTAMP WITH LOCAL TIME ZONE` | `Timestamp(unit, "UTC")` | Normalize Exasol's UTC-normalized value for transport. |
 | `DATE` | `Date(Day)` | Preserve calendar-day semantics. |
@@ -59,32 +59,32 @@ diagnostics and reconstruction.
 The v1 protocol used `DOUBLE`, `INT32`, `INT64`, `NUMERIC`, `TIMESTAMP`, and `STRING` as internal categories, and
 `UNSUPPORTED` as an error sentinel. They are not Exasol SQL types and are not valid v2 `type` values. Their v2
 replacements are `DOUBLE PRECISION`, `DECIMAL`, `TIMESTAMP` or `TIMESTAMP WITH LOCAL TIME ZONE`, and `CHAR` or
-`VARCHAR`. `INT32` and `INT64` may still appear only as Arrow physical storage choices when a declared
-`DECIMAL(p,0)` range safely narrows; `UNSUPPORTED` is a conversion failure, never a type.
+`VARCHAR`. `INT32` and `INT64` may still appear as Arrow physical storage choices for other mappings; they are not
+the canonical representation of SQL `DECIMAL`. `UNSUPPORTED` is a conversion failure, never a type.
 
 ## Concrete Exasol SQL mappings
 
 ### Numeric values
 
 Exasol defines `DECIMAL(p,s)` with `1 <= p <= 36`, `0 <= s <= 36`, and `s <= p`; the defaults are `p = 18` and
-`s = 0`. The declared range determines the representation:
+`s = 0`. Select the smallest Arrow decimal width that supports the declared precision:
 
 - `DOUBLE PRECISION` maps to `FloatingPoint(Double)`.
-- `DECIMAL(p,s)` with `s > 0` maps to `Decimal(128)` with `precision = p`, `scale = s`, and `bit_width = 128`.
-- Scale-zero `DECIMAL(p,0)` maps to signed `Int(32)` when `p <= 9`, signed `Int(64)` when `10 <= p <= 18`, and
-  `Decimal(128)` with scale `0` when `p > 18`.
-- Integer narrowing is allowed only when the complete declared precision range fits the selected signed width.
-  Observed batch values cannot justify narrowing.
+- `1 <= p <= 9` maps to `Decimal(32)` with `bit_width = 32`.
+- `10 <= p <= 18` maps to `Decimal(64)` with `bit_width = 64`.
+- `19 <= p <= 36` maps to `Decimal(128)` with `bit_width = 128`.
+- All three mappings preserve `precision = p` and `scale = s`, including scale-zero decimals. Consumers may cast a
+  decimal to an integer when appropriate, but observed values never change the protocol representation.
 - Preserve the original type name, precision, and scale in field metadata.
 
 The Exasol aliases `INTEGER` and `BIGINT`, where exposed by metadata, are represented using their resolved
 `DECIMAL` precision and scale rather than treated as undocumented independent types.
 
 For every decimal field, `0 <= scale <= precision` is required. Decimal conversion is parameter-preserving and
-value-preserving within the declared range. Integer narrowing is value-preserving for the declared range but loses
-the original decimal physical representation; the source metadata remains available for reconstruction.
+value-preserving within the declared range. The selected decimal width is the smallest width supported by Arrow for
+the declared precision.
 
-Example field metadata (the physical type is `Decimal(128, precision=12, scale=2)`):
+Example field metadata (the physical type is `Decimal(64, precision=12, scale=2)`):
 
 See the [decimal field metadata example](examples/decimal_field_metadata.json).
 
@@ -219,7 +219,7 @@ required extension metadata. Future mappings may add Arrow interval types, nativ
 | --- | --- | --- |
 | `DOUBLE PRECISION`, `DATE`, `CHAR(n)`, `VARCHAR(n)`, `BOOLEAN` | Value-preserving | Source declaration metadata is retained. |
 | Positive-scale `DECIMAL` | Parameter- and value-preserving | Decimal precision, scale, and bit width are explicit. |
-| Scale-zero `DECIMAL` narrowed to Arrow `Int(32)` or `Int(64)` | Value-preserving, representation-normalized | The declared range fits; source parameters remain in metadata. |
+| `DECIMAL` | Parameter- and value-preserving | The smallest Decimal32/64/128 width is selected from declared precision; source parameters remain in metadata. |
 | `TIMESTAMP(p)` | Precision- and value-preserving | The smallest sufficient Arrow unit is selected. |
 | `TIMESTAMP ... WITH LOCAL TIME ZONE` | Value-preserving after UTC normalization | Original session-local representation is not preserved. |
 | `HASHTYPE` | Byte-for-byte and width-preserving | Raw bytes and declared width are transported. |

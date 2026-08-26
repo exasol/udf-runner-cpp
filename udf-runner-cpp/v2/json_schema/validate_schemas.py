@@ -44,6 +44,16 @@ def validate_mapping_examples() -> None:
     precision = int(decimal["metadata"]["exasol:precision"])
     scale = int(decimal["metadata"]["exasol:scale"])
     assert 0 <= scale <= precision
+    assert decimal["arrow_storage_type"] == "Decimal(64)"
+
+    for precision, expected_width in ((9, 32), (10, 64), (18, 64), (19, 128), (36, 128)):
+        if precision <= 9:
+            width = 32
+        elif precision <= 18:
+            width = 64
+        else:
+            width = 128
+        assert width == expected_width
 
     timestamp = read_example("timestamp_field_metadata.json")
     assert timestamp["metadata"]["exasol:type_family"] == "TIMESTAMP WITH LOCAL TIME ZONE"

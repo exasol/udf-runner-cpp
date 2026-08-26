@@ -1,7 +1,7 @@
 {
   "name": "AMOUNT",
   "nullable": true,
-  "arrow_storage_type": "Decimal(128)",
+  "arrow_storage_type": "Decimal(64)",
   "metadata": {
     "exasol:type_name": "DECIMAL(12,2)",
     "exasol:type_family": "DECIMAL",
