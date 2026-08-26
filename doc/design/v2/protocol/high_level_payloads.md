@@ -54,7 +54,7 @@ SQL declaration. Their Arrow physical representation and metadata rules are defi
 }
 ```
 
-In a column definition, `type` is the official Exasol type family, while `type_name` is the complete SQL
+In a column definition, `type` is the official Exasol type family constrained by the schema's `exasol_type` enum, while `type_name` is the complete SQL
 declaration. Parsed parameters such as `precision` and `scale` are included where applicable. The corresponding
 Arrow physical storage type and field metadata are defined by the [high-level type mapping](high_level_type_mapping.md).
 

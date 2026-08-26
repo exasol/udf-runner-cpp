@@ -11,13 +11,17 @@
     "parameters": { "type": "array", "items": { "$ref": "#/definitions/key_value" } }
   },
   "definitions": {
+    "exasol_type": {
+      "type": "string",
+      "enum": ["DOUBLE PRECISION", "DECIMAL", "DATE", "TIMESTAMP", "TIMESTAMP WITH LOCAL TIME ZONE", "CHAR", "VARCHAR", "BOOLEAN", "HASHTYPE", "GEOMETRY", "INTERVAL YEAR TO MONTH", "INTERVAL DAY TO SECOND"]
+    },
     "column": {
       "type": "object",
       "additionalProperties": true,
       "required": ["name", "type", "type_name"],
       "properties": {
         "name": { "type": "string" },
-        "type": { "enum": ["DOUBLE PRECISION", "DECIMAL", "DATE", "TIMESTAMP", "TIMESTAMP WITH LOCAL TIME ZONE", "CHAR", "VARCHAR", "BOOLEAN", "HASHTYPE", "GEOMETRY", "INTERVAL YEAR TO MONTH", "INTERVAL DAY TO SECOND"] },
+        "type": { "$ref": "#/definitions/exasol_type" },
         "type_name": { "type": "string", "description": "The complete Exasol SQL type declaration, including parameters where applicable." },
         "size": { "type": "integer", "minimum": 0, "maximum": 4294967295, "description": "Existing size property: character length for CHAR/VARCHAR or declared hash size for HASHTYPE." },
         "size_unit": { "enum": ["BYTE", "BIT"], "description": "HASHTYPE size unit; required for hash declarations." },
