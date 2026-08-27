@@ -14,10 +14,10 @@ This document covers:
 
 Related diagrams:
 
-- [high_level_call_model.svg](high_level_call_model.svg)
-- [high_level_nested_calls.svg](high_level_nested_calls.svg)
-- [high_level_run_sequence.svg](high_level_run_sequence.svg)
-- [high_level_endpoint_scheduling.svg](high_level_endpoint_scheduling.svg)
+- [call_model.svg](call_model.svg)
+- [nested_calls.svg](nested_calls.svg)
+- [run_sequence.svg](run_sequence.svg)
+- [endpoint_scheduling.svg](endpoint_scheduling.svg)
 
 ## Call Families
 
@@ -97,7 +97,7 @@ metadata is required in version 1.
 - each call carries `call_metadata` with the opening message
 - has no attached data stream in the current model
 - has the operation-specific request and result payloads defined in
-  [high_level_payloads.md](high_level_payloads.md)
+  [payloads.md](payloads.md)
 
 ### `get_connection`
 
@@ -114,7 +114,7 @@ metadata is required in version 1.
 ## Payload Contracts
 
 The complete call-metadata, script-metadata, Function, and nested-call payload contracts are defined in
-[high_level_payloads.md](high_level_payloads.md). `StringPayload` is used directly for
+[payloads.md](payloads.md). `StringPayload` is used directly for
 scalar strings; JSON is used only where a payload has structured fields.
 
 ## Representative Sequences
@@ -124,8 +124,8 @@ The current design keeps the high-level sequences intentionally simple:
 - nested callback-style calls execute while a parent `Run` or Function call remains active
 - `Run` combines `OpenCall`, `call_metadata`, input schema announcement, and the first input batch when practical
 
-See [high_level_nested_calls.svg](high_level_nested_calls.svg) and
-[high_level_run_sequence.svg](high_level_run_sequence.svg).
+See [nested_calls.svg](nested_calls.svg) and
+[run_sequence.svg](run_sequence.svg).
 
 ## Scheduling Policy
 
@@ -145,7 +145,7 @@ call orchestration and do not alter the generic Client/Server stream rules in th
 2. if nothing is ready to send, block waiting for new incoming messages
 3. monitor peer liveness and terminate unhealthy sessions when needed
 
-See [high_level_endpoint_scheduling.svg](high_level_endpoint_scheduling.svg).
+See [endpoint_scheduling.svg](endpoint_scheduling.svg).
 
 ## Forward-Looking Ideas Still Open
 <>
@@ -155,5 +155,5 @@ See [high_level_endpoint_scheduling.svg](high_level_endpoint_scheduling.svg).
 
 ## Relationship To Other Docs
 
-- low-level protocol live in [low_level.md](low_level.md)
-- high-level payload contracts live in [high_level_payloads.md](high_level_payloads.md)
+- low-level protocol lives in [../low_level/protocol.md](../low_level/protocol.md)
+- high-level payload contracts live in [payloads.md](payloads.md)

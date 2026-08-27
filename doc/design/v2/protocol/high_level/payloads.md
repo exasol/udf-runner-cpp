@@ -20,20 +20,20 @@ calls; the last received values apply to subsequent calls. It is not carried on 
 ## Call Metadata
 
 Every `Run` and Function call carries one `call_metadata` JSON payload in the same `StreamMessage` as `OpenCall`.
-It conforms to [call_metadata.schema.json](../../../../udf-runner-cpp/v2/json_schema/call_metadata.schema.json) and
+It conforms to [call_metadata.schema.json](../../../../../udf-runner-cpp/v2/json_schema/call_metadata.schema.json) and
 supplies the per-invocation execution context and the input/output iterator and column definitions. The script name
 and source are deliberately excluded because they are connection-scoped script metadata.
 Column `type` values use official Exasol type families, while `type_name` carries the complete parameterized Exasol
 SQL declaration. Their Arrow physical representation and metadata rules are defined in
-[high_level_type_mapping.md](high_level_type_mapping.md).
-The shared column-definition contract is defined in [column.schema.json](../../../../udf-runner-cpp/v2/json_schema/column.schema.json)
+[type_mapping.md](type_mapping.md).
+The shared column-definition contract is defined in [column.schema.json](../../../../../udf-runner-cpp/v2/json_schema/column.schema.json)
 and is referenced by both call metadata and import specifications.
 
 See the [call metadata example](examples/call_metadata.json).
 
 In a column definition, `type` is the official Exasol type family constrained by the schema's `exasol_type` enum, while `type_name` is the complete SQL
 declaration. Parsed parameters such as `precision` and `scale` are included where applicable. The corresponding
-Arrow physical storage type and field metadata are defined by the [high-level type mapping](high_level_type_mapping.md).
+Arrow physical storage type and field metadata are defined by the [high-level type mapping](type_mapping.md).
 
 The existing `size`, `precision`, and `scale` properties remain part of the column API. The following definitions show
 how the additional mapped types expose their parameters without requiring the consumer to parse `type_name`:
@@ -58,11 +58,11 @@ The virtual-schema request and all Function results retain their existing string
 defined by the respective script API, not by this transport protocol.
 
 `import_specification` conforms to
-[import_specification.schema.json](../../../../udf-runner-cpp/v2/json_schema/import_specification.schema.json).
+[import_specification.schema.json](../../../../../udf-runner-cpp/v2/json_schema/import_specification.schema.json).
 See the [import specification example](examples/import_specification.json).
 
 `export_specification` conforms to
-[export_specification.schema.json](../../../../udf-runner-cpp/v2/json_schema/export_specification.schema.json).
+[export_specification.schema.json](../../../../../udf-runner-cpp/v2/json_schema/export_specification.schema.json).
 See the [export specification example](examples/export_specification.json).
 
 ## Nested Calls
@@ -75,7 +75,7 @@ See the [export specification example](examples/export_specification.json).
 | `get_script` | `script_name`: `StringPayload` | `script`: `StringPayload` |
 
 `connection_information` conforms to
-[connection_information.schema.json](../../../../udf-runner-cpp/v2/json_schema/connection_information.schema.json).
+[connection_information.schema.json](../../../../../udf-runner-cpp/v2/json_schema/connection_information.schema.json).
 See the [connection information example](examples/connection_information.json).
 
 ## Deferred Calls

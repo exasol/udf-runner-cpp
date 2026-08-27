@@ -8,7 +8,7 @@ from referencing.jsonschema import DRAFT7
 
 
 ROOT = Path(__file__).resolve().parent
-EXAMPLES = ROOT.parents[2] / "doc" / "design" / "v2" / "protocol" / "examples"
+EXAMPLES = ROOT.parents[2] / "doc" / "design" / "v2" / "protocol" / "high_level" / "examples"
 
 
 def load_schemas() -> dict[str, dict]:

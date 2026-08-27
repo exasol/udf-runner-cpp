@@ -2,9 +2,9 @@
 
 Detailed protocol references in this directory:
 
-- [low_level.md](low_level.md)
-- [high_level_calls.md](high_level_calls.md)
-- [high_level_payloads.md](high_level_payloads.md)
+- [low_level/protocol.md](low_level/protocol.md)
+- [high_level/calls.md](high_level/calls.md)
+- [high_level/payloads.md](high_level/payloads.md)
 
 # General Information
 

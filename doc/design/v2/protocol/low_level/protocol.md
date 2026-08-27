@@ -1,7 +1,7 @@
 # UDF Protocol v2: Low-Level Protocol
 
 This document captures the low-level wire rules and generic call lifecycle for the new UDF protocol. It intentionally
-excludes high-level call semantics and scheduling policy; those live in [high_level_calls.md](high_level_calls.md).
+excludes high-level call semantics and scheduling policy; those live in [../high_level/calls.md](../high_level/calls.md).
 
 ## Scope
 
@@ -21,7 +21,7 @@ and buffer-transfer rules are defined in [data_stream.md](data_stream.md).
 
 Related diagrams:
 
-- [low_level_connection_lifecycle.svg](low_level_connection_lifecycle.svg)
+- [connection_lifecycle.svg](connection_lifecycle.svg)
 
 ## Roles
 
@@ -98,7 +98,7 @@ At the low level, a session progresses through:
 3. normal call/control traffic
 4. a two-way `CloseConnection` exchange on stream `0`, followed by transport close; or abort
 
-See [low_level_connection_lifecycle.svg](low_level_connection_lifecycle.svg).
+See [connection_lifecycle.svg](connection_lifecycle.svg).
 
 ## Close Semantics
 
@@ -124,4 +124,4 @@ close a call or connection; peers may continue processing when the error is reco
 - record batches: Apache Arrow IPC-compatible payloads
 - named metadata payload bodies such as connection objects or script content: typically JSON
 
-The exact flatbuffer definition can be found in [udf_protocol.fbs](../../../../udf-runner-cpp/v2/udf_protocol.fbs)
+The exact flatbuffer definition can be found in [udf_protocol.fbs](../../../../../udf-runner-cpp/v2/udf_protocol.fbs)

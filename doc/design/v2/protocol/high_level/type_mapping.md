@@ -10,7 +10,7 @@ The conversion is performed from the declared Exasol column type, never from val
 `nullable` flag is preserved independently of its physical type. A conversion that is not defined here fails schema
 conversion with a descriptive error.
 
-The [mapping diagram](high_level_type_mapping.svg) summarizes the decision paths below.
+The [mapping diagram](type_mapping.svg) summarizes the decision paths below.
 
 ## Official Exasol type mappings
 
@@ -33,7 +33,7 @@ alternate Exasol type names.
 | `INTERVAL YEAR TO MONTH` | Signed `Int32` or `Int64` total-month count + `exasol.interval.year_month` | Use Int32 for precisions 1–8 and Int64 for precision 9. |
 | `INTERVAL DAY TO SECOND` | `Interval(MonthDayNano)` | Encode zero months, signed days, and nanoseconds. |
 
-The column properties and their API meaning are defined by the [Call Metadata contract](high_level_payloads.md#call-metadata).
+The column properties and their API meaning are defined by the [Call Metadata contract](payloads.md#call-metadata).
 
 The official Exasol documentation defines each type's SQL syntax, aliases, parameter limits, and default values. This
 document defines only the base type-family to Arrow mapping and the conversion-critical parameter handling. See the

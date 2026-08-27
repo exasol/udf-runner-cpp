@@ -88,4 +88,4 @@ Nested calls are a generic mechanism, not a special-case callback transport:
 ## Relationship To Data Streams
 
 This document only records that a call may carry at most one bidirectional data stream. Detailed data-stream rules are
-described in [data_stream.md](data_stream.md) 
+part of the low-level protocol.
