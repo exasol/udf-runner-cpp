@@ -1,8 +1,7 @@
 # UDF Protocol v2: Low-Level Protocol
 
-This document captures the low-level wire rules for the new UDF protocol. It intentionally excludes
-high-level call semantics and scheduling policy; those live in
-[high_level_calls.md](high_level_calls.md).
+This document captures the low-level wire rules and generic call lifecycle for the new UDF protocol. It intentionally
+excludes high-level call semantics and scheduling policy; those live in [high_level_calls.md](high_level_calls.md).
 
 ## Scope
 
@@ -11,9 +10,12 @@ This document covers:
 - framing and message layering
 - control-stream traffic on `stream_id = 0`
 - stream ownership rules
+- generic call lifecycle
 - the relationship between calls and their attached data streams
 - transport binding
 
+A call's generic open, close, and nested-call behavior is defined in
+[call_lifecycle.md](call_lifecycle.md).
 A call may have at most one bidirectional data stream. The complete data-stream
 and buffer-transfer rules are defined in [data_stream.md](data_stream.md).
 

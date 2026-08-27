@@ -3,8 +3,8 @@
 This directory contains the split protocol design for the new UDF protocol.
 
 - [protocol/design_draft.md](protocol/design_draft.md) is the umbrella design draft.
-- [protocol/low_level.md](protocol/low_level.md) describes the wire-level and control-stream rules.
-- [protocol/call_lifecycle.md](protocol/call_lifecycle.md) describes the generic call abstraction.
+- [protocol/low_level.md](protocol/low_level.md) describes the wire-level rules, generic call lifecycle, and control
+  stream.
 - [protocol/data_stream.md](protocol/data_stream.md) is the low-level companion for call-attached
   data-stream behavior.
 - [protocol/high_level_calls.md](protocol/high_level_calls.md) describes `Run`, Function operations,

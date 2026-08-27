@@ -3,7 +3,6 @@
 Detailed protocol references in this directory:
 
 - [low_level.md](low_level.md)
-- [call_lifecycle.md](call_lifecycle.md)
 - [data_stream.md](data_stream.md)
 - [high_level_calls.md](high_level_calls.md)
 - [high_level_payloads.md](high_level_payloads.md)
