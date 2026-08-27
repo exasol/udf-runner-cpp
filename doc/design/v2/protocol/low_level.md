@@ -11,12 +11,11 @@ This document covers:
 - framing and message layering
 - control-stream traffic on `stream_id = 0`
 - stream ownership rules
-- generic call-attached data-stream rules
-- transport binding and buffer handoff
+- the relationship between calls and their attached data streams
+- transport binding
 
-The generic data-stream rules are defined in the companion
-[data_stream.md](data_stream.md). They apply below the high-level `DB`/`UDFRunner`
-protocol layer.
+A call may have at most one bidirectional data stream. The complete data-stream
+and buffer-transfer rules are defined in [data_stream.md](data_stream.md).
 
 Related diagrams:
 
@@ -52,11 +51,7 @@ The initial protocol binding uses Unix-domain stream sockets. The transport carr
 stream unchanged; it does not alter logical stream ownership, call semantics, control traffic, or flow control.
 
 Future bindings may use TCP with the same framing. Any remote TCP deployment must use TLS together with endpoint
-authentication and peer identity validation. TCP/TLS supports only inline record-batch buffers; it has no portable
-file-descriptor transfer mechanism.
-
-Unix-domain sockets may later add descriptor passing for local buffer handoff. This is an optional local
-optimization and is not required to implement the base protocol.
+authentication and peer identity validation.
 
 ## Control Stream
 
@@ -121,19 +116,6 @@ control traffic. Every active non-control stream is terminated when the underlyi
 `Error` without either close field is a non-terminal diagnostic for the enclosing stream. It does not by itself
 close a call or connection; peers may continue processing when the error is recoverable.
 
-## Buffer Handoff By Binding
-
-`Inline` buffers are supported by every binding. Their bytes follow the `DataRecordBatch` metadata on the framed
-connection according to the data-stream rules.
-
-`Memfd` and `OutOfBand` buffers are reserved for Unix-domain sockets using file-descriptor passing. `Memfd`
-denotes file-descriptor-backed shared buffers. `OutOfBand` may later cover GPU-memory handles transferred through
-the same Unix-only mechanism; it is not a portable GPU-memory transport.
-
-The initial binding does not define descriptor-to-batch correlation, supported GPU handle types, buffer ownership,
-lifetime, cleanup, or capability negotiation. An implementation that cannot establish a compatible local handoff
-must use `Inline` buffers.
-
 ## Serialization Mapping
 
 - low-frequency call/control metadata: FlatBuffers
@@ -141,10 +123,3 @@ must use `Inline` buffers.
 - named metadata payload bodies such as connection objects or script content: typically JSON
 
 This document only records the mapping at a protocol level. It does not redefine the `.fbs` schema itself.
-Data streams carry Arrow-compatible physical schemas and buffers; Exasol column selection and logical metadata are
-defined by the high-level protocol.
-
-## Open Questions
-
-- descriptor-to-batch correlation, ownership, lifetime, cleanup, and capability negotiation for Unix FD handoff
-- GPU-memory handle types and validation requirements for any future `OutOfBand` binding
