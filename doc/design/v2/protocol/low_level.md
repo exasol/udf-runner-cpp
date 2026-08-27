@@ -120,8 +120,8 @@ close a call or connection; peers may continue processing when the error is reco
 
 ## Serialization Mapping
 
-- low-frequency call/control metadata: FlatBuffers
+- high-frequency call/control metadata: FlatBuffers
 - record batches: Apache Arrow IPC-compatible payloads
 - named metadata payload bodies such as connection objects or script content: typically JSON
 
-This document only records the mapping at a protocol level. It does not redefine the `.fbs` schema itself.
+The exact flatbuffer definition can be found in [udf_protocol.fbs](../../../../udf-runner-cpp/v2/udf_protocol.fbs)

@@ -126,5 +126,3 @@ The inbound model tracks data received by the local endpoint and `Next(...)` cre
 - exact end-of-stream marker
 - exact semantics of `reset`
 - exact encoding of schema plus first-batch bundling
-- descriptor-to-batch correlation, ownership, lifetime, and cleanup for Unix file-descriptor handoff
-- GPU-memory handle types and validation rules for future `OutOfBand` transfer

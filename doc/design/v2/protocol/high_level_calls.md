@@ -155,7 +155,5 @@ See [high_level_endpoint_scheduling.svg](high_level_endpoint_scheduling.svg).
 
 ## Relationship To Other Docs
 
-- low-level framing and generic stream rules live in [low_level.md](low_level.md)
-- generic open/close call behavior is part of the low-level protocol
-- generic data-stream behavior is part of the low-level protocol
+- low-level protocol live in [low_level.md](low_level.md)
 - high-level payload contracts live in [high_level_payloads.md](high_level_payloads.md)
