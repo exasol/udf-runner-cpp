@@ -59,11 +59,32 @@ def validate_mapping_examples() -> None:
     assert "metadata" not in hashtype
 
     year_month = read_example("year_month_interval_field_metadata.json")
+    assert year_month["arrow_storage_type"] == "Int64"
     assert set(year_month["metadata"]) == {
         "ARROW:extension:name",
         "ARROW:extension:metadata",
     }
     assert year_month["metadata"]["ARROW:extension:name"] == "exasol.interval.year_month"
+    assert json.loads(year_month["metadata"]["ARROW:extension:metadata"])["layout"] == "signed_total_months"
+
+    def year_month_width(year_precision: int) -> int:
+        max_months = (10**year_precision - 1) * 12 + 11
+        for bit_width in (32, 64):
+            if max_months <= 2 ** (bit_width - 1) - 1:
+                return bit_width
+        raise AssertionError("year-month interval range does not fit in a signed integer")
+
+    assert [(p, year_month_width(p)) for p in range(1, 10)] == [
+        (1, 32),
+        (2, 32),
+        (3, 32),
+        (4, 32),
+        (5, 32),
+        (6, 32),
+        (7, 32),
+        (8, 32),
+        (9, 64),
+    ]
 
     day_time = read_example("day_time_interval_field_metadata.json")
     assert "metadata" not in day_time

@@ -1,9 +1,9 @@
 {
   "name": "AGE",
   "nullable": true,
-  "arrow_storage_type": "Struct<years: Int32, months: Int32>",
+  "arrow_storage_type": "Int64",
   "metadata": {
     "ARROW:extension:name": "exasol.interval.year_month",
-    "ARROW:extension:metadata": "{\"layout\":\"years:int32,months:int32\"}"
+    "ARROW:extension:metadata": "{\"layout\":\"signed_total_months\"}"
   }
 }

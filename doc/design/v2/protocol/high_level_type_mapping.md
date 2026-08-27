@@ -30,7 +30,7 @@ alternate Exasol type names.
 | `BOOLEAN` | `Bool` | Preserve nullable values. |
 | `HASHTYPE` | `FixedSizeBinary` | Preserve declared byte width and transport raw bytes. |
 | `GEOMETRY` | `Binary` + `geoarrow.wkb` | Transport WKB and preserve SRID metadata. |
-| `INTERVAL YEAR TO MONTH` | `Struct<years: Int32, months: Int32>` + `exasol.interval.year_month` | Preserve the complete Exasol year/month range. |
+| `INTERVAL YEAR TO MONTH` | Signed `Int32` or `Int64` total-month count + `exasol.interval.year_month` | Use Int32 for precisions 1–8 and Int64 for precision 9. |
 | `INTERVAL DAY TO SECOND` | `Interval(MonthDayNano)` | Encode zero months, signed days, and nanoseconds. |
 
 The column properties and their API meaning are defined by the [Call Metadata contract](high_level_payloads.md#call-metadata).
@@ -115,16 +115,20 @@ See [Exasol HASHTYPE documentation](https://docs.exasol.com/db/latest/sql_refere
 
 ### Intervals
 
-`INTERVAL YEAR(p) TO MONTH` maps to an Arrow `Struct_` with two children, `years: Int(32, signed)` and
-`months: Int(32, signed)`, annotated with `ARROW:extension:name = "exasol.interval.year_month"`. Encode the
-normalized signed year and month components rather than a total-month integer. This preserves Exasol's complete
-range. The extension metadata describes the struct layout.
+`INTERVAL YEAR(p) TO MONTH` maps to a signed integer containing the normalized total number of months, annotated with
+`ARROW:extension:name = "exasol.interval.year_month"`. Encode `years * 12 + months`; the integer remains signed so
+negative intervals use negative month counts. Use signed `Int32` for declared year precisions 1 through 8 and signed
+`Int64` for precision 9:
 
-The standard Arrow `YEAR_MONTH` interval is not sufficient for this mapping because it stores one signed 32-bit
-total-month value. Exasol permits `999999999` years and `11` months, which requires
-`999999999 * 12 + 11 = 11999999999` months, exceeding Arrow's signed 32-bit maximum of `2147483647`. The struct
-extension therefore stores the year and month components separately, preserving the complete Exasol range without
-overflow or loss of calendar semantics.
+| Year precision | Maximum absolute month count | Arrow storage |
+| --- | ---: | --- |
+| `p = 1–8` | `119` to `1,199,999,999` | `Int32` |
+| `p = 9` | `11,999,999,999` | `Int64` |
+
+The maximum supported declaration, `999999999` years and `11` months, requires
+`999999999 * 12 + 11 = 11999999999` months. It therefore requires signed `Int64`; precisions 1 through 8 use signed
+`Int32` storage. The extension metadata describes the logical signed-total-month layout, while the Arrow field type
+defines the physical width.
 
 `INTERVAL DAY(lfp) TO SECOND(fsp)` maps to Arrow `Interval(MonthDayNano)`. Encode `months = 0`, the signed day count,
 and the time-of-day component as signed nanoseconds.
@@ -199,6 +203,6 @@ required extension metadata. Future mappings may add Arrow interval types, nativ
 | `TIMESTAMP ... WITH LOCAL TIME ZONE` | Value-preserving after UTC normalization | Original session-local representation is not preserved. |
 | `HASHTYPE` | Byte-for-byte and width-preserving | Raw bytes and declared width are transported. |
 | `GEOMETRY` | Geometry-value preserving, representation-normalized | WKT/engine representation becomes canonical WKB; SRID metadata is retained. |
-| `INTERVAL YEAR(p) TO MONTH` | Range-preserving, extension-normalized | Struct fields preserve signed years and months across the complete Exasol range. |
+| `INTERVAL YEAR(p) TO MONTH` | Range-preserving, extension-normalized | A precision-appropriate signed integer preserves the normalized total-month value across the complete Exasol range. |
 | `INTERVAL DAY(lfp) TO SECOND(fsp)` | Range- and precision-preserving, representation-normalized | `MonthDayNano` stores zero months, days, and nanoseconds; current millisecond values are scaled to nanoseconds. |
 | Unsupported type | Not representable | Schema conversion is rejected. |

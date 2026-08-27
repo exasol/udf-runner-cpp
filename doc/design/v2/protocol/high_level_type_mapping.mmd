@@ -12,7 +12,9 @@ flowchart TD
     T -->|7 <= p <= 9| TS3[Timestamp nanoseconds]
     T -->|WITH LOCAL TIME ZONE| UTC[Normalize to UTC; timezone UTC]
     B --> I{Intervals}
-    I -->|INTERVAL YEAR p TO MONTH| YM[Struct years:int32 + months:int32 + Exasol extension]
+    I -->|INTERVAL YEAR p TO MONTH| YP{Year precision p}
+    YP -->|p = 1..8| YM32[Signed Int32 total months + Exasol extension]
+    YP -->|p = 9| YM64[Signed Int64 total months + Exasol extension]
     I -->|INTERVAL DAY lfp TO SECOND fsp| DT[Interval MonthDayNano: months=0 + days + nanoseconds]
     B --> H[HASHTYPE]
     H --> HW[FixedSizeBinary declared byte width]
@@ -23,7 +25,8 @@ flowchart TD
     B --> U{Unsupported or invalid}
     U --> R[Reject schema conversion]
     DT --> O
-    YM --> O
+    YM32 --> O
+    YM64 --> O
 
     ND --> O[Arrow-compatible protocol types]
     D32 --> O
