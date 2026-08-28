@@ -1,0 +1,9 @@
+{
+  global:
+    udf_runner_cpp_v2_demo_export_record_batch;
+    udf_runner_cpp_v2_demo_consume_record_batch;
+    udf_runner_cpp_v2_demo_last_error;
+  local:
+    *;
+};
+

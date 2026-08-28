@@ -1,7 +1,54 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "arrow_core",
+    actual = "@v2_arrow//:arrow_core",
+)
+
+filegroup(
+    name = "arrow_c_data_demo_exports",
+    srcs = ["arrow_c_data_demo.exports.map"],
+)
+
+cc_binary(
+    name = "libarrow_c_data_demo.so",
+    srcs = ["arrow_c_data_demo.cc"],
+    additional_linker_inputs = [":arrow_c_data_demo_exports"],
+    copts = [
+        "-std=c++20",
+        "-fvisibility=hidden",
+        "-fvisibility-inlines-hidden",
+    ],
+    linkopts = [
+        "-Wl,--exclude-libs,ALL",
+        "-Wl,--exclude-libs,libarrow_core.a",
+        "-Wl,--version-script=$(location :arrow_c_data_demo_exports)",
+    ],
+    linkshared = 1,
+    deps = [":arrow_core"],
+)
+
+cc_test(
+    name = "arrow_core_test",
+    srcs = ["arrow_core_test.cc"],
+    copts = ["-std=c++20"],
+    deps = [":arrow_core"],
+)
+
+cc_test(
+    name = "arrow_c_data_demo_test",
+    srcs = ["arrow_c_data_demo_test.cc"],
+    copts = ["-std=c++20"],
+    data = [":libarrow_c_data_demo.so"],
+    args = ["$(location :libarrow_c_data_demo.so)"],
+    linkopts = ["-ldl"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [":arrow_core"],
+)
 
 cc_library(
     name = "json_schema",
@@ -15,5 +62,14 @@ cc_test(
     srcs = ["json_schema_validation_test.cc"],
     data = ["//json_schema:all_schemas"],
     copts = ["-std=c++17"],
+    deps = [":json_schema"],
+)
+
+cc_test(
+    name = "json_schema_symbol_leak_test",
+    srcs = ["json_schema_symbol_leak_test.cc"],
+    copts = ["-std=c++17"],
+    linkopts = ["-ldl"],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [":json_schema"],
 )
