@@ -7,6 +7,26 @@ bazel_dep(name = "rules_cc", version = "0.2.17")
 bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "flatbuffers", version = "25.2.10")
 
+# FlatBuffers currently selects versions of these transitive build tools that
+# still use the removed incompatible_use_toolchain_transition rule attribute.
+# Override them so the v2 module can be analyzed by Bazel 9.
+single_version_override(
+    module_name = "aspect_bazel_lib",
+    version = "2.19.4",
+)
+single_version_override(
+    module_name = "rules_foreign_cc",
+    version = "0.15.1",
+)
+single_version_override(
+    module_name = "rules_go",
+    version = "0.63.0",
+)
+single_version_override(
+    module_name = "aspect_rules_esbuild",
+    version = "0.24.0",
+)
+
 http_archive = use_repo_rule(
     "@bazel_tools//tools/build_defs/repo:http.bzl",
     "http_archive",
