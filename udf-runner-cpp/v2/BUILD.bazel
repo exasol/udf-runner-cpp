@@ -212,3 +212,41 @@ cc_test(
     target_compatible_with = ["@platforms//os:linux"],
     deps = [":json_schema"],
 )
+
+cc_library(
+    name = "moodycamel_queues",
+    hdrs = [
+        "include/exasol/udf/v2/mpmc_queue.hpp",
+        "include/exasol/udf/v2/spsc_queue.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        "@v2_concurrentqueue//:concurrentqueue",
+        "@v2_readerwriterqueue//:readerwriterqueue",
+    ],
+)
+
+cc_test(
+    name = "moodycamel_queues_test",
+    srcs = ["moodycamel_queues_test.cc"],
+    copts = ["-std=c++20"],
+    deps = [":moodycamel_queues"],
+)
+
+cc_binary(
+    name = "moodycamel_queues_shared",
+    srcs = ["moodycamel_queues_shared.cc"],
+    copts = ["-std=c++20"],
+    linkshared = 1,
+    deps = [":moodycamel_queues"],
+)
+
+cc_test(
+    name = "moodycamel_symbol_leak_test",
+    srcs = ["moodycamel_symbol_leak_test.cc"],
+    copts = ["-std=c++20"],
+    data = [":moodycamel_queues_shared"],
+    args = ["$(location :moodycamel_queues_shared)"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [":moodycamel_queues"],
+)
