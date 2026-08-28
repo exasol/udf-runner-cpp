@@ -4,12 +4,67 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(default_visibility = ["//visibility:public"])
 
+FLATBUFFERS_PUBLIC_HEADERS = [
+    "allocator.h",
+    "array.h",
+    "base.h",
+    "buffer.h",
+    "buffer_ref.h",
+    "code_generator.h",
+    "code_generators.h",
+    "default_allocator.h",
+    "detached_buffer.h",
+    "file_manager.h",
+    "flatbuffer_builder.h",
+    "flatbuffers.h",
+    "flex_flat_util.h",
+    "flexbuffers.h",
+    "grpc.h",
+    "hash.h",
+    "idl.h",
+    "minireflect.h",
+    "reflection.h",
+    "reflection_generated.h",
+    "registry.h",
+    "stl_emulation.h",
+    "string.h",
+    "struct.h",
+    "table.h",
+    "util.h",
+    "vector.h",
+    "vector_downward.h",
+    "verifier.h",
+]
+
+genrule(
+    name = "private_flatbuffers_headers",
+    srcs = ["@flatbuffers//:public_headers"],
+    outs = [
+        "private_flatbuffers/exasol/udf/v2/third_party/flatbuffers/" + header
+        for header in FLATBUFFERS_PUBLIC_HEADERS
+    ],
+    tools = ["private_flatbuffers_headers.sh"],
+    cmd = "bash $(location private_flatbuffers_headers.sh) " +
+          "$(location private_flatbuffers/exasol/udf/v2/third_party/flatbuffers/allocator.h) " +
+          "$(SRCS)",
+)
+
+cc_library(
+    name = "private_flatbuffers_runtime",
+    hdrs = [":private_flatbuffers_headers"],
+    includes = ["private_flatbuffers"],
+)
+
 genrule(
     name = "udf_protocol_generated",
     srcs = ["udf_protocol.fbs"],
     outs = ["udf_protocol_generated.h"],
     tools = ["@flatbuffers//:flatc"],
-    cmd = "$(location @flatbuffers//:flatc) --cpp -o $(@D) $(location udf_protocol.fbs)",
+    cmd = "$(location @flatbuffers//:flatc) --cpp -o $(@D) $(location udf_protocol.fbs) && " +
+          "sed -i " +
+          "-e 's#flatbuffers/#exasol/udf/v2/third_party/flatbuffers/#g' " +
+          "-e 's/FLATBUFFERS_/EXASOL_UDF_V2_FLATBUFFERS_/g' " +
+          "$(@D)/udf_protocol_generated.h",
 )
 
 cc_library(
@@ -17,7 +72,7 @@ cc_library(
     srcs = ["udf_protocol.cc"],
     hdrs = ["udf_protocol.hpp", ":udf_protocol_generated"],
     copts = ["-std=c++20"],
-    deps = ["@flatbuffers//:runtime_cc"],
+    deps = [":private_flatbuffers_runtime"],
 )
 
 cc_test(
@@ -55,6 +110,16 @@ cc_test(
     data = [":udf_protocol"],
     args = ["$(locations :udf_protocol)"],
     target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_test(
+    name = "flatbuffers_header_order_test",
+    srcs = [
+        "flatbuffers_header_order_test.cc",
+        "flatbuffers_header_order_reverse.cc",
+    ],
+    copts = ["-std=c++20"],
+    deps = [":udf_protocol", "@flatbuffers//:runtime_cc"],
 )
 
 alias(
