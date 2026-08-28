@@ -85,11 +85,7 @@ cc_test(
 cc_binary(
     name = "udf_protocol_shared",
     srcs = ["udf_protocol.cc"],
-    copts = [
-        "-std=c++20",
-        "-fvisibility=hidden",
-        "-fvisibility-inlines-hidden",
-    ],
+    copts = ["-std=c++20"],
     linkshared = 1,
     deps = [":udf_protocol"],
 )
