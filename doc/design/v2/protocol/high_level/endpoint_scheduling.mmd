@@ -3,10 +3,10 @@ stateDiagram-v2
         [*] --> UdfIdle
         UdfIdle --> UdfInitializing: Accept
         UdfInitializing --> UdfActive: Capabilities
-        UdfActive --> UdfWaitingForInboundData: Receive
-        UdfWaitingForInboundData --> UdfSendingData: Next credit
+        UdfActive --> UdfWaitingForActivity: Wait for DB or user code
+        UdfWaitingForActivity --> UdfSendingData: Next credit
         UdfSendingData --> UdfActive: Transfer done
-        UdfWaitingForInboundData --> UdfActive: Message
+        UdfWaitingForActivity --> UdfActive: Socket or user-code event
     }
 
     state "DB" as DB {

@@ -6,46 +6,52 @@ value is UTF-8 JSON conforming to its linked schema.
 
 ## Script Metadata
 
-After the `Server` sends `ServerCapabilities`, `DB` may set the connection's script metadata on control stream
-`0`. It sends these `StringPayload` values together or in separate control messages:
+After the `Server` sends `ServerCapabilities`, `DB` may set the connection's script metadata on control stream `0`
+before any call is sent, between calls, or in a call-opening message. It sends these `StringPayload` values together or
+in separate messages:
 
 | Name | Value | Meaning |
 | --- | --- | --- |
 | `script_name` | string | Name of the script used by subsequent `Run` or Function calls. |
 | `script_source` | string | Source code of that script. |
 
-Script metadata must be sent before a `Run` or Function call that uses it. It may be replaced only between such
-calls; the last received values apply to subsequent calls. It is not carried on a `Run` or Function stream.
+Script metadata must be received before a `Run` or Function call that uses it. Metadata sent before any call or between
+calls applies to subsequent calls. Metadata sent with `OpenCall` applies to that call and subsequent calls. The latest
+received value replaces the previous value; metadata is not sent during an active call.
 
 ## Call Metadata
 
-Every `Run` and Function call carries one `call_metadata` JSON payload in the same `StreamMessage` as `OpenCall`.
-It conforms to [call_metadata.schema.json](../../../../../udf-runner-cpp/v2/json_schema/call_metadata.schema.json) and
-supplies the per-invocation execution context and the input/output iterator and column definitions. The script name
-and source are deliberately excluded because they are connection-scoped script metadata.
-Column `type` values use official Exasol type families, while `type_name` carries the complete parameterized Exasol
-SQL declaration. Their Arrow physical representation and metadata rules are defined in
-[type_mapping.md](type_mapping.md).
-The shared column-definition contract is defined in [column.schema.json](../../../../../udf-runner-cpp/v2/json_schema/column.schema.json)
-and is referenced by both call metadata and import specifications.
+Every `Run` and Function call uses one `call_metadata` JSON payload. It may be sent on control stream `0` before any
+call is sent or between calls, or in the same `StreamMessage` as `OpenCall`. It conforms to
+[call_metadata.schema.json](../../../../../udf-runner-cpp/v2/json_schema/call_metadata.schema.json) and supplies the
+per-invocation execution context and iterator settings. Metadata sent before any call or between calls applies to
+subsequent calls. Metadata sent with `OpenCall` applies to that call and subsequent calls. The latest received value
+replaces the previous value. It is not sent during an active call.
+
+Column definitions are carried separately in one `column_metadata` JSON payload. It conforms to
+[column_metadata.schema.json](../../../../../udf-runner-cpp/v2/json_schema/column_metadata.schema.json) and may be
+sent on control stream `0` before any call is sent or between calls, or in the same `StreamMessage` as `OpenCall`.
+Metadata sent before any call or between calls applies to subsequent calls. Metadata sent with `OpenCall` applies to
+that call and subsequent calls. The latest received value replaces the previous value. It is not sent during an active
+call. Column `type` values use official Exasol type families, while `type_name` carries the
+complete parameterized Exasol SQL declaration. Their Arrow physical representation and metadata rules are defined in
+[type_mapping.md](type_mapping.md). The shared column-definition contract is defined in
+[column.schema.json](../../../../../udf-runner-cpp/v2/json_schema/column.schema.json) and is referenced by both column
+metadata and import specifications.
 
 See the [call metadata example](examples/call_metadata.json).
-
-In a column definition, `type` is the official Exasol type family constrained by the schema's `exasol_type` enum, while `type_name` is the complete SQL
-declaration. Parsed parameters such as `precision` and `scale` are included where applicable. The corresponding
-Arrow physical storage type and field metadata are defined by the [high-level type mapping](type_mapping.md).
 
 The existing `size`, `precision`, and `scale` properties remain part of the column API. The following definitions show
 how the additional mapped types expose their parameters without requiring the consumer to parse `type_name`:
 
 See the [column definitions example](examples/column_definitions.json).
 
-Unsigned 64-bit values are decimal strings so JSON implementations do not lose precision.
+Unsigned 64-bit values in JSON payload bodies are decimal strings so JSON implementations do not lose precision.
 
 ## Function Calls
 
 `Function` is a family of DB-opened, non-streaming calls. Each operation uses its operation name as
-`OpenCall.call_name`, carries `call_metadata`, and has the following operation-specific payload contract.
+`OpenCall.call_name`, uses the applicable `call_metadata` and `column_metadata`, and has the following operation-specific payload contract.
 
 | Call name | Request payload | Result payload |
 | --- | --- | --- |
@@ -67,7 +73,7 @@ See the [export specification example](examples/export_specification.json).
 
 ## Nested Calls
 
-`UDFRunner` may open these nested calls while a `Run` or Function call is active:
+`UDFRunner` may open these nested calls only while a `Run` or Function call is active:
 
 | Call name | Request payload | Result payload |
 | --- | --- | --- |
@@ -80,5 +86,5 @@ See the [connection information example](examples/connection_information.json).
 
 ## Deferred Calls
 
-`Script` and `execute_query` are not part of the current normative call set. They remain future extensions and
+`ExecuteScript` and `execute_query` are not part of the current normative call set. They remain future extensions and
 have no payload or data-stream contract in this version.

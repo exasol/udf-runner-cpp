@@ -140,10 +140,7 @@ table OpenCall {
 // One named payload item sent by either side either on an active call's
 // connection-scoped stream_id or on stream_id = 0 without any active call. `name` identifies the
 // payload schema/meaning and therefore which parser to use for `payload` on the
-// receiving side. Examples:
-// - "virtual_schema_request" -> JSON with the virtual-schema request schema
-// - "call_metadata" -> JSON with the call-metadata schema
-// - "kill" -> name only, no payload body required
+// receiving side.
 table Payload {
   name: string;
   payload: PayloadValue;

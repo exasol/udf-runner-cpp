@@ -10,6 +10,9 @@ The conversion is performed from the declared Exasol column type, never from val
 `nullable` flag is preserved independently of its physical type. A conversion that is not defined here fails schema
 conversion with a descriptive error.
 
+In the field metadata examples, `nullable` is the Arrow field nullability flag: `true` permits null values and `false`
+states that the field must not contain nulls. It is independent of the selected physical storage type.
+
 The [mapping diagram](type_mapping.svg) summarizes the decision paths below.
 
 ## Official Exasol type mappings

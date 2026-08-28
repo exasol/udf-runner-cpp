@@ -103,10 +103,12 @@ def validate_mapping_examples() -> None:
 def validate_schemas() -> None:
     schemas = load_schemas()
     call_metadata = read_example("call_metadata.json")
+    column_metadata = read_example("column_metadata.json")
     column_definitions = read_example("column_definitions.json")
     import_specification = read_example("import_specification.json")
 
     validate(schemas, "call_metadata.schema.json", call_metadata)
+    validate(schemas, "column_metadata.schema.json", column_metadata)
     validate(
         schemas,
         "import_specification.schema.json",
@@ -117,14 +119,23 @@ def validate_schemas() -> None:
     validate(schemas, "connection_information.schema.json", read_example("connection_information.json"))
     validate_mapping_examples()
 
-    invalid = copy.deepcopy(call_metadata)
+    invalid = copy.deepcopy(column_metadata)
     invalid["input_columns"][0]["type"] = "STRING"
     try:
-        validate(schemas, "call_metadata.schema.json", invalid)
+        validate(schemas, "column_metadata.schema.json", invalid)
     except ValidationError:
         pass
     else:
         raise AssertionError("legacy STRING type was accepted")
+
+    invalid_call_metadata = copy.deepcopy(call_metadata)
+    invalid_call_metadata["input_columns"] = column_metadata["input_columns"]
+    try:
+        validate(schemas, "call_metadata.schema.json", invalid_call_metadata)
+    except ValidationError:
+        pass
+    else:
+        raise AssertionError("column metadata was accepted in call metadata")
 
     print("v2 JSON schema validation passed")
 

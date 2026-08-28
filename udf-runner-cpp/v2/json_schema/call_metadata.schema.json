@@ -5,9 +5,15 @@
   "required": [
     "database_name", "database_version", "session_id", "statement_id",
     "node_count", "node_id", "vm_id", "maximal_memory_limit", "script_schema",
-    "input_iter_type", "output_iter_type", "input_columns", "output_columns",
+    "input_iter_type", "output_iter_type",
     "single_call_mode"
   ],
+  "not": {
+    "anyOf": [
+      { "required": ["input_columns"] },
+      { "required": ["output_columns"] }
+    ]
+  },
   "properties": {
     "database_name": { "type": "string" },
     "database_version": { "type": "string" },

@@ -28,14 +28,15 @@ Related diagrams:
 | `Run` | Yes, bidirectional | Each direction carries group and row correlation in the data itself. |
 | Function operation | No | One of `default_output_columns`, `virtual_schema_adapter`, `generate_sql_for_import_spec`, or `generate_sql_for_export_spec`. |
 
-### `UDFRunner`-opened calls
+### Nested `UDFRunner`-opened calls
 
 | Call | Data stream | Notes |
 | --- | --- | --- |
 | `get_connection` | No | Returns connection information. |
 | `get_script` | No | Returns script content. |
 
-These `UDFRunner`-opened calls are ordinary nested calls, not a separate callback transport.
+These `UDFRunner`-opened calls are ordinary nested calls, not a separate callback transport. `UDFRunner` does not open
+top-level calls while idle; it can open them only while handling an active DB call.
 
 ## Call-Specific Result Payloads
 
@@ -48,7 +49,8 @@ payload may be sent while the call remains active or together with `CloseCall` i
 ### `Run`
 
 - opened by `DB`
-- carries `call_metadata` with the opening message and may carry the first input batch together
+- uses `call_metadata` and `column_metadata`, sent before any call, between calls, or with the opening message
+- may carry the first input batch together with the opening message
 - may stay active while nested calls such as `get_script` or `get_connection` execute
 - group and row correlation belong in the data, not in `Next(...)`
 
@@ -94,7 +96,7 @@ metadata is required in version 1.
 ### Function Operations
 
 - opened by `DB` with one of the Function operation names
-- each call carries `call_metadata` with the opening message
+- each call uses `call_metadata` and `column_metadata`, sent before any call, between calls, or with the opening message
 - has no attached data stream in the current model
 - has the operation-specific request and result payloads defined in
   [payloads.md](payloads.md)
@@ -134,9 +136,9 @@ call orchestration and do not alter the generic Client/Server stream rules in th
 
 ### `UDFRunner`
 
-1. prioritize receiving over sending
-2. only block during receive
-3. do not receive more messages than were requested
+1. run socket handling and user-code execution as independently wakeable activities
+2. wait for either DB socket activity or user-code activity; do not block solely on socket receive
+3. use `Next(...)` byte budgets to bound data in flight; do not impose a message-count limit
 4. send regular `KeepAlive` messages so `DB` can continue housekeeping
 
 ### `DB`
@@ -149,7 +151,7 @@ See [endpoint_scheduling.svg](endpoint_scheduling.svg).
 
 ## Forward-Looking Ideas Still Open
 <>
-- `Script` and `execute_query` call shapes and data streams
+- `ExecuteScript` and `execute_query` call shapes and data streams
 - whether `UDFRunner` may open its own pquery-style call to `DB`
 - whether table-prefetch-like declarations should be added for future call setup
 

@@ -1,6 +1,6 @@
 flowchart TD
     Call["Call\n(CallOpen / first peer call-scoped message / CallClose)"]
-    Call -->|opened by DB or UDFRunner| Opener{{"Either side may open a call"}}
+    Call -->|opened by DB, or by UDFRunner only when nested| Opener{{"DB opens top-level calls"}}
     Call -->|optional, at most one| DataStream["Bidirectional Data Stream\n(independent schema per direction)"]
     Call -->|optional| Nested["Nested Call(s)\n(started by nested CallOpen traffic)"]
 
