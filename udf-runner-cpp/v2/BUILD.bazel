@@ -4,6 +4,50 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(default_visibility = ["//visibility:public"])
 
+genrule(
+    name = "udf_protocol_generated",
+    srcs = ["udf_protocol.fbs"],
+    outs = ["udf_protocol_generated.h"],
+    tools = ["@flatbuffers//:flatc"],
+    cmd = "$(location @flatbuffers//:flatc) --cpp -o $(@D) $(location udf_protocol.fbs)",
+)
+
+cc_library(
+    name = "udf_protocol",
+    srcs = ["udf_protocol.cc"],
+    hdrs = ["udf_protocol.hpp", ":udf_protocol_generated"],
+    copts = ["-std=c++20"],
+    deps = ["@flatbuffers//:runtime_cc"],
+)
+
+cc_test(
+    name = "udf_protocol_test",
+    srcs = ["udf_protocol_test.cc"],
+    copts = ["-std=c++20"],
+    deps = [":udf_protocol"],
+)
+
+cc_binary(
+    name = "udf_protocol_shared",
+    srcs = ["udf_protocol.cc"],
+    copts = [
+        "-std=c++20",
+        "-fvisibility=hidden",
+        "-fvisibility-inlines-hidden",
+    ],
+    linkshared = 1,
+    deps = [":udf_protocol"],
+)
+
+cc_test(
+    name = "udf_protocol_symbol_leak_test",
+    srcs = ["udf_protocol_symbol_leak_test.cc"],
+    copts = ["-std=c++20"],
+    data = [":udf_protocol_shared"],
+    args = ["$(location :udf_protocol_shared)"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
 alias(
     name = "arrow_core",
     actual = "@v2_arrow//:arrow_core",
