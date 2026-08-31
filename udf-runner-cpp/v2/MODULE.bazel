@@ -6,6 +6,27 @@ module(
 bazel_dep(name = "rules_cc", version = "0.2.17")
 bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "flatbuffers", version = "25.2.10")
+bazel_dep(name = "google_benchmark", version = "1.9.5")
+
+# FlatBuffers currently selects versions of these transitive build tools that
+# still use the removed incompatible_use_toolchain_transition rule attribute.
+# Override them so the v2 module can be analyzed by Bazel 9.
+single_version_override(
+    module_name = "aspect_bazel_lib",
+    version = "2.19.4",
+)
+single_version_override(
+    module_name = "rules_foreign_cc",
+    version = "0.15.1",
+)
+single_version_override(
+    module_name = "rules_go",
+    version = "0.63.0",
+)
+single_version_override(
+    module_name = "aspect_rules_esbuild",
+    version = "0.24.0",
+)
 
 http_archive = use_repo_rule(
     "@bazel_tools//tools/build_defs/repo:http.bzl",
@@ -77,6 +98,42 @@ cc_library(
     # Keep this source-level namespace rewrite private to the dependency.
     local_defines = ["nlohmann=exasol::udf::v2::third_party::nlohmann"],
     deps = ["@v2_nlohmann_json//:nlohmann_json"],
+)
+""",
+)
+
+http_archive(
+    name = "v2_readerwriterqueue",
+    urls = ["https://github.com/cameron314/readerwriterqueue/archive/refs/tags/v1.0.7.tar.gz"],
+    sha256 = "532224ed052bcd5f4c6be0ed9bb2b8c88dfe7e26e3eb4dd9335303b059df6691",
+    strip_prefix = "readerwriterqueue-1.0.7",
+    build_file_content = """
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "readerwriterqueue",
+    hdrs = glob(["*.h"]),
+    includes = ["."],
+)
+""",
+)
+
+http_archive(
+    name = "v2_concurrentqueue",
+    urls = ["https://github.com/cameron314/concurrentqueue/archive/refs/tags/v1.0.5.tar.gz"],
+    sha256 = "4d6368a27492d86011fde5ca0cf386dce7c49cd425aa3d9b063ca6ec373a6ef3",
+    strip_prefix = "concurrentqueue-1.0.5",
+    build_file_content = """
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "concurrentqueue",
+    hdrs = glob(["*.h"]),
+    includes = ["."],
 )
 """,
 )
