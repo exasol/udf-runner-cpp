@@ -250,3 +250,30 @@ cc_test(
     target_compatible_with = ["@platforms//os:linux"],
     deps = [":moodycamel_queues"],
 )
+
+cc_library(
+    name = "waitable_queue",
+    hdrs = ["include/exasol/udf/v2/waitable_queue.hpp"],
+    includes = ["include"],
+    deps = [":moodycamel_queues"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_test(
+    name = "waitable_queue_test",
+    srcs = ["waitable_queue_test.cc"],
+    copts = ["-std=c++20"],
+    deps = [":waitable_queue"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_binary(
+    name = "waitable_queue_benchmark",
+    srcs = ["waitable_queue_benchmark.cc"],
+    copts = ["-std=c++20"],
+    deps = [
+        ":waitable_queue",
+        "@google_benchmark//:benchmark_main",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
