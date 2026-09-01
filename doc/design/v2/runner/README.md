@@ -3,18 +3,20 @@
 This directory describes the runner-side architecture for protocol v2. It is a design document set; it does not
 define an implementation or commit to a concrete C++ class layout.
 
-The runner is organized into three layers:
+The runner is organized into two source-level namespaces:
 
-1. The private C++ implementation owns sockets, accepting, worker scheduling, and protocol contexts.
-2. The C ABI exposes stable opaque handles, callback/vtable contracts, status values, and Arrow C Data Interface
-   values.
-3. A header-only C++ facade provides RAII and typed C++ adapters on top of the C ABI.
+1. The API namespace contains the caller-facing C++ contracts.
+2. The Internal namespace owns sockets, accepting, worker scheduling, protocol contexts, and implementation
+   dependencies.
+
+The API namespace must not expose third-party symbols from the Internal namespace. A dependency may cross this
+boundary only when it is vendored into an owned project namespace or uses a well-known interoperable ABI, such as the
+Arrow C Data Interface.
 
 ## Documents
 
-- [architecture.md](architecture.md) defines the layers and component responsibilities.
+- [architecture.md](architecture.md) defines the namespace boundary and component responsibilities.
 - [lifecycle.md](lifecycle.md) defines connection, worker, context, and shutdown lifecycles.
-- [abi.md](abi.md) defines the C ABI and the header-only C++ facade contract.
 
 Mermaid `.mmd` files are the diagram sources of truth. Matching `.svg` files are rendered views linked from the
 documents.

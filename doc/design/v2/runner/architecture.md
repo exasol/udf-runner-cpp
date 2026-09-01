@@ -3,13 +3,13 @@
 ## Layering
 
 ```text
-Header-only C++ facade
+API namespace: caller-facing C++ contracts
         |
         v
-Stable C ABI: opaque handles, vtables, status/error values, Arrow C Data Interface
+Internal namespace: sockets, acceptor, worker pool, factory, context manager, context
         |
         v
-Private C++ implementation: sockets, acceptor, worker pool, factory, context manager, context
+Protocol v2
 ```
 
 Related diagrams:
@@ -17,9 +17,13 @@ Related diagrams:
 - [layered_architecture.svg](layered_architecture.svg)
 - [component_relationships.svg](component_relationships.svg)
 
-Dependencies point downward only. The private implementation may use C++ standard-library types, exceptions, and
-the Arrow C++ library. None of those types cross the C ABI. The header-only facade depends only on the C ABI headers,
-the C++ standard library, and the Arrow C Data Interface declarations.
+Dependencies point downward only. The API namespace contains only project-owned caller-facing contracts. The Internal
+namespace may use C++ standard-library types, exceptions, and third-party libraries such as Arrow C++.
+
+Third-party symbols must not leak from the Internal namespace through the API namespace. A dependency is allowed at
+the API boundary only when it is vendored into an owned project namespace or communicated through a well-known ABI.
+The current well-known ABI exception is the Arrow C Data Interface: `ArrowArray` and `ArrowSchema` may cross the
+boundary under its release and ownership contract; Arrow C++ types remain internal.
 
 ## Components
 
@@ -88,5 +92,6 @@ SocketAcceptor -> worker pool -> Worker(fd)
                     Socket bytes + Arrow C data values
 ```
 
-Arrow record batches and schemas cross the public boundary as `ArrowArray` and `ArrowSchema`. Arrow C++ objects are
-implementation details and are released according to the Arrow C Data Interface ownership rules.
+Arrow record batches and schemas may cross the API boundary as `ArrowArray` and `ArrowSchema` under the Arrow C Data
+Interface. Arrow C++ objects remain Internal-namespace implementation details and are released according to that
+interface's ownership rules.

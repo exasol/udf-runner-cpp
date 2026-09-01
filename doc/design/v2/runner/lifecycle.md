@@ -78,12 +78,12 @@ factory or context-manager dependencies until all workers have returned.
 | Context creation failure | Reclaim the descriptor and return the creation error. |
 | Protocol validation error | Let the context perform protocol error/close handling, then terminate the connection if required. |
 | Peer disconnect | Let the context release all connection state and return normally unless cleanup fails. |
-| Worker exception | Convert it at the ABI boundary to a status/error and guarantee descriptor/context cleanup. |
+| Worker exception | Contain it within the Internal namespace and guarantee descriptor/context cleanup before reporting it through the API contract. |
 
 ## Concurrency requirements
 
 - A context is single-owner unless the protocol implementation explicitly documents internal concurrency.
 - Worker-pool resources may run concurrently, but no connection-scoped stream state is shared between contexts.
-- The acceptor, queue, pool, and context manager must define their thread-safety guarantees in the C++ and C ABI
-  contracts.
+- The acceptor, queue, pool, and context manager must define their thread-safety guarantees in the API contract;
+  Internal-namespace implementation details remain encapsulated.
 - Cancellation and shutdown must be safe when they race with accept, queue submission, context creation, or peer close.
