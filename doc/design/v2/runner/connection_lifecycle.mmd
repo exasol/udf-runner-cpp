@@ -1,5 +1,7 @@
 sequenceDiagram
-    participant Owner as External owner
+    participant User as Runner user
+    participant Production as Production factory
+    participant Runner
     participant Acceptor as SocketAcceptor
     participant Pool as Worker pool
     participant Factory as WorkerFactory
@@ -7,7 +9,9 @@ sequenceDiagram
     participant Manager as ContextManager
     participant Context
 
-    Owner->>Acceptor: configure and listen
+    User->>Production: transfer WorkerFactory
+    Production->>Runner: construct with owned components
+    Runner->>Acceptor: configure and listen
     Acceptor->>Acceptor: accept connection
     Acceptor->>Pool: enqueue owned fd
     Pool->>Factory: create worker for fd

@@ -2,9 +2,11 @@
 
 ## Startup
 
-1. The external owner creates transport configuration, a `WorkerFactory`, a `ContextManager`, and runner limits.
-2. The runner creates a `SocketAcceptor` and a reusable worker pool.
-3. The acceptor binds and listens on the configured Unix-domain endpoint.
+1. The runner user transfers ownership of a `WorkerFactory` to the production factory.
+2. The production factory creates a `Runner` with that factory, transport configuration, limits, a `SocketAcceptor`,
+   a reusable worker pool, and a `ContextManager`.
+3. The runner validates and connects its owned components, then the acceptor binds and listens on the configured
+   Unix-domain endpoint.
 4. The runner starts accepting connections and dispatching descriptors.
 
 The runner must reject invalid endpoint configuration before starting worker threads. Startup failure leaves no live
@@ -25,7 +27,7 @@ owned connected fd
     | enqueue
     v
 reusable worker-pool resource
-    | invoke injected WorkerFactory product
+    | invoke Runner-owned WorkerFactory product
     v
 Worker(fd)
     | ContextManager.create(fd)
@@ -65,8 +67,9 @@ Shutdown has three phases:
 2. Stop queueing work and request cancellation for queued and active workers.
 3. Wait for active contexts to close or reach the configured shutdown deadline, then reclaim remaining resources.
 
-The runner must close the listening socket before reporting that accepting has stopped. It must not destroy injected
-factory or context-manager dependencies until all workers have returned.
+The runner must close the listening socket before reporting that accepting has stopped. After all workers have
+returned, it destroys its contexts, worker pool, acceptor, context manager, and `WorkerFactory` in dependency-safe
+order.
 
 ## Failure cases
 

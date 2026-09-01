@@ -1,6 +1,11 @@
 flowchart LR
-    External[External owner] -->|injects| Factory[WorkerFactory]
-    Acceptor[SocketAcceptor\nlistening endpoint] -->|accepted fd| Queue[Reusable worker pool]
+    User[Runner user] -->|transfers WorkerFactory| Production[Production factory]
+    Production -->|constructs| Runner[Runner\ncomposition root]
+    Runner -->|owns| Factory[WorkerFactory]
+    Runner -->|owns| Acceptor[SocketAcceptor\nlistening endpoint]
+    Runner -->|owns| Queue[Reusable worker pool]
+    Runner -->|owns| Manager[ContextManager]
+    Acceptor -->|accepted fd| Queue
     Factory -->|creates worker| Queue
     Queue -->|one fd per invocation| Worker[Worker callable]
     Worker -->|create context| Manager[ContextManager]

@@ -9,6 +9,10 @@ The runner is organized into two source-level namespaces:
 2. The Internal namespace owns sockets, accepting, worker scheduling, protocol contexts, and implementation
    dependencies.
 
+`Runner` is the composition root for those components. A runner user transfers a `WorkerFactory` to a production
+factory, which constructs `Runner` and its remaining owned components. Unit tests use the same construction seam with
+owned test doubles.
+
 The API namespace must not expose third-party symbols from the Internal namespace. A dependency may cross this
 boundary only when it is vendored into an owned project namespace or uses a well-known interoperable ABI, such as the
 Arrow C Data Interface.

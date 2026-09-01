@@ -27,6 +27,17 @@ boundary under its release and ownership contract; Arrow C++ types remain intern
 
 ## Components
 
+### Runner
+
+`Runner` is the composition root. A runner user transfers ownership of a `WorkerFactory` to a production factory.
+The production factory constructs a `Runner` with that factory, transport configuration, limits, a `SocketAcceptor`,
+a worker pool, and a `ContextManager`. `Runner` validates and connects those components, starts and stops them, and
+destroys them in dependency-safe order after all work has completed.
+
+Unit tests use the same construction seam to create a `Runner` with owned fakes, stubs, or instrumented component
+implementations. The production factory is responsible only for choosing concrete production implementations; the
+runner remains responsible for their configuration and composition.
+
 ### Socket
 
 `Socket` represents one connected byte stream. It owns the accepted descriptor and provides the operations required
@@ -47,8 +58,9 @@ creation abstract so a TCP/TLS acceptor can be added later.
 
 ### WorkerFactory and worker pool
 
-The runner does not decide how workers are constructed. An external owner injects a `WorkerFactory`. The factory is
-used by reusable worker-pool resources to obtain a worker callable or worker object for an accepted descriptor.
+The runner user initially owns `WorkerFactory` and transfers it to the production factory, which transfers ownership
+to `Runner`. The factory is used by reusable worker-pool resources to obtain a worker callable or worker object for
+an accepted descriptor. `Runner` destroys the factory only after stopping and joining all worker activity.
 
 The pool is reusable, but a worker invocation handles one accepted connection. A worker must not retain a protocol
 context or descriptor after its invocation returns. Pool sizing, queue limits, and shutdown policy are explicit runner
@@ -79,17 +91,14 @@ protocol documents.
 ## Data and dependency flow
 
 ```text
-external WorkerFactory
-          |
-SocketAcceptor -> worker pool -> Worker(fd)
-                                  |
-                                  v
-                         ContextManager.create(fd)
-                                  |
-                                  v
-                         protocol Context
-                                  |
-                    Socket bytes + Arrow C data values
+runner user --moves WorkerFactory--> production factory
+                                      |
+                                      v
+                         Runner owns factory, acceptor, pool, and context manager
+                                      |
+SocketAcceptor -> worker pool -> Worker(fd) -> ContextManager.create(fd) -> protocol Context
+                                                                         |
+                                                          Socket bytes + Arrow C data values
 ```
 
 Arrow record batches and schemas may cross the API boundary as `ArrowArray` and `ArrowSchema` under the Arrow C Data
