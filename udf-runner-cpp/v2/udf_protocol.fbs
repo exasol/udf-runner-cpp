@@ -20,14 +20,24 @@ enum Precision : uint8 { Half = 0, Single = 1, Double = 2 }
 enum DateUnit : uint8 { Day = 0, Millisecond = 1 }
 enum TimeUnit : uint8 { Second = 0, Millisecond = 1, Microsecond = 2, Nanosecond = 3 }
 enum IntervalUnit : uint8 { YearMonth = 0, DayTime = 1, MonthDayNano = 2 }
+enum UnionMode : uint8 { Sparse = 0, Dense = 1 }
 
+table Null {}
 table Int { bit_width: int32; is_signed: bool; }
 table FloatingPoint { precision: Precision; }
-table Utf8 {}
 table Binary {}
+table Utf8 {}
+table LargeBinary {}
+table LargeUtf8 {}
+table BinaryView {}
+table Utf8View {}
 table FixedSizeBinary { byte_width: int32; }
 table Bool {}
 table Date { unit: DateUnit; }
+table Time {
+  unit: TimeUnit = Millisecond;
+  bit_width: int32 = 32;
+}
 table Timestamp { unit: TimeUnit; timezone: string; }
 // Arrow calendar interval storage:
 // YearMonth: signed int32 total months.
@@ -36,6 +46,16 @@ table Timestamp { unit: TimeUnit; timezone: string; }
 table Interval { unit: IntervalUnit; }
 table Decimal { precision: int32; scale: int32; bit_width: int32 = 128; }
 table List {}
+table LargeList {}
+table ListView {}
+table LargeListView {}
+table FixedSizeList { list_size: int32; }
+table Map { keys_sorted: bool; }
+table Union {
+  mode: UnionMode;
+  type_ids: [int32];
+}
+table Duration { unit: TimeUnit = Millisecond; }
 // Trailing underscore mirrors Arrow's own Schema.fbs naming for this union member.
 table Struct_ {}
 // Run-End Encoded (REE): a compact encoding for runs of values (Arrow's own
@@ -48,8 +68,9 @@ table Struct_ {}
 table RunEndEncoded {}
 
 union Type {
-  Int, FloatingPoint, Utf8, Binary, FixedSizeBinary, Bool, Date, Timestamp, Interval, Decimal, List, Struct_,
-  RunEndEncoded,
+  Null, Int, FloatingPoint, Binary, Utf8, Bool, Decimal, Date, Time, Timestamp, Interval, List, Struct_, Union,
+  FixedSizeBinary, FixedSizeList, Map, Duration, LargeBinary, LargeUtf8, LargeList, RunEndEncoded, BinaryView,
+  Utf8View, ListView, LargeListView,
 }
 
 // Mirrors Arrow's own Schema.fbs KeyValue: a single string/string metadata
@@ -63,7 +84,8 @@ table Field {
   name: string (required);
   nullable: bool;
   type: Type (required);
-  children: [Field];   // List's single element type, Struct_'s member fields,
+  children: [Field];   // List/view/fixed-size-list's element type, Struct_'s
+                        // member fields, Map's entries field, Union's members,
                         // or RunEndEncoded's [run_ends, values] pair
   // Extension-type annotation, mirroring Arrow's own convention: a field
   // representing an extension type is serialized using its storage type for
@@ -91,6 +113,11 @@ table RecordBatchMetadata {
   length: int64;
   nodes: [FieldNode];
   buffers: [Buffer];
+  // For each variable-buffer field in the flattened schema, in preorder,
+  // records the number of variable buffers belonging to that field.
+  // Empty when the schema has no variable-buffer fields (for example, no
+  // Utf8View or BinaryView fields).
+  variadic_buffer_counts: [int64];
 }
 
 table Version {
@@ -195,10 +222,12 @@ table DataSchema {
 
 // Precedes the buffers for one RecordBatch in a direction of a call's data
 // stream. metadata is our own native RecordBatchMetadata (row count, per-
-// column FieldNode, per-buffer Buffer), populated from a real Arrow
+// flattened FieldNode, per-buffer Buffer), populated from a real Arrow
 // RecordBatch's public introspection API (Array::length(), null_count(),
 // ArrayData::buffers) -- not Arrow's own flatbuffer RecordBatch message. The
-// actual column buffers are transported separately per buffer_transport.
+// actual column buffers are transported separately per buffer_transport; view
+// fields additionally use metadata.variadic_buffer_counts to delimit their
+// variable buffer portions.
 table DataRecordBatch {
   buffer_transport: BufferTransport = Inline;
   is_end_of_group: bool = false;
