@@ -1,4 +1,5 @@
 ## Summary
+First release of the UDF-Runner C++ SDK for the protobuf protocol
 
 ## Bug Fixes
 
@@ -6,7 +7,9 @@ n/a
 
 ## Features / Enhancements
 
- n/a
+ - 7: Created a test flavor
+ - 15: Created a CD workflow
+ - 25: Updated Bazel build configurations
 
 ## Refactorings
 
