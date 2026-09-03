@@ -1,5 +1,5 @@
 ## Summary
-First release of base repository for all Python, Java and R
+First release of the UDF-Runner C++ SDK for the protobuf protocol
 
 ## Bug Fixes
 
