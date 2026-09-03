@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "database_name", "database_version", "session_id", "statement_id",
+    "node_count", "node_id", "vm_id", "maximal_memory_limit", "script_schema",
+    "input_iter_type", "output_iter_type",
+    "single_call_mode"
+  ],
+  "not": {
+    "anyOf": [
+      { "required": ["input_columns"] },
+      { "required": ["output_columns"] }
+    ]
+  },
+  "properties": {
+    "database_name": { "type": "string" },
+    "database_version": { "type": "string" },
+    "session_id": { "type": "string", "pattern": "^[0-9]+$" },
+    "statement_id": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+    "node_count": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+    "node_id": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+    "vm_id": { "type": "string", "pattern": "^[0-9]+$" },
+    "maximal_memory_limit": { "type": "string", "pattern": "^[0-9]+$" },
+    "script_schema": { "type": "string" },
+    "current_user": { "type": "string" },
+    "current_schema": { "type": "string" },
+    "scope_user": { "type": "string" },
+    "input_iter_type": { "enum": ["EXACTLY_ONCE", "MULTIPLE"] },
+    "output_iter_type": { "enum": ["EXACTLY_ONCE", "MULTIPLE"] },
+    "input_columns": { "type": "array", "items": { "$ref": "column.schema.json" } },
+    "output_columns": { "type": "array", "items": { "$ref": "column.schema.json" } },
+    "single_call_mode": { "type": "boolean" }
+  }
+}

@@ -41,7 +41,9 @@ homepage = "https://github.com/exasol/udf-runner-cpp"
 
 dev = [
     "toml>=0.10.2",
-    "gitpython>=3.1.0, <4.0.0"
+    "gitpython>=3.1.0, <4.0.0",
+    "nox>=2026.4.10",
+    "jsonschema>=4.22.0, <5.0.0"
 ]
 
 [build-system]

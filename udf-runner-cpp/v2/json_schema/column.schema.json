@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "UDF Protocol v2 column definition",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["name", "type", "type_name"],
+  "properties": {
+    "name": { "type": "string" },
+    "type": { "$ref": "#/definitions/exasol_type" },
+    "type_name": { "type": "string", "description": "The complete Exasol SQL type declaration, including parameters where applicable." },
+    "size": { "type": "integer", "minimum": 0, "maximum": 4294967295, "description": "Existing size property: character length for CHAR/VARCHAR or declared hash size for HASHTYPE." },
+    "size_unit": { "enum": ["BYTE", "BIT"], "description": "HASHTYPE size unit; required for hash declarations." },
+    "precision": { "type": "integer", "minimum": 0, "maximum": 4294967295, "description": "DECIMAL or TIMESTAMP precision, or interval leading-field precision." },
+    "scale": { "type": "integer", "minimum": 0, "maximum": 4294967295, "description": "DECIMAL scale only." },
+    "fractional_second_precision": { "type": "integer", "minimum": 0, "maximum": 9, "description": "INTERVAL DAY TO SECOND fractional-second precision." },
+    "character_set": { "enum": ["ASCII", "UTF8"], "description": "CHAR/VARCHAR character set." },
+    "srid": { "type": "integer", "minimum": 0, "maximum": 4294967295, "description": "GEOMETRY spatial reference identifier; zero means no CRS." }
+  },
+  "definitions": {
+    "exasol_type": {
+      "type": "string",
+      "enum": ["DOUBLE PRECISION", "DECIMAL", "DATE", "TIMESTAMP", "TIMESTAMP WITH LOCAL TIME ZONE", "CHAR", "VARCHAR", "BOOLEAN", "HASHTYPE", "GEOMETRY", "INTERVAL YEAR TO MONTH", "INTERVAL DAY TO SECOND"]
+    }
+  }
+}

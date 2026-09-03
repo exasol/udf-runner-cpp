@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["is_subselect"],
+  "properties": {
+    "is_subselect": { "type": "boolean" },
+    "connection_information": { "$ref": "connection_information.schema.json" },
+    "connection_name": { "type": "string" },
+    "subselect_column_specification": { "type": "array", "items": { "$ref": "column.schema.json" } },
+    "parameters": { "type": "array", "items": { "$ref": "#/definitions/key_value" } }
+  },
+  "definitions": {
+    "key_value": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["key", "value"],
+      "properties": { "key": { "type": "string" }, "value": { "type": "string" } }
+    }
+  }
+}

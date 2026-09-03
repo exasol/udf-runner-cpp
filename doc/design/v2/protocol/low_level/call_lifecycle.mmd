@@ -1,0 +1,21 @@
+stateDiagram-v2
+    state "Locally opened call" as LocallyOpened {
+        [*] --> LocallyOpenedIdle
+
+        LocallyOpenedIdle --> WaitingForPeerCallTraffic: Send CallOpen
+        WaitingForPeerCallTraffic --> LocallyOpenedActive: Receive first call traffic
+        LocallyOpenedActive --> LocallyOpenedActive: Handle call traffic
+        LocallyOpenedActive --> LocallyOpenedClosed: Handle CallClose
+
+        LocallyOpenedClosed --> [*]
+    }
+
+    state "Peer-opened call" as PeerOpened {
+        [*] --> PeerOpenedIdle
+
+        PeerOpenedIdle --> PeerOpenedActive: Receive CallOpen
+        PeerOpenedActive --> PeerOpenedActive: Handle call traffic
+        PeerOpenedActive --> PeerOpenedClosed: Handle CallClose
+
+        PeerOpenedClosed --> [*]
+    }

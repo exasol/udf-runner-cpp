@@ -1,0 +1,12 @@
+{
+  "input_columns": [
+    {
+      "name": "AMOUNT",
+      "type": "DECIMAL",
+      "type_name": "DECIMAL(12,2)",
+      "precision": 12,
+      "scale": 2
+    }
+  ],
+  "output_columns": []
+}

@@ -1,0 +1,14 @@
+{
+  "is_subselect": true,
+  "connection_name": "REMOTE_CONNECTION",
+  "subselect_column_specification": [
+    {
+      "name": "ID",
+      "type": "DECIMAL",
+      "type_name": "DECIMAL(18,0)",
+      "precision": 18,
+      "scale": 0
+    }
+  ],
+  "parameters": [{ "key": "encoding", "value": "UTF-8" }]
+}

@@ -1,0 +1,6 @@
+{
+  "has_truncate": true,
+  "has_replace": false,
+  "source_column_names": ["ID", "NAME"],
+  "connection_name": "REMOTE_CONNECTION"
+}

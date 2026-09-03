@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "UDF Protocol v2 column metadata",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["input_columns", "output_columns"],
+  "properties": {
+    "input_columns": { "type": "array", "items": { "$ref": "column.schema.json" } },
+    "output_columns": { "type": "array", "items": { "$ref": "column.schema.json" } }
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "ARROW:extension:name": "geoarrow.wkb",
+  "ARROW:extension:metadata": "{\"crs\":\"4326\",\"crs_type\":\"srid\"}"
+}
