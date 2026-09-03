@@ -1,6 +1,7 @@
 module(name="exaudfclient", version = "1.0")
 
 bazel_dep(name = "exaudfclient_base", version = "1.0.0")
+bazel_dep(name = "rules_cc", version = "0.2.22")
 #For now, the Bazel Modul "exaudfclient_base" is stored in subdirectory "base".
 #Later we might fetch it via Http or Git (after splitting up script-languages repository)
 local_path_override(module_name="exaudfclient_base", path="base")
