@@ -12,6 +12,34 @@ http_archive = use_repo_rule(
 )
 
 http_archive(
+    name = "v2_xsimd",
+    urls = ["https://github.com/xtensor-stack/xsimd/archive/14.2.0.tar.gz"],
+    sha256 = "21e841ab684b05331e81e7f782431753a029ef7b7d9d6d3ddab837e7782a40ee",
+    strip_prefix = "xsimd-14.2.0",
+    build_file_content = """
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "xsimd",
+    hdrs = glob(["include/**/*.hpp"]),
+    includes = ["include"],
+)
+""",
+)
+
+http_archive(
+    name = "v2_arrow",
+    urls = ["https://github.com/apache/arrow/archive/refs/tags/apache-arrow-25.0.0.tar.gz"],
+    sha256 = "7ecdd404862c3d312601457861a11c30bb8f520328693e1323e3db1db985dbe5",
+    strip_prefix = "arrow-apache-arrow-25.0.0",
+    build_file = "//third_party/arrow:arrow.BUILD",
+    patches = ["//third_party/arrow:config_headers.patch"],
+    patch_args = ["-p1"],
+)
+
+http_archive(
     name = "v2_nlohmann_json",
     urls = ["https://github.com/nlohmann/json/archive/refs/tags/v3.12.0.tar.gz"],
     sha256 = "4b92eb0c06d10683f7447ce9406cb97cd4b453be18d7279320f7b2f025c10187",
