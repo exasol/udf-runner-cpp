@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["has_truncate", "has_replace"],
+  "properties": {
+    "has_truncate": { "type": "boolean" },
+    "has_replace": { "type": "boolean" },
+    "created_by": { "type": "string" },
+    "source_column_names": { "type": "array", "items": { "type": "string" } },
+    "connection_information": { "$ref": "connection_information.schema.json" },
+    "connection_name": { "type": "string" },
+    "parameters": { "type": "array", "items": { "$ref": "#/definitions/key_value" } }
+  },
+  "definitions": {
+    "key_value": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["key", "value"],
+      "properties": { "key": { "type": "string" }, "value": { "type": "string" } }
+    }
+  }
+}
