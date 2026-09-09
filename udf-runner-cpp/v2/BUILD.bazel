@@ -4,6 +4,145 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(default_visibility = ["//visibility:public"])
 
+# Keep this list synchronized with @flatbuffers//:public_headers. The private
+# runtime below needs a separate copy of every public header so its include
+# paths, include guards, and configuration macros cannot collide with an
+# ordinary FlatBuffers installation in a consumer translation unit.
+FLATBUFFERS_PUBLIC_HEADERS = [
+    "allocator.h",
+    "array.h",
+    "base.h",
+    "buffer.h",
+    "buffer_ref.h",
+    "code_generator.h",
+    "code_generators.h",
+    "default_allocator.h",
+    "detached_buffer.h",
+    "file_manager.h",
+    "flatbuffer_builder.h",
+    "flatbuffers.h",
+    "flex_flat_util.h",
+    "flexbuffers.h",
+    "grpc.h",
+    "hash.h",
+    "idl.h",
+    "minireflect.h",
+    "reflection.h",
+    "reflection_generated.h",
+    "registry.h",
+    "stl_emulation.h",
+    "string.h",
+    "struct.h",
+    "table.h",
+    "util.h",
+    "vector.h",
+    "vector_downward.h",
+    "verifier.h",
+]
+
+genrule(
+    name = "private_flatbuffers_headers",
+    srcs = ["@flatbuffers//:public_headers"],
+    # Bazel genrules require explicit output files. The output paths form a
+    # private include tree matching the rewritten includes produced below.
+    outs = [
+        "private_flatbuffers/exasol/udf/v2/third_party/flatbuffers/" + header
+        for header in FLATBUFFERS_PUBLIC_HEADERS
+    ],
+    tools = ["private_flatbuffers_headers.sh"],
+    # Pass one generated output to the script as an output-directory anchor;
+    # $(SRCS) expands to the external FlatBuffers header files. The helper
+    # copies and rewrites each header into the private include tree.
+    cmd = "bash $(location private_flatbuffers_headers.sh) " +
+          "$(location private_flatbuffers/exasol/udf/v2/third_party/flatbuffers/allocator.h) " +
+          "$(SRCS)",
+)
+
+cc_library(
+    name = "private_flatbuffers_runtime",
+    hdrs = [":private_flatbuffers_headers"],
+    # This include path makes rewritten includes such as
+    # exasol/udf/v2/third_party/flatbuffers/base.h resolvable without exposing
+    # the ordinary flatbuffers/... include tree through this target.
+    includes = ["private_flatbuffers"],
+)
+
+genrule(
+    name = "udf_protocol_generated",
+    srcs = ["udf_protocol.fbs"],
+    outs = ["udf_protocol_generated.h"],
+    tools = ["@flatbuffers//:flatc"],
+    # flatc emits the standard FlatBuffers runtime include path and macro
+    # names. Rewrite both after generation so the protocol header uses the
+    # private runtime and can coexist with another FlatBuffers version.
+    cmd = "$(location @flatbuffers//:flatc) --cpp -o $(@D) $(location udf_protocol.fbs) && " +
+          "sed -i " +
+          "-e 's#flatbuffers/#exasol/udf/v2/third_party/flatbuffers/#g' " +
+          "-e 's/FLATBUFFERS_/EXASOL_UDF_V2_FLATBUFFERS_/g' " +
+          "$(@D)/udf_protocol_generated.h",
+)
+
+cc_library(
+    name = "udf_protocol",
+    srcs = ["udf_protocol.cc"],
+    hdrs = ["udf_protocol.hpp", ":udf_protocol_generated"],
+    copts = ["-std=c++20"],
+    # Do not depend on the ordinary runtime headers: the generated protocol
+    # header must resolve all runtime includes through the isolated copy.
+    deps = [":private_flatbuffers_runtime"],
+)
+
+cc_test(
+    name = "udf_protocol_test",
+    srcs = ["udf_protocol_test.cc"],
+    copts = ["-std=c++20"],
+    deps = [":udf_protocol"],
+)
+
+cc_binary(
+    name = "udf_protocol_shared",
+    srcs = ["udf_protocol.cc"],
+    copts = ["-std=c++20"],
+    linkshared = 1,
+    deps = [":udf_protocol"],
+)
+
+cc_test(
+    name = "udf_protocol_symbol_leak_test",
+    srcs = ["udf_protocol_symbol_leak_test.cc"],
+    copts = ["-std=c++20"],
+    # The test inspects the built shared object with nm. data makes the
+    # artifact available at runtime and args passes its runfiles path.
+    data = [":udf_protocol_shared"],
+    args = ["$(location :udf_protocol_shared)"],
+    # nm and the inspected ELF dynamic symbol table are Linux-specific.
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_test(
+    name = "udf_protocol_static_symbol_leak_test",
+    srcs = ["udf_protocol_static_symbol_leak_test.cc"],
+    copts = ["-std=c++20"],
+    # cc_library produces multiple artifacts, so the test receives all
+    # locations and selects the static .a archive for nm inspection.
+    data = [":udf_protocol"],
+    args = ["$(locations :udf_protocol)"],
+    # nm and the inspected ELF archive are Linux-specific.
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_test(
+    name = "flatbuffers_header_order_test",
+    srcs = [
+        "flatbuffers_header_order_test.cc",
+        "flatbuffers_header_order_reverse.cc",
+    ],
+    copts = ["-std=c++20"],
+    # Compile both include orders against the ordinary runtime and the
+    # isolated runtime to protect against header-guard and macro collisions.
+    deps = [":udf_protocol", "@flatbuffers//:runtime_cc"],
+)
+
 alias(
     name = "arrow_core",
     actual = "@v2_arrow//:arrow_core",
