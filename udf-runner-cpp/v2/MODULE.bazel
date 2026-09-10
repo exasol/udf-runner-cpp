@@ -1,0 +1,139 @@
+module(
+    name = "udf_runner_cpp_v2",
+    version = "0.1.0",
+)
+
+bazel_dep(name = "rules_cc", version = "0.2.17")
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "flatbuffers", version = "25.2.10")
+bazel_dep(name = "google_benchmark", version = "1.9.5")
+
+# FlatBuffers currently selects versions of these transitive build tools that
+# still use the removed incompatible_use_toolchain_transition rule attribute.
+# Override them so the v2 module can be analyzed by Bazel 9.
+single_version_override(
+    module_name = "aspect_bazel_lib",
+    version = "2.19.4",
+)
+single_version_override(
+    module_name = "rules_foreign_cc",
+    version = "0.15.1",
+)
+single_version_override(
+    module_name = "rules_go",
+    version = "0.63.0",
+)
+single_version_override(
+    module_name = "aspect_rules_esbuild",
+    version = "0.24.0",
+)
+
+http_archive = use_repo_rule(
+    "@bazel_tools//tools/build_defs/repo:http.bzl",
+    "http_archive",
+)
+
+http_archive(
+    name = "v2_xsimd",
+    urls = ["https://github.com/xtensor-stack/xsimd/archive/14.2.0.tar.gz"],
+    sha256 = "21e841ab684b05331e81e7f782431753a029ef7b7d9d6d3ddab837e7782a40ee",
+    strip_prefix = "xsimd-14.2.0",
+    build_file_content = """
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "xsimd",
+    hdrs = glob(["include/**/*.hpp"]),
+    includes = ["include"],
+)
+""",
+)
+
+http_archive(
+    name = "v2_arrow",
+    urls = ["https://github.com/apache/arrow/archive/refs/tags/apache-arrow-25.0.0.tar.gz"],
+    sha256 = "7ecdd404862c3d312601457861a11c30bb8f520328693e1323e3db1db985dbe5",
+    strip_prefix = "arrow-apache-arrow-25.0.0",
+    build_file = "//third_party/arrow:arrow.BUILD",
+    patches = ["//third_party/arrow:config_headers.patch"],
+    patch_args = ["-p1"],
+)
+
+http_archive(
+    name = "v2_nlohmann_json",
+    urls = ["https://github.com/nlohmann/json/archive/refs/tags/v3.12.0.tar.gz"],
+    sha256 = "4b92eb0c06d10683f7447ce9406cb97cd4b453be18d7279320f7b2f025c10187",
+    strip_prefix = "json-3.12.0",
+    build_file_content = """
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "nlohmann_json",
+    hdrs = glob(["include/**/*.hpp"]),
+    includes = ["include"],
+)
+""",
+)
+
+http_archive(
+    name = "v2_json_schema_validator",
+    urls = ["https://github.com/pboettch/json-schema-validator/archive/refs/tags/2.4.0.tar.gz"],
+    sha256 = "24cbb114609cc9b43d4018b8d03e082ff5d2f26f5dce8bd36538097267b63af9",
+    strip_prefix = "json-schema-validator-2.4.0",
+    build_file_content = """
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "json_schema_validator",
+    srcs = glob(["src/*.cpp"]),
+    hdrs = glob(["src/**/*.hpp"]),
+    copts = ["-std=c++17"],
+    includes = ["src"],
+    # Keep this source-level namespace rewrite private to the dependency.
+    local_defines = ["nlohmann=exasol::udf::v2::third_party::nlohmann"],
+    deps = ["@v2_nlohmann_json//:nlohmann_json"],
+)
+""",
+)
+
+http_archive(
+    name = "v2_readerwriterqueue",
+    urls = ["https://github.com/cameron314/readerwriterqueue/archive/refs/tags/v1.0.7.tar.gz"],
+    sha256 = "532224ed052bcd5f4c6be0ed9bb2b8c88dfe7e26e3eb4dd9335303b059df6691",
+    strip_prefix = "readerwriterqueue-1.0.7",
+    build_file_content = """
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "readerwriterqueue",
+    hdrs = glob(["*.h"]),
+    includes = ["."],
+)
+""",
+)
+
+http_archive(
+    name = "v2_concurrentqueue",
+    urls = ["https://github.com/cameron314/concurrentqueue/archive/refs/tags/v1.0.5.tar.gz"],
+    sha256 = "4d6368a27492d86011fde5ca0cf386dce7c49cd425aa3d9b063ca6ec373a6ef3",
+    strip_prefix = "concurrentqueue-1.0.5",
+    build_file_content = """
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "concurrentqueue",
+    hdrs = glob(["*.h"]),
+    includes = ["."],
+)
+""",
+)

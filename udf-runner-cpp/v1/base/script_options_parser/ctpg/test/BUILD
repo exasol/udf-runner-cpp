@@ -1,3 +1,5 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+
 cc_test(
     name = "script-options-ctpg-parser-test",
     srcs = ["script_option_lines_test.cpp"],

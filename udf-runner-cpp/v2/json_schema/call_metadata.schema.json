@@ -29,8 +29,6 @@
     "scope_user": { "type": "string" },
     "input_iter_type": { "enum": ["EXACTLY_ONCE", "MULTIPLE"] },
     "output_iter_type": { "enum": ["EXACTLY_ONCE", "MULTIPLE"] },
-    "input_columns": { "type": "array", "items": { "$ref": "column.schema.json" } },
-    "output_columns": { "type": "array", "items": { "$ref": "column.schema.json" } },
     "single_call_mode": { "type": "boolean" }
   }
 }

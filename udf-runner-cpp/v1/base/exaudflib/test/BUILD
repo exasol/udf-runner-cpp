@@ -1,3 +1,5 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+
 cc_test(
     name = "exaudflib-test",
     srcs = ["script_data_transfer_objects_test.cpp"],
