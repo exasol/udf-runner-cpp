@@ -5,30 +5,7 @@
   "additionalProperties": true,
   "required": ["input_columns", "output_columns"],
   "properties": {
-    "input_columns": { "type": "array", "items": { "$ref": "#/definitions/column" } },
-    "output_columns": { "type": "array", "items": { "$ref": "#/definitions/column" } }
-  },
-  "definitions": {
-    "column": {
-      "type": "object",
-      "additionalProperties": true,
-      "required": ["name", "type", "type_name"],
-      "properties": {
-        "name": { "type": "string" },
-        "type": { "$ref": "#/definitions/exasol_type" },
-        "type_name": { "type": "string" },
-        "size": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
-        "size_unit": { "enum": ["BYTE", "BIT"] },
-        "precision": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
-        "scale": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
-        "fractional_second_precision": { "type": "integer", "minimum": 0, "maximum": 9 },
-        "character_set": { "enum": ["ASCII", "UTF8"] },
-        "srid": { "type": "integer", "minimum": 0, "maximum": 4294967295 }
-      }
-    },
-    "exasol_type": {
-      "type": "string",
-      "enum": ["DOUBLE PRECISION", "DECIMAL", "DATE", "TIMESTAMP", "TIMESTAMP WITH LOCAL TIME ZONE", "CHAR", "VARCHAR", "BOOLEAN", "HASHTYPE", "GEOMETRY", "INTERVAL YEAR TO MONTH", "INTERVAL DAY TO SECOND"]
-    }
+    "input_columns": { "type": "array", "items": { "$ref": "column.schema.json" } },
+    "output_columns": { "type": "array", "items": { "$ref": "column.schema.json" } }
   }
 }

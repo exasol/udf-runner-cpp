@@ -7,31 +7,10 @@
     "is_subselect": { "type": "boolean" },
     "connection_information": { "$ref": "connection_information.schema.json" },
     "connection_name": { "type": "string" },
-    "subselect_column_specification": { "type": "array", "items": { "$ref": "#/definitions/column" } },
+    "subselect_column_specification": { "type": "array", "items": { "$ref": "column.schema.json" } },
     "parameters": { "type": "array", "items": { "$ref": "#/definitions/key_value" } }
   },
   "definitions": {
-    "column": {
-      "type": "object",
-      "additionalProperties": true,
-      "required": ["name", "type", "type_name"],
-      "properties": {
-        "name": { "type": "string" },
-        "type": { "$ref": "#/definitions/exasol_type" },
-        "type_name": { "type": "string" },
-        "size": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
-        "size_unit": { "enum": ["BYTE", "BIT"] },
-        "precision": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
-        "scale": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
-        "fractional_second_precision": { "type": "integer", "minimum": 0, "maximum": 9 },
-        "character_set": { "enum": ["ASCII", "UTF8"] },
-        "srid": { "type": "integer", "minimum": 0, "maximum": 4294967295 }
-      }
-    },
-    "exasol_type": {
-      "type": "string",
-      "enum": ["DOUBLE PRECISION", "DECIMAL", "DATE", "TIMESTAMP", "TIMESTAMP WITH LOCAL TIME ZONE", "CHAR", "VARCHAR", "BOOLEAN", "HASHTYPE", "GEOMETRY", "INTERVAL YEAR TO MONTH", "INTERVAL DAY TO SECOND"]
-    },
     "key_value": {
       "type": "object",
       "additionalProperties": true,
