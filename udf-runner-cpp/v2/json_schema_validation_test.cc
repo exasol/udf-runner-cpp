@@ -21,16 +21,23 @@ isolated_nlohmann::json read_json(const std::string& path) {
 
 int main() {
     const auto import_schema = read_json("json_schema/import_specification.schema.json");
-    isolated_nlohmann::json_schema::json_validator validator(
-        [](const isolated_nlohmann::json_uri& uri, isolated_nlohmann::json& schema) {
+    const auto load_schema = [](const isolated_nlohmann::json_uri& uri,
+                                isolated_nlohmann::json& schema) {
             std::cerr << "schema loader request: url=" << uri.url()
                       << ", location=" << uri.location()
                       << ", path=" << uri.path()
                       << ", fragment=" << uri.fragment() << '\n';
 
-            schema = read_json("json_schema/connection_information.schema.json");
+            const auto path = uri.path();
+            const auto filename = path.substr(path.find_last_of('/') + 1);
+            if (filename != "connection_information.schema.json" &&
+                filename != "column.schema.json") {
+                throw std::runtime_error("unsupported schema reference: " + uri.url());
+            }
+            const auto source = "json_schema/" + filename;
+            schema = read_json(source);
 
-            std::cerr << "schema loader response: source=json_schema/connection_information.schema.json"
+            std::cerr << "schema loader response: source=" << source
                       << ", type=" << schema.type_name() << ", keys=[";
             bool first = true;
             for (const auto& item : schema.items()) {
@@ -41,7 +48,9 @@ int main() {
                 first = false;
             }
             std::cerr << "]\n";
-        });
+        };
+
+    isolated_nlohmann::json_schema::json_validator validator(load_schema);
     validator.set_root_schema(import_schema);
 
     const isolated_nlohmann::json valid = {
