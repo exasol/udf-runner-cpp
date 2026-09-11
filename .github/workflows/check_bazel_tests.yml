@@ -17,8 +17,6 @@ env:
 jobs:
   v2:
     runs-on: ubuntu-24.04
-    env:
-      USE_BAZEL_VERSION: 9.0.2
     steps:
       - uses: actions/checkout@v6
       - name: Install system dependencies
