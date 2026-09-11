@@ -1,6 +1,3 @@
-########################################################################################################################
-# Copied and slightly adapted from https://github.com/exasol/db/blob/master/.clang-tidy.template                       #
-########################################################################################################################
 
 # Global canonical list of clang-tidy activated and deactivated checks for full code base.
 # Activate Disabled Check: Remove the leading "-" from check entry below if applicable.
@@ -258,7 +255,7 @@ Checks: >
   readability-uppercase-literal-suffix
   # The following lists the deactivated checks.
   #
-  # Part 1: New checks in clang 18 yet to be discussed/voted on (SPOT-15632)
+  # Part 1: New checks in clang 18 yet to be discussed/voted
   #
   # -altera-id-dependent-backward-branch,
   # -altera-kernel-name-restriction,
