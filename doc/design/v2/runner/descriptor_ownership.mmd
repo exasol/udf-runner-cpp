@@ -1,0 +1,15 @@
+stateDiagram-v2
+    [*] --> AcceptorOwned: accept()
+    AcceptorOwned --> QueueOwned: enqueue succeeds
+    AcceptorOwned --> Released: queue rejects
+    QueueOwned --> WorkerOwned: worker starts
+    QueueOwned --> Released: worker unavailable
+    WorkerOwned --> ContextOwned: context creation succeeds
+    WorkerOwned --> Released: context creation fails
+    ContextOwned --> Released: close / disconnect / cancellation / error
+    Released --> [*]
+
+    note right of AcceptorOwned
+        The descriptor has one owner
+        at every handoff.
+    end note

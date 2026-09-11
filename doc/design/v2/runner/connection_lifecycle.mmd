@@ -1,0 +1,29 @@
+sequenceDiagram
+    participant User as Runner user
+    participant Production as Production factory
+    participant Runner
+    participant Acceptor as SocketAcceptor
+    participant Pool as Worker pool
+    participant Factory as WorkerFactory
+    participant Worker
+    participant Manager as ContextManager
+    participant Context
+
+    User->>Production: transfer WorkerFactory
+    Production->>Runner: construct with owned components
+    Runner->>Acceptor: configure and listen
+    Acceptor->>Acceptor: accept connection
+    Acceptor->>Pool: enqueue owned fd
+    Pool->>Factory: create worker for fd
+    Factory-->>Pool: worker callable
+    Pool->>Worker: invoke(fd)
+    Worker->>Manager: create_context(fd)
+    Manager-->>Worker: Context(connection)
+    Worker->>Context: run protocol v2
+    Context-->>Context: close / disconnect / cancel / error
+    Context-->>Worker: return and release connection
+    Worker-->>Pool: invocation complete
+
+    alt queue, worker, or context creation failure
+        Acceptor-->>Acceptor: close fd exactly once
+    end
