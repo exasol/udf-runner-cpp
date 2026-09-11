@@ -1,0 +1,16 @@
+stateDiagram-v2
+    [*] --> Idle
+
+    Idle --> Initializing: Connect
+    Initializing --> ReadyForTraffic: Capabilities
+    ReadyForTraffic --> Active: Control traffic
+    Active --> Closing: CloseConnection
+    Closing --> Completed: Close reply
+    Completed --> ClosedOrAborted: Transport close
+
+    Idle --> ClosedOrAborted: Setup failure
+    Initializing --> ClosedOrAborted: Setup failure
+    ReadyForTraffic --> ClosedOrAborted: Session abort
+    Active --> ClosedOrAborted: Transport abort
+
+    ClosedOrAborted --> [*]

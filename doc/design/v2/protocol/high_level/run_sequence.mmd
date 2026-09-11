@@ -1,0 +1,13 @@
+sequenceDiagram
+    participant DB
+    participant UDFRunner
+
+    Note over DB,UDFRunner: Run call opened by DB with flow-controlled bidirectional data exchange
+
+    DB->>UDFRunner: CallOpen(Run) + Payloads(call_metadata) + DataSchema(group ID, row ID) + first input RecordBatch
+    UDFRunner-->>DB: Next(byte_budget, reset=false, row_id=n)
+    DB-->>UDFRunner: RecordBatch(group ID, row ID, input rows starting at n, is_end_of_group=true)
+    UDFRunner-->>DB: DataSchema(group ID, row ID) + first output RecordBatch
+    DB->>UDFRunner: Next(byte_budget, reset=false, row_id=m)
+    UDFRunner-->>DB: RecordBatch(group ID, row ID, output rows starting at m, is_end_of_group=true)
+    DB->>UDFRunner: CallClose(Run)

@@ -1,0 +1,5 @@
+{
+  "name": "AMOUNT",
+  "nullable": true,
+  "arrow_storage_type": "Decimal(64)"
+}

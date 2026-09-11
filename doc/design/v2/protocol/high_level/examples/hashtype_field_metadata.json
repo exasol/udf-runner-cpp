@@ -1,0 +1,5 @@
+{
+  "name": "DIGEST",
+  "nullable": true,
+  "arrow_storage_type": "FixedSizeBinary(32)"
+}

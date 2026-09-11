@@ -1,0 +1,35 @@
+[
+  {
+    "name": "NAME",
+    "type": "VARCHAR",
+    "type_name": "VARCHAR(128)",
+    "size": 128,
+    "character_set": "UTF8"
+  },
+  {
+    "name": "DIGEST",
+    "type": "HASHTYPE",
+    "type_name": "HASHTYPE(32 BYTE)",
+    "size": 32,
+    "size_unit": "BYTE"
+  },
+  {
+    "name": "LOCATION",
+    "type": "GEOMETRY",
+    "type_name": "GEOMETRY(4326)",
+    "srid": 4326
+  },
+  {
+    "name": "AGE",
+    "type": "INTERVAL YEAR TO MONTH",
+    "type_name": "INTERVAL YEAR(4) TO MONTH",
+    "precision": 4
+  },
+  {
+    "name": "ELAPSED",
+    "type": "INTERVAL DAY TO SECOND",
+    "type_name": "INTERVAL DAY(6) TO SECOND(9)",
+    "precision": 6,
+    "fractional_second_precision": 9
+  }
+]

@@ -1,0 +1,5 @@
+{
+  "name": "ELAPSED",
+  "nullable": true,
+  "arrow_storage_type": "Interval(MonthDayNano)"
+}

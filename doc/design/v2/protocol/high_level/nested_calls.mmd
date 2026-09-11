@@ -1,0 +1,12 @@
+sequenceDiagram
+    participant UDFRunner
+    participant DB
+
+    Note over UDFRunner,DB: Nested calls opened by UDFRunner while a parent DB-opened call remains active
+
+    UDFRunner->>DB: CallOpen(get_connection) + Payloads(connection_name)
+    DB-->>UDFRunner: Payloads(connection_information)
+    UDFRunner->>DB: CloseCall
+
+    UDFRunner->>DB: CallOpen(get_script) + Payloads(script_name)
+    DB-->>UDFRunner: Payloads(script) + CloseCall

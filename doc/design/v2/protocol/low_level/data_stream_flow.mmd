@@ -1,0 +1,35 @@
+stateDiagram-v2
+    state "Outbound direction" as Outbound {
+        [*] --> OutboundIdle
+
+        OutboundIdle --> SchemaAnnounced: Send schema
+        OutboundIdle --> WaitingForNext: Send schema + first batch
+        SchemaAnnounced --> WaitingForNext: Send first batch
+        OutboundIdle --> FirstBatchCreditGranted: Receive Next
+        SchemaAnnounced --> CreditGranted: Receive Next
+        FirstBatchCreditGranted --> WaitingForNext: Send schema + first batch
+        CreditGranted --> WaitingForNext: Send batch
+        WaitingForNext --> CreditGranted: Receive Next
+        WaitingForNext --> OutboundCompleted: Finish stream
+
+        OutboundCompleted --> [*]
+    }
+
+    state "Inbound direction" as Inbound {
+        [*] --> InboundIdle
+
+        InboundIdle --> SchemaReceived: Receive schema
+        InboundIdle --> ReadyToRequest: Receive schema + first batch
+        InboundIdle --> WaitingForFirstBatch: Send Next
+        SchemaReceived --> ReadyToRequest: Receive first batch
+        SchemaReceived --> WaitingForFirstBatch: Send Next
+        WaitingForFirstBatch --> WaitingForFirstBatch: Receive schema
+        WaitingForFirstBatch --> ReadyToRequest: Receive schema + first batch
+        WaitingForFirstBatch --> ReadyToRequest: Receive first batch
+        ReadyToRequest --> WaitingForBatch: Send Next
+        WaitingForBatch --> ReadyToRequest: Receive batch
+        WaitingForFirstBatch --> InboundCompleted: Finish stream
+        WaitingForBatch --> InboundCompleted: Finish stream
+
+        InboundCompleted --> [*]
+    }
