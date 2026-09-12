@@ -146,6 +146,9 @@ cc_test(
 alias(
     name = "arrow_core",
     actual = "@v2_arrow//:arrow_core",
+    # Arrow and its vendored sources are third-party code. Keep them out of
+    # the repository's clang-tidy and clang-format CI profiles.
+    tags = ["noclangtidy"],
 )
 
 filegroup(
