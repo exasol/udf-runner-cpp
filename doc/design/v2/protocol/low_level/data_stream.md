@@ -33,10 +33,37 @@ representation of the direction's Arrow-compatible column layout; it is not an A
 batch in the direction reuses the previously announced schema. The two directions of one call may use different
 schemas.
 
-The `DataSchema.schema.fields` vector contains the columns in transfer order. Nested fields are represented by the
-`children` vectors of their parent fields. `has_group_id` and `has_row_id` identify correlation columns at the start
-of the field list according to the call-specific rules. Type parameters and extension annotations are carried by the
-schema's type tables and field metadata.
+The `DataSchema.schema.fields` vector contains the top-level columns in transfer order. Nested fields are represented
+by the `children` vectors of their parent fields. Field names, nullability, type parameters, extension annotations,
+and child structure are preserved from the Arrow schema. Fields are not sorted or reordered by name or type.
+
+### Arrow Schema Conversion Order
+
+`DataSchema` is created from the Arrow schema for the data-stream direction. The converter walks the top-level fields
+in the order provided by `arrow::Schema::fields()`. It visits fields recursively in depth-first preorder: the current
+field is emitted first, followed by each child in the order provided by Arrow.
+
+For example, an Arrow schema shaped as:
+
+```text
+a: int32
+b: struct<x: int64, y: list<utf8>>
+c: bool
+```
+
+is represented with top-level `Schema.fields = [a, b, c]`, with `b.children = [x, y]` and `y.children` containing
+the list element field. The corresponding flattened field order is:
+
+```text
+a, b, x, y, element, c
+```
+
+This depth-first preorder is used for flattened `DataRecordBatch.nodes` and for `variadic_buffer_counts` entries
+belonging to variable-buffer fields. Buffer order itself follows the corresponding Arrow array buffer layout and is
+independent of field-name or type sorting.
+
+`has_group_id` and `has_row_id` identify correlation columns at the start of the field list according to the
+call-specific rules. The low-level converter preserves those fields and does not infer or insert them.
 
 ## `Next(byte_budget, reset, row_id)`
 
