@@ -2,6 +2,7 @@
 #include <link.h>
 
 #include <cassert>
+#include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <iterator>
@@ -17,12 +18,9 @@ namespace isolated_nlohmann = exasol::udf::v2::third_party::nlohmann;
 namespace {
 
 constexpr std::string_view kGlobalNamespacePrefix = "_ZN8nlohmann";
-constexpr std::string_view kIsolatedNamespacePrefix =
-    "_ZN6exasol3udf2v211third_party8nlohmann";
+constexpr std::string_view kIsolatedNamespacePrefix = "_ZN6exasol3udf2v211third_party8nlohmann";
 
-[[noreturn]] void fail(const std::string& message) {
-    throw std::runtime_error(message);
-}
+[[noreturn]] void fail(const std::string& message) { throw std::runtime_error(message); }
 
 template <typename T>
 T read_object(const std::vector<char>& file, std::size_t offset) {
@@ -30,7 +28,7 @@ T read_object(const std::vector<char>& file, std::size_t offset) {
         fail("ELF file is truncated");
     }
 
-    T result;
+    T result{};
     std::memcpy(&result, file.data() + offset, sizeof(result));
     return result;
 }
@@ -60,25 +58,22 @@ std::vector<char> read_file(const std::string& path) {
 bool is_exported(const Elf64_Sym& symbol) {
     const unsigned char binding = ELF64_ST_BIND(symbol.st_info);
     const unsigned char visibility = ELF64_ST_VISIBILITY(symbol.st_other);
-    return symbol.st_shndx != SHN_UNDEF &&
-           (binding == STB_GLOBAL || binding == STB_WEAK) &&
+    return symbol.st_shndx != SHN_UNDEF && (binding == STB_GLOBAL || binding == STB_WEAK) &&
            (visibility == STV_DEFAULT || visibility == STV_PROTECTED);
 }
 
 void verify_symbols(const std::string& library_path) {
     const std::vector<char> file = read_file(library_path);
-    const Elf64_Ehdr header = read_object<Elf64_Ehdr>(file, 0);
+    const auto header = read_object<Elf64_Ehdr>(file, 0);
     if (std::memcmp(header.e_ident, ELFMAG, SELFMAG) != 0 ||
-        header.e_ident[EI_CLASS] != ELFCLASS64 ||
-        header.e_ident[EI_DATA] != ELFDATA2LSB ||
+        header.e_ident[EI_CLASS] != ELFCLASS64 || header.e_ident[EI_DATA] != ELFDATA2LSB ||
         header.e_shentsize != sizeof(Elf64_Shdr)) {
         fail("validator library is not a little-endian ELF64 file");
     }
 
     const std::size_t section_count = header.e_shnum;
     const std::size_t section_table = header.e_shoff;
-    if (section_count == 0 ||
-        section_table > file.size() ||
+    if (section_count == 0 || section_table > file.size() ||
         section_count > (file.size() - section_table) / sizeof(Elf64_Shdr)) {
         fail("ELF section table is invalid");
     }
@@ -86,8 +81,8 @@ void verify_symbols(const std::string& library_path) {
     Elf64_Shdr dynamic_symbols{};
     bool found_dynamic_symbols = false;
     for (std::size_t index = 0; index < section_count; ++index) {
-        const Elf64_Shdr section = read_object<Elf64_Shdr>(
-            file, section_table + index * sizeof(Elf64_Shdr));
+        const auto section =
+            read_object<Elf64_Shdr>(file, section_table + index * sizeof(Elf64_Shdr));
         if (section.sh_type == SHT_DYNSYM) {
             dynamic_symbols = section;
             found_dynamic_symbols = true;
@@ -100,8 +95,8 @@ void verify_symbols(const std::string& library_path) {
         fail("ELF dynamic symbol table is invalid");
     }
 
-    const Elf64_Shdr string_table = read_object<Elf64_Shdr>(
-        file, section_table + dynamic_symbols.sh_link * sizeof(Elf64_Shdr));
+    const auto string_table =
+        read_object<Elf64_Shdr>(file, section_table + dynamic_symbols.sh_link * sizeof(Elf64_Shdr));
     if (dynamic_symbols.sh_offset > file.size() ||
         dynamic_symbols.sh_size > file.size() - dynamic_symbols.sh_offset ||
         string_table.sh_offset > file.size() ||
@@ -110,23 +105,18 @@ void verify_symbols(const std::string& library_path) {
     }
 
     bool found_isolated_symbol = false;
-    for (std::size_t offset = 0; offset < dynamic_symbols.sh_size;
-         offset += sizeof(Elf64_Sym)) {
-        const Elf64_Sym symbol = read_object<Elf64_Sym>(
-            file, dynamic_symbols.sh_offset + offset);
+    for (std::size_t offset = 0; offset < dynamic_symbols.sh_size; offset += sizeof(Elf64_Sym)) {
+        const auto symbol = read_object<Elf64_Sym>(file, dynamic_symbols.sh_offset + offset);
         if (!is_exported(symbol) || symbol.st_name >= string_table.sh_size) {
             continue;
         }
 
-        const std::string name = read_string(
-            file, string_table.sh_offset + symbol.st_name,
-            string_table.sh_size - symbol.st_name);
-        if (name.compare(0, kGlobalNamespacePrefix.size(),
-                         kGlobalNamespacePrefix) == 0) {
+        const std::string name = read_string(file, string_table.sh_offset + symbol.st_name,
+                                             string_table.sh_size - symbol.st_name);
+        if (name.compare(0, kGlobalNamespacePrefix.size(), kGlobalNamespacePrefix) == 0) {
             fail("validator exports a global nlohmann symbol: " + name);
         }
-        if (name.compare(0, kIsolatedNamespacePrefix.size(),
-                         kIsolatedNamespacePrefix) == 0) {
+        if (name.compare(0, kIsolatedNamespacePrefix.size(), kIsolatedNamespacePrefix) == 0) {
             found_isolated_symbol = true;
         }
     }
@@ -149,5 +139,10 @@ void verify_loaded_validator() {
 }  // namespace
 
 int main() {
-    verify_loaded_validator();
+    try {
+        verify_loaded_validator();
+    } catch (const std::exception& error) {
+        std::fprintf(stderr, "%s\n", error.what());
+        return 1;
+    }
 }

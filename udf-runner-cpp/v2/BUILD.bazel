@@ -109,7 +109,7 @@ cc_binary(
 
 cc_test(
     name = "udf_protocol_symbol_leak_test",
-    srcs = ["udf_protocol_symbol_leak_test.cc"],
+    srcs = ["nm_runner.hpp", "udf_protocol_symbol_leak_test.cc"],
     copts = ["-std=c++20"],
     # The test inspects the built shared object with nm. data makes the
     # artifact available at runtime and args passes its runfiles path.
@@ -121,7 +121,7 @@ cc_test(
 
 cc_test(
     name = "udf_protocol_static_symbol_leak_test",
-    srcs = ["udf_protocol_static_symbol_leak_test.cc"],
+    srcs = ["nm_runner.hpp", "udf_protocol_static_symbol_leak_test.cc"],
     copts = ["-std=c++20"],
     # cc_library produces multiple artifacts, so the test receives all
     # locations and selects the static .a archive for nm inspection.
