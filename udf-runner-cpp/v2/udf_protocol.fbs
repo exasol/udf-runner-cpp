@@ -230,21 +230,32 @@ table DataRecordBatch {
   variadic_buffer_counts: [int64];
 }
 
-// Control messages are the non-batch protocol messages carried in a Frame.
-// Each field is independently optional, so related parts such as CloseCall and
-// Error can travel together. Error without a close field is a non-terminal,
-// stream-scoped diagnostic. stream_id = 0 is reserved for out-of-call control
-// traffic such as ServerCapabilities, KeepAlive, and CloseConnection.
-table ControlMessage {
-  server_capabilities: ServerCapabilities;
-  keep_alive: KeepAlive;
-  open_call: OpenCall;
-  payloads: Payloads;
+// Groups the close messages that may occur together. Error remains a direct
+// ControlMessage field so it can also be sent without a close message.
+table CloseControlMessage {
   close_call: CloseCall;
   close_connection: CloseConnection;
+}
+
+union ControlMessageValue {
+  ServerCapabilities,
+  KeepAlive,
+  OpenCall,
+  CloseControlMessage,
+}
+
+// Control messages are the non-batch protocol messages carried in a Frame.
+// The union identifies mutually exclusive message categories. Payloads may be
+// combined with every field or sent alone. Next and data_schema may be sent
+// with OpenCall or alone. Error may be sent with CloseControlMessage or alone.
+// stream_id = 0 is reserved for out-of-call control traffic such as
+// ServerCapabilities, KeepAlive, and CloseConnection.
+table ControlMessage {
+  payloads: Payloads;
   next: Next;
   data_schema: DataSchema;
   error: Error;
+  value: ControlMessageValue;
 }
 
 // The single length-framed message type on the wire. A frame may contain a
@@ -254,9 +265,10 @@ table ControlMessage {
 // independently of a call. A stream_id is not reused on its connection.
 //
 // Approximate structural sizes, excluding payload and vector contents, are:
-// - control-only frame: 96 bytes;
+// - control-only frame: 86-98 bytes, depending on the control variant;
 // - batch-only frame: 78 bytes;
-// - frame containing both control message and batch: 140 bytes.
+// - frame containing both control message and batch: 130-142 bytes,
+//   depending on the control variant.
 // These are approximate FlatBuffers sizes and vary with alignment and vtable
 // reuse. Batch-only frames are the most compact because they omit the control
 // message and contain record-batch metadata directly.
