@@ -109,17 +109,6 @@ struct Buffer {
   length: int64;
 }
 
-table RecordBatchMetadata {
-  length: int64;
-  nodes: [FieldNode];
-  buffers: [Buffer];
-  // For each variable-buffer field in the flattened schema, in preorder,
-  // records the number of variable buffers belonging to that field.
-  // Empty when the schema has no variable-buffer fields (for example, no
-  // Utf8View or BinaryView fields).
-  variadic_buffer_counts: [int64];
-}
-
 table Version {
   major: uint32;
   minor: uint32;
@@ -149,7 +138,7 @@ union PayloadValue {
   BinaryPayload,
 }
 
-// Opens a call. The enclosing connection and StreamMessage's stream_id identify
+// Opens a call. The enclosing connection and Frame's stream_id identify
 // this call for the connection's lifetime. The connection is implicit in the
 // transport session, so it is not encoded in Frame. The same numeric stream_id
 // on a different connection identifies a different logical stream.
@@ -157,7 +146,7 @@ union PayloadValue {
 // A call opened while another is active (e.g. a callback opened during Run) is
 // just another independent call -- no parent/child link is carried on the wire.
 // OpenCall carries no payload of its own: opening payloads travel as
-// payloads set on the same StreamMessage instead of a duplicate field here.
+// payloads set on the same ControlMessage instead of a duplicate field here.
 // Additional payloads may also be sent later on the same connection-scoped
 // stream_id while the call remains active.
 table OpenCall {
@@ -173,8 +162,8 @@ table Payload {
   payload: PayloadValue;
 }
 
-// A StreamMessage may carry multiple payload items, including the opening
-// payload(s) set alongside open_call on the same StreamMessage. Payloads
+// A ControlMessage may carry multiple payload items, including the opening
+// payload(s) set alongside open_call on the same ControlMessage. Payloads
 // may also be sent on a connection-scoped stream_id whose call is already active, or on
 // stream_id = 0 without any active call.
 table Payloads {
@@ -186,7 +175,7 @@ table Error {
   message: string;
 }
 
-// Closes the call on this non-zero stream. When the enclosing StreamMessage
+// Closes the call on this non-zero stream. When the enclosing ControlMessage
 // also has error set, the close is abnormal; otherwise it is normal.
 table CloseCall {}
 
@@ -206,7 +195,7 @@ table Next {
 }
 
 // Sent once per direction of a call's data stream before, or in the same
-// StreamMessage as, that direction's first DataRecordBatch. It contains this
+// ControlMessage as, that direction's first DataRecordBatch. It contains this
 // direction's column layout as our own native Schema table (see above -- not
 // Arrow's own flatbuffer Schema). It is split from DataRecordBatch because the
 // schema is only needed once, not repeated per batch.
@@ -221,25 +210,32 @@ table DataSchema {
 }
 
 // Precedes the buffers for one RecordBatch in a direction of a call's data
-// stream. metadata is our own native RecordBatchMetadata (row count, per-
-// flattened FieldNode, per-buffer Buffer), populated from a real Arrow
-// RecordBatch's public introspection API (Array::length(), null_count(),
+// stream. The metadata fields are our own native record-batch metadata (row
+// count, per-flattened FieldNode, per-buffer Buffer), populated from a real
+// Arrow RecordBatch's public introspection API (Array::length(), null_count(),
 // ArrayData::buffers) -- not Arrow's own flatbuffer RecordBatch message. The
 // actual column buffers are transported separately per buffer_transport; view
-// fields additionally use metadata.variadic_buffer_counts to delimit their
-// variable buffer portions.
+// fields additionally use variadic_buffer_counts to delimit their variable
+// buffer portions.
 table DataRecordBatch {
   buffer_transport: BufferTransport = Inline;
   is_end_of_group: bool = false;
-  metadata: RecordBatchMetadata;
+  length: int64;
+  nodes: [FieldNode];
+  buffers: [Buffer];
+  // For each variable-buffer field in the flattened schema, in preorder,
+  // records the number of variable buffers belonging to that field.
+  // Empty when the schema has no variable-buffer fields (for example, no
+  // Utf8View or BinaryView fields).
+  variadic_buffer_counts: [int64];
 }
 
-// A StreamMessage is the typed composite payload carried inside a Frame. Each
-// field is independently optional, so related parts such as CloseCall and
-// Error can travel in one frame. Error without a close field is a non-terminal,
+// Control messages are the non-batch protocol messages carried in a Frame.
+// Each field is independently optional, so related parts such as CloseCall and
+// Error can travel together. Error without a close field is a non-terminal,
 // stream-scoped diagnostic. stream_id = 0 is reserved for out-of-call control
 // traffic such as ServerCapabilities, KeepAlive, and CloseConnection.
-table StreamMessage {
+table ControlMessage {
   server_capabilities: ServerCapabilities;
   keep_alive: KeepAlive;
   open_call: OpenCall;
@@ -248,17 +244,26 @@ table StreamMessage {
   close_connection: CloseConnection;
   next: Next;
   data_schema: DataSchema;
-  data_record_batch: DataRecordBatch;
   error: Error;
 }
 
-// The single length-framed message type on the wire. The implicit transport
+// The single length-framed message type on the wire. A frame may contain a
+// control message, a data record batch, or both. The implicit transport
 // connection and stream_id identify a logical stream. stream_id = 0 is the
 // per-connection control stream used when client and server exchange messages
 // independently of a call. A stream_id is not reused on its connection.
+//
+// Approximate structural sizes, excluding payload and vector contents, are:
+// - control-only frame: 96 bytes;
+// - batch-only frame: 78 bytes;
+// - frame containing both control message and batch: 140 bytes.
+// These are approximate FlatBuffers sizes and vary with alignment and vtable
+// reuse. Batch-only frames are the most compact because they omit the control
+// message and contain record-batch metadata directly.
 table Frame {
   stream_id: uint64;
-  message: StreamMessage;
+  control_message: ControlMessage;
+  data_record_batch: DataRecordBatch;
 }
 
 root_type Frame;
