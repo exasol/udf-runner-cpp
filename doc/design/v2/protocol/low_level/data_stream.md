@@ -27,8 +27,16 @@ Related diagram:
 
 ## Schema and First Batch Behavior
 
-Each direction announces its own schema. The normative schema and first-batch requirements are defined in
-[Rules](#rules).
+Each direction announces its own schema in one `DataSchema` control attribute. The schema is a native FlatBuffers
+representation of the direction's Arrow-compatible column layout; it is not an Apache Arrow IPC schema message.
+`DataSchema` must be sent before the first `DataRecordBatch`, or in the same `Frame` as that first batch. Each later
+batch in the direction reuses the previously announced schema. The two directions of one call may use different
+schemas.
+
+The `DataSchema.schema.fields` vector contains the columns in transfer order. Nested fields are represented by the
+`children` vectors of their parent fields. `has_group_id` and `has_row_id` identify correlation columns at the start
+of the field list according to the call-specific rules. Type parameters and extension annotations are carried by the
+schema's type tables and field metadata.
 
 ## `Next(byte_budget, reset, row_id)`
 
@@ -102,7 +110,7 @@ The inbound model tracks data received by the local endpoint and `Next(...)` cre
 ## Rules
 
 1. Each direction sends exactly one `DataSchema`.
-2. A direction sends its schema before, or in the same `StreamMessage` as, its first `DataRecordBatch`.
+2. A direction sends its schema before, or in the same `Frame` as, its first `DataRecordBatch`.
 3. A standalone schema may precede `Next(...)`; no batch may precede its schema.
 4. Only the first batch in a direction may precede `Next(...)`.
 5. Non-first batches require prior transfer credit.
@@ -112,17 +120,41 @@ The inbound model tracks data received by the local endpoint and `Next(...)` cre
 
 ## Buffer Transfer
 
-`DataRecordBatch.buffer_transport` selects how the batch buffers identified by its metadata are delivered.
+`DataRecordBatch` contains the batch metadata required to reconstruct the Arrow-compatible layout. `length` is the
+row count. `nodes` contains one `FieldNode` for each flattened field in schema preorder; each node carries the array
+length and null count. `buffers` describes the buffers in the corresponding Arrow buffer order. For view fields,
+`variadic_buffer_counts` gives the number of variable buffers belonging to each variable-buffer field in schema
+preorder.
 
-- `Inline` is supported by every transport binding and is the only permitted mode on TCP/TLS.
+The metadata is part of the length-framed FlatBuffer `Frame`. The buffer bytes themselves are transferred separately;
+they are not embedded in `DataRecordBatch`.
+
+`DataRecordBatch.buffer_transport` selects how those buffers are delivered.
+
+- `Inline` is supported by every transport binding and is the only permitted mode on TCP/TLS. The wire sequence for
+  an inline batch is:
+
+  ```text
+  frame-length prefix
+  serialized FlatBuffer Frame
+  buffer 0 bytes
+  buffer 1 bytes
+  ...
+  ```
+
+  The buffers follow immediately after the complete frame in `DataRecordBatch.buffers` order. They have no individual
+  framing, stream offsets, or per-buffer length prefixes. `Buffer.length` is the exact number of bytes to transfer
+  for each buffer; `Buffer.offset` is not used for inline transport.
+- A sender may construct one `iovec` for the frame and one for each buffer and transmit them with `writev`. A receiver
+  reads and verifies the frame first, allocates one destination for each advertised `Buffer.length`, and may receive
+  the buffers with `readv`. Partial reads and writes must be continued until the complete sequence has been consumed
+  or sent.
 - `Memfd` and `OutOfBand` are reserved for future Unix-domain-socket modes that require file-descriptor passing.
 - An implementation that cannot establish compatible local handoff must select `Inline`; no fallback is implied
   after a batch has been announced with another mode.
-- The metadata and any referenced local buffer must be validated as one integrity boundary before the batch is
-  consumed.
+- The frame, metadata, buffer count, buffer lengths, and total byte budget must be validated before the batch is
+  consumed. Truncated data or unexpected bytes between the frame and its inline buffers are protocol errors.
 
 ## Open Questions
 
-- exact end-of-stream marker
 - exact semantics of `reset`
-- exact encoding of schema plus first-batch bundling

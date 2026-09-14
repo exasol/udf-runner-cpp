@@ -33,17 +33,19 @@ these roles. Transport-level roles do not limit which side may later open a call
 
 ## Message Layering
 
-The protocol uses two layers that should remain distinct:
+The protocol uses a length-framed transport unit containing optional control and data portions:
 
-- `Frame` is the low-level length-framed unit on the transport connection.
-- `StreamMessage` is the typed protocol payload carried inside a `Frame`.
+- `Frame` is the length-framed FlatBuffer root object.
+- `control_message` carries control attributes.
+- `data_record_batch` carries one batch's metadata; its raw buffers follow separately when inline transport is used.
 
 Receive path:
 
 1. bytes on the socket
-2. one decoded `Frame`
+2. one length-prefixed and decoded `Frame`
 3. `stream_id` selection
-4. one decoded `StreamMessage`
+4. optional `control_message` and `data_record_batch` processing
+5. inline buffer reads, if `data_record_batch.buffer_transport` is `Inline`
 
 This separation is important because the transport boundary and the typed protocol payload evolve independently.
 
@@ -66,8 +68,10 @@ The current control-stream message set is:
 - `Payloads(...)` when named payloads need to be exchanged without any active call
 - `CloseConnection` for orderly connection shutdown
 
-`StreamMessage` is a composite message with independently optional fields. This allows related fields, such as a
-close field and `Error`, to travel together in one `Frame`.
+`ControlMessage` uses a union for mutually exclusive message categories while keeping compatible attributes such as
+`Payloads`, `Next`, `DataSchema`, and `Error` directly on the control table. `Frame` may contain a control message, a
+record batch, or both. Schema and record-batch encoding, including inline buffer ordering, are defined in
+[data_stream.md](data_stream.md).
 
 ## Stream Ownership
 
