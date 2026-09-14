@@ -39,7 +39,7 @@ struct TimedItem {
 void BM_RawSpscRoundTrip(benchmark::State& state) {
     exasol::udf::v2::SpscQueue<int> queue(1024);
     for (const auto iteration : state) {
-        benchmark::DoNotOptimize(iteration);
+        benchmark::DoNotOptimize(&iteration);
         int value = 0;
         benchmark::DoNotOptimize(queue.enqueue(1));
         benchmark::DoNotOptimize(queue.try_dequeue(value));
@@ -53,7 +53,7 @@ void BM_RawSpscRoundTrip(benchmark::State& state) {
 void BM_WaitableSpscRoundTrip(benchmark::State& state) {
     exasol::udf::v2::WaitableSpscQueue<int> queue(exasol::udf::v2::SpscQueue<int>(1024));
     for (const auto iteration : state) {
-        benchmark::DoNotOptimize(iteration);
+        benchmark::DoNotOptimize(&iteration);
         int value = 0;
         benchmark::DoNotOptimize(queue.enqueue(1));
         benchmark::DoNotOptimize(queue.drain_notifications());
@@ -68,7 +68,7 @@ void BM_WaitableSpscRoundTrip(benchmark::State& state) {
 void BM_BlockingSpscRoundTrip(benchmark::State& state) {
     exasol::udf::v2::SpscCircularBuffer<int> queue(1024);
     for (const auto iteration : state) {
-        benchmark::DoNotOptimize(iteration);
+        benchmark::DoNotOptimize(&iteration);
         int value = 0;
         queue.wait_enqueue(1);
         benchmark::DoNotOptimize(queue.try_dequeue(value));
@@ -83,7 +83,7 @@ void BM_BlockingSpscRoundTrip(benchmark::State& state) {
 void BM_RawSpscEnqueueLatency(benchmark::State& state) {
     exasol::udf::v2::SpscQueue<int> queue(1024);
     for (const auto iteration : state) {
-        benchmark::DoNotOptimize(iteration);
+        benchmark::DoNotOptimize(&iteration);
         benchmark::DoNotOptimize(queue.enqueue(1));
         state.PauseTiming();
         int value = 0;
@@ -97,7 +97,7 @@ void BM_RawSpscEnqueueLatency(benchmark::State& state) {
 void BM_WaitableSpscEnqueueLatency(benchmark::State& state) {
     exasol::udf::v2::WaitableSpscQueue<int> queue(exasol::udf::v2::SpscQueue<int>(1024));
     for (const auto iteration : state) {
-        benchmark::DoNotOptimize(iteration);
+        benchmark::DoNotOptimize(&iteration);
         benchmark::DoNotOptimize(queue.enqueue(1));
         state.PauseTiming();
         int value = 0;
@@ -112,7 +112,7 @@ void BM_WaitableSpscEnqueueLatency(benchmark::State& state) {
 void BM_BlockingSpscEnqueueLatency(benchmark::State& state) {
     exasol::udf::v2::SpscCircularBuffer<int> queue(1024);
     for (const auto iteration : state) {
-        benchmark::DoNotOptimize(iteration);
+        benchmark::DoNotOptimize(&iteration);
         queue.wait_enqueue(1);
         state.PauseTiming();
         int value = 0;
@@ -132,7 +132,7 @@ void BM_RawSpscBatch(benchmark::State& state) {
     exasol::udf::v2::SpscQueue<int> queue(batch_size);
 
     for (const auto iteration : state) {
-        benchmark::DoNotOptimize(iteration);
+        benchmark::DoNotOptimize(&iteration);
         for (int value : batch) {
             benchmark::DoNotOptimize(queue.enqueue(value));
         }
@@ -151,7 +151,7 @@ void BM_WaitableSpscBatch(benchmark::State& state) {
     exasol::udf::v2::WaitableSpscQueue<int> queue{exasol::udf::v2::SpscQueue<int>(batch_size)};
 
     for (const auto iteration : state) {
-        benchmark::DoNotOptimize(iteration);
+        benchmark::DoNotOptimize(&iteration);
         benchmark::DoNotOptimize(queue.enqueue_batch(batch.begin(), batch.end()));
         benchmark::DoNotOptimize(queue.drain_notifications());
         int value = 0;
@@ -204,7 +204,7 @@ void BM_WaitableSpscEpollLatency(benchmark::State& state) {
 
     std::uint64_t expected_sequence = 0;
     for (const auto iteration : state) {
-        benchmark::DoNotOptimize(iteration);
+        benchmark::DoNotOptimize(&iteration);
         requested.fetch_add(1, std::memory_order_release);
 
         epoll_event event{};

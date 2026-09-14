@@ -22,7 +22,7 @@ namespace {
 
 using export_fn_t = int (*)(ArrowArray*, ArrowSchema*);
 using consume_fn_t = int (*)(ArrowArray*, ArrowSchema*, int64_t*, int64_t*);
-using error_fn_t = const char* (*)(void);
+using error_fn_t = const char* (*)();
 
 constexpr std::string_view kArrowMangledPrefix = "_ZN5arrow";
 constexpr std::string_view kDemoExportedPrefix = "udf_runner_cpp_v2_demo_";
