@@ -57,4 +57,4 @@ inline std::string run_nm(const char* option, const std::string& path) {
     return output;
 }
 
-}  // namespace exasol::udf::v2::test
+} // namespace exasol::udf::v2::test

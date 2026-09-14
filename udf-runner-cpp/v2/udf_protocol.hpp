@@ -14,6 +14,6 @@ namespace exasol::udf::protocol {
 
 bool VerifyFrameBuffer(const void* data, std::size_t size);
 
-}  // namespace exasol::udf::protocol
+} // namespace exasol::udf::protocol
 
-#endif  // EXASOL_UDF_V2_UDF_PROTOCOL_HPP_
+#endif // EXASOL_UDF_V2_UDF_PROTOCOL_HPP_

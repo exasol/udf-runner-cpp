@@ -14,10 +14,12 @@
 
 namespace {
 
-constexpr std::string_view kGlobalNamespacePrefix = "_ZN10moodycamel";
+constexpr std::string_view kGlobalNamespacePrefix   = "_ZN10moodycamel";
 constexpr std::string_view kIsolatedNamespacePrefix = "_ZN6exasol3udf2v211third_party10moodycamel";
 
-[[noreturn]] void fail(const std::string& message) { throw std::runtime_error(message); }
+[[noreturn]] void fail(const std::string& message) {
+    throw std::runtime_error(message);
+}
 
 template <typename T>
 T read_object(const std::vector<char>& file, std::size_t offset) {
@@ -29,13 +31,14 @@ T read_object(const std::vector<char>& file, std::size_t offset) {
     return result;
 }
 
-std::string read_string(const std::vector<char>& file, std::size_t offset,
+std::string read_string(const std::vector<char>& file,
+                        std::size_t offset,
                         std::size_t maximum_size) {
     if (offset > file.size() || file.size() - offset < maximum_size) {
         fail("ELF string table is truncated");
     }
     const char* begin = file.data() + offset;
-    const void* end = std::memchr(begin, '\0', maximum_size);
+    const void* end   = std::memchr(begin, '\0', maximum_size);
     if (end == nullptr) {
         fail("ELF symbol name is not terminated");
     }
@@ -61,7 +64,7 @@ void verify_symbols(const std::string& path) {
     for (std::size_t i = 0; i < header.e_shnum; ++i) {
         const auto section = read_object<Elf64_Shdr>(file, header.e_shoff + i * sizeof(Elf64_Shdr));
         if (section.sh_type == SHT_DYNSYM) {
-            dynamic_symbols = section;
+            dynamic_symbols       = section;
             found_dynamic_symbols = true;
             break;
         }
@@ -93,7 +96,7 @@ void verify_symbols(const std::string& path) {
     }
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char** argv) {
     try {

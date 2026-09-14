@@ -173,7 +173,7 @@ void BM_WaitableSpscEpollLatency(benchmark::State& state) {
     benchmark_check(epoll_fd != -1, "epoll_create1 failed");
 
     epoll_event queue_event{};
-    queue_event.events = EPOLLIN;
+    queue_event.events  = EPOLLIN;
     queue_event.data.fd = queue.native_handle();
     benchmark_check(::epoll_ctl(epoll_fd, EPOLL_CTL_ADD, queue.native_handle(), &queue_event) == 0,
                     "epoll_ctl failed");
@@ -232,7 +232,7 @@ void BM_WaitableSpscEpollLatency(benchmark::State& state) {
     ::close(epoll_fd);
 }
 
-}  // namespace
+} // namespace
 
 BENCHMARK(BM_RawSpscRoundTrip);
 BENCHMARK(BM_WaitableSpscRoundTrip);

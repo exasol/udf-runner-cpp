@@ -17,10 +17,12 @@ namespace isolated_nlohmann = exasol::udf::v2::third_party::nlohmann;
 
 namespace {
 
-constexpr std::string_view kGlobalNamespacePrefix = "_ZN8nlohmann";
+constexpr std::string_view kGlobalNamespacePrefix   = "_ZN8nlohmann";
 constexpr std::string_view kIsolatedNamespacePrefix = "_ZN6exasol3udf2v211third_party8nlohmann";
 
-[[noreturn]] void fail(const std::string& message) { throw std::runtime_error(message); }
+[[noreturn]] void fail(const std::string& message) {
+    throw std::runtime_error(message);
+}
 
 template <typename T>
 T read_object(const std::vector<char>& file, std::size_t offset) {
@@ -33,14 +35,15 @@ T read_object(const std::vector<char>& file, std::size_t offset) {
     return result;
 }
 
-std::string read_string(const std::vector<char>& file, std::size_t offset,
+std::string read_string(const std::vector<char>& file,
+                        std::size_t offset,
                         std::size_t maximum_size) {
     if (offset > file.size() || file.size() - offset < maximum_size) {
         fail("ELF string table is truncated");
     }
 
     const char* begin = file.data() + offset;
-    const void* end = std::memchr(begin, '\0', maximum_size);
+    const void* end   = std::memchr(begin, '\0', maximum_size);
     if (end == nullptr) {
         fail("ELF symbol name is not terminated");
     }
@@ -56,7 +59,7 @@ std::vector<char> read_file(const std::string& path) {
 }
 
 bool is_exported(const Elf64_Sym& symbol) {
-    const unsigned char binding = ELF64_ST_BIND(symbol.st_info);
+    const unsigned char binding    = ELF64_ST_BIND(symbol.st_info);
     const unsigned char visibility = ELF64_ST_VISIBILITY(symbol.st_other);
     return symbol.st_shndx != SHN_UNDEF && (binding == STB_GLOBAL || binding == STB_WEAK) &&
            (visibility == STV_DEFAULT || visibility == STV_PROTECTED);
@@ -64,7 +67,7 @@ bool is_exported(const Elf64_Sym& symbol) {
 
 void verify_symbols(const std::string& library_path) {
     const std::vector<char> file = read_file(library_path);
-    const auto header = read_object<Elf64_Ehdr>(file, 0);
+    const auto header            = read_object<Elf64_Ehdr>(file, 0);
     if (std::memcmp(header.e_ident, ELFMAG, SELFMAG) != 0 ||
         header.e_ident[EI_CLASS] != ELFCLASS64 || header.e_ident[EI_DATA] != ELFDATA2LSB ||
         header.e_shentsize != sizeof(Elf64_Shdr)) {
@@ -84,7 +87,7 @@ void verify_symbols(const std::string& library_path) {
         const auto section =
             read_object<Elf64_Shdr>(file, section_table + index * sizeof(Elf64_Shdr));
         if (section.sh_type == SHT_DYNSYM) {
-            dynamic_symbols = section;
+            dynamic_symbols       = section;
             found_dynamic_symbols = true;
             break;
         }
@@ -136,7 +139,7 @@ void verify_loaded_validator() {
     verify_symbols(library.dli_fname);
 }
 
-}  // namespace
+} // namespace
 
 int main() {
     try {

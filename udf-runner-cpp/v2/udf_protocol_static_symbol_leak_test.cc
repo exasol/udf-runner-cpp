@@ -9,7 +9,9 @@
 
 namespace {
 
-[[noreturn]] void fail(const std::string& message) { throw std::runtime_error(message); }
+[[noreturn]] void fail(const std::string& message) {
+    throw std::runtime_error(message);
+}
 
 void verify_symbols(const std::string& archive_path) {
     const std::string command = exasol::udf::v2::test::run_nm("-g", archive_path);
@@ -24,7 +26,7 @@ void verify_symbols(const std::string& archive_path) {
     }
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char** argv) {
     try {

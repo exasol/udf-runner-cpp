@@ -17,7 +17,7 @@ isolated_nlohmann::json read_json(const std::string& path) {
     return isolated_nlohmann::json::parse(input);
 }
 
-}  // namespace
+} // namespace
 
 int main() {
     try {
