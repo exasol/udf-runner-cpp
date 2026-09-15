@@ -1,0 +1,13 @@
+flowchart TD
+    Call["Call\n(CallOpen / first peer call-scoped message / CallClose)"]
+    Call -->|opened by DB, or by UDFRunner only when nested| Opener{{"DB opens top-level calls"}}
+    Call -->|optional, at most one| DataStream["Bidirectional Data Stream\n(independent schema per direction)"]
+    Call -->|optional| Nested["Nested Call(s)\n(started by nested CallOpen traffic)"]
+
+    Run["Run (DB-opened)"] -.->|instance of| Call
+    Function["Function operation (DB-opened)"] -.->|instance of| Call
+    GetConnection["get_connection (UDFRunner-opened)"] -.->|instance of| Call
+    GetScript["get_script (UDFRunner-opened)"] -.->|instance of| Call
+
+    Run --> RunData["Input/Output Data Stream"]
+    Function --> FunctionKinds["default output columns / virtual schema / import SQL / export SQL"]

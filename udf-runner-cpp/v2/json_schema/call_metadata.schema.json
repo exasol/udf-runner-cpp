@@ -5,9 +5,15 @@
   "required": [
     "database_name", "database_version", "session_id", "statement_id",
     "node_count", "node_id", "vm_id", "maximal_memory_limit", "script_schema",
-    "input_iter_type", "output_iter_type", "input_columns", "output_columns",
+    "input_iter_type", "output_iter_type",
     "single_call_mode"
   ],
+  "not": {
+    "anyOf": [
+      { "required": ["input_columns"] },
+      { "required": ["output_columns"] }
+    ]
+  },
   "properties": {
     "database_name": { "type": "string" },
     "database_version": { "type": "string" },
@@ -23,23 +29,6 @@
     "scope_user": { "type": "string" },
     "input_iter_type": { "enum": ["EXACTLY_ONCE", "MULTIPLE"] },
     "output_iter_type": { "enum": ["EXACTLY_ONCE", "MULTIPLE"] },
-    "input_columns": { "type": "array", "items": { "$ref": "#/definitions/column" } },
-    "output_columns": { "type": "array", "items": { "$ref": "#/definitions/column" } },
     "single_call_mode": { "type": "boolean" }
-  },
-  "definitions": {
-    "column": {
-      "type": "object",
-      "additionalProperties": true,
-      "required": ["name", "type_name"],
-      "properties": {
-        "name": { "type": "string" },
-        "type": { "enum": ["UNSUPPORTED", "DOUBLE", "INT32", "INT64", "NUMERIC", "TIMESTAMP", "DATE", "STRING", "BOOLEAN"] },
-        "type_name": { "type": "string" },
-        "size": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
-        "precision": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
-        "scale": { "type": "integer", "minimum": 0, "maximum": 4294967295 }
-      }
-    }
   }
 }
