@@ -5,11 +5,12 @@ stateDiagram-v2
         OutboundIdle --> SchemaAnnounced: Send schema
         OutboundIdle --> WaitingForNext: Send schema + first batch
         SchemaAnnounced --> WaitingForNext: Send first batch
-        OutboundIdle --> FirstBatchCreditGranted: Receive Next
-        SchemaAnnounced --> CreditGranted: Receive Next
-        FirstBatchCreditGranted --> WaitingForNext: Send schema + first batch
-        CreditGranted --> WaitingForNext: Send batch
-        WaitingForNext --> CreditGranted: Receive Next
+        OutboundIdle --> BudgetAvailable: Receive Next hint
+        SchemaAnnounced --> BudgetAvailable: Receive Next hint
+        BudgetAvailable --> BudgetAvailable: Send batch while budget remains
+        BudgetAvailable --> BudgetAvailable: Send schema + first batch
+        BudgetAvailable --> WaitingForNext: Budget no longer usable
+        WaitingForNext --> BudgetAvailable: Receive Next hint
         WaitingForNext --> OutboundCompleted: Finish stream
 
         OutboundCompleted --> [*]
@@ -19,17 +20,13 @@ stateDiagram-v2
         [*] --> InboundIdle
 
         InboundIdle --> SchemaReceived: Receive schema
-        InboundIdle --> ReadyToRequest: Receive schema + first batch
-        InboundIdle --> WaitingForFirstBatch: Send Next
-        SchemaReceived --> ReadyToRequest: Receive first batch
-        SchemaReceived --> WaitingForFirstBatch: Send Next
-        WaitingForFirstBatch --> WaitingForFirstBatch: Receive schema
-        WaitingForFirstBatch --> ReadyToRequest: Receive schema + first batch
-        WaitingForFirstBatch --> ReadyToRequest: Receive first batch
-        ReadyToRequest --> WaitingForBatch: Send Next
-        WaitingForBatch --> ReadyToRequest: Receive batch
-        WaitingForFirstBatch --> InboundCompleted: Finish stream
-        WaitingForBatch --> InboundCompleted: Finish stream
+        InboundIdle --> BatchesInFlight: Receive schema + first batch
+        InboundIdle --> InboundIdle: Send Next hint
+        SchemaReceived --> BatchesInFlight: Receive first batch
+        SchemaReceived --> SchemaReceived: Send Next hint
+        BatchesInFlight --> BatchesInFlight: Receive batch
+        BatchesInFlight --> BatchesInFlight: Send Next hint
+        BatchesInFlight --> InboundCompleted: Finish stream
 
         InboundCompleted --> [*]
     }

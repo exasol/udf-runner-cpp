@@ -21,7 +21,8 @@ Related diagram:
 
 - a data stream exists only attached to a call
 - a call may have at most one bidirectional data stream
-- each side owns one logical direction within that data stream
+- each side controls its own outbound direction within that data stream
+- the Client outbound direction is Client -> Server; the Server outbound direction is Server -> Client
 - ordering is total within one direction
 - the two directions do not need to share a schema
 
@@ -67,11 +68,16 @@ call-specific rules. The low-level converter preserves those fields and does not
 
 ## `Next(byte_budget, reset, row_id)`
 
-`Next(...)` is the transfer-credit mechanism.
+`Next(...)` is a flow-control hint sent by the receiver of a direction to its sender. It does not select a record
+batch and does not directly pause, cancel, or otherwise control the sender.
 
-- `byte_budget` is a byte budget, not a row count
-- `reset` indicates that transfer should resume from `row_id`
-- `row_id` is a seek position for resumed transfer, not a per-batch correlation field
+- `byte_budget` is a preferred maximum byte size for one or multiple record batches
+- the first record batch may be sent without a received `Next(...)`
+- subsequent batches require an available budget from a previously received `Next(...)`
+- the sender may send less than the hinted budget and may send multiple batches while budget remains
+- an indivisible batch may exceed the remaining budget
+- `reset` and `row_id` are seek-position hints for batches that are not already in flight
+- batches already in flight continue unaffected and may reference positions different from the requested `row_id`
 
 This `row_id` usage is distinct from any row correlation carried inside the data itself for high-level call
 semantics such as scalar-return `Run`.
@@ -79,19 +85,19 @@ semantics such as scalar-return `Run`.
 ## Endpoint State Models
 
 The state models use one local endpoint's perspective. That endpoint has one outbound direction and one inbound
-direction; its peer runs the same two models with the directions reversed.
+direction. The endpoint controls its outbound direction; its peer controls the reverse direction. For example, the
+Client controls Client -> Server output, while the Server controls Server -> Client output.
 
 ### Outbound Direction
 
-The outbound model tracks data sent by the local endpoint and `Next(...)` credit received from its peer.
+The outbound model tracks data sent by the local endpoint and the latest flow-control hint received from its peer.
 
 | State | Meaning |
 | --- | --- |
 | `OutboundIdle` | The local endpoint has sent neither schema nor batch data. |
 | `SchemaAnnounced` | The local endpoint sent its schema, but not its first batch. |
-| `FirstBatchCreditGranted` | The peer granted credit before the local endpoint announced its schema. |
-| `CreditGranted` | The peer granted credit after the schema or a prior batch. |
-| `WaitingForNext` | The local endpoint needs additional credit before sending another batch. |
+| `BudgetAvailable` | The local endpoint has a usable budget hint for one or more batches. |
+| `WaitingForNext` | The local endpoint has no usable budget for another non-first batch. |
 | `OutboundCompleted` | The local endpoint has no more outbound data. |
 
 | From | Local event | To |
@@ -99,51 +105,47 @@ The outbound model tracks data sent by the local endpoint and `Next(...)` credit
 | `OutboundIdle` | Send schema | `SchemaAnnounced` |
 | `OutboundIdle` | Send schema + first batch | `WaitingForNext` |
 | `SchemaAnnounced` | Send first batch | `WaitingForNext` |
-| `OutboundIdle` | Receive `Next(...)` | `FirstBatchCreditGranted` |
-| `SchemaAnnounced` | Receive `Next(...)` | `CreditGranted` |
-| `FirstBatchCreditGranted` | Send schema + first batch | `WaitingForNext` |
-| `CreditGranted` | Send batch | `WaitingForNext` |
-| `WaitingForNext` | Receive `Next(...)` | `CreditGranted` |
+| `OutboundIdle` | Receive `Next(...)` | `BudgetAvailable` |
+| `SchemaAnnounced` | Receive `Next(...)` | `BudgetAvailable` |
+| `BudgetAvailable` | Send one or more batches while budget remains | `BudgetAvailable` |
+| `BudgetAvailable` | No usable budget remains | `WaitingForNext` |
+| `WaitingForNext` | Receive `Next(...)` | `BudgetAvailable` |
 | `WaitingForNext` | Finish stream | `OutboundCompleted` |
 
 ### Inbound Direction
 
-The inbound model tracks data received by the local endpoint and `Next(...)` credit it sends to its peer.
+The inbound model tracks data received by the local endpoint and the flow-control hints it sends to its peer. Sending
+`Next(...)` does not make the peer's sender wait, cancel, or select a particular batch.
 
 | State | Meaning |
 | --- | --- |
 | `InboundIdle` | The local endpoint received neither schema nor batch data. |
 | `SchemaReceived` | The local endpoint received the peer's schema, but not its first batch. |
-| `WaitingForFirstBatch` | The local endpoint sent `Next(...)` and awaits the first batch. |
-| `ReadyToRequest` | The local endpoint received a batch and may request another. |
-| `WaitingForBatch` | The local endpoint sent `Next(...)` and awaits a non-first batch. |
+| `BatchesInFlight` | One or more batches are in flight and are unaffected by later seek hints. |
 | `InboundCompleted` | The local endpoint expects no more inbound data. |
 
 | From | Local event | To |
 | --- | --- | --- |
 | `InboundIdle` | Receive schema | `SchemaReceived` |
-| `InboundIdle` | Receive schema + first batch | `ReadyToRequest` |
-| `InboundIdle` | Send `Next(...)` | `WaitingForFirstBatch` |
-| `SchemaReceived` | Receive first batch | `ReadyToRequest` |
-| `SchemaReceived` | Send `Next(...)` | `WaitingForFirstBatch` |
-| `WaitingForFirstBatch` | Receive schema | `WaitingForFirstBatch` |
-| `WaitingForFirstBatch` | Receive schema + first batch | `ReadyToRequest` |
-| `WaitingForFirstBatch` | Receive first batch | `ReadyToRequest` |
-| `ReadyToRequest` | Send `Next(...)` | `WaitingForBatch` |
-| `WaitingForBatch` | Receive batch | `ReadyToRequest` |
-| `WaitingForFirstBatch` | Finish stream | `InboundCompleted` |
-| `WaitingForBatch` | Finish stream | `InboundCompleted` |
+| `InboundIdle` | Send `Next(...)` | `InboundIdle` |
+| `InboundIdle` | Receive schema + first batch | `BatchesInFlight` |
+| `SchemaReceived` | Receive first batch | `BatchesInFlight` |
+| `SchemaReceived` | Send `Next(...)` | `SchemaReceived` |
+| `BatchesInFlight` | Receive batch | `BatchesInFlight` |
+| `BatchesInFlight` | Send `Next(...)` | `BatchesInFlight` |
+| `BatchesInFlight` | Finish stream | `InboundCompleted` |
 
 ## Rules
 
 1. Each direction sends exactly one `DataSchema`.
 2. A direction sends its schema before, or in the same `Frame` as, its first `DataRecordBatch`.
 3. A standalone schema may precede `Next(...)`; no batch may precede its schema.
-4. Only the first batch in a direction may precede `Next(...)`.
-5. Non-first batches require prior transfer credit.
-6. Except for the permitted first batch, a sender must not exceed its peer's granted `Next(...)` credit.
-7. `byte_budget` bounds the transfer window.
-8. `reset` and `row_id` describe resume position only.
+4. Only the first batch in a direction may be sent without a previously received `Next(...)`.
+5. A sender may send one or more batches while the current `byte_budget` hint remains usable.
+6. A sender may send less than the hinted budget; an indivisible batch may exceed the remaining budget.
+7. After the current budget is no longer usable, a sender waits for another `Next(...)` before sending a later batch.
+8. `reset` and `row_id` apply only to batches that are not already in flight.
+9. In-flight batches continue unaffected by a later seek hint and may reference different positions.
 
 ## Buffer Transfer
 
