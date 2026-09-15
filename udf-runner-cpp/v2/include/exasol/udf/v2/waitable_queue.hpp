@@ -23,23 +23,19 @@ namespace exasol::udf::v2 {
 // one-to-one mapping between eventfd counter values and queue elements.
 template <typename Queue>
 class WaitableQueue {
-   public:
+public:
     using queue_type = Queue;
 
-    WaitableQueue()
-        : notification_fd_(::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)) {
+    WaitableQueue() : notification_fd_(::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)) {
         if (notification_fd_ == -1) {
-            throw std::system_error(errno, std::generic_category(),
-                                    "eventfd");
+            throw std::system_error(errno, std::generic_category(), "eventfd");
         }
     }
 
     explicit WaitableQueue(Queue queue)
-        : queue_(std::move(queue)),
-          notification_fd_(::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)) {
+        : queue_(std::move(queue)), notification_fd_(::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)) {
         if (notification_fd_ == -1) {
-            throw std::system_error(errno, std::generic_category(),
-                                    "eventfd");
+            throw std::system_error(errno, std::generic_category(), "eventfd");
         }
     }
 
@@ -49,19 +45,20 @@ class WaitableQueue {
         }
     }
 
-    WaitableQueue(const WaitableQueue&) = delete;
+    WaitableQueue(const WaitableQueue&)            = delete;
     WaitableQueue& operator=(const WaitableQueue&) = delete;
 
     WaitableQueue(WaitableQueue&& other) noexcept
         : queue_(std::move(other.queue_)),
-          notification_fd_(std::exchange(other.notification_fd_, -1)) {}
+          notification_fd_(std::exchange(other.notification_fd_, -1)) {
+    }
 
     WaitableQueue& operator=(WaitableQueue&& other) noexcept {
         if (this != &other) {
             if (notification_fd_ != -1) {
                 ::close(notification_fd_);
             }
-            queue_ = std::move(other.queue_);
+            queue_           = std::move(other.queue_);
             notification_fd_ = std::exchange(other.notification_fd_, -1);
         }
         return *this;
@@ -106,9 +103,8 @@ class WaitableQueue {
     std::uint64_t drain_notifications() {
         std::uint64_t total = 0;
         for (;;) {
-            std::uint64_t value = 0;
-            const ssize_t result = ::read(notification_fd_, &value,
-                                          sizeof(value));
+            std::uint64_t value  = 0;
+            const ssize_t result = ::read(notification_fd_, &value, sizeof(value));
             if (result == sizeof(value)) {
                 total += value;
                 continue;
@@ -120,23 +116,24 @@ class WaitableQueue {
                 return total;
             }
             if (result == -1) {
-                throw std::system_error(errno, std::generic_category(),
-                                        "read eventfd");
+                throw std::system_error(errno, std::generic_category(), "read eventfd");
             }
-            throw std::system_error(EIO, std::generic_category(),
-                                    "short read from eventfd");
+            throw std::system_error(EIO, std::generic_category(), "short read from eventfd");
         }
     }
 
-    Queue& queue() noexcept { return queue_; }
-    const Queue& queue() const noexcept { return queue_; }
+    Queue& queue() noexcept {
+        return queue_;
+    }
+    const Queue& queue() const noexcept {
+        return queue_;
+    }
 
-   private:
+private:
     void notify() {
         constexpr std::uint64_t signal = 1;
         for (;;) {
-            const ssize_t result =
-                ::write(notification_fd_, &signal, sizeof(signal));
+            const ssize_t result = ::write(notification_fd_, &signal, sizeof(signal));
             if (result == sizeof(signal)) {
                 return;
             }
@@ -149,11 +146,9 @@ class WaitableQueue {
                 return;
             }
             if (result == -1) {
-                throw std::system_error(errno, std::generic_category(),
-                                        "write eventfd");
+                throw std::system_error(errno, std::generic_category(), "write eventfd");
             }
-            throw std::system_error(EIO, std::generic_category(),
-                                    "short write to eventfd");
+            throw std::system_error(EIO, std::generic_category(), "short write to eventfd");
         }
     }
 
@@ -167,4 +162,4 @@ using WaitableSpscQueue = WaitableQueue<SpscQueue<T>>;
 template <typename T>
 using WaitableMpmcQueue = WaitableQueue<MpmcQueue<T>>;
 
-}  // namespace exasol::udf::v2
+} // namespace exasol::udf::v2

@@ -13,7 +13,6 @@ template <typename T>
 using MpmcQueue = third_party::moodycamel::ConcurrentQueue<T>;
 
 template <typename T>
-using BlockingMpmcQueue =
-    third_party::moodycamel::BlockingConcurrentQueue<T>;
+using BlockingMpmcQueue = third_party::moodycamel::BlockingConcurrentQueue<T>;
 
-}  // namespace exasol::udf::v2
+} // namespace exasol::udf::v2

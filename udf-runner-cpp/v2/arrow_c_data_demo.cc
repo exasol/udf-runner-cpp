@@ -50,7 +50,8 @@ arrow::Result<std::shared_ptr<arrow::RecordBatch>> MakeDemoRecordBatch() {
 
 arrow::Status ExportDemoRecordBatch(ArrowArray* out_array, ArrowSchema* out_schema) {
     if (out_array == nullptr || out_schema == nullptr) {
-        return arrow::Status::Invalid("output ArrowArray and ArrowSchema pointers must not be null");
+        return arrow::Status::Invalid(
+            "output ArrowArray and ArrowSchema pointers must not be null");
     }
 
     std::memset(out_array, 0, sizeof(*out_array));
@@ -64,8 +65,10 @@ arrow::Status ExportDemoRecordBatch(ArrowArray* out_array, ArrowSchema* out_sche
     return arrow::Status::OK();
 }
 
-arrow::Status ConsumeDemoRecordBatch(ArrowArray* array, ArrowSchema* schema,
-                                     int64_t* out_row_count, int64_t* out_id_sum) {
+arrow::Status ConsumeDemoRecordBatch(ArrowArray* array,
+                                     ArrowSchema* schema,
+                                     int64_t* out_row_count,
+                                     int64_t* out_id_sum) {
     if (array == nullptr || schema == nullptr || out_row_count == nullptr ||
         out_id_sum == nullptr) {
         return arrow::Status::Invalid("input and output pointers must not be null");
@@ -75,12 +78,11 @@ arrow::Status ConsumeDemoRecordBatch(ArrowArray* array, ArrowSchema* schema,
     if (batch->num_columns() != 2) {
         return arrow::Status::Invalid("expected two columns");
     }
-    if (batch->schema()->field(0)->name() != "id" ||
-        batch->schema()->field(1)->name() != "name") {
+    if (batch->schema()->field(0)->name() != "id" || batch->schema()->field(1)->name() != "name") {
         return arrow::Status::Invalid("unexpected schema");
     }
 
-    auto ids = std::static_pointer_cast<arrow::Int64Array>(batch->column(0));
+    auto ids    = std::static_pointer_cast<arrow::Int64Array>(batch->column(0));
     int64_t sum = 0;
     for (int64_t index = 0; index < ids->length(); ++index) {
         if (!ids->IsNull(index)) {
@@ -89,11 +91,11 @@ arrow::Status ConsumeDemoRecordBatch(ArrowArray* array, ArrowSchema* schema,
     }
 
     *out_row_count = batch->num_rows();
-    *out_id_sum = sum;
+    *out_id_sum    = sum;
     return arrow::Status::OK();
 }
 
-}  // namespace
+} // namespace
 
 extern "C" UDF_RUNNER_CPP_V2_EXPORT int udf_runner_cpp_v2_demo_export_record_batch(
     ArrowArray* out_array, ArrowSchema* out_schema) {
@@ -107,10 +109,8 @@ extern "C" UDF_RUNNER_CPP_V2_EXPORT int udf_runner_cpp_v2_demo_export_record_bat
 }
 
 extern "C" UDF_RUNNER_CPP_V2_EXPORT int udf_runner_cpp_v2_demo_consume_record_batch(
-    ArrowArray* array, ArrowSchema* schema, int64_t* out_row_count,
-    int64_t* out_id_sum) {
-    const arrow::Status status =
-        ConsumeDemoRecordBatch(array, schema, out_row_count, out_id_sum);
+    ArrowArray* array, ArrowSchema* schema, int64_t* out_row_count, int64_t* out_id_sum) {
+    const arrow::Status status = ConsumeDemoRecordBatch(array, schema, out_row_count, out_id_sum);
     if (!status.ok()) {
         SetLastError(status);
         return 1;

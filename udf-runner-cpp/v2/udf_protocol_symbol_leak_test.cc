@@ -1,7 +1,10 @@
 #include <cassert>
 #include <cstdio>
+#include <sstream>
 #include <stdexcept>
 #include <string>
+
+#include "nm_runner.hpp"
 
 namespace {
 
@@ -10,31 +13,26 @@ namespace {
 }
 
 void verify_symbols(const std::string& library_path) {
-    const std::string command = "nm -D --defined-only -- '" + library_path + "'";
-    FILE* pipe = popen(command.c_str(), "r");
-    if (pipe == nullptr) {
-        fail("cannot inspect protocol library symbols");
-    }
-
-    char line[4096];
-    while (std::fgets(line, sizeof(line), pipe) != nullptr) {
-        const std::string symbol(line);
+    const std::string command = exasol::udf::v2::test::run_nm("-D", library_path);
+    std::istringstream lines(command);
+    std::string symbol;
+    while (std::getline(lines, symbol)) {
         const std::size_t name_start = symbol.find_last_of(' ');
         if (name_start != std::string::npos &&
             symbol.compare(name_start + 1, 16, "_ZN11flatbuffers") == 0) {
-            pclose(pipe);
             fail("protocol library exports a global flatbuffers symbol: " + symbol);
         }
     }
-
-    if (pclose(pipe) != 0) {
-        fail("cannot complete protocol library symbol inspection");
-    }
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char** argv) {
-    assert(argc == 2);
-    verify_symbols(argv[1]);
+    try {
+        assert(argc == 2);
+        verify_symbols(argv[1]);
+    } catch (const std::exception& error) {
+        std::fprintf(stderr, "%s\n", error.what());
+        return 1;
+    }
 }

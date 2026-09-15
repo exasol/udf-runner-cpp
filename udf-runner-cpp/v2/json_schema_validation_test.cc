@@ -1,4 +1,5 @@
 #include <cassert>
+#include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <stdexcept>
@@ -16,32 +17,38 @@ isolated_nlohmann::json read_json(const std::string& path) {
     return isolated_nlohmann::json::parse(input);
 }
 
-}  // namespace
+} // namespace
 
 int main() {
-    const auto import_schema = read_json("json_schema/import_specification.schema.json");
-    isolated_nlohmann::json_schema::json_validator validator(
-        [](const isolated_nlohmann::json_uri&, isolated_nlohmann::json& schema) {
-            schema = read_json("json_schema/connection_information.schema.json");
-        });
-    validator.set_root_schema(import_schema);
-
-    const isolated_nlohmann::json valid = {
-        {"is_subselect", true},
-        {"connection_information", {
-            {"kind", "JDBC"},
-            {"address", "jdbc:example://host/database"},
-            {"user", "user"},
-            {"password", "secret"},
-        }},
-    };
-    validator.validate(valid);
-
-    bool rejected = false;
     try {
-        validator.validate(isolated_nlohmann::json::object());
-    } catch (const std::exception&) {
-        rejected = true;
+        const auto import_schema = read_json("json_schema/import_specification.schema.json");
+        isolated_nlohmann::json_schema::json_validator validator(
+            [](const isolated_nlohmann::json_uri&, isolated_nlohmann::json& schema) {
+                schema = read_json("json_schema/connection_information.schema.json");
+            });
+        validator.set_root_schema(import_schema);
+
+        const isolated_nlohmann::json valid = {
+            {"is_subselect", true},
+            {"connection_information",
+             {
+                 {"kind", "JDBC"},
+                 {"address", "jdbc:example://host/database"},
+                 {"user", "user"},
+                 {"password", "secret"},
+             }},
+        };
+        validator.validate(valid);
+
+        bool rejected = false;
+        try {
+            validator.validate(isolated_nlohmann::json::object());
+        } catch (const std::exception&) {
+            rejected = true;
+        }
+        assert(rejected);
+    } catch (const std::exception& error) {
+        std::fprintf(stderr, "%s\n", error.what());
+        return 1;
     }
-    assert(rejected);
 }
