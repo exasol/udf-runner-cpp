@@ -9,9 +9,11 @@
 
 namespace isolated_nlohmann = exasol::udf::v2::third_party::nlohmann;
 
-namespace {
+namespace
+{
 
-isolated_nlohmann::json read_json(const std::string& path) {
+isolated_nlohmann::json read_json(const std::string& path)
+{
     std::ifstream input(path);
     assert(input.good());
     return isolated_nlohmann::json::parse(input);
@@ -19,8 +21,10 @@ isolated_nlohmann::json read_json(const std::string& path) {
 
 } // namespace
 
-int main() {
-    try {
+int main()
+{
+    try
+    {
         const auto import_schema = read_json("json_schema/import_specification.schema.json");
         isolated_nlohmann::json_schema::json_validator validator(
             [](const isolated_nlohmann::json_uri&, isolated_nlohmann::json& schema) {
@@ -41,13 +45,18 @@ int main() {
         validator.validate(valid);
 
         bool rejected = false;
-        try {
+        try
+        {
             validator.validate(isolated_nlohmann::json::object());
-        } catch (const std::exception&) {
+        }
+        catch (const std::exception&)
+        {
             rejected = true;
         }
         assert(rejected);
-    } catch (const std::exception& error) {
+    }
+    catch (const std::exception& error)
+    {
         std::fprintf(stderr, "%s\n", error.what());
         return 1;
     }

@@ -13,31 +13,38 @@
 
 #include <exasol/udf/v2/waitable_queue.hpp>
 
-namespace {
+namespace
+{
 
-void test_check(bool condition, const char* message) {
-    if (!condition) {
+void test_check(bool condition, const char* message)
+{
+    if (!condition)
+    {
         std::fprintf(stderr, "waitable queue test failure: %s\n", message);
         std::abort();
     }
 }
 
-void add_to_epoll(int epoll_fd, int fd, std::uint32_t events) {
+void add_to_epoll(int epoll_fd, int fd, std::uint32_t events)
+{
     epoll_event event{};
     event.events  = events;
     event.data.fd = fd;
     test_check(::epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event) == 0, "epoll_ctl failed");
 }
 
-void close_pair(const std::array<int, 2>& sockets) {
+void close_pair(const std::array<int, 2>& sockets)
+{
     ::close(sockets[0]);
     ::close(sockets[1]);
 }
 
 } // namespace
 
-int main() {
-    try {
+int main()
+{
+    try
+    {
         exasol::udf::v2::WaitableSpscQueue<int> queue;
         const int epoll_fd = ::epoll_create1(EPOLL_CLOEXEC);
         test_check(epoll_fd != -1, "epoll_create1 failed");
@@ -58,7 +65,8 @@ int main() {
 
         bool queue_ready  = false;
         bool socket_ready = false;
-        for (const auto& event : std::span(events).first(static_cast<std::size_t>(event_count))) {
+        for (const auto& event : std::span(events).first(static_cast<std::size_t>(event_count)))
+        {
             queue_ready |= event.data.fd == queue.native_handle();
             socket_ready |= event.data.fd == sockets[1];
         }
@@ -74,7 +82,8 @@ int main() {
         test_check(queue.enqueue_batch(batch.begin(), batch.end()) == batch.size(),
                    "batch enqueue failed");
         test_check(queue.drain_notifications() == 1, "unexpected batch notification count");
-        for (int expected : batch) {
+        for (int expected : batch)
+        {
             test_check(queue.try_dequeue(value), "batch dequeue failed");
             test_check(value == expected, "unexpected batch value");
         }
@@ -88,7 +97,9 @@ int main() {
 
         close_pair(sockets);
         ::close(epoll_fd);
-    } catch (const std::exception& error) {
+    }
+    catch (const std::exception& error)
+    {
         std::fprintf(stderr, "waitable queue test failure: %s\n", error.what());
         return 1;
     }

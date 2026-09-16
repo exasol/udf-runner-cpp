@@ -16,10 +16,13 @@
 #include <exasol/udf/v2/spsc_queue.hpp>
 #include <exasol/udf/v2/waitable_queue.hpp>
 
-namespace {
+namespace
+{
 
-void benchmark_check(bool condition, const char* message) {
-    if (!condition) {
+void benchmark_check(bool condition, const char* message)
+{
+    if (!condition)
+    {
         std::fprintf(stderr, "waitable queue benchmark failure: %s\n", message);
         std::abort();
     }
@@ -29,16 +32,19 @@ void benchmark_check(bool condition, const char* message) {
 // circular-buffer baseline and the eventfd-backed waitable queue. Results are
 // informational: build mode, CPU frequency, scheduler activity, and system
 // load can materially affect them.
-struct TimedItem {
+struct TimedItem
+{
     std::uint64_t sequence;
     std::chrono::steady_clock::time_point sent;
 };
 
 // Includes raw enqueue and dequeue only; this is the queue-operation baseline
 // for the waitable round-trip benchmark.
-void BM_RawSpscRoundTrip(benchmark::State& state) {
+void BM_RawSpscRoundTrip(benchmark::State& state)
+{
     exasol::udf::v2::SpscQueue<int> queue(1024);
-    for (const auto iteration : state) {
+    for (const auto iteration : state)
+    {
         benchmark::DoNotOptimize(&iteration);
         int value = 0;
         benchmark::DoNotOptimize(queue.enqueue(1));
@@ -50,9 +56,11 @@ void BM_RawSpscRoundTrip(benchmark::State& state) {
 
 // Includes enqueue, eventfd notification draining, and dequeue. The eventfd
 // write is part of the measured round trip.
-void BM_WaitableSpscRoundTrip(benchmark::State& state) {
+void BM_WaitableSpscRoundTrip(benchmark::State& state)
+{
     exasol::udf::v2::WaitableSpscQueue<int> queue(exasol::udf::v2::SpscQueue<int>(1024));
-    for (const auto iteration : state) {
+    for (const auto iteration : state)
+    {
         benchmark::DoNotOptimize(&iteration);
         int value = 0;
         benchmark::DoNotOptimize(queue.enqueue(1));
@@ -65,9 +73,11 @@ void BM_WaitableSpscRoundTrip(benchmark::State& state) {
 
 // Includes wait_enqueue and dequeue on a non-full blocking SPSC queue. The
 // benchmark measures the uncontended fast path rather than intentional waits.
-void BM_BlockingSpscRoundTrip(benchmark::State& state) {
+void BM_BlockingSpscRoundTrip(benchmark::State& state)
+{
     exasol::udf::v2::SpscCircularBuffer<int> queue(1024);
-    for (const auto iteration : state) {
+    for (const auto iteration : state)
+    {
         benchmark::DoNotOptimize(&iteration);
         int value = 0;
         queue.wait_enqueue(1);
@@ -80,9 +90,11 @@ void BM_BlockingSpscRoundTrip(benchmark::State& state) {
 // Enqueue-only benchmarks pause timing while removing the item so the queue
 // remains empty for the next iteration. The waitable case includes its
 // eventfd write; notification draining is cleanup and is not timed.
-void BM_RawSpscEnqueueLatency(benchmark::State& state) {
+void BM_RawSpscEnqueueLatency(benchmark::State& state)
+{
     exasol::udf::v2::SpscQueue<int> queue(1024);
-    for (const auto iteration : state) {
+    for (const auto iteration : state)
+    {
         benchmark::DoNotOptimize(&iteration);
         benchmark::DoNotOptimize(queue.enqueue(1));
         state.PauseTiming();
@@ -94,9 +106,11 @@ void BM_RawSpscEnqueueLatency(benchmark::State& state) {
     state.SetItemsProcessed(state.iterations());
 }
 
-void BM_WaitableSpscEnqueueLatency(benchmark::State& state) {
+void BM_WaitableSpscEnqueueLatency(benchmark::State& state)
+{
     exasol::udf::v2::WaitableSpscQueue<int> queue(exasol::udf::v2::SpscQueue<int>(1024));
-    for (const auto iteration : state) {
+    for (const auto iteration : state)
+    {
         benchmark::DoNotOptimize(&iteration);
         benchmark::DoNotOptimize(queue.enqueue(1));
         state.PauseTiming();
@@ -109,9 +123,11 @@ void BM_WaitableSpscEnqueueLatency(benchmark::State& state) {
     state.SetItemsProcessed(state.iterations());
 }
 
-void BM_BlockingSpscEnqueueLatency(benchmark::State& state) {
+void BM_BlockingSpscEnqueueLatency(benchmark::State& state)
+{
     exasol::udf::v2::SpscCircularBuffer<int> queue(1024);
-    for (const auto iteration : state) {
+    for (const auto iteration : state)
+    {
         benchmark::DoNotOptimize(&iteration);
         queue.wait_enqueue(1);
         state.PauseTiming();
@@ -126,18 +142,22 @@ void BM_BlockingSpscEnqueueLatency(benchmark::State& state) {
 // Raw and waitable batch benchmarks use the same batch sizes. The waitable
 // queue emits one eventfd notification after the entire batch, exposing how
 // batching amortizes notification overhead.
-void BM_RawSpscBatch(benchmark::State& state) {
+void BM_RawSpscBatch(benchmark::State& state)
+{
     const auto batch_size = static_cast<std::size_t>(state.range(0));
     const std::vector<int> batch(batch_size, 1);
     exasol::udf::v2::SpscQueue<int> queue(batch_size);
 
-    for (const auto iteration : state) {
+    for (const auto iteration : state)
+    {
         benchmark::DoNotOptimize(&iteration);
-        for (int value : batch) {
+        for (int value : batch)
+        {
             benchmark::DoNotOptimize(queue.enqueue(value));
         }
         int value = 0;
-        for (std::size_t i = 0; i < batch_size; ++i) {
+        for (std::size_t i = 0; i < batch_size; ++i)
+        {
             benchmark::DoNotOptimize(queue.try_dequeue(value));
         }
         benchmark::DoNotOptimize(value);
@@ -145,17 +165,20 @@ void BM_RawSpscBatch(benchmark::State& state) {
     state.SetItemsProcessed(state.iterations() * static_cast<int64_t>(batch_size));
 }
 
-void BM_WaitableSpscBatch(benchmark::State& state) {
+void BM_WaitableSpscBatch(benchmark::State& state)
+{
     const auto batch_size = static_cast<std::size_t>(state.range(0));
     const std::vector<int> batch(batch_size, 1);
     exasol::udf::v2::WaitableSpscQueue<int> queue{exasol::udf::v2::SpscQueue<int>(batch_size)};
 
-    for (const auto iteration : state) {
+    for (const auto iteration : state)
+    {
         benchmark::DoNotOptimize(&iteration);
         benchmark::DoNotOptimize(queue.enqueue_batch(batch.begin(), batch.end()));
         benchmark::DoNotOptimize(queue.drain_notifications());
         int value = 0;
-        for (std::size_t i = 0; i < batch_size; ++i) {
+        for (std::size_t i = 0; i < batch_size; ++i)
+        {
             benchmark::DoNotOptimize(queue.try_dequeue(value));
         }
         benchmark::DoNotOptimize(value);
@@ -167,7 +190,8 @@ void BM_WaitableSpscBatch(benchmark::State& state) {
 // and dequeue. One item is outstanding at a time, so the result measures
 // wakeup latency rather than latency caused by queue backlog. The producer
 // handshake is outside the manually recorded interval.
-void BM_WaitableSpscEpollLatency(benchmark::State& state) {
+void BM_WaitableSpscEpollLatency(benchmark::State& state)
+{
     exasol::udf::v2::WaitableSpscQueue<TimedItem> queue{exasol::udf::v2::SpscQueue<TimedItem>(8)};
     const int epoll_fd = ::epoll_create1(EPOLL_CLOEXEC);
     benchmark_check(epoll_fd != -1, "epoll_create1 failed");
@@ -183,12 +207,15 @@ void BM_WaitableSpscEpollLatency(benchmark::State& state) {
     std::atomic<bool> stop{false};
     std::thread producer([&] {
         std::uint64_t sequence = 0;
-        while (!stop.load(std::memory_order_acquire)) {
+        while (!stop.load(std::memory_order_acquire))
+        {
             while (requested.load(std::memory_order_acquire) <= sequence &&
-                   !stop.load(std::memory_order_acquire)) {
+                   !stop.load(std::memory_order_acquire))
+            {
                 std::this_thread::yield();
             }
-            if (stop.load(std::memory_order_acquire)) {
+            if (stop.load(std::memory_order_acquire))
+            {
                 break;
             }
 
@@ -196,20 +223,23 @@ void BM_WaitableSpscEpollLatency(benchmark::State& state) {
             benchmark_check(queue.enqueue(item), "queue enqueue failed");
 
             while (completed.load(std::memory_order_acquire) < sequence &&
-                   !stop.load(std::memory_order_acquire)) {
+                   !stop.load(std::memory_order_acquire))
+            {
                 std::this_thread::yield();
             }
         }
     });
 
     std::uint64_t expected_sequence = 0;
-    for (const auto iteration : state) {
+    for (const auto iteration : state)
+    {
         benchmark::DoNotOptimize(&iteration);
         requested.fetch_add(1, std::memory_order_release);
 
         epoll_event event{};
         int event_count = 0;
-        do {
+        do
+        {
             event_count = ::epoll_wait(epoll_fd, &event, 1, -1);
         } while (event_count == -1 && errno == EINTR);
         benchmark_check(event_count == 1, "epoll_wait failed");

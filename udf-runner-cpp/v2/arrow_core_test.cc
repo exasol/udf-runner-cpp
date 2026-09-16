@@ -4,7 +4,8 @@
 
 #include <arrow/array/builder_primitive.h>
 
-int main() {
+int main()
+{
     arrow::Int64Builder builder;
     assert(builder.Append(int64_t{42}).ok());
 

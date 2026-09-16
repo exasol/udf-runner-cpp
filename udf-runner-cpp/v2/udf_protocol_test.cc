@@ -3,7 +3,8 @@
 #include <cassert>
 #include <cstdint>
 
-int main() {
+int main()
+{
     exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder builder;
     const auto call_name = builder.CreateString("example");
     const auto open_call = exasol::udf::protocol::CreateOpenCall(builder, call_name);

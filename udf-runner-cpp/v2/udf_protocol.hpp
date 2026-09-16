@@ -10,7 +10,8 @@
 #include "udf_protocol_generated.h"
 #undef flatbuffers
 
-namespace exasol::udf::protocol {
+namespace exasol::udf::protocol
+{
 
 bool VerifyFrameBuffer(const void* data, std::size_t size);
 

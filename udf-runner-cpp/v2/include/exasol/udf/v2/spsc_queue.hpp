@@ -8,7 +8,8 @@
 #include <readerwriterqueue.h>
 #undef moodycamel
 
-namespace exasol::udf::v2 {
+namespace exasol::udf::v2
+{
 
 template <typename T>
 using SpscQueue = third_party::moodycamel::ReaderWriterQueue<T>;

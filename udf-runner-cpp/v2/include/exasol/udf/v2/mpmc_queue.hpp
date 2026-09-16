@@ -7,7 +7,8 @@
 #include <concurrentqueue.h>
 #undef moodycamel
 
-namespace exasol::udf::v2 {
+namespace exasol::udf::v2
+{
 
 template <typename T>
 using MpmcQueue = third_party::moodycamel::ConcurrentQueue<T>;
