@@ -124,3 +124,62 @@ test or preserve namespace isolation.
 - Read the notes in [`udf-runner-cpp/v1/docs`](../../udf-runner-cpp/v1/docs)
   when changing parser or runner behavior, especially the script option
   parser design documents.
+
+## Static Analysis with clang-tidy
+
+`clang-tidy` runs static analysis checks on C++ source files. It is integrated into
+the Bazel build as a configuration flag.
+You need to choose a binary variant (scope-user-authentication or scope-session-authentication):
+
+```bash
+cd udf-runner-cpp/v2
+bazel build --config scope-user-auth --config clang-tidy //...
+```
+
+Run clang-tidy on changed `.cpp` files before submitting code for review to catch
+common issues early.
+
+### Run apply-fixes
+
+You can try to run `clang-tidy-apply-replacements` with:
+```bash
+bazel run @rules_clang_tidy//:apply-fixes --@rules_clang_tidy//:clang-apply-replacements=//tools/clang-tidy:apply-replacements-wrapper $(bazel info output_path)
+```
+
+Review the resulting diff carefully. It might fix some of the findings from clang-tidy.
+
+
+## Code Formatting with clang-format
+
+Source files are formatted automatically with `clang-format`. To apply formatting
+fixes, use the `clang-format-fix` Bazel config.
+You need to choose a binary variant (scope-user-authentication or scope-session-authentication):
+
+```bash
+cd udf-runner-cpp/v2
+bazel build --verbose_failures --config clang-format //...
+```
+This checks the formatting and reports the violations
+
+```bash
+bazel build --config scope-user-auth --config clang-format-fix //...
+```
+This fixes the formatting. Run this before committing to ensure consistent formatting across the codebase.
+
+## Excluding certain folders from tidy/format inspection
+
+Create a tag in .bazelrc file
+```build:clang-tidy --build_tag_filters=-noclangtidy
+build:clang-format --build_tag_filters=-noclangtidy
+```
+Use the same in bazel target as tag to not let clang tidy/format inspect those targets
+
+```
+alias(
+    name = "third_party_package",
+    actual = "@v2_thrid_party//:package",
+    # third_party is a vendor supplied source code. Keep them out of
+    # the repository's clang-tidy and clang-format CI profiles.
+    tags = ["noclangtidy"],
+)
+```
