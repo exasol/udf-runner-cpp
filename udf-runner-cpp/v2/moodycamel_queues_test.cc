@@ -3,7 +3,8 @@
 #include <exasol/udf/v2/mpmc_queue.hpp>
 #include <exasol/udf/v2/spsc_queue.hpp>
 
-int main() {
+int main()
+{
     exasol::udf::v2::SpscQueue<int> spsc;
     assert(spsc.enqueue(7));
     int value = 0;

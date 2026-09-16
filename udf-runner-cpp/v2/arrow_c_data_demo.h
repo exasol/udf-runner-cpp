@@ -17,13 +17,13 @@ extern "C" {
 UDF_RUNNER_CPP_V2_EXPORT int udf_runner_cpp_v2_demo_export_record_batch(
     struct ArrowArray* out_array, struct ArrowSchema* out_schema);
 
-UDF_RUNNER_CPP_V2_EXPORT int udf_runner_cpp_v2_demo_consume_record_batch(
-    struct ArrowArray* array, struct ArrowSchema* schema, int64_t* out_row_count,
-    int64_t* out_id_sum);
+UDF_RUNNER_CPP_V2_EXPORT int udf_runner_cpp_v2_demo_consume_record_batch(struct ArrowArray* array,
+                                                                         struct ArrowSchema* schema,
+                                                                         int64_t* out_row_count,
+                                                                         int64_t* out_id_sum);
 
 UDF_RUNNER_CPP_V2_EXPORT const char* udf_runner_cpp_v2_demo_last_error(void);
 
 #ifdef __cplusplus
-}  // extern "C"
+} // extern "C"
 #endif
-
