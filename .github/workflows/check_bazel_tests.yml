@@ -3,7 +3,7 @@ name: Check Bazel Tests
 on:
   push:
     branches:
-      - master
+      - main
   pull_request:
 
 env:
@@ -19,10 +19,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential curl
+          sudo apt-get install -y build-essential curl lcov
       - uses: bazel-contrib/setup-bazel@0.19.0
         with:
           bazelisk-cache: true
@@ -42,8 +44,19 @@ jobs:
         run: bazel build --verbose_failures --config clang-format //...
         working-directory: ./udf-runner-cpp/v2
       - name: Run tests
-        run: bazel test --verbose_failures //...
+        run: >-
+          bazel test --verbose_failures --collect_code_coverage
+          --combined_report=lcov
+          --coverage_report_generator=@bazel_sonarqube//:sonarqube_coverage_generator
+          //...
         working-directory: ./udf-runner-cpp/v2
+      - name: SonarCloud Scan
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
+        with:
+          projectBaseDir: ./udf-runner-cpp/v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   build:
     runs-on: ubuntu-24.04
