@@ -129,11 +129,10 @@ test or preserve namespace isolation.
 
 `clang-tidy` runs static analysis checks on C++ source files. It is integrated into
 the Bazel build as a configuration flag.
-You need to choose a binary variant (scope-user-authentication or scope-session-authentication):
 
 ```bash
 cd udf-runner-cpp/v2
-bazel build --config scope-user-auth --config clang-tidy //...
+bazel build --verbose_failures --config clang-tidy //...
 ```
 
 Run clang-tidy on changed `.cpp` files before submitting code for review to catch
@@ -153,7 +152,6 @@ Review the resulting diff carefully. It might fix some of the findings from clan
 
 Source files are formatted automatically with `clang-format`. To apply formatting
 fixes, use the `clang-format-fix` Bazel config.
-You need to choose a binary variant (scope-user-authentication or scope-session-authentication):
 
 ```bash
 cd udf-runner-cpp/v2
@@ -162,7 +160,7 @@ bazel build --verbose_failures --config clang-format //...
 This checks the formatting and reports the violations
 
 ```bash
-bazel build --config scope-user-auth --config clang-format-fix //...
+bazel build --config clang-format-fix //...
 ```
 This fixes the formatting. Run this before committing to ensure consistent formatting across the codebase.
 
