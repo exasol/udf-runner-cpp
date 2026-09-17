@@ -177,7 +177,7 @@ Use the same in bazel target as tag to not let clang tidy/format inspect those t
 ```
 alias(
     name = "third_party_package",
-    actual = "@v2_thrid_party//:package",
+    actual = "@v2_third_party//:package",
     # third_party is a vendor supplied source code. Keep them out of
     # the repository's clang-tidy and clang-format CI profiles.
     tags = ["noclangtidy"],
