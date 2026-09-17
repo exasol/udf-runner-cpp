@@ -4,6 +4,17 @@ This document defines the named payloads used by the current high-level protocol
 `Payloads(...)`. A scalar value uses `StringPayload` directly. A payload marked JSON uses a `StringPayload` whose
 value is UTF-8 JSON conforming to its linked schema.
 
+## Metadata Lifecycle
+
+Unless stated otherwise, script, call, and column metadata follow the same lifecycle rules:
+
+- metadata may be sent on control stream `0` before any call, between calls, or in the same `StreamMessage` as
+  `OpenCall`;
+- metadata sent before any call or between calls applies to subsequent calls;
+- metadata sent with `OpenCall` applies to that call and subsequent calls;
+- the latest received instance replaces the previous instance of the same metadata type or named value; and
+- metadata is not sent during an active call.
+
 ## Script Metadata
 
 After the `Server` sends `ServerCapabilities`, `DB` may set the connection's script metadata on control stream `0`
@@ -15,25 +26,21 @@ in separate messages:
 | `script_name` | string | Name of the script used by subsequent `Run` or Function calls. |
 | `script_source` | string | Source code of that script. |
 
-Script metadata must be received before a `Run` or Function call that uses it. Metadata sent before any call or between
-calls applies to subsequent calls. Metadata sent with `OpenCall` applies to that call and subsequent calls. The latest
-received value replaces the previous value; metadata is not sent during an active call.
+Script metadata must be received before a `Run` or Function call that uses it. The shared [metadata lifecycle](#metadata-lifecycle)
+rules define when it is valid and how later values replace earlier values.
 
 ## Call Metadata
 
 Every `Run` and Function call uses one `call_metadata` JSON payload. It may be sent on control stream `0` before any
 call is sent or between calls, or in the same `StreamMessage` as `OpenCall`. It conforms to
 [call_metadata.schema.json](../../../../../udf-runner-cpp/v2/json_schema/call_metadata.schema.json) and supplies the
-per-invocation execution context and iterator settings. Metadata sent before any call or between calls applies to
-subsequent calls. Metadata sent with `OpenCall` applies to that call and subsequent calls. The latest received value
-replaces the previous value. It is not sent during an active call.
+per-invocation execution context and iterator settings. It follows the shared [metadata lifecycle](#metadata-lifecycle)
+rules.
 
 Column definitions are carried separately in one `column_metadata` JSON payload. It conforms to
 [column_metadata.schema.json](../../../../../udf-runner-cpp/v2/json_schema/column_metadata.schema.json) and may be
-sent on control stream `0` before any call is sent or between calls, or in the same `StreamMessage` as `OpenCall`.
-Metadata sent before any call or between calls applies to subsequent calls. Metadata sent with `OpenCall` applies to
-that call and subsequent calls. The latest received value replaces the previous value. It is not sent during an active
-call. Column `type` values use official Exasol type families, while `type_name` carries the
+sent according to the shared [metadata lifecycle](#metadata-lifecycle) rules. Column `type` values use official
+Exasol type families, while `type_name` carries the
 complete parameterized Exasol SQL declaration. Their Arrow physical representation and metadata rules are defined in
 [type_mapping.md](type_mapping.md). The shared column-definition contract is defined in
 [column.schema.json](../../../../../udf-runner-cpp/v2/json_schema/column.schema.json) and is referenced by both column
