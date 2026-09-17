@@ -5,6 +5,9 @@ on:
   schedule:
     - cron: "17 3 * * 0"
 
+permissions:
+  contents: read
+
 env:
   USE_BAZEL_VERSION: 8.3.1
 
@@ -13,12 +16,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential clang curl
-      - uses: bazel-contrib/setup-bazel@0.19.0
+      - uses: bazel-contrib/setup-bazel@8cb04a772ab4c1eb984e9c1b493a182e96c5e425 # 0.19.0
         with:
           bazelisk-cache: true
       - name: Run bounded fuzzing campaign
@@ -31,7 +36,7 @@ jobs:
           done
       - name: Upload fuzzing artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: v2-fuzzing-artifacts
           path: ${{ runner.temp }}/fuzzing
