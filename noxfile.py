@@ -1,5 +1,6 @@
 import argparse
 import nox
+import os
 from packaging.version import InvalidVersion, Version
 from pathlib import Path
 import subprocess
@@ -188,3 +189,50 @@ def run_oft_udf_client_html(session: nox.Session):
     """
     html_file = session.posargs[0] if session.posargs else "report.html"
     run_oft_for_udf_client(session, "-o", "html", "-f", html_file)
+
+
+@nox.session(name="v2-fuzzing", python=False)
+def run_v2_fuzzing(session: nox.Session):
+    """Run the v2 Bazel fuzzers with configurable sanitizer and output settings."""
+    parser = argparse.ArgumentParser(
+        usage=f"nox -s {session.name} -- [options]",
+    )
+    parser.add_argument("--timeout-secs", type=int, default=300)
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "fuzzing",
+    )
+    parser.add_argument("--bazel-config", default="asan-ubsan-libfuzzer")
+    args = parser.parse_args(session.posargs)
+
+    if args.timeout_secs < 0:
+        session.error("--timeout-secs must be non-negative")
+
+    output_root = args.output_root.expanduser().resolve()
+
+    targets = (
+        "frame",
+        "call_metadata",
+        "connection_information",
+        "export_specification",
+        "import_specification",
+        "queue",
+    )
+    v2_dir = ROOT / "udf-runner-cpp" / "v2"
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    with session.chdir(v2_dir):
+        for target in targets:
+            target_output_root = output_root / target
+            target_output_root.mkdir(parents=True, exist_ok=True)
+            session.run(
+                "bazel",
+                "run",
+                f"--config={args.bazel_config}",
+                f"//:{target}_fuzz_test_run",
+                "--",
+                f"--fuzzing_output_root={target_output_root}",
+                f"--timeout_secs={args.timeout_secs}",
+                external=True,
+            )

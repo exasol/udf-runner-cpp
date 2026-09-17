@@ -23,17 +23,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential clang curl
+          pipx install poetry
+          poetry install --no-interaction --no-ansi --only main
       - uses: bazel-contrib/setup-bazel@8cb04a772ab4c1eb984e9c1b493a182e96c5e425 # 0.19.0
         with:
           bazelisk-cache: true
       - name: Run bounded fuzzing campaign
-        working-directory: ./udf-runner-cpp/v2
+        working-directory: .
         run: |
-          mkdir -p "$RUNNER_TEMP/fuzzing"
-          for target in frame call_metadata connection_information export_specification import_specification queue; do
-            bazel run --config=asan-ubsan-libfuzzer "//:${target}_fuzz_test_run" -- \
-              --fuzzing_output_root="$RUNNER_TEMP/fuzzing" --timeout_secs=300
-          done
+          poetry run nox -s v2-fuzzing -- \
+            --timeout-secs 300 --output-root "$RUNNER_TEMP/fuzzing"
       - name: Upload fuzzing artifacts
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
