@@ -8,6 +8,7 @@ n/a
 ## Features / Enhancements
 
  - 32: Added clang tidy to v2
+ - 38: Added Sonar Qube Public
 
 ## Refactorings
 
