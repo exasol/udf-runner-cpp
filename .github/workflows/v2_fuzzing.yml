@@ -1,0 +1,38 @@
+name: v2 Fuzzing
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 0"
+
+env:
+  USE_BAZEL_VERSION: 8.3.1
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang curl
+      - uses: bazel-contrib/setup-bazel@0.19.0
+        with:
+          bazelisk-cache: true
+      - name: Run bounded fuzzing campaign
+        working-directory: ./udf-runner-cpp/v2
+        run: |
+          mkdir -p "$RUNNER_TEMP/fuzzing"
+          for target in frame call_metadata connection_information export_specification import_specification queue; do
+            bazel run --config=asan-ubsan-libfuzzer "//:${target}_fuzz_test_run" -- \
+              --fuzzing_output_root="$RUNNER_TEMP/fuzzing" --timeout_secs=300
+          done
+      - name: Upload fuzzing artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v2-fuzzing-artifacts
+          path: ${{ runner.temp }}/fuzzing
+          if-no-files-found: ignore
