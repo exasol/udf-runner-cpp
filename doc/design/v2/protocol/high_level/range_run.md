@@ -1,7 +1,10 @@
 # `exasol.udf.range_run` Extension Type
 
-`exasol.udf.range_run` is an Arrow extension type for row IDs that form consecutive ranges. It is used for
-row-ID columns in the directions listed in [calls.md](calls.md#run):
+`exasol.udf.range_run` is an Arrow extension type for row IDs that form consecutive ranges. In the `UDFRunner` to
+`DB` direction, these row IDs are references to input row IDs, not newly allocated output-row sequences. It is used
+for row-ID columns in the directions listed in [calls.md](calls.md#run). Row IDs are opaque and independent of group
+IDs; a consecutive range across a group boundary is a compression opportunity only and does not create a semantic
+relationship between the groups.
 
 - `DB` to `UDFRunner`;
 - `UDFRunner` to `DB` for a `RETURNS` UDF.
@@ -17,6 +20,8 @@ storage with exactly two children, in this order:
 For a run beginning at logical row ID `s` and ending before logical position `e`, the corresponding logical row IDs
 are `s, s + 1, ..., s + (e - previous_end) - 1`. The first run uses `previous_end = 0`. The number of entries in
 `run_ends` and `values` is identical, and the final run end is the logical length of the row-ID array.
+When a row-ID column is carried together with group IDs, runs end at group boundaries, even if the numeric row IDs
+continue consecutively into the next group.
 
 The field metadata contains:
 
