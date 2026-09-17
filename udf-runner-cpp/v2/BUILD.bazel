@@ -229,7 +229,7 @@ cc_fuzz_test(
 
 cc_fuzz_test(
     name = "call_metadata_fuzz_test",
-    srcs = ["call_metadata_fuzz_test.cc", "json_schema_fuzzing.hpp"],
+    srcs = ["call_metadata_fuzz_test.cc", "test_utils/json_schema_fuzzing.hpp"],
     corpus = glob(["fuzz/corpus/call_metadata/**"]),
     dicts = ["fuzz/json.dict"],
     copts = ["-std=c++17"],
@@ -240,7 +240,7 @@ cc_fuzz_test(
 
 cc_fuzz_test(
     name = "connection_information_fuzz_test",
-    srcs = ["connection_information_fuzz_test.cc", "json_schema_fuzzing.hpp"],
+    srcs = ["connection_information_fuzz_test.cc", "test_utils/json_schema_fuzzing.hpp"],
     corpus = glob(["fuzz/corpus/connection_information/**"]),
     dicts = ["fuzz/json.dict"],
     copts = ["-std=c++17"],
@@ -251,7 +251,7 @@ cc_fuzz_test(
 
 cc_fuzz_test(
     name = "export_specification_fuzz_test",
-    srcs = ["export_specification_fuzz_test.cc", "json_schema_fuzzing.hpp"],
+    srcs = ["export_specification_fuzz_test.cc", "test_utils/json_schema_fuzzing.hpp"],
     corpus = glob(["fuzz/corpus/export_specification/**"]),
     dicts = ["fuzz/json.dict"],
     copts = ["-std=c++17"],
@@ -262,7 +262,7 @@ cc_fuzz_test(
 
 cc_fuzz_test(
     name = "import_specification_fuzz_test",
-    srcs = ["import_specification_fuzz_test.cc", "json_schema_fuzzing.hpp"],
+    srcs = ["import_specification_fuzz_test.cc", "test_utils/json_schema_fuzzing.hpp"],
     corpus = glob(["fuzz/corpus/import_specification/**"]),
     dicts = ["fuzz/json.dict"],
     copts = ["-std=c++17"],
