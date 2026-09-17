@@ -42,7 +42,7 @@ jobs:
       - name: Run bounded fuzzing campaign
         working-directory: .
         run: |
-          poetry run nox -s v2-fuzzing -- \
+          poetry run -- nox --sessions=v2-fuzzing -- \
             --timeout-secs 300 --output-root "$RUNNER_TEMP/fuzzing"
       - name: Upload fuzzing artifacts
         if: always()
