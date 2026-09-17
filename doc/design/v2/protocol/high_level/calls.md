@@ -145,15 +145,15 @@ The preferred encodings are:
 
 | Column and direction | Preferred encoding | Compatible fallback |
 | --- | --- | --- |
-| Group ID, either direction | `RunEndEncoded` over unsigned 64-bit IDs when groups contain repeated rows. | Plain unsigned 64-bit. |
+| Group ID, either direction | [`RunEndEncoded`](https://arrow.apache.org/docs/format/Columnar.html#run-end-encoded-layout) over unsigned 64-bit IDs when groups contain repeated rows. | Plain unsigned 64-bit. |
 | Row ID, `DB` to `UDFRunner` | `exasol.udf.range_run` extension array. | Plain unsigned 64-bit. |
 | Row ID, `UDFRunner` to `DB`, `RETURNS` UDF | `exasol.udf.range_run` extension array. | Plain unsigned 64-bit. |
-| Row ID, `UDFRunner` to `DB`, `EMITS` UDF | `RunEndEncoded` over unsigned 64-bit IDs. | Plain unsigned 64-bit. |
+| Row ID, `UDFRunner` to `DB`, `EMITS` UDF | [`RunEndEncoded`](https://arrow.apache.org/docs/format/Columnar.html#run-end-encoded-layout) over unsigned 64-bit IDs. | Plain unsigned 64-bit. |
 
-`exasol.udf.range_run` uses `RunEndEncoded` as its Arrow storage type. Its `run_ends` child is a signed 64-bit
-integer array and its unsigned 64-bit `values` child stores the first row ID for each run; each following logical
-value in that run increases by one. The field sets `ARROW:extension:name` to `exasol.udf.range_run`; no extension
-metadata is required in version 1.
+`exasol.udf.range_run` uses [`RunEndEncoded`](https://arrow.apache.org/docs/format/Columnar.html#run-end-encoded-layout)
+as its Arrow storage type. Its `run_ends` child is a signed 64-bit integer array and its unsigned 64-bit `values`
+child stores the first row ID for each run; each following logical value in that run increases by one. The field
+sets `ARROW:extension:name` to `exasol.udf.range_run`; no extension metadata is required in version 1.
 
 ### Function Operations
 

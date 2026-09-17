@@ -58,8 +58,9 @@ table Union {
 table Duration { unit: TimeUnit = Millisecond; }
 // Trailing underscore mirrors Arrow's own Schema.fbs naming for this union member.
 table Struct_ {}
-// Run-End Encoded (REE): a compact encoding for runs of values (Arrow's own
-// RunEndEncodedType). Has 0 buffers of its own -- no validity bitmap at this
+// Run-End Encoded (REE): a compact encoding for runs of values (see Arrow's
+// columnar format: https://arrow.apache.org/docs/format/Columnar.html#run-end-encoded-layout).
+// Has 0 buffers of its own -- no validity bitmap at this
 // level, per the Arrow columnar spec -- and exactly 2 children in Field's
 // children list, in fixed order: run_ends (an integer type), then values
 // (any type). Reused as the storage type for extension types like a
