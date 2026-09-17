@@ -30,7 +30,7 @@ Related diagram:
 
 Each direction announces its own schema in one `DataSchema` control attribute. The schema is a native FlatBuffers
 representation of the direction's Arrow-compatible column layout; it is not an Apache Arrow IPC schema message.
-`DataSchema` must be sent before the first `DataRecordBatch`, or in the same `Frame` as that first batch. Each later
+`DataSchema` must be sent before the first record batch, or in the same `Frame` as that first batch. Each later
 batch in the direction reuses the previously announced schema. The two directions of one call may use different
 schemas.
 
@@ -59,7 +59,7 @@ the list element field. The corresponding flattened field order is:
 a, b, x, y, element, c
 ```
 
-This depth-first preorder is used for flattened `DataRecordBatch.nodes` and for `variadic_buffer_counts` entries
+This depth-first preorder is used for flattened `DataRecordBatchMetadata.nodes` and for `variadic_buffer_counts` entries
 belonging to variable-buffer fields. Buffer order itself follows the corresponding Arrow array buffer layout and is
 independent of field-name or type sorting.
 
@@ -138,7 +138,7 @@ The inbound model tracks data received by the local endpoint and the flow-contro
 ## Rules
 
 1. Each direction sends exactly one `DataSchema`.
-2. A direction sends its schema before, or in the same `Frame` as, its first `DataRecordBatch`.
+2. A direction sends its schema before, or in the same `Frame` as, its first record batch.
 3. A standalone schema may precede `Next(...)`; no batch may precede its schema.
 4. Only the first batch in a direction may be sent without a previously received `Next(...)`.
 5. A sender may send one or more batches while the current `byte_budget` hint remains usable.
@@ -149,16 +149,16 @@ The inbound model tracks data received by the local endpoint and the flow-contro
 
 ## Buffer Transfer
 
-`DataRecordBatch` contains the batch metadata required to reconstruct the Arrow-compatible layout. `length` is the
+`DataRecordBatchMetadata` contains the batch metadata required to reconstruct the Arrow-compatible layout. `length` is the
 row count. `nodes` contains one `FieldNode` for each flattened field in schema preorder; each node carries the array
 length and null count. `buffers` describes the buffers in the corresponding Arrow buffer order. For view fields,
 `variadic_buffer_counts` gives the number of variable buffers belonging to each variable-buffer field in schema
 preorder.
 
 The metadata is part of the length-framed FlatBuffer `Frame`. The buffer bytes themselves are transferred separately;
-they are not embedded in `DataRecordBatch`.
+they are not embedded in `DataRecordBatchMetadata`.
 
-`DataRecordBatch.buffer_transport` selects how those buffers are delivered.
+`DataRecordBatchMetadata.buffer_transport` selects how those buffers are delivered.
 
 - `Inline` is supported by every transport binding and is the only permitted mode on TCP/TLS. The wire sequence for
   an inline batch is:
@@ -171,7 +171,7 @@ they are not embedded in `DataRecordBatch`.
   ...
   ```
 
-  The buffers follow immediately after the complete frame in `DataRecordBatch.buffers` order. They have no individual
+  The buffers follow immediately after the complete frame in `DataRecordBatchMetadata.buffers` order. They have no individual
   framing, stream offsets, or per-buffer length prefixes. `Buffer.length` is the exact number of bytes to transfer
   for each buffer; `Buffer.offset` is not used for inline transport.
 - A sender may construct one `iovec` for the frame and one for each buffer and transmit them with `writev`. A receiver

@@ -21,7 +21,7 @@ int main() {
             builder.GetBufferPointer(), builder.GetSize()));
         const auto* decoded = exasol::udf::protocol::GetFrame(builder.GetBufferPointer());
         assert(decoded->stream_id() == 7);
-        assert(decoded->data_record_batch() == nullptr);
+        assert(decoded->data_record_batch_metadata() == nullptr);
         assert(decoded->control_message()->value_type() ==
                exasol::udf::protocol::ControlMessageValue_OpenCall);
         assert(decoded->control_message()->value_as_OpenCall()->call_name()->str() == "example");
@@ -35,7 +35,7 @@ int main() {
         const auto nodes = builder.CreateVectorOfStructs(nodes_data);
         const auto buffers = builder.CreateVectorOfStructs(buffers_data);
         const auto variadic_buffer_counts = builder.CreateVector<int64_t>({2});
-        const auto batch = exasol::udf::protocol::CreateDataRecordBatch(
+        const auto batch = exasol::udf::protocol::CreateDataRecordBatchMetadata(
             builder, exasol::udf::protocol::BufferTransport_Inline, true, 3,
             nodes, buffers, variadic_buffer_counts);
         const auto frame = exasol::udf::protocol::CreateFrame(builder, 7, 0, batch);
@@ -45,12 +45,12 @@ int main() {
             builder.GetBufferPointer(), builder.GetSize()));
         const auto* decoded = exasol::udf::protocol::GetFrame(builder.GetBufferPointer());
         assert(decoded->control_message() == nullptr);
-        assert(decoded->data_record_batch()->length() == 3);
-        assert(decoded->data_record_batch()->nodes()->Get(0)->length() == 3);
-        assert(decoded->data_record_batch()->nodes()->Get(0)->null_count() == 1);
-        assert(decoded->data_record_batch()->buffers()->Get(0)->offset() == 8);
-        assert(decoded->data_record_batch()->buffers()->Get(0)->length() == 16);
-        assert(decoded->data_record_batch()->variadic_buffer_counts()->Get(0) == 2);
+        assert(decoded->data_record_batch_metadata()->length() == 3);
+        assert(decoded->data_record_batch_metadata()->nodes()->Get(0)->length() == 3);
+        assert(decoded->data_record_batch_metadata()->nodes()->Get(0)->null_count() == 1);
+        assert(decoded->data_record_batch_metadata()->buffers()->Get(0)->offset() == 8);
+        assert(decoded->data_record_batch_metadata()->buffers()->Get(0)->length() == 16);
+        assert(decoded->data_record_batch_metadata()->variadic_buffer_counts()->Get(0) == 2);
     }
 
     {
@@ -61,7 +61,7 @@ int main() {
         const auto control_message = exasol::udf::protocol::CreateControlMessage(
             builder, 0, next, 0, 0,
             exasol::udf::protocol::ControlMessageValue_OpenCall, open_call.Union());
-        const auto batch = exasol::udf::protocol::CreateDataRecordBatch(builder);
+        const auto batch = exasol::udf::protocol::CreateDataRecordBatchMetadata(builder);
         const auto frame = exasol::udf::protocol::CreateFrame(
             builder, 7, control_message, batch);
         builder.Finish(frame);
@@ -70,7 +70,7 @@ int main() {
             builder.GetBufferPointer(), builder.GetSize()));
         const auto* decoded = exasol::udf::protocol::GetFrame(builder.GetBufferPointer());
         assert(decoded->control_message()->value_as_OpenCall()->call_name()->str() == "first_batch");
-        assert(decoded->data_record_batch() != nullptr);
+        assert(decoded->data_record_batch_metadata() != nullptr);
     }
 
     {

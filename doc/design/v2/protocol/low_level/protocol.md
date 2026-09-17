@@ -37,15 +37,15 @@ The protocol uses a length-framed transport unit containing optional control and
 
 - `Frame` is the length-framed FlatBuffer root object.
 - `control_message` carries control attributes.
-- `data_record_batch` carries one batch's metadata; its raw buffers follow separately when inline transport is used.
+- `data_record_batch_metadata` carries one batch's metadata; its raw buffers follow separately when inline transport is used.
 
 Receive path:
 
 1. bytes on the socket
 2. one length-prefixed and decoded `Frame`
 3. `stream_id` selection
-4. optional `control_message` and `data_record_batch` processing
-5. inline buffer reads, if `data_record_batch.buffer_transport` is `Inline`
+4. optional `control_message` and `data_record_batch_metadata` processing
+5. inline buffer reads, if `data_record_batch_metadata.buffer_transport` is `Inline`
 
 This separation is important because the transport boundary and the typed protocol payload evolve independently.
 

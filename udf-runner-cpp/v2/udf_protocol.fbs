@@ -196,9 +196,9 @@ table Next {
 }
 
 // Sent once per direction of a call's data stream before, or in the same
-// ControlMessage as, that direction's first DataRecordBatch. It contains this
+// ControlMessage as, that direction's first record batch. It contains this
 // direction's column layout as our own native Schema table (see above -- not
-// Arrow's own flatbuffer Schema). It is split from DataRecordBatch because the
+// Arrow's own flatbuffer Schema). It is split from DataRecordBatchMetadata because the
 // schema is only needed once, not repeated per batch.
 //
 // When present, correlation fields form an ordered prefix of schema.fields:
@@ -218,7 +218,7 @@ table DataSchema {
 // actual column buffers are transported separately per buffer_transport; view
 // fields additionally use variadic_buffer_counts to delimit their variable
 // buffer portions.
-table DataRecordBatch {
+table DataRecordBatchMetadata {
   buffer_transport: BufferTransport = Inline;
   is_end_of_group: bool = false;
   length: int64;
@@ -276,7 +276,7 @@ table ControlMessage {
 table Frame {
   stream_id: uint64;
   control_message: ControlMessage;
-  data_record_batch: DataRecordBatch;
+  data_record_batch_metadata: DataRecordBatchMetadata;
 }
 
 root_type Frame;

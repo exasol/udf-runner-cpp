@@ -56,5 +56,5 @@ run_ends: [3]
 values:   [42]
 ```
 
-The physical Arrow buffers and the enclosing `DataRecordBatch` metadata are transported according to the generic
+The physical Arrow buffers and the enclosing `DataRecordBatchMetadata` are transported according to the generic
 data-stream rules; this page defines only the logical extension-type encoding.

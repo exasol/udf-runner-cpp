@@ -56,7 +56,7 @@ payload may be sent while the call remains active or together with `CloseCall` i
 
 #### Group and Row Correlation
 
-Each `Run` direction may combine multiple logical groups in one `DataRecordBatch`. Its `DataSchema` sets both
+Each `Run` direction may combine multiple logical groups in one record batch. Its `DataSchema` sets both
 `has_group_id` and `has_row_id` to `true`, adding an ordered reserved prefix before user data columns:
 
 | Position | Column | Purpose |
@@ -77,7 +77,7 @@ DataSchema {
   fields: [group_id: uint64, row_id: uint64, group_id: utf8, value: utf8]
 }
 
-DataRecordBatch metadata {
+DataRecordBatchMetadata {
   length: 3,
   is_end_of_group: true,
   nodes: ...,
@@ -99,7 +99,7 @@ those groups. The meaningful association is the `(group_id, row_id)` pair at one
 user data and deliberately has the same name as the reserved group ID column. The reserved correlation columns are
 identified by their positions—the first column is the group ID and the second is the row ID—not by field names. All
 four columns are part of the same record batch; they are not metadata carried separately from the batch. On the wire,
-the corresponding `DataRecordBatch` contains only the batch metadata (`length`, `nodes`, and `buffers`), plus
+the corresponding `DataRecordBatchMetadata` contains only the batch metadata (`length`, `nodes`, and `buffers`), plus
 `is_end_of_group`; the column buffer bytes are transported separately according to `buffer_transport`. The
 `is_end_of_group` flag indicates that the final group in this batch is complete.
 
@@ -133,7 +133,7 @@ reconstructed record batch {
 }
 ```
 
-`DataRecordBatch.is_end_of_group` marks whether the group identified by the batch's final row is complete. It is
+`DataRecordBatchMetadata.is_end_of_group` marks whether the group identified by the batch's final row is complete. It is
 defined only for a `Run` direction whose schema sets `has_group_id` to `true`:
 
 - `true` means no later batch in that direction contains the trailing group.
@@ -142,7 +142,7 @@ defined only for a `Run` direction whose schema sets `has_group_id` to `true`:
 - an empty batch does not complete a group.
 
 This is a group-boundary marker, not an end-of-stream marker. Generic stream-completion semantics remain a
-low-level open question and are not encoded in `DataRecordBatch` metadata.
+low-level open question and are not encoded in `DataRecordBatchMetadata`.
 
 The preferred encodings are:
 
