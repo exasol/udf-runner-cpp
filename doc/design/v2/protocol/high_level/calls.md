@@ -146,8 +146,8 @@ The preferred encodings are:
 | Column and direction | Preferred encoding | Compatible fallback |
 | --- | --- | --- |
 | Group ID, either direction | [`RunEndEncoded`](https://arrow.apache.org/docs/format/Columnar.html#run-end-encoded-layout) over unsigned 64-bit IDs when groups contain repeated rows. | Plain unsigned 64-bit. |
-| Row ID, `DB` to `UDFRunner` | `exasol.udf.range_run` extension array. | Plain unsigned 64-bit. |
-| Row ID, `UDFRunner` to `DB`, `RETURNS` UDF | `exasol.udf.range_run` extension array. | Plain unsigned 64-bit. |
+| Row ID, `DB` to `UDFRunner` | [`exasol.udf.range_run`](range_run.md) extension array. | Plain unsigned 64-bit. |
+| Row ID, `UDFRunner` to `DB`, `RETURNS` UDF | [`exasol.udf.range_run`](range_run.md) extension array. | Plain unsigned 64-bit. |
 | Row ID, `UDFRunner` to `DB`, `EMITS` UDF | [`RunEndEncoded`](https://arrow.apache.org/docs/format/Columnar.html#run-end-encoded-layout) over unsigned 64-bit IDs. | Plain unsigned 64-bit. |
 
 `exasol.udf.range_run` uses [`RunEndEncoded`](https://arrow.apache.org/docs/format/Columnar.html#run-end-encoded-layout)
