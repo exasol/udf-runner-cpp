@@ -21,9 +21,33 @@ jobs:
       - name: Confirm approval
         run: echo "v2 fuzzing approved"
 
+  discover_fuzz_targets:
+    runs-on: ubuntu-24.04
+    outputs:
+      fuzz_matrix: ${{ steps.discover.outputs.fuzz_matrix }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang curl
+          pipx install poetry
+          poetry install --no-interaction --no-ansi --only main
+      - uses: bazel-contrib/setup-bazel@8cb04a772ab4c1eb984e9c1b493a182e96c5e425 # 0.19.0
+        with:
+          bazelisk-cache: true
+      - name: Discover fuzz targets
+        id: discover
+        run: poetry run -- nox --sessions=v2-fuzzing-targets -- --github-output-var fuzz_matrix
+
   fuzz:
-    needs: pr_approval
-    if: ${{ always() && (github.event_name != 'pull_request' || needs.pr_approval.result == 'success') }}
+    needs: [pr_approval, discover_fuzz_targets]
+    if: ${{ always() && needs.discover_fuzz_targets.result == 'success' && (github.event_name != 'pull_request' || needs.pr_approval.result == 'success') }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover_fuzz_targets.outputs.fuzz_matrix) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -43,11 +67,14 @@ jobs:
         working-directory: .
         run: |
           poetry run -- nox --sessions=v2-fuzzing -- \
-            --timeout-secs 300 --output-root "$RUNNER_TEMP/fuzzing"
+            --timeout-secs 300 --target "$FUZZ_TARGET" \
+            --output-root "$RUNNER_TEMP/fuzzing"
+        env:
+          FUZZ_TARGET: ${{ matrix.target }}
       - name: Upload fuzzing artifacts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         with:
-          name: v2-fuzzing-artifacts
-          path: ${{ runner.temp }}/fuzzing
+          name: v2-fuzzing-${{ matrix.target }}
+          path: ${{ runner.temp }}/fuzzing/${{ matrix.target }}
           if-no-files-found: ignore

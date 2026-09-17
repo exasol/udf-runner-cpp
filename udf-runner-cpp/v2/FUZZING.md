@@ -23,6 +23,19 @@ bazel run --config=asan-libfuzzer //:frame_fuzz_test_run -- \
   --timeout_secs=60
 ```
 
+The available fuzz targets are discovered from Bazel with the Nox task:
+
+```sh
+poetry run -- nox --sessions=v2-fuzzing-targets
+```
+
+Run one discovered target through Nox with:
+
+```sh
+poetry run -- nox --sessions=v2-fuzzing -- \
+  --target frame --timeout-secs 300
+```
+
 Run the checked-in corpus as a bounded regression test:
 
 ```sh
