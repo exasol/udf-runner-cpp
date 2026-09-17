@@ -68,6 +68,68 @@ Each `Run` direction may combine multiple logical groups in one `DataRecordBatch
 Groups may span multiple rows. In particular, a `SET ... EMITS` UDF may receive multiple input rows in one group.
 The group ID and row ID columns are correlation fields identified only by this prefix layout, not by field names.
 
+For example, one logical Arrow record batch may contain the following columns and rows:
+
+```text
+DataSchema {
+  has_group_id: true,
+  has_row_id: true,
+  fields: [group_id: uint64, row_id: uint64, group_id: utf8, value: utf8]
+}
+
+DataRecordBatch metadata {
+  length: 3,
+  is_end_of_group: true,
+  nodes: ...,
+  buffers: ...
+}
+
+reconstructed record batch {
+  group_id: [7, 7, 8],
+  row_id:   [1, 2, 1],
+  group_id: ["a", "b", "c"],
+  value:    ["left", "right", "only"]
+}
+```
+
+Here, the first two rows belong to group 7 and have row IDs 1 and 2; the row ID starts at 1 again for group 8.
+The third column is user data and deliberately has the same name as the reserved group ID column. The reserved
+correlation columns are identified by their positions—the first column is the group ID and the second is the row
+ID—not by field names. All four columns are part of the same record batch; they are not metadata carried separately
+from the batch. On the wire, the corresponding `DataRecordBatch` contains only the batch metadata (`length`,
+`nodes`, and `buffers`), plus `is_end_of_group`; the column buffer bytes are transported separately according to
+`buffer_transport`. The `is_end_of_group` flag indicates that the final group in this batch is complete.
+
+The other supported correlation layouts are:
+
+```text
+DataSchema {
+  has_group_id: false,
+  has_row_id: true,
+  fields: [row_id: uint64, value: utf8]
+}
+
+reconstructed record batch {
+  row_id: [1, 2],
+  value:  ["left", "right"]
+}
+```
+
+Here, the first column is the row ID because `has_row_id` is set and `has_group_id` is not. A batch without either
+correlation column has no reserved prefix:
+
+```text
+DataSchema {
+  has_group_id: false,
+  has_row_id: false,
+  fields: [value: utf8]
+}
+
+reconstructed record batch {
+  value: ["left", "right"]
+}
+```
+
 `DataRecordBatch.is_end_of_group` marks whether the group identified by the batch's final row is complete. It is
 defined only for a `Run` direction whose schema sets `has_group_id` to `true`:
 
