@@ -1,6 +1,7 @@
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("@rules_fuzzing//fuzzing:cc_defs.bzl", "cc_fuzz_test")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -216,6 +217,60 @@ cc_test(
     deps = [":json_schema"],
 )
 
+cc_fuzz_test(
+    name = "frame_fuzz_test",
+    srcs = ["frame_fuzz_test.cc"],
+    corpus = glob(["fuzz/corpus/frame/**"]),
+    dicts = ["fuzz/frame.dict"],
+    copts = ["-std=c++20"],
+    deps = [":udf_protocol"],
+    tags = ["fuzz-test"],
+)
+
+cc_fuzz_test(
+    name = "call_metadata_fuzz_test",
+    srcs = ["call_metadata_fuzz_test.cc", "test_utils/json_schema_fuzzing.hpp"],
+    corpus = glob(["fuzz/corpus/call_metadata/**"]),
+    dicts = ["fuzz/json.dict"],
+    copts = ["-std=c++17"],
+    data = ["//json_schema:all_schemas"],
+    deps = [":json_schema"],
+    tags = ["fuzz-test"],
+)
+
+cc_fuzz_test(
+    name = "connection_information_fuzz_test",
+    srcs = ["connection_information_fuzz_test.cc", "test_utils/json_schema_fuzzing.hpp"],
+    corpus = glob(["fuzz/corpus/connection_information/**"]),
+    dicts = ["fuzz/json.dict"],
+    copts = ["-std=c++17"],
+    data = ["//json_schema:all_schemas"],
+    deps = [":json_schema"],
+    tags = ["fuzz-test"],
+)
+
+cc_fuzz_test(
+    name = "export_specification_fuzz_test",
+    srcs = ["export_specification_fuzz_test.cc", "test_utils/json_schema_fuzzing.hpp"],
+    corpus = glob(["fuzz/corpus/export_specification/**"]),
+    dicts = ["fuzz/json.dict"],
+    copts = ["-std=c++17"],
+    data = ["//json_schema:all_schemas"],
+    deps = [":json_schema"],
+    tags = ["fuzz-test"],
+)
+
+cc_fuzz_test(
+    name = "import_specification_fuzz_test",
+    srcs = ["import_specification_fuzz_test.cc", "test_utils/json_schema_fuzzing.hpp"],
+    corpus = glob(["fuzz/corpus/import_specification/**"]),
+    dicts = ["fuzz/json.dict"],
+    copts = ["-std=c++17"],
+    data = ["//json_schema:all_schemas"],
+    deps = [":json_schema"],
+    tags = ["fuzz-test"],
+)
+
 cc_library(
     name = "moodycamel_queues",
     hdrs = [
@@ -278,5 +333,15 @@ cc_binary(
         ":waitable_queue",
         "@google_benchmark//:benchmark_main",
     ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_fuzz_test(
+    name = "queue_fuzz_test",
+    srcs = ["queue_fuzz_test.cc"],
+    corpus = glob(["fuzz/corpus/queue/**"]),
+    copts = ["-std=c++20"],
+    deps = [":waitable_queue"],
+    tags = ["fuzz-test"],
     target_compatible_with = ["@platforms//os:linux"],
 )

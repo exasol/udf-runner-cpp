@@ -2,6 +2,33 @@
 common --registry=https://raw.githubusercontent.com/digiboys/bazel-registry/main
 common --registry=https://bcr.bazel.build
 
+build:asan-libfuzzer --@rules_fuzzing//fuzzing:cc_engine=@rules_fuzzing//fuzzing/engines:libfuzzer
+build:asan-libfuzzer --@rules_fuzzing//fuzzing:cc_engine_instrumentation=libfuzzer
+build:asan-libfuzzer --@rules_fuzzing//fuzzing:cc_engine_sanitizer=asan
+
+build:asan-ubsan-libfuzzer --@rules_fuzzing//fuzzing:cc_engine=@rules_fuzzing//fuzzing/engines:libfuzzer
+build:asan-ubsan-libfuzzer --@rules_fuzzing//fuzzing:cc_engine_instrumentation=libfuzzer
+build:asan-ubsan-libfuzzer --@rules_fuzzing//fuzzing:cc_engine_sanitizer=asan-ubsan
+
+# C++ fuzzing configurations supplied by rules_fuzzing.
+build:asan-libfuzzer --action_env=CC=clang
+build:asan-libfuzzer --action_env=CXX=clang++
+build:asan-libfuzzer --repo_env=CC=clang
+build:asan-libfuzzer --repo_env=CXX=clang++
+
+build:asan-ubsan-libfuzzer --action_env=CC=clang
+build:asan-ubsan-libfuzzer --action_env=CXX=clang++
+build:asan-ubsan-libfuzzer --repo_env=CC=clang
+build:asan-ubsan-libfuzzer --repo_env=CXX=clang++
+
+build:asan-replay --action_env=CC=clang
+build:asan-replay --action_env=CXX=clang++
+build:asan-replay --repo_env=CC=clang
+build:asan-replay --repo_env=CXX=clang++
+build:asan-replay --@rules_fuzzing//fuzzing:cc_engine=@rules_fuzzing//fuzzing/engines:replay
+build:asan-replay --@rules_fuzzing//fuzzing:cc_engine_instrumentation=none
+build:asan-replay --@rules_fuzzing//fuzzing:cc_engine_sanitizer=asan
+
 build:clang-tidy --@rules_clang_tidy//:config=//tools/clang-tidy:config
 build:clang-tidy --@rules_clang_tidy//:clang-tidy=//tools/clang-tidy:wrapper
 build:clang-tidy --aspects=@rules_clang_tidy//:aspects.bzl%check

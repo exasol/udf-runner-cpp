@@ -1,0 +1,16 @@
+{
+  "database_name": "EXASOL",
+  "database_version": "8.34.0",
+  "session_id": "1",
+  "statement_id": 2,
+  "node_count": 1,
+  "node_id": 0,
+  "vm_id": "3",
+  "maximal_memory_limit": "1073741824",
+  "script_schema": "",
+  "input_iter_type": "EXACTLY_ONCE",
+  "output_iter_type": "MULTIPLE",
+  "input_columns": [],
+  "output_columns": [],
+  "single_call_mode": true
+}
