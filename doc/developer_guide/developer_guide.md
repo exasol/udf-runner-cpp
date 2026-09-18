@@ -86,6 +86,29 @@ bazel test //...
 The repository includes tests for the script option parser and the extracted
 `exaudflib` components under `udf-runner-cpp/v1/base/.../test`.
 
+## Mutation testing
+
+Mutation testing for the functional v2 C++ tests uses [Mull](https://mull-project.com/)
+with the pinned Mull 0.34.1 release and matching LLVM 20 toolchain. Install the
+LLVM 20 compiler and `mull-20`, then
+verify that `mull-runner-20` and `/usr/lib/mull-ir-frontend-20` are available.
+
+Run the mutation session from the repository root:
+
+```bash
+poetry run nox -s mull
+```
+
+If the Bazel executable is named `bazelisk`, run
+`BAZEL=bazelisk poetry run nox -s mull`.
+
+The session builds the protocol, Arrow, JSON-schema, and queue tests with Mull
+instrumentation and writes reports to `.build_output/mull/`. Surviving mutants
+are reported during this initial integration but do not fail the session. The
+LLVM major version can be changed with `MULL_LLVM_VERSION`; custom tool paths
+can be supplied with `MULL_CXX`, `MULL_RUNNER`, and `MULL_IR_FRONTEND`.
+The C compiler used by Bazel can be overridden with `MULL_CC`.
+
 When you need the retained VM surfaces, enable the corresponding Bazel defines:
 
 - `--define bash=true`
