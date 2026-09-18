@@ -339,6 +339,7 @@ cc_binary(
 cc_fuzz_test(
     name = "queue_fuzz_test",
     srcs = ["queue_fuzz_test.cc"],
+    corpus = glob(["fuzz/corpus/queue/**"]),
     copts = ["-std=c++20"],
     deps = [":waitable_queue"],
     tags = ["fuzz-test"],
