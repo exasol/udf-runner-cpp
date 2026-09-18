@@ -142,7 +142,7 @@ common issues early.
 
 You can try to run `clang-tidy-apply-replacements` with:
 ```bash
-bazel run @rules_clang_tidy//:apply-fixes --@rules_clang_tidy//:clang-apply-replacements=//tools/clang-tidy:apply-replacements-wrapper $(bazel info output_path)
+bazel run @rules_clang_tidy//:apply-fixes --@rules_clang_tidy//:clang-apply-replacements=//tools/clang-tidy:apply-replacements-wrapper -- $(bazel info output_path)
 ```
 
 Review the resulting diff carefully. It might fix some of the findings from clang-tidy.
@@ -170,7 +170,7 @@ Create a tag in .bazelrc file
 ```build:clang-tidy --build_tag_filters=-noclangtidy
 build:clang-format --build_tag_filters=-noclangtidy
 ```
-Use the same in bazel target as tag to not let clang tidy/format inspect those targets
+Use the same in Bazel target as tag to not let clang-tidy/clang-format inspect those targets
 
 ```
 alias(
