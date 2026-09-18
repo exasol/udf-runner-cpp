@@ -1,0 +1,39 @@
+name: Check Mull Mutation Tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  mull:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install LLVM and Mull
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-20
+          curl -1sLf 'https://dl.cloudsmith.io/public/mull-project/mull-stable/setup.deb.sh' | sudo -E bash
+          sudo apt-get install -y mull-20=0.34.1
+          mull-runner-20 --version
+
+      - name: Setup Python & Poetry Environment
+        uses: exasol/python-toolbox/.github/actions/python-environment@v9
+        with:
+          python-version: "3.10"
+          poetry-version: "2.3.0"
+
+      - name: Install Poetry dependencies
+        run: poetry install --with dev
+
+      - name: Run Mull mutation tests
+        run: poetry run nox -s mull
+
+      - name: Upload Mull reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mull-reports
+          path: .build_output/mull/
+          if-no-files-found: warn
