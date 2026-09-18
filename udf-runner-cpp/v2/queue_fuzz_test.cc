@@ -7,6 +7,7 @@
 #include <functional>
 #include <span>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 #include <exasol/udf/v2/mpmc_queue.hpp>
@@ -83,6 +84,36 @@ void verify_results(const std::vector<std::vector<Value>> &produced,
 }
 
 template <typename Queue, bool Waitable>
+void produce_operation(Queue &queue, const Byte operation_byte,
+                       const std::size_t producer, std::size_t &sequence,
+                       std::vector<Value> &produced) {
+  const unsigned int operation = std::to_integer<unsigned int>(operation_byte);
+  if constexpr (Waitable) {
+    if ((operation & 1U) != 0) {
+      std::array<Value, kMaxBatchSize> batch{};
+      const std::size_t batch_size = 1 + ((operation >> 1U) % kMaxBatchSize);
+      for (std::size_t item = 0; item < batch_size; ++item) {
+        batch[item] = make_value(producer, sequence++);
+      }
+      const std::size_t enqueued =
+          queue.enqueue_batch(batch.begin(), batch.begin() + batch_size);
+      produced.insert(produced.end(), batch.begin(), batch.begin() + enqueued);
+    } else {
+      const Value value = make_value(producer, sequence++);
+      if (queue.enqueue(value)) {
+        produced.push_back(value);
+      }
+    }
+
+  } else {
+    const Value value = make_value(producer, sequence++);
+    if (queue.enqueue(value)) {
+      produced.push_back(value);
+    }
+  }
+}
+
+template <typename Queue, bool Waitable>
 void produce(Queue &queue, StartGate &start_gate,
              const std::span<const Byte> operations, const std::size_t producer,
              std::vector<Value> &produced,
@@ -91,32 +122,8 @@ void produce(Queue &queue, StartGate &start_gate,
   start_gate.arrive_and_wait();
   std::size_t sequence = 0;
   for (const Byte operation_byte : operations) {
-    if constexpr (Waitable) {
-      if ((std::to_integer<unsigned int>(operation_byte) & 1U) != 0) {
-        std::array<Value, kMaxBatchSize> batch{};
-        const std::size_t batch_size =
-            1 + ((std::to_integer<unsigned int>(operation_byte) >> 1U) %
-                 kMaxBatchSize);
-        for (std::size_t item = 0; item < batch_size; ++item) {
-          batch[item] = make_value(producer, sequence++);
-        }
-        const std::size_t enqueued =
-            queue.enqueue_batch(batch.begin(), batch.begin() + batch_size);
-        produced.insert(produced.end(), batch.begin(),
-                        batch.begin() + enqueued);
-      } else {
-        const Value value = make_value(producer, sequence++);
-        if (queue.enqueue(value)) {
-          produced.push_back(value);
-        }
-      }
-    } else {
-      const Value value = make_value(producer, sequence++);
-      if (queue.enqueue(value)) {
-        produced.push_back(value);
-      }
-    }
-
+    produce_operation<Queue, Waitable>(queue, operation_byte, producer,
+                                       sequence, produced);
     if ((std::to_integer<unsigned int>(operation_byte) & 4U) != 0) {
       std::this_thread::yield();
     }
@@ -127,27 +134,31 @@ void produce(Queue &queue, StartGate &start_gate,
 }
 
 template <typename Queue, bool Waitable>
+bool consume_one(Queue &queue, std::vector<Value> &consumed,
+                 const std::atomic<bool> &producers_done) {
+  if constexpr (Waitable) {
+    queue.drain_notifications();
+  }
+  if (Value value = 0; queue.try_dequeue(value)) {
+    consumed.push_back(value);
+    return true;
+  }
+  return !producers_done.load(std::memory_order::seq_cst);
+}
+
+template <typename Queue, bool Waitable>
 void consume(Queue &queue, StartGate &start_gate, std::vector<Value> &consumed,
              const std::atomic<bool> &producers_done) {
   start_gate.arrive_and_wait();
-  for (;;) {
-    if constexpr (Waitable) {
-      queue.drain_notifications();
-    }
-    Value value = 0;
-    if (queue.try_dequeue(value)) {
-      consumed.push_back(value);
-      continue;
-    }
-    if (producers_done.load(std::memory_order::seq_cst)) {
-      break;
-    }
+  while (consume_one<Queue, Waitable>(queue, consumed, producers_done)) {
     std::this_thread::yield();
   }
 }
 
 template <typename Queue, bool Waitable>
-void run_queue(const std::span<const Byte> operations,
+void run_queue(const std::type_identity<Queue>,
+               const std::bool_constant<Waitable>,
+               const std::span<const Byte> operations,
                const std::size_t producer_count,
                const std::size_t consumer_count, const bool preserve_order) {
   Queue queue;
@@ -162,8 +173,8 @@ void run_queue(const std::span<const Byte> operations,
   }
 
   StartGate start_gate(producer_count + consumer_count);
-  std::atomic<bool> producers_done{false};
-  std::atomic<std::size_t> producers_remaining{producer_count};
+  std::atomic producers_done{false};
+  std::atomic producers_remaining{producer_count};
   std::vector<std::thread> producers;
   std::vector<std::thread> consumers;
   producers.reserve(producer_count);
@@ -215,28 +226,32 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t *data,
   }
 
   const std::size_t operation_count = std::min(kMaxOperations, size - 1);
-  const auto *operations = reinterpret_cast<const Byte *>(data + 1);
-  const unsigned int mode = data[0] & 3U;
+  const auto *input = reinterpret_cast<const Byte *>(data);
+  const unsigned int input_byte = std::to_integer<unsigned int>(input[0]);
+  const unsigned int mode = input_byte & 3U;
+  const unsigned int producer_bit = (input_byte >> 2U) & 1U;
+  const unsigned int consumer_bit = (input_byte >> 3U) & 1U;
+  const auto *operations = input + 1;
   const std::span<const Byte> operation_span(operations, operation_count);
 
   switch (mode) {
   case 0:
-    run_queue<exasol::udf::v2::SpscQueue<Value>, false>(operation_span, 1, 1,
-                                                        true);
+    run_queue(std::type_identity<exasol::udf::v2::SpscQueue<Value>>{},
+              std::bool_constant<false>{}, operation_span, 1, 1, true);
     break;
   case 1:
-    run_queue<exasol::udf::v2::MpmcQueue<Value>, false>(
-        operation_span, 2 + ((data[0] >> 2U) & 1U), 2 + ((data[0] >> 3U) & 1U),
-        false);
+    run_queue(std::type_identity<exasol::udf::v2::MpmcQueue<Value>>{},
+              std::bool_constant<false>{}, operation_span, 2 + producer_bit,
+              2 + consumer_bit, false);
     break;
   case 2:
-    run_queue<exasol::udf::v2::WaitableSpscQueue<Value>, true>(operation_span,
-                                                               1, 1, true);
+    run_queue(std::type_identity<exasol::udf::v2::WaitableSpscQueue<Value>>{},
+              std::bool_constant<true>{}, operation_span, 1, 1, true);
     break;
   case 3:
-    run_queue<exasol::udf::v2::WaitableMpmcQueue<Value>, true>(
-        operation_span, 2 + ((data[0] >> 2U) & 1U), 2 + ((data[0] >> 3U) & 1U),
-        false);
+    run_queue(std::type_identity<exasol::udf::v2::WaitableMpmcQueue<Value>>{},
+              std::bool_constant<true>{}, operation_span, 2 + producer_bit,
+              2 + consumer_bit, false);
     break;
   default:
     fuzz_failure();
