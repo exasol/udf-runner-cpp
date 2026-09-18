@@ -4,6 +4,7 @@ import nox
 import os
 from packaging.version import InvalidVersion, Version
 from pathlib import Path
+import shutil
 import subprocess
 
 from exasol.slc_ci_setup.nox.tasks import *
@@ -174,6 +175,96 @@ def run_oft_for_udf_client(session: nox.Session, *args) -> None:
             *args
         )
 
+
+@nox.session(name="validate-json-schemas", python=False)
+def validate_json_schemas(session: nox.Session):
+    """Validate v2 JSON schemas, references, and external JSON examples."""
+    # The udf-runner-cpp directory contains a hyphen and cannot be imported as a dotted Python module.
+    session.run(
+        "python",
+        str(ROOT / "udf-runner-cpp" / "v2" / "json_schema" / "validate_schemas.py"),
+    )
+
+
+@nox.session(name="mull", python=False)
+def run_mull(session: nox.Session):
+    """Run Mull mutation testing for the functional v2 C++ tests."""
+    llvm_version = os.environ.get("MULL_LLVM_VERSION", "20")
+    bazel = os.environ.get("BAZEL", "bazel")
+    compiler = os.environ.get("MULL_CXX", f"clang++-{llvm_version}")
+    c_compiler = os.environ.get("MULL_CC", compiler.replace("clang++", "clang", 1))
+    runner = os.environ.get("MULL_RUNNER", f"mull-runner-{llvm_version}")
+    frontend = os.environ.get(
+        "MULL_IR_FRONTEND", f"/usr/lib/mull-ir-frontend-{llvm_version}"
+    )
+
+    required_tools = [bazel, c_compiler, compiler, runner]
+    missing_tools = [tool for tool in required_tools if shutil.which(tool) is None]
+    if missing_tools:
+        session.error(
+            "Mull requires these executable(s) on PATH: "
+            + ", ".join(missing_tools)
+            + ". Install the matching LLVM/Mull toolchain or override MULL_CXX "
+            "and MULL_RUNNER."
+        )
+    if not Path(frontend).exists():
+        session.error(
+            f"Mull IR frontend does not exist: {frontend}. "
+            "Override MULL_IR_FRONTEND with the version-matched plugin path."
+        )
+
+    v2_root = ROOT / "udf-runner-cpp" / "v2"
+    report_dir = ROOT / ".build_output" / "mull"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    bazel_output_root = ROOT / ".build_output" / "bazel-mull"
+
+    targets = [
+        "//:udf_protocol_test",
+        "//:arrow_core_test",
+        "//:json_schema_validation_test",
+        "//:moodycamel_queues_test",
+        "//:waitable_queue_test",
+    ]
+    bazel_startup_args = [f"--output_user_root={bazel_output_root}"]
+    bazel_args = [
+        "build",
+        "--compilation_mode=dbg",
+        "--copt=-O0",
+        "--copt=-g",
+        "--copt=-grecord-command-line",
+        f"--per_file_copt=(^|/)(udf_protocol\\.cc|udf_protocol_test\\.cc|arrow_core_test\\.cc|json_schema_validation_test\\.cc|moodycamel_queues_test\\.cc|waitable_queue_test\\.cc)@-fpass-plugin={frontend}",
+        f"--per_file_copt=(^|/)(udf_protocol\\.hpp|json_schema\\.hpp|mpmc_queue\\.hpp|spsc_queue\\.hpp|waitable_queue\\.hpp)@-fpass-plugin={frontend}",
+        "--per_file_copt=.*\\.c$@-std=gnu11",
+        f"--repo_env=CC={c_compiler}",
+        f"--repo_env=CXX={compiler}",
+        "--verbose_failures",
+        *targets,
+    ]
+
+    run_env = os.environ.copy()
+    run_env["MULL_CONFIG"] = str(ROOT / "mull.yml")
+
+    with session.chdir(v2_root):
+        session.run(bazel, *bazel_startup_args, *bazel_args, env=run_env)
+        for target in targets:
+            target_name = target.rsplit(":", maxsplit=1)[1]
+            executable = Path("bazel-bin") / target_name
+            if not executable.exists():
+                session.error(f"Bazel did not produce expected test binary: {executable}")
+            session.run(
+                runner,
+                "--allow-surviving",
+                "--reporters",
+                "IDE",
+                "--reporters",
+                "Elements",
+                "--report-dir",
+                str(report_dir),
+                "--report-name",
+                target_name,
+                executable,
+                env=run_env,
+            )
 
 @nox.session(name="run-oft", python=False)
 def run_oft_udf_client_plaintext(session: nox.Session):
