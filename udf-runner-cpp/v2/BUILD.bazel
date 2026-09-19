@@ -196,6 +196,9 @@ cc_test(
     name = "arrow_core_test",
     srcs = ["arrow_core_test.cc"],
     copts = ["-std=c++20"],
+    # This test exercises only the third-party Arrow implementation, which is
+    # intentionally excluded from repository mutation testing.
+    tags = ["no-mull"],
     deps = [":arrow_core"],
 )
 

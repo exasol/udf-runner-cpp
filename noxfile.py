@@ -294,6 +294,7 @@ def run_mull(session: nox.Session):
         "--copt=-g",
         "--copt=-grecord-command-line",
         f"--copt=-fpass-plugin={frontend}",
+        f"--action_env=MULL_CONFIG={generated_config}",
         "--per_file_copt=.*\\.c$@-std=gnu11",
         f"--repo_env=CC={c_compiler}",
         f"--repo_env=CXX={compiler}",
