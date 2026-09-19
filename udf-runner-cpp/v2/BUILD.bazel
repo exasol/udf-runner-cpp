@@ -93,6 +93,20 @@ cc_library(
     deps = [":private_flatbuffers_runtime"],
 )
 
+cc_library(
+    name = "mutation_smoke",
+    srcs = ["mutation_smoke.cc"],
+    hdrs = ["mutation_smoke.hpp"],
+    copts = ["-std=c++20"],
+)
+
+cc_test(
+    name = "mutation_smoke_test",
+    srcs = ["mutation_smoke_test.cc"],
+    copts = ["-std=c++20"],
+    deps = [":mutation_smoke"],
+)
+
 cc_test(
     name = "udf_protocol_test",
     srcs = ["udf_protocol_test.cc"],

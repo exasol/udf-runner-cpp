@@ -4,6 +4,7 @@ import nox
 import os
 from packaging.version import InvalidVersion, Version
 from pathlib import Path
+import re
 import shutil
 import subprocess
 
@@ -276,8 +277,8 @@ def run_mull(session: nox.Session):
         "--copt=-O0",
         "--copt=-g",
         "--copt=-grecord-command-line",
-        f"--per_file_copt=(^|/)(udf_protocol\\.cc|udf_protocol_test\\.cc|arrow_core_test\\.cc|json_schema_validation_test\\.cc|moodycamel_queues_test\\.cc|waitable_queue_test\\.cc)@-fpass-plugin={frontend}",
-        f"--per_file_copt=(^|/)(udf_protocol\\.hpp|json_schema\\.hpp|mpmc_queue\\.hpp|spsc_queue\\.hpp|waitable_queue\\.hpp)@-fpass-plugin={frontend}",
+        f"--per_file_copt=(^|/)(udf_protocol\\.cc|mutation_smoke\\.cc|udf_protocol_test\\.cc|mutation_smoke_test\\.cc|arrow_core_test\\.cc|json_schema_validation_test\\.cc|moodycamel_queues_test\\.cc|waitable_queue_test\\.cc)@-fpass-plugin={frontend}",
+        f"--per_file_copt=(^|/)(udf_protocol\\.hpp|mutation_smoke\\.hpp|json_schema\\.hpp|mpmc_queue\\.hpp|spsc_queue\\.hpp|waitable_queue\\.hpp)@-fpass-plugin={frontend}",
         "--per_file_copt=.*\\.c$@-std=gnu11",
         f"--repo_env=CC={c_compiler}",
         f"--repo_env=CXX={compiler}",
@@ -295,10 +296,11 @@ def run_mull(session: nox.Session):
             executable = Path("bazel-bin") / target_name
             if not executable.exists():
                 session.error(f"Bazel did not produce expected test binary: {executable}")
-            session.run(
+            mull_output = session.run(
                 runner,
                 "--mutation-score-threshold",
                 "80",
+                "--ide-reporter-show-killed",
                 "--reporters",
                 "IDE",
                 "--reporters",
@@ -309,7 +311,19 @@ def run_mull(session: nox.Session):
                 target_name,
                 executable,
                 env=run_env,
+                silent=target_name == "mutation_smoke_test",
             )
+            if target_name == "mutation_smoke_test":
+                if mull_output:
+                    print(mull_output, end="")
+                mutation_counts = re.findall(
+                    r"(?:Killed|Survived) mutants \((\d+)/(\d+)\)",
+                    mull_output or "",
+                )
+                if not mutation_counts or max(int(total) for _, total in mutation_counts) == 0:
+                    session.error(
+                        "Mull smoke test produced no mutants; check the instrumentation configuration"
+                    )
 
 @nox.session(name="run-oft", python=False)
 def run_oft_udf_client_plaintext(session: nox.Session):

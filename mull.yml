@@ -2,6 +2,8 @@
 # The Nox session supplies the matching compiler plugin and debug flags.
 includePaths:
   - "(^|.*/)udf_protocol\\.cc"
+  - "(^|.*/)mutation_smoke\\.cc"
+  - "(^|.*/)mutation_smoke\\.hpp"
   - "(^|.*/)json_schema\\.hpp"
   - "(^|.*/)mpmc_queue\\.hpp"
   - "(^|.*/)spsc_queue\\.hpp"
