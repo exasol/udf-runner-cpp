@@ -312,10 +312,11 @@ def run_mull(session: nox.Session):
                 *bazel_startup_args,
                 "info",
                 "bazel-bin",
+                "--compilation_mode=dbg",
                 silent=True,
                 external=True,
             ).strip()
-        ).resolve()
+        )
         library_paths = sorted(bazel_bin.glob("_solib_*"))
         library_paths.extend(
             path
@@ -354,10 +355,14 @@ def run_mull(session: nox.Session):
                 env=run_env,
                 silent=True,
             )
+            report_output = ""
+            report_file = report_dir / f"{target_name}.txt"
+            if report_file.exists():
+                report_output = report_file.read_text()
             print(mull_output, end="")
             mutation_counts = re.findall(
                 r"(?:Killed|Survived) mutants \((\d+)/(\d+)\)",
-                mull_output or "",
+                f"{mull_output or ''}\n{report_output}",
             )
             if not mutation_counts or max(int(total) for _, total in mutation_counts) == 0:
                 session.error(
