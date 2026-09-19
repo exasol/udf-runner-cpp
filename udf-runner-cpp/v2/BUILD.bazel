@@ -111,6 +111,7 @@ cc_test(
     name = "udf_protocol_test",
     srcs = ["udf_protocol_test.cc"],
     copts = ["-std=c++20"],
+    tags = ["no-mull"],
     deps = [":udf_protocol"],
 )
 
@@ -226,6 +227,7 @@ cc_test(
     srcs = ["json_schema_validation_test.cc"],
     data = ["//json_schema:all_schemas"],
     copts = ["-std=c++17"],
+    tags = ["no-mull"],
     deps = [":json_schema"],
 )
 
@@ -310,6 +312,7 @@ cc_test(
     name = "moodycamel_queues_test",
     srcs = ["moodycamel_queues_test.cc"],
     copts = ["-std=c++20"],
+    tags = ["no-mull"],
     deps = [":moodycamel_queues"],
 )
 
@@ -334,6 +337,7 @@ cc_test(
 
 cc_library(
     name = "waitable_queue",
+    srcs = ["waitable_queue_instantiations.cc"],
     hdrs = ["include/exasol/udf/v2/waitable_queue.hpp"],
     includes = ["include"],
     deps = [":moodycamel_queues"],
@@ -344,6 +348,7 @@ cc_test(
     name = "waitable_queue_test",
     srcs = ["waitable_queue_test.cc"],
     copts = ["-std=c++20"],
+    tags = ["no-mull"],
     deps = [":waitable_queue"],
     target_compatible_with = ["@platforms//os:linux"],
 )
