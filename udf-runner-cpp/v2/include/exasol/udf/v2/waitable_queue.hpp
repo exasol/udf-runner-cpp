@@ -190,9 +190,6 @@ private:
     int notification_fd_;
 };
 
-extern template class WaitableQueue<SpscQueue<int>>;
-extern template class WaitableQueue<MpmcQueue<int>>;
-
 template <typename T>
 using WaitableSpscQueue = WaitableQueue<SpscQueue<T>>;
 

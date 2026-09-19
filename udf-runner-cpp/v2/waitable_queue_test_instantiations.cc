@@ -1,4 +1,4 @@
-#include <exasol/udf/v2/waitable_queue.hpp>
+#include "waitable_queue_test_types.hpp"
 
 namespace exasol::udf::v2
 {
