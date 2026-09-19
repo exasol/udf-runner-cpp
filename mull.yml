@@ -1,14 +1,5 @@
-# Mull configuration shared by local runs and CI.
-# The Nox session supplies the matching compiler plugin and debug flags.
-includePaths:
-  - "(^|.*/)udf_protocol\\.cc"
-  - "(^|.*/)mutation_smoke\\.cc"
-  - "(^|.*/)mutation_smoke\\.hpp"
-  - "(^|.*/)json_schema\\.hpp"
-  - "(^|.*/)mpmc_queue\\.hpp"
-  - "(^|.*/)spsc_queue\\.hpp"
-  - "(^|.*/)waitable_queue\\.hpp"
-
+# Static Mull configuration. The Nox session prepends Bazel-generated
+# includePaths before passing this file to Mull.
 excludePaths:
   - "(^|.*/).*_test\\.(cc|cpp)"
   - "(^|.*/).*_benchmark\\.cc"

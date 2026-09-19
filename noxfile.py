@@ -271,6 +271,22 @@ def run_mull(session: nox.Session):
     target_names = (args.target,) if args.target else discovered_targets
     targets = [f"//:{target}" for target in target_names]
     bazel_startup_args = [f"--output_user_root={bazel_output_root}"]
+    generated_config = report_dir / "mull.yml"
+    session.run(
+        "python",
+        str(ROOT / "tools" / "generate_mull_config.py"),
+        "--bazel",
+        bazel,
+        "--output-user-root",
+        str(bazel_output_root),
+        "--v2-root",
+        str(v2_root),
+        "--template",
+        str(ROOT / "mull.yml"),
+        "--output",
+        str(generated_config),
+        *sum((["--target", target] for target in targets), []),
+    )
     bazel_args = [
         "build",
         "--compilation_mode=dbg",
@@ -286,7 +302,7 @@ def run_mull(session: nox.Session):
     ]
 
     run_env = os.environ.copy()
-    run_env["MULL_CONFIG"] = str(ROOT / "mull.yml")
+    run_env["MULL_CONFIG"] = str(generated_config)
 
     with session.chdir(v2_root):
         session.run(bazel, *bazel_startup_args, *bazel_args, env=run_env)
