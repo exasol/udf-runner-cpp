@@ -204,9 +204,13 @@ def _get_mull_targets(session: nox.Session) -> tuple[str, ...]:
     """Discover Bazel cc_test targets not explicitly excluded from Mull."""
     v2_root = ROOT / "udf-runner-cpp" / "v2"
     bazel = os.environ.get("BAZEL", "bazel")
+    bazel_startup_args = []
+    if output_user_root := os.environ.get("MULL_BAZEL_OUTPUT_ROOT"):
+        bazel_startup_args.append(f"--output_user_root={output_user_root}")
     with session.chdir(v2_root):
         labels = session.run(
             bazel,
+            *bazel_startup_args,
             "query",
             'kind("cc_test rule", //...) except attr("tags", "no-mull", //...)',
             "--output=label",
@@ -260,15 +264,11 @@ def run_mull(session: nox.Session):
     v2_root = ROOT / "udf-runner-cpp" / "v2"
     report_dir = ROOT / ".build_output" / "mull"
     report_dir.mkdir(parents=True, exist_ok=True)
-    bazel_output_root = ROOT / ".build_output" / "bazel-mull"
+    bazel_output_root = Path(
+        os.environ.get("MULL_BAZEL_OUTPUT_ROOT", ROOT / ".build_output" / "bazel-mull")
+    )
 
-    discovered_targets = _get_mull_targets(session)
-    if args.target and args.target not in discovered_targets:
-        session.error(
-            f"Unknown Mull target '{args.target}'. Discovered targets: "
-            + ", ".join(discovered_targets)
-        )
-    target_names = (args.target,) if args.target else discovered_targets
+    target_names = (args.target,) if args.target else _get_mull_targets(session)
     targets = [f"//:{target}" for target in target_names]
     bazel_startup_args = [f"--output_user_root={bazel_output_root}"]
     generated_config = report_dir / "mull.yml"
@@ -301,6 +301,8 @@ def run_mull(session: nox.Session):
         "--verbose_failures",
         *targets,
     ]
+    if build_jobs := os.environ.get("MULL_BAZEL_BUILD_JOBS"):
+        bazel_args.insert(1, f"--jobs={build_jobs}")
 
     run_env = os.environ.copy()
     run_env["MULL_CONFIG"] = str(generated_config)
