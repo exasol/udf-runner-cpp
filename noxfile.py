@@ -253,7 +253,8 @@ def run_mull(session: nox.Session):
                 session.error(f"Bazel did not produce expected test binary: {executable}")
             session.run(
                 runner,
-                "--allow-surviving",
+                "--mutation-score-threshold",
+                "80",
                 "--reporters",
                 "IDE",
                 "--reporters",
