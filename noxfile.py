@@ -306,6 +306,31 @@ def run_mull(session: nox.Session):
 
     with session.chdir(v2_root):
         session.run(bazel, *bazel_startup_args, *bazel_args, env=run_env)
+        bazel_bin = Path(
+            session.run(
+                bazel,
+                *bazel_startup_args,
+                "info",
+                "bazel-bin",
+                silent=True,
+                external=True,
+            ).strip()
+        ).resolve()
+        library_paths = sorted(bazel_bin.glob("_solib_*"))
+        library_paths.extend(
+            path
+            for path in (
+                Path("/lib64"),
+                Path("/lib/x86_64-linux-gnu"),
+                Path("/usr/lib/x86_64-linux-gnu"),
+            )
+            if path.is_dir()
+        )
+        ld_search_args = [
+            argument
+            for path in library_paths
+            for argument in ("--ld-search-path", str(path))
+        ]
         for target in targets:
             target_name = target.rsplit(":", maxsplit=1)[1]
             executable = Path("bazel-bin") / target_name
@@ -315,6 +340,7 @@ def run_mull(session: nox.Session):
                 runner,
                 "--mutation-score-threshold",
                 "80",
+                *ld_search_args,
                 "--ide-reporter-show-killed",
                 "--reporters",
                 "IDE",
