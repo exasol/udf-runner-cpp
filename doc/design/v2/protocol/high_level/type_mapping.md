@@ -28,7 +28,7 @@ alternate Exasol type names.
 | `TIMESTAMP` | `Timestamp(unit, "")` | Select the smallest unit preserving declared precision. |
 | `TIMESTAMP WITH LOCAL TIME ZONE` | `Timestamp(unit, "UTC")` | Normalize Exasol's UTC-normalized value for transport. |
 | `DATE` | `Date(Day)` | Preserve calendar-day semantics. |
-| `CHAR` | `Utf8` | Preserve fixed-length padding and character metadata as Exasol semantics. |
+| `CHAR` | `Utf8` | Preserve declared character length and character metadata as Exasol semantics; do not transport padding bytes. |
 | `VARCHAR` | `Utf8` | Preserve declared character length and character metadata. |
 | `BOOLEAN` | `Bool` | Preserve nullable values. |
 | `HASHTYPE` | `FixedSizeBinary` | Preserve declared byte width and transport raw bytes. |
@@ -74,11 +74,11 @@ See the [decimal field metadata example](examples/decimal_field_metadata.json).
 
 ### Strings
 
-`CHAR(n)` and `VARCHAR(n)` map to `Utf8`. Preserve the declared character length and `ASCII`/`UTF8` character set.
-The official Exasol documentation defines the valid lengths and character-set syntax.
-`CHAR` padding remains an Exasol logical concern; it is not a reason to use
-`FixedSizeBinary`, and the mapping does not reinterpret character data as bytes. An empty Exasol string is `NULL`
-and therefore follows the nullable-field semantics.
+`CHAR(n)` and `VARCHAR(n)` map to `Utf8`. Preserve the declared character length and `ASCII`/`UTF8` character set
+as column metadata. The protocol transports the UTF-8 character value without adding or removing `CHAR` padding
+bytes; padding remains an Exasol logical concern. The official Exasol documentation defines the valid lengths and
+character-set syntax. Padding is not a reason to use `FixedSizeBinary`, and the mapping does not reinterpret character
+data as bytes. An empty Exasol string is `NULL` and therefore follows the nullable-field semantics.
 
 ### Date and time
 
@@ -200,7 +200,7 @@ required extension metadata. Future mappings may add Arrow interval types, nativ
 
 | Mapping | Classification | Reason |
 | --- | --- | --- |
-| `DOUBLE PRECISION`, `DATE`, `CHAR(n)`, `VARCHAR(n)`, `BOOLEAN` | Value-preserving | The Arrow representation preserves the values and declared semantics. |
+| `DOUBLE PRECISION`, `DATE`, `CHAR(n)`, `VARCHAR(n)`, `BOOLEAN` | Value-preserving | The Arrow representation preserves the values and declared metadata; `CHAR` padding is not transported separately. |
 | `DECIMAL` | Parameter- and value-preserving | The smallest Decimal32/64/128 width is selected from declared precision and scale. |
 | `TIMESTAMP(p)` | Precision- and value-preserving | The smallest sufficient Arrow unit is selected. |
 | `TIMESTAMP ... WITH LOCAL TIME ZONE` | Value-preserving after UTC normalization | Original session-local representation is not preserved. |
