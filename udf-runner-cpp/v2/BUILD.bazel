@@ -112,6 +112,7 @@ cc_test(
     name = "udf_protocol_symbol_leak_test",
     srcs = ["nm_runner.hpp", "udf_protocol_symbol_leak_test.cc"],
     copts = ["-std=c++20"],
+    tags = ["no-mull"],
     # The test inspects the built shared object with nm. data makes the
     # artifact available at runtime and args passes its runfiles path.
     data = [":udf_protocol_shared"],
@@ -124,6 +125,7 @@ cc_test(
     name = "udf_protocol_static_symbol_leak_test",
     srcs = ["nm_runner.hpp", "udf_protocol_static_symbol_leak_test.cc"],
     copts = ["-std=c++20"],
+    tags = ["no-mull"],
     # cc_library produces multiple artifacts, so the test receives all
     # locations and selects the static .a archive for nm inspection.
     data = [":udf_protocol"],
@@ -139,6 +141,7 @@ cc_test(
         "flatbuffers_header_order_reverse.cc",
     ],
     copts = ["-std=c++20"],
+    tags = ["no-mull"],
     # Compile both include orders against the ordinary runtime and the
     # isolated runtime to protect against header-guard and macro collisions.
     deps = [":udf_protocol", "@flatbuffers//:runtime_cc"],
@@ -186,6 +189,7 @@ cc_test(
     name = "arrow_c_data_demo_test",
     srcs = ["arrow_c_data_demo_test.cc"],
     copts = ["-std=c++20"],
+    tags = ["no-mull"],
     data = [":libarrow_c_data_demo.so"],
     args = ["$(location :libarrow_c_data_demo.so)"],
     linkopts = ["-ldl"],
@@ -212,6 +216,7 @@ cc_test(
     name = "json_schema_symbol_leak_test",
     srcs = ["json_schema_symbol_leak_test.cc"],
     copts = ["-std=c++17"],
+    tags = ["no-mull"],
     linkopts = ["-ldl"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [":json_schema"],
@@ -303,6 +308,7 @@ cc_test(
     name = "moodycamel_symbol_leak_test",
     srcs = ["moodycamel_symbol_leak_test.cc"],
     copts = ["-std=c++20"],
+    tags = ["no-mull"],
     data = [":moodycamel_queues_shared"],
     args = ["$(location :moodycamel_queues_shared)"],
     target_compatible_with = ["@platforms//os:linux"],

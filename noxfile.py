@@ -178,9 +178,60 @@ def run_oft_for_udf_client(session: nox.Session, *args) -> None:
 
 
 
+@nox.session(name="mull-targets", python=False)
+def list_mull_targets(session: nox.Session):
+    """List Mull targets and optionally write a GitHub Actions matrix."""
+    parser = argparse.ArgumentParser(usage=f"nox -s {session.name} -- [options]")
+    parser.add_argument(
+        "--github-output-var",
+        help="write the matrix JSON to this variable in GITHUB_OUTPUT",
+    )
+    args = parser.parse_args(session.posargs)
+
+    matrix = json.dumps({"target": list(_get_mull_targets(session))}, separators=(",", ":"))
+    if args.github_output_var:
+        github_output = os.environ.get("GITHUB_OUTPUT")
+        if not github_output:
+            session.error("GITHUB_OUTPUT is required with --github-output-var")
+        with open(github_output, "a") as output:
+            output.write(f"{args.github_output_var}={matrix}\n")
+    else:
+        print(matrix)
+
+
+def _get_mull_targets(session: nox.Session) -> tuple[str, ...]:
+    """Discover Bazel cc_test targets not explicitly excluded from Mull."""
+    v2_root = ROOT / "udf-runner-cpp" / "v2"
+    bazel = os.environ.get("BAZEL", "bazel")
+    with session.chdir(v2_root):
+        labels = session.run(
+            bazel,
+            "query",
+            'kind("cc_test rule", //...) except attr("tags", "no-mull", //...)',
+            "--output=label",
+            silent=True,
+            external=True,
+        )
+
+    targets = tuple(
+        sorted(
+            label.rsplit(":", maxsplit=1)[1]
+            for label in labels.splitlines()
+            if label.startswith("//:") and ":" in label
+        )
+    )
+    if not targets:
+        session.error("No Bazel cc_test targets available for Mull were found")
+    return targets
+
+
 @nox.session(name="mull", python=False)
 def run_mull(session: nox.Session):
     """Run Mull mutation testing for the functional v2 C++ tests."""
+    parser = argparse.ArgumentParser(usage=f"nox -s {session.name} -- [options]")
+    parser.add_argument("--target")
+    args = parser.parse_args(session.posargs)
+
     llvm_version = os.environ.get("MULL_LLVM_VERSION", "20")
     bazel = os.environ.get("BAZEL", "bazel")
     compiler = os.environ.get("MULL_CXX", f"clang++-{llvm_version}")
@@ -210,13 +261,14 @@ def run_mull(session: nox.Session):
     report_dir.mkdir(parents=True, exist_ok=True)
     bazel_output_root = ROOT / ".build_output" / "bazel-mull"
 
-    targets = [
-        "//:udf_protocol_test",
-        "//:arrow_core_test",
-        "//:json_schema_validation_test",
-        "//:moodycamel_queues_test",
-        "//:waitable_queue_test",
-    ]
+    discovered_targets = _get_mull_targets(session)
+    if args.target and args.target not in discovered_targets:
+        session.error(
+            f"Unknown Mull target '{args.target}'. Discovered targets: "
+            + ", ".join(discovered_targets)
+        )
+    target_names = (args.target,) if args.target else discovered_targets
+    targets = [f"//:{target}" for target in target_names]
     bazel_startup_args = [f"--output_user_root={bazel_output_root}"]
     bazel_args = [
         "build",
