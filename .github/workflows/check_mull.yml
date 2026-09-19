@@ -63,7 +63,7 @@ jobs:
         run: poetry install --with dev
 
       - name: Run Mull mutation tests
-        run: poetry run nox -s mull -- --target "${{ matrix.target }}"
+        run: poetry run -- nox --sessions=mull -- --target "${{ matrix.target }}"
 
       - name: Upload Mull reports
         if: always()
