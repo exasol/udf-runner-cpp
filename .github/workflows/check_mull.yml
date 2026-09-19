@@ -30,7 +30,7 @@ jobs:
 
       - name: Discover Mull targets
         id: discover
-        run: poetry run nox -s mull-targets -- --github-output-var mull_matrix
+        run: poetry run -- nox --sessions=mull-targets -- --github-output-var mull_matrix
 
   mull:
     needs: discover_mull_targets
