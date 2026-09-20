@@ -36,7 +36,8 @@ WaitableQueueNotification::WaitableQueueNotification(WaitableQueueNotification&&
 {
 }
 
-WaitableQueueNotification& WaitableQueueNotification::operator=(WaitableQueueNotification&& other) noexcept
+WaitableQueueNotification& WaitableQueueNotification::operator=(
+    WaitableQueueNotification&& other) noexcept
 {
     // Self-move and replacement of an owned descriptor are defensive lifetime
     // paths; mutation testing them would require invalid or aliased ownership.
@@ -60,7 +61,7 @@ int WaitableQueueNotification::native_handle() const noexcept
     return notification_fd_;
 }
 
-void WaitableQueueNotification::notify()
+void WaitableQueueNotification::notify() const
 {
     constexpr std::uint64_t signal = 1;
     for (;;)
@@ -98,7 +99,7 @@ void WaitableQueueNotification::notify()
     }
 }
 
-std::uint64_t WaitableQueueNotification::drain()
+std::uint64_t WaitableQueueNotification::drain() const
 {
     std::uint64_t total = 0;
     for (;;)

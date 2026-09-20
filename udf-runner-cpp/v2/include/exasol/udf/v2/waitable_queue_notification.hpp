@@ -22,8 +22,8 @@ public:
     WaitableQueueNotification& operator=(WaitableQueueNotification&& other) noexcept;
 
     [[nodiscard]] int native_handle() const noexcept;
-    void notify();
-    std::uint64_t drain();
+    void notify() const;
+    std::uint64_t drain() const;
 
 private:
     int notification_fd_;

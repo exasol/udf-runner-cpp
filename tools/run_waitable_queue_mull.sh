@@ -2,8 +2,10 @@
 
 set -euo pipefail
 
-readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-readonly repository_root="$(dirname -- "$script_dir")"
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly script_dir
+repository_root="$(dirname -- "$script_dir")"
+readonly repository_root
 
 cd "$repository_root"
 
