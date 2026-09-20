@@ -76,8 +76,11 @@ batch and does not directly pause, cancel, or otherwise control the sender.
 - subsequent batches require an available budget from a previously received `Next(...)`
 - the sender may send less than the hinted budget and may send multiple batches while budget remains
 - an indivisible batch may exceed the remaining budget
-- `reset` and `row_id` are seek-position hints for batches that are not already in flight
-- batches already in flight continue unaffected and may reference positions different from the requested `row_id`
+- `reset = true` requests a seek for batches that are not already in flight, and `row_id` identifies the position from
+  which the sender resumes
+- when `reset = false`, `row_id` is ignored; batches already in flight continue unaffected
+- `row_id` is a scalar with schema default `0`, so an omitted value is read as `0` by the generated FlatBuffers
+  accessor; default-valued scalar fields may be omitted from the serialized buffer ([FlatBuffers schema defaults](https://flatbuffers.dev/schema/))
 
 This `row_id` usage is distinct from any row correlation carried inside the data itself for high-level call
 semantics such as scalar-return `Run`.
