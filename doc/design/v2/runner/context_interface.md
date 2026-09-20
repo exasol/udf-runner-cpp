@@ -86,11 +86,12 @@ The global readiness functions do not identify the stream with pending data. The
 
 ### Call acceptance
 
-`accept_call()` waits for the next inbound `OpenCall` and returns a `Call` object bound to that call stream. It does
-not return messages belonging to an already accepted call or to stream `0`.
+`accept_call()` waits for the next inbound composite message containing `open_call` and returns a `Call` object bound
+to that call stream. It does not return messages belonging to an already accepted call or to stream `0`.
 
-The returned call exposes its opening metadata through the call abstraction. Messages for the call that arrive before
-the worker invokes `Call::receive()` remain available to that call.
+The complete opening message is buffered as the first message of the returned call. `accept_call()` does not expose
+or discard any fields from that message. Messages for the call that arrive before the worker invokes `Call::receive()`
+remain available to that call in protocol order.
 
 ## Call interface
 
@@ -98,7 +99,6 @@ The conceptual call contract is:
 
 ```text
 Call {
-    open_call() -> const OpenCallT&
     receive_status() -> MessageStatus
     receive(optional<Duration> timeout) -> Result<CallMessage>
     send(CallMessage) -> Result<void>
@@ -111,7 +111,12 @@ Call {
 next complete call message, returns `timed_out` when the timeout expires, and returns a terminal result for
 cancellation, peer closure, or connection failure.
 
-`Call::open_call()` returns immutable opening metadata associated with the accepted call.
+The first successful `Call::receive()` returns the opening `CallMessage`, including its `open_call` field and any
+payloads, schema, `Next`, record batch, error, or close fields carried in the same protocol message. Subsequent
+messages must not contain `open_call`.
+
+This revision covers inbound calls. A `CallMessage` containing `open_call` is not valid for `Call::send()` because the
+call has already been opened by the peer. Worker-initiated call creation is outside this interface.
 
 If a control message or another call's message arrives while `Call::receive()` is blocked, the context dispatches it
 to its own stream and the call receive continues waiting. It does not return unrelated traffic.
@@ -122,6 +127,7 @@ to its own stream and the call receive continues waiting. It does not return unr
 
 ```text
 CallMessage {
+    optional open_call
     optional payloads
     optional data_schema
     optional next
@@ -134,9 +140,14 @@ CallMessage {
 The same conceptual type is used for sending and receiving. A single message may contain one or multiple fields. A
 worker sends fields separately by sending separate `CallMessage` values; no field-specific send methods are required.
 
+For inbound calls, `open_call` is required on the first received message and forbidden on subsequent received messages.
+The opening message may contain any other protocol-permitted call fields.
+
 The design permits, subject to protocol-state validation:
 
 - payloads alone;
+- `open_call` alone;
+- `open_call` with payloads, schema, `Next`, a record batch, error, or close;
 - a schema alone;
 - `Next` alone;
 - a record batch alone;
@@ -217,7 +228,7 @@ These are observable requirements, not implementation prescriptions.
 The following rules apply:
 
 - global readiness observes all streams without consuming messages;
-- `accept_call()` consumes only inbound `OpenCall` messages;
+- `accept_call()` identifies and registers only inbound messages containing `open_call`;
 - `Call::receive()` consumes only messages for its call;
 - `ControlStream::receive()` consumes only stream-0 messages;
 - each protocol message is consumed exactly once;
@@ -227,6 +238,9 @@ The following rules apply:
 
 One consumer is expected for each call and for the control stream. Concurrent receives from different calls are
 supported by the contract; concurrent receives from the same stream are outside this interface.
+
+After `accept_call()` succeeds, the accepted call's pending-message sequence begins with its opening composite
+message. The opening message is consumed exactly once by the first successful `Call::receive()`.
 
 ## Lifecycle and terminal behavior
 
@@ -272,8 +286,13 @@ Invalid messages produce protocol errors and follow the applicable call or conne
 
 ### Composite call message
 
-The peer may send one message containing payloads, schema, and the first record batch. The worker receives one
-`CallMessage` containing all three fields.
+The peer may open a call with one message containing `open_call`, payloads, schema, and the first record batch. The
+worker first calls `accept_call()`, then receives one `CallMessage` containing all four fields.
+
+### Opening close
+
+The peer may open and close a call in one message. `accept_call()` returns the call, and its first `receive()` returns
+the opening `CallMessage` containing both `open_call` and `close_call`; the call then enters its closed state.
 
 ### Separate call messages
 
@@ -310,6 +329,8 @@ The design is complete when it is clear that:
 - context, call, and control receives all support optional timeouts;
 - unrelated stream traffic cannot be returned by a stream-specific receive;
 - calls are accepted through `accept_call()` and then read through their call object;
+- the first call receive returns the complete opening message;
+- subsequent call messages do not contain `open_call`;
 - call fields can be combined or sent separately;
 - errors can be sent alone;
 - close messages can carry other permitted fields;
