@@ -47,8 +47,6 @@ public:
 
     ~WaitableQueue()
     {
-        // Descriptor cleanup is covered by the normal test process lifetime, but
-        // the moved-from branch cannot be observed without depending on fd reuse.
         if (notification_fd_ != -1)
         {
             ::close(notification_fd_);
@@ -66,8 +64,6 @@ public:
 
     WaitableQueue& operator=(WaitableQueue&& other) noexcept
     {
-        // Self-move and replacement of an owned descriptor are defensive lifetime
-        // paths; mutation testing them would require invalid or aliased ownership.
         if (this != &other)
         {
             if (notification_fd_ != -1)
@@ -121,6 +117,9 @@ public:
         return queue_.try_dequeue(value);
     }
 
+    // Drains all eventfd notifications and returns their accumulated count.
+    // Callers should then dequeue until the queue is empty and recheck it
+    // before going back to epoll_wait().
     std::uint64_t drain_notifications()
     {
         std::uint64_t total = 0;
@@ -133,9 +132,6 @@ public:
                 total += value;
                 continue;
             }
-            // EINTR and read failures require fault injection to exercise
-            // deterministically; successful draining and EAGAIN termination are
-            // covered by the queue test.
             if (result == -1 && errno == EINTR)
             {
                 continue;
@@ -172,16 +168,12 @@ private:
             {
                 return;
             }
-            // EINTR and write failures require fault injection to exercise
-            // deterministically; the successful write path and saturation policy
-            // are covered by the queue tests.
             if (result == -1 && errno == EINTR)
             {
                 continue;
             }
             // A saturated eventfd is already readable. The queue item remains
-            // available, so no additional notification is needed. This requires
-            // fault injection to reach deterministically.
+            // available, so no additional notification is needed.
             if (result == -1 && errno == EAGAIN)
             {
                 return;
