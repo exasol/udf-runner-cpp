@@ -7,7 +7,7 @@ does not define sockets, framing, FlatBuffer serialization, threads, queues, cod
 
 The worker sees three abstractions:
 
-- `Context` for connection-wide readiness and accepting inbound calls;
+- `Context` for connection-wide readiness, inbound call acceptance, and outbound call opening;
 - `Call` for one logical call stream;
 - `ControlStream` for connection-level traffic on stream `0`.
 
@@ -68,6 +68,7 @@ Context {
     receive_status() -> MessageStatus
     wait_for_message(optional<Duration> timeout) -> MessageStatus
     accept_call() -> Result<unique_ptr<Call>>
+    open_call(CallMessage) -> Result<unique_ptr<Call>>
     control_stream() -> ControlStream&
     cancel() -> void
 }
@@ -93,6 +94,11 @@ The complete opening message is buffered as the first message of the returned ca
 or discard any fields from that message. Messages for the call that arrive before the worker invokes `Call::receive()`
 remain available to that call in protocol order.
 
+`open_call(opening_message)` creates a worker-initiated call. The opening message must contain `open_call` and is sent
+as the first message on a new logical call stream. It may contain any other protocol-permitted opening fields. On
+successful local registration and transmission, the function returns the `Call` object without waiting for a peer
+response. The peer's response is received through that call's `receive()` operation.
+
 ## Call interface
 
 The conceptual call contract is:
@@ -115,8 +121,9 @@ The first successful `Call::receive()` returns the opening `CallMessage`, includ
 payloads, schema, `Next`, record batch, error, or close fields carried in the same protocol message. Subsequent
 messages must not contain `open_call`.
 
-This revision covers inbound calls. A `CallMessage` containing `open_call` is not valid for `Call::send()` because the
-call has already been opened by the peer. Worker-initiated call creation is outside this interface.
+For a call returned by `open_call()`, the opening message has already been sent by the context. Its first successful
+`Call::receive()` returns the peer's first message and must not contain `open_call`. A `CallMessage` containing
+`open_call` is not valid for `Call::send()` after the call object has been created.
 
 If a control message or another call's message arrives while `Call::receive()` is blocked, the context dispatches it
 to its own stream and the call receive continues waiting. It does not return unrelated traffic.
@@ -141,7 +148,9 @@ The same conceptual type is used for sending and receiving. A single message may
 worker sends fields separately by sending separate `CallMessage` values; no field-specific send methods are required.
 
 For inbound calls, `open_call` is required on the first received message and forbidden on subsequent received messages.
-The opening message may contain any other protocol-permitted call fields.
+For outbound calls, `open_call` is required only in the opening message supplied to `Context::open_call()` and is
+forbidden in all later received or sent messages. An opening message may contain any other protocol-permitted call
+fields.
 
 The design permits, subject to protocol-state validation:
 
@@ -229,6 +238,7 @@ The following rules apply:
 
 - global readiness observes all streams without consuming messages;
 - `accept_call()` identifies and registers only inbound messages containing `open_call`;
+- `open_call()` registers and sends one outbound opening message containing `open_call`;
 - `Call::receive()` consumes only messages for its call;
 - `ControlStream::receive()` consumes only stream-0 messages;
 - each protocol message is consumed exactly once;
@@ -242,6 +252,9 @@ supported by the contract; concurrent receives from the same stream are outside 
 After `accept_call()` succeeds, the accepted call's pending-message sequence begins with its opening composite
 message. The opening message is consumed exactly once by the first successful `Call::receive()`.
 
+After `open_call()` succeeds, the call's pending-message sequence begins with the peer's first response. The locally
+sent opening message is not returned by `Call::receive()`.
+
 ## Lifecycle and terminal behavior
 
 The context owns the connection after successful context creation. A call object represents one logical call and is
@@ -251,6 +264,7 @@ Cancellation, peer disconnect, connection close, and fatal errors wake all affec
 connection close begins:
 
 - no new calls are accepted;
+- no new outbound calls are opened;
 - ordinary call traffic is no longer sent;
 - active calls receive terminal results;
 - pending status, wait, accept, call-receive, and control-receive operations do not remain blocked indefinitely.
@@ -270,6 +284,8 @@ The context validates, before delivering or sending messages:
 - protocol message structure and configured size limits;
 - stream ownership and stream identity rules;
 - call lifecycle ordering;
+- outbound opening messages must contain `open_call` exactly once;
+- `open_call` is rejected after the opening message;
 - control-message field combinations;
 - call-message field combinations;
 - schema-before-record-batch ordering;
@@ -288,6 +304,12 @@ Invalid messages produce protocol errors and follow the applicable call or conne
 
 The peer may open a call with one message containing `open_call`, payloads, schema, and the first record batch. The
 worker first calls `accept_call()`, then receives one `CallMessage` containing all four fields.
+
+### Outbound call
+
+The worker creates a nested call with a `CallMessage` containing `open_call` and its opening payloads. It calls
+`Context::open_call()`, receives a `Call` object, and then uses `Call::receive()` for the peer's response. The local
+opening message is not returned by that receive operation.
 
 ### Opening close
 
@@ -329,8 +351,10 @@ The design is complete when it is clear that:
 - context, call, and control receives all support optional timeouts;
 - unrelated stream traffic cannot be returned by a stream-specific receive;
 - calls are accepted through `accept_call()` and then read through their call object;
-- the first call receive returns the complete opening message;
-- subsequent call messages do not contain `open_call`;
+- outbound calls are created through `open_call()` and return a call object for subsequent use;
+- the first inbound call receive returns the complete opening message;
+- the first outbound call receive returns the peer's first response;
+- inbound subsequent messages and all post-opening outbound messages do not contain `open_call`;
 - call fields can be combined or sent separately;
 - errors can be sent alone;
 - close messages can carry other permitted fields;
