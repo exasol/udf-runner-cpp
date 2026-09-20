@@ -343,20 +343,12 @@ cc_library(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
-cc_library(
-    name = "waitable_queue_mull_unit",
-    srcs = ["waitable_queue_mull_unit.cc"],
-    hdrs = ["waitable_queue_mull_unit.hpp"],
-    copts = ["-std=c++20"],
-    deps = [":waitable_queue"],
-    target_compatible_with = ["@platforms//os:linux"],
-)
-
 cc_test(
     name = "waitable_queue_test",
     srcs = ["waitable_queue_test.cc"],
     copts = ["-std=c++20"],
-    deps = [":waitable_queue_mull_unit"],
+    tags = ["no-mull"],
+    deps = [":waitable_queue"],
     target_compatible_with = ["@platforms//os:linux"],
 )
 

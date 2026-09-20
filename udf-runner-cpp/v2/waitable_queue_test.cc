@@ -10,7 +10,7 @@
 #include <span>
 #include <vector>
 
-#include "waitable_queue_mull_unit.hpp"
+#include <exasol/udf/v2/waitable_queue.hpp>
 
 namespace
 {
@@ -40,7 +40,7 @@ void close_pair(const std::array<int, 2>& sockets)
 
 void test_spsc_queue()
 {
-    exasol::udf::v2::mull_test::WaitableSpscQueueInt queue;
+    exasol::udf::v2::WaitableSpscQueue<int> queue;
     const int epoll_fd = ::epoll_create1(EPOLL_CLOEXEC);
     test_check(epoll_fd != -1, "epoll_create1 failed");
 
@@ -74,7 +74,8 @@ void test_spsc_queue()
     test_check(value == 42, "unexpected dequeued value");
 
     const std::vector<int> batch{1, 2, 3};
-    test_check(queue.enqueue_batch(batch) == batch.size(), "batch enqueue failed");
+    test_check(queue.enqueue_batch(batch.begin(), batch.end()) == batch.size(),
+               "batch enqueue failed");
     test_check(queue.drain_notifications() == 1, "unexpected batch notification count");
     for (int expected : batch)
     {
@@ -89,7 +90,7 @@ void test_spsc_queue()
 
 void test_mpmc_queue()
 {
-    exasol::udf::v2::mull_test::WaitableMpmcQueueInt queue;
+    exasol::udf::v2::WaitableMpmcQueue<int> queue;
     test_check(queue.enqueue(7), "MPMC queue enqueue failed");
     test_check(queue.drain_notifications() == 1, "unexpected MPMC notification count");
     int value = 0;
