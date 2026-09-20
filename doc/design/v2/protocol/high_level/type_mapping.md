@@ -61,7 +61,7 @@ For a declared `DECIMAL(p,s)`, select the smallest Arrow decimal width that supp
 - `DOUBLE PRECISION` maps to `FloatingPoint(Double)`.
 - `1 <= p <= 9` maps to `Decimal(32)` with `bit_width = 32`.
 - `10 <= p <= 18` maps to `Decimal(64)` with `bit_width = 64`.
-- `19 <= p <= 36` maps to `Decimal(128)` with `bit_width = 128`.
+- `19 <= p <= 38` maps to `Decimal(128)` with `bit_width = 128`.
 - All three mappings preserve `precision = p` and `scale = s`, including scale-zero decimals. Consumers may cast a
   decimal to an integer when appropriate, but observed values never change the protocol representation.
 For every decimal field, `0 <= scale <= precision` is required. Decimal conversion is parameter-preserving and
