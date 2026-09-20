@@ -91,6 +91,9 @@ Client controls Client -> Server output, while the Server controls Server -> Cli
 ### Outbound Direction
 
 The outbound model tracks data sent by the local endpoint and the latest flow-control hint received from its peer.
+Sending or receiving `CloseCall` makes the local endpoint's outbound direction terminal: it sends no further schema,
+batch, `Next(...)`, or other call-scoped message. A `CloseCall` is not acknowledged. Messages already in flight may
+still arrive after either endpoint sends or receives `CloseCall`; late messages for the closed stream are ignored.
 
 | State | Meaning |
 | --- | --- |
@@ -110,7 +113,7 @@ The outbound model tracks data sent by the local endpoint and the latest flow-co
 | `BudgetAvailable` | Send one or more batches while budget remains | `BudgetAvailable` |
 | `BudgetAvailable` | No usable budget remains | `WaitingForNext` |
 | `WaitingForNext` | Receive `Next(...)` | `BudgetAvailable` |
-| `WaitingForNext` | Finish stream | `OutboundCompleted` |
+| Any outbound state | Send or receive `CloseCall` | `OutboundCompleted` |
 
 ### Inbound Direction
 
@@ -133,7 +136,7 @@ The inbound model tracks data received by the local endpoint and the flow-contro
 | `SchemaReceived` | Send `Next(...)` | `SchemaReceived` |
 | `BatchesInFlight` | Receive batch | `BatchesInFlight` |
 | `BatchesInFlight` | Send `Next(...)` | `BatchesInFlight` |
-| `BatchesInFlight` | Finish stream | `InboundCompleted` |
+| Any inbound state | Receive `CloseCall` | `InboundCompleted` |
 
 ## Rules
 
@@ -146,6 +149,8 @@ The inbound model tracks data received by the local endpoint and the flow-contro
 7. After the current budget is no longer usable, a sender waits for another `Next(...)` before sending a later batch.
 8. `reset` and `row_id` apply only to batches that are not already in flight.
 9. In-flight batches continue unaffected by a later seek hint and may reference different positions.
+10. Sending or receiving `CloseCall` terminates the local endpoint's participation in the stream; the receiver does
+    not send a close acknowledgement, and late messages already in transit are ignored.
 
 ## Buffer Transfer
 

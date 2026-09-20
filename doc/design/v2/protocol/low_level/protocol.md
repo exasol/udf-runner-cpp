@@ -107,8 +107,10 @@ See [connection_lifecycle.svg](connection_lifecycle.svg).
 ## Close Semantics
 
 `CloseCall` closes the call on its non-zero stream. Either peer may send it; no call-close acknowledgement is
-required. A `CloseCall` with `Error` is an abnormal call termination. Without `Error`, it is normal termination.
-After sending or receiving `CloseCall`, neither peer sends further call-scoped traffic on that stream.
+required, and the receiver must not send a reply or any other message on that stream. A `CloseCall` with `Error` is
+an abnormal call termination. Without `Error`, it is normal termination. After sending or receiving `CloseCall`, the
+local endpoint sends no further call-scoped traffic on that stream. Messages already in transit may still arrive after
+either event; the endpoint ignores those late stream messages while still processing a received `CloseCall`.
 
 `CloseConnection` closes the entire connection and is valid only on stream `0`. Either peer may initiate shutdown
 by sending it. The receiver sends `CloseConnection` in reply, optionally with its own `Error`, then closes the

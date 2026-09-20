@@ -42,7 +42,9 @@ top-level calls while idle; it can open them only while handling an active DB ca
 
 Each high-level call defines the names and bodies of its own result payloads, carried by `Payloads(...)`. A result
 payload may be sent while the call remains active or together with `CloseCall` in the same composite
-`StreamMessage`. Calls that have no result payload may still close normally.
+`StreamMessage`. `CloseCall` is unilateral: the sender does not send further messages on the stream, and the receiver
+does not acknowledge it or send further messages on that stream. Messages already in transit may arrive afterward and
+are ignored. Calls that have no result payload may still close normally.
 
 ## Typical Semantics
 
@@ -88,6 +90,7 @@ The current design keeps the high-level sequences intentionally simple:
 
 - nested callback-style calls execute while a parent `Run` or Function call remains active
 - `Run` combines `OpenCall`, `call_metadata`, input schema announcement, and the first input batch when practical
+- normal completion of the call's data stream is marked by unilateral `CloseCall`; late in-flight stream messages are ignored
 
 See [nested_calls.svg](nested_calls.svg) and
 [run_sequence.svg](run_sequence.svg).
