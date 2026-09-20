@@ -57,6 +57,11 @@ The worker creates a fresh context for every accepted descriptor. The context th
 4. handles normal close, error close, cancellation, and peer disconnect;
 5. releases all protocol and transport resources before returning.
 
+The worker-facing context contract is defined in [context_interface.md](context_interface.md). It provides
+non-consuming connection-wide readiness checks, timed waits, inbound call acceptance, per-call receives, and a
+stream-0 control interface. A call receive is limited to its own stream even when unrelated control or call messages
+arrive on the connection.
+
 Worker-pool resources may be reused after the worker returns, but connection-scoped protocol state may not be reused.
 
 ## Shutdown

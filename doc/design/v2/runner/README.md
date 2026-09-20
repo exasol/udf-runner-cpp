@@ -21,6 +21,8 @@ Arrow C Data Interface.
 
 - [architecture.md](architecture.md) defines the namespace boundary and component responsibilities.
 - [lifecycle.md](lifecycle.md) defines connection, worker, context, and shutdown lifecycles.
+- [context_interface.md](context_interface.md) defines the worker-facing low-level context, call, and control-stream
+  contract.
 
 Mermaid `.mmd` files are the diagram sources of truth. Matching `.svg` files are rendered views linked from the
 documents.

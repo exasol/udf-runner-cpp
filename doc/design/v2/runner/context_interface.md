@@ -1,0 +1,319 @@
+# Worker-Facing Low-Level Context Interface
+
+## Purpose
+
+This document defines the worker-facing interface for one protocol-v2 connection. It is a design contract only. It
+does not define sockets, framing, FlatBuffer serialization, threads, queues, codecs, or other implementation details.
+
+The worker sees three abstractions:
+
+- `Context` for connection-wide readiness and accepting inbound calls;
+- `Call` for one logical call stream;
+- `ControlStream` for connection-level traffic on stream `0`.
+
+The context consumes and dispatches transport messages internally. A worker never receives a socket, file descriptor,
+frame, or numeric stream identifier.
+
+## Result and status concepts
+
+Readiness operations report status without consuming a message:
+
+```text
+MessageStatus =
+    message_available
+  | no_message
+  | timed_out
+  | cancelled
+  | peer_closed
+  | connection_error
+```
+
+Consuming operations return either a value or a terminal result:
+
+```text
+OperationStatus =
+    ok
+  | timed_out
+  | cancelled
+  | peer_closed
+  | protocol_error
+  | transport_error
+```
+
+The conceptual generic result type is:
+
+```text
+Result<T> {
+    OperationStatus status
+    optional<T> value
+    optional<ErrorInfo> error
+}
+```
+
+`Result<void>` represents an operation that has no value on success. A successful result has `status == ok` and a
+value where applicable. A failed result has no value and may include an error code and message.
+
+All timeout parameters use the conceptual type `optional<Duration>`. An absent timeout waits indefinitely; a zero
+duration performs no blocking wait.
+
+A successful operation returns its value. A failed operation returns no value and may include an error code and message.
+Timeout is distinct from protocol and transport failure and does not consume or discard a later message.
+
+## Context interface
+
+The conceptual context contract is:
+
+```text
+Context {
+    receive_status() -> MessageStatus
+    wait_for_message(optional<Duration> timeout) -> MessageStatus
+    accept_call() -> Result<unique_ptr<Call>>
+    control_stream() -> ControlStream&
+    cancel() -> void
+}
+```
+
+### Connection-wide readiness
+
+`receive_status()` is non-blocking. It reports whether an unread message is available on any stream and never
+consumes or returns that message.
+
+`wait_for_message(timeout)` waits until an unread message is available on any stream or a terminal condition occurs.
+An omitted timeout means wait indefinitely. The function also never consumes or identifies a message.
+
+The global readiness functions do not identify the stream with pending data. The worker consumes data through
+`accept_call()`, a `Call`, or the `ControlStream`.
+
+### Call acceptance
+
+`accept_call()` waits for the next inbound `OpenCall` and returns a `Call` object bound to that call stream. It does
+not return messages belonging to an already accepted call or to stream `0`.
+
+The returned call exposes its opening metadata through the call abstraction. Messages for the call that arrive before
+the worker invokes `Call::receive()` remain available to that call.
+
+## Call interface
+
+The conceptual call contract is:
+
+```text
+Call {
+    open_call() -> const OpenCallT&
+    receive_status() -> MessageStatus
+    receive(optional<Duration> timeout) -> Result<CallMessage>
+    send(CallMessage) -> Result<void>
+}
+```
+
+`Call::receive_status()` is non-blocking, observes only this call's stream, and never consumes a message.
+
+`Call::receive(timeout)` waits only for this call's stream. An omitted timeout means wait indefinitely. It returns the
+next complete call message, returns `timed_out` when the timeout expires, and returns a terminal result for
+cancellation, peer closure, or connection failure.
+
+`Call::open_call()` returns immutable opening metadata associated with the accepted call.
+
+If a control message or another call's message arrives while `Call::receive()` is blocked, the context dispatches it
+to its own stream and the call receive continues waiting. It does not return unrelated traffic.
+
+## Composite call messages
+
+`CallMessage` is one composite message whose fields are independently optional:
+
+```text
+CallMessage {
+    optional payloads
+    optional data_schema
+    optional next
+    optional arrow_record_batch
+    optional error
+    optional close_call
+}
+```
+
+The same conceptual type is used for sending and receiving. A single message may contain one or multiple fields. A
+worker sends fields separately by sending separate `CallMessage` values; no field-specific send methods are required.
+
+The design permits, subject to protocol-state validation:
+
+- payloads alone;
+- a schema alone;
+- `Next` alone;
+- a record batch alone;
+- schema and the first record batch together;
+- payloads, schema, `Next`, and a record batch together;
+- an error alone;
+- close alone;
+- close combined with payloads, schema, `Next`, a record batch, and/or an error.
+
+If multiple fields arrive in one protocol message, `Call::receive()` returns them together in one `CallMessage`.
+
+An error without `close_call` is a non-terminal diagnostic. A message containing `close_call` terminates the call
+after the message is processed.
+
+## Control stream interface
+
+`Context::control_stream()` returns the connection-level stream for `stream_id == 0`. Its conceptual contract is:
+
+```text
+ControlStream {
+    receive_status() -> MessageStatus
+    receive(optional<Duration> timeout) -> Result<ControlMessage>
+    send(ControlMessage) -> Result<void>
+}
+```
+
+The control stream's status and receive functions observe and consume only stream-0 messages.
+
+`ControlMessage` contains independently optional connection-level fields:
+
+```text
+ControlMessage {
+    optional server_capabilities
+    optional keep_alive
+    optional payloads
+    optional error
+    optional close_connection
+}
+```
+
+The control stream supports capabilities, keepalive, connection-level payloads, errors, and connection close. It must
+not expose `OpenCall`, `CloseCall`, `Next`, `DataSchema`, or record batches.
+
+An error without `close_connection` is a non-terminal diagnostic. `CloseConnection` starts or acknowledges connection
+shutdown and may be combined with an error or other permitted connection-level fields.
+
+## Arrow record batches
+
+Record batches are transferred as Arrow C Data Interface objects, not as serialized FlatBuffer objects. The conceptual
+`arrow_record_batch` field contains an `ArrowSchema` and an `ArrowArray`.
+
+FlatBuffers remain the representation for protocol metadata and control fields, including payloads, data schema,
+`Next`, errors, close messages, capabilities, keepalive, and connection close.
+
+The worker-facing contract exposes the Arrow C Data Interface only. Arrow C++ types, Arrow IPC internals, and
+transport-specific buffer handling remain hidden.
+
+Ownership follows the Arrow release contract:
+
+- received schemas and arrays become owned by the caller;
+- the caller releases received objects exactly once;
+- sent objects remain caller-owned until the context accepts the send;
+- after successful acceptance, release responsibility transfers to the context;
+- a failed send before acceptance leaves ownership with the caller;
+- no object may be released more than once.
+
+## Dispatch and consumption rules
+
+The context internally dispatches incoming traffic to:
+
+- a pending inbound-call queue;
+- one logical queue per accepted call;
+- a stream-0 control queue;
+- terminal connection state.
+
+These are observable requirements, not implementation prescriptions.
+
+The following rules apply:
+
+- global readiness observes all streams without consuming messages;
+- `accept_call()` consumes only inbound `OpenCall` messages;
+- `Call::receive()` consumes only messages for its call;
+- `ControlStream::receive()` consumes only stream-0 messages;
+- each protocol message is consumed exactly once;
+- messages remain queued until consumed by the correct abstraction;
+- a call receive never returns control-stream or other-call traffic;
+- a control receive never returns call traffic.
+
+One consumer is expected for each call and for the control stream. Concurrent receives from different calls are
+supported by the contract; concurrent receives from the same stream are outside this interface.
+
+## Lifecycle and terminal behavior
+
+The context owns the connection after successful context creation. A call object represents one logical call and is
+valid until call close, connection close, cancellation, peer disconnect, or fatal error.
+
+Cancellation, peer disconnect, connection close, and fatal errors wake all affected blocked operations. After
+connection close begins:
+
+- no new calls are accepted;
+- ordinary call traffic is no longer sent;
+- active calls receive terminal results;
+- pending status, wait, accept, call-receive, and control-receive operations do not remain blocked indefinitely.
+
+Normal and abnormal termination are distinct:
+
+- call close without error is normal call termination;
+- call close with error is abnormal call termination;
+- connection close without error is normal connection termination;
+- connection close with error is abnormal connection termination;
+- cancellation and transport failure are reported as terminal operation results.
+
+## Validation responsibilities
+
+The context validates, before delivering or sending messages:
+
+- protocol message structure and configured size limits;
+- stream ownership and stream identity rules;
+- call lifecycle ordering;
+- control-message field combinations;
+- call-message field combinations;
+- schema-before-record-batch ordering;
+- one data stream per call;
+- `Next` byte-credit rules;
+- close and error semantics;
+- Arrow object ownership and release requirements;
+- supported record-batch transport;
+- rejection of ordinary traffic after connection shutdown.
+
+Invalid messages produce protocol errors and follow the applicable call or connection termination behavior.
+
+## Examples
+
+### Composite call message
+
+The peer may send one message containing payloads, schema, and the first record batch. The worker receives one
+`CallMessage` containing all three fields.
+
+### Separate call messages
+
+The peer may send a schema, then a `Next`, then a record batch as three separate messages. The worker receives three
+successive `CallMessage` values.
+
+### Error-only message
+
+The worker may send a `CallMessage` containing only `error`. The call remains active unless `close_call` is also
+present.
+
+### Close with final data
+
+The worker may send one `CallMessage` containing a final record batch, payloads, an error, and `close_call`, subject to
+the call's protocol state.
+
+### Control message during call receive
+
+While the worker is blocked in `Call::receive()`, a `KeepAlive` arrives. The context dispatches it to
+`ControlStream`; the call receive remains blocked until a message for that call arrives or a terminal condition occurs.
+
+## Relationship to existing documents
+
+This document refines the `Context` responsibilities in [architecture.md](architecture.md) and the worker/context
+lifecycle in [lifecycle.md](lifecycle.md). It relies on the stream, close, call, and data-stream rules defined by the
+low-level protocol documents and does not redefine their wire format.
+
+## Design review checklist
+
+The design is complete when it is clear that:
+
+- readiness can be checked without consuming a message;
+- global readiness and stream-specific receives have separate responsibilities;
+- context, call, and control receives all support optional timeouts;
+- unrelated stream traffic cannot be returned by a stream-specific receive;
+- calls are accepted through `accept_call()` and then read through their call object;
+- call fields can be combined or sent separately;
+- errors can be sent alone;
+- close messages can carry other permitted fields;
+- record batches use Arrow C Data Interface objects;
+- Arrow ownership and release responsibility are explicit;
+- cancellation, closure, timeout, and failure behavior is defined;
+- no implementation details have leaked into the worker-facing contract.

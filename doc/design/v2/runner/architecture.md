@@ -84,6 +84,11 @@ the descriptor according to the documented ownership handoff.
 protocol implementation: framing, control-stream initialization, stream dispatch, call/data handling, callbacks,
 keepalive, and close/error processing.
 
+The worker-facing contract for this component is defined in [context_interface.md](context_interface.md). The worker
+uses connection-wide readiness and call acceptance, then receives call-scoped messages through a `Call` object or
+connection-level messages through the stream-0 control interface. The contract permits composite call messages and
+uses the Arrow C Data Interface for record batches; transport, framing, and dispatch remain internal.
+
 The context is not an application callback object and is not shared between worker invocations. It is the sole owner
 of protocol state for its connection and must enforce the validation, ordering, flow-control, and close rules from the
 protocol documents.
