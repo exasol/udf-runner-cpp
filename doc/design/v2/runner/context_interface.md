@@ -118,7 +118,7 @@ next complete call message, returns `timed_out` when the timeout expires, and re
 cancellation, peer closure, or connection failure.
 
 The first successful `Call::receive()` returns the opening `CallMessage`, including its `open_call` field and any
-payloads, `DataSchema`, `Next`, `ArrowArray`, error, or close fields carried in the same protocol message. Subsequent
+ payloads, `DataSchema`, `Next`, `RecordBatch`, error, or close fields carried in the same protocol message. Subsequent
 messages must not contain `open_call`.
 
 For a call returned by `open_call()`, the opening message has already been sent by the context. Its first successful
@@ -142,6 +142,17 @@ DataSchema {
 
 This is an interface-level type. It is not the wire-level FlatBuffer `DataSchema` table.
 
+The worker-facing record-batch value is:
+
+```text
+RecordBatch {
+    ArrowArray array
+    bool is_end_of_group
+}
+```
+
+This is an interface-level type. It is not the wire-level FlatBuffer `DataRecordBatch` table.
+
 `CallMessage` is one composite message whose fields are independently optional:
 
 ```text
@@ -150,7 +161,7 @@ CallMessage {
     optional payloads
     optional data_schema: DataSchema
     optional next
-    optional record_batch: ArrowArray
+    optional record_batch: RecordBatch
     optional error
     optional close_call
 }
@@ -168,15 +179,15 @@ The design permits, subject to protocol-state validation:
 
 - payloads alone;
 - `open_call` alone;
-- `open_call` with payloads, `DataSchema`, `Next`, an `ArrowArray`, error, or close;
+- `open_call` with payloads, `DataSchema`, `Next`, a `RecordBatch`, error, or close;
 - a `DataSchema` alone;
 - `Next` alone;
-- an `ArrowArray` alone after its schema has been announced;
-- `DataSchema` and the first `ArrowArray` together;
-- payloads, `DataSchema`, `Next`, and an `ArrowArray` together;
+- a `RecordBatch` alone after its schema has been announced;
+- `DataSchema` and the first `RecordBatch` together;
+- payloads, `DataSchema`, `Next`, and a `RecordBatch` together;
 - an error alone;
 - close alone;
-- close combined with payloads, `DataSchema`, `Next`, an `ArrowArray`, and/or an error.
+- close combined with payloads, `DataSchema`, `Next`, a `RecordBatch`, and/or an error.
 
 If multiple fields arrive in one protocol message, `Call::receive()` returns them together in one `CallMessage`.
 
@@ -219,11 +230,17 @@ shutdown and may be combined with an error or other permitted connection-level f
 
 Data schemas and record batches are transferred through the Arrow C Data Interface, not as serialized FlatBuffer
 objects. The conceptual `data_schema` field contains the interface-level `DataSchema` value, whose `schema` field is
-an `ArrowSchema`. The conceptual `record_batch` field contains an `ArrowArray`.
+an `ArrowSchema`. The conceptual `record_batch` field contains the interface-level `RecordBatch` value, whose
+`array` field is an `ArrowArray`.
 
 `DataSchema.schema` describes one direction of a call's data stream. It is sent once per direction, before or together
-with that direction's first `ArrowArray`. A later `ArrowArray` uses the previously announced schema and flags and does
-not repeat them.
+with that direction's first `RecordBatch`. A later `RecordBatch` uses the previously announced schema and flags and
+does not repeat them.
+
+`RecordBatch.is_end_of_group` is meaningful only when `DataSchema.has_group_id` is true. It indicates whether the
+group identified by the batch's final row is complete. A true value means no later batch in that direction contains
+the trailing group; a false value means the trailing group may continue. The flag is not an end-of-stream marker, and
+an empty batch must not set it to true.
 
 The correlation flags describe the reserved prefix of `DataSchema.schema`:
 
@@ -243,7 +260,7 @@ transport-specific buffer handling remain hidden.
 
 Ownership follows the Arrow release contract:
 
-- received `DataSchema.schema` and `ArrowArray` objects become owned by the caller;
+- received `DataSchema.schema` and `RecordBatch.array` objects become owned by the caller;
 - the caller releases each received Arrow object exactly once;
 - sent objects remain caller-owned until the context accepts the send;
 - after successful acceptance, release responsibility transfers to the context;
@@ -315,9 +332,11 @@ The context validates, before delivering or sending messages:
 - `open_call` is rejected after the opening message;
 - control-message field combinations;
 - call-message field combinations;
-- `DataSchema` must precede or accompany the first `ArrowArray`;
+- `DataSchema` must precede or accompany the first `RecordBatch`;
 - the schema field prefix must match `has_group_id` and `has_row_id`;
 - a second schema or changed correlation flags in one direction are rejected;
+- `RecordBatch.is_end_of_group` must be false when `has_group_id` is false;
+- an empty `RecordBatch` must not set `is_end_of_group` to true;
 - one data stream per call;
 - `Next` byte-credit rules;
 - close and error semantics;
@@ -331,7 +350,7 @@ Invalid messages produce protocol errors and follow the applicable call or conne
 
 ### Composite call message
 
-The peer may open a call with one message containing `open_call`, payloads, `DataSchema`, and the first `ArrowArray`.
+The peer may open a call with one message containing `open_call`, payloads, `DataSchema`, and the first `RecordBatch`.
 The worker first calls `accept_call()`, then receives one `CallMessage` containing all four fields.
 
 ### Outbound call
@@ -347,7 +366,7 @@ the opening `CallMessage` containing both `open_call` and `close_call`; the call
 
 ### Separate call messages
 
-The peer may send a `DataSchema`, then a `Next`, then an `ArrowArray` as three separate messages. The worker receives
+The peer may send a `DataSchema`, then a `Next`, then a `RecordBatch` as three separate messages. The worker receives
 three successive `CallMessage` values.
 
 ### Error-only message
@@ -387,7 +406,7 @@ The design is complete when it is clear that:
 - call fields can be combined or sent separately;
 - errors can be sent alone;
 - close messages can carry other permitted fields;
-- record batches use Arrow C Data Interface objects;
+- record batches use an Arrow `ArrowArray` plus `is_end_of_group` metadata;
 - data schemas use `ArrowSchema` and preserve `has_group_id` and `has_row_id`;
 - Arrow ownership and release responsibility are explicit;
 - cancellation, closure, timeout, and failure behavior is defined;
