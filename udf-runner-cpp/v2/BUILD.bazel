@@ -337,16 +337,21 @@ cc_test(
 
 cc_library(
     name = "waitable_queue",
-    hdrs = ["include/exasol/udf/v2/waitable_queue.hpp"],
+    srcs = ["waitable_queue_notification.cc"],
+    hdrs = [
+        "include/exasol/udf/v2/waitable_queue.hpp",
+        "include/exasol/udf/v2/waitable_queue_notification.hpp",
+    ],
     includes = ["include"],
     deps = [":moodycamel_queues"],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
 cc_library(
-    name = "waitable_queue_test_instantiations",
-    srcs = ["waitable_queue_test_instantiations.cc"],
-    hdrs = ["waitable_queue_test_types.hpp"],
+    name = "waitable_queue_mull_unit",
+    srcs = ["waitable_queue_mull_unit.cc"],
+    hdrs = ["waitable_queue_mull_unit.hpp"],
+    copts = ["-std=c++20"],
     deps = [":waitable_queue"],
     target_compatible_with = ["@platforms//os:linux"],
 )
@@ -355,7 +360,7 @@ cc_test(
     name = "waitable_queue_test",
     srcs = ["waitable_queue_test.cc"],
     copts = ["-std=c++20"],
-    deps = [":waitable_queue_test_instantiations"],
+    deps = [":waitable_queue_mull_unit"],
     target_compatible_with = ["@platforms//os:linux"],
 )
 

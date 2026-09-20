@@ -3,15 +3,14 @@
 #include <unistd.h>
 
 #include <array>
-#include <cerrno>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <span>
-#include <system_error>
 #include <vector>
 
-#include "waitable_queue_test_types.hpp"
+#include "waitable_queue_mull_unit.hpp"
 
 namespace
 {
@@ -39,64 +38,73 @@ void close_pair(const std::array<int, 2>& sockets)
     ::close(sockets[1]);
 }
 
+void test_spsc_queue()
+{
+    exasol::udf::v2::mull_test::WaitableSpscQueueInt queue;
+    const int epoll_fd = ::epoll_create1(EPOLL_CLOEXEC);
+    test_check(epoll_fd != -1, "epoll_create1 failed");
+
+    std::array<int, 2> sockets{};
+    test_check(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()) == 0,
+               "socketpair failed");
+    add_to_epoll(epoll_fd, queue.native_handle(), EPOLLIN);
+    add_to_epoll(epoll_fd, sockets[1], EPOLLIN);
+
+    test_check(queue.enqueue(42), "queue enqueue failed");
+    const char byte = 'x';
+    test_check(::write(sockets[0], &byte, sizeof(byte)) == sizeof(byte), "socket write failed");
+
+    std::array<epoll_event, 2> events{};
+    const int event_count = ::epoll_wait(epoll_fd, events.data(), events.size(), 1000);
+    test_check(event_count == 2, "epoll_wait did not report both descriptors");
+
+    bool queue_ready  = false;
+    bool socket_ready = false;
+    for (const auto& event : std::span(events).first(static_cast<std::size_t>(event_count)))
+    {
+        queue_ready |= event.data.fd == queue.native_handle();
+        socket_ready |= event.data.fd == sockets[1];
+    }
+    test_check(queue_ready, "queue descriptor was not ready");
+    test_check(socket_ready, "socket descriptor was not ready");
+
+    test_check(queue.drain_notifications() == 1, "unexpected queue notification count");
+    int value = 0;
+    test_check(queue.try_dequeue(value), "queue dequeue failed");
+    test_check(value == 42, "unexpected dequeued value");
+
+    const std::vector<int> batch{1, 2, 3};
+    test_check(queue.enqueue_batch(batch) == batch.size(), "batch enqueue failed");
+    test_check(queue.drain_notifications() == 1, "unexpected batch notification count");
+    for (int expected : batch)
+    {
+        test_check(queue.try_dequeue(value), "batch dequeue failed");
+        test_check(value == expected, "unexpected batch value");
+    }
+    test_check(!queue.try_dequeue(value), "queue should be empty");
+
+    close_pair(sockets);
+    ::close(epoll_fd);
+}
+
+void test_mpmc_queue()
+{
+    exasol::udf::v2::mull_test::WaitableMpmcQueueInt queue;
+    test_check(queue.enqueue(7), "MPMC queue enqueue failed");
+    test_check(queue.drain_notifications() == 1, "unexpected MPMC notification count");
+    int value = 0;
+    test_check(queue.try_dequeue(value), "MPMC queue dequeue failed");
+    test_check(value == 7, "unexpected MPMC value");
+}
+
 } // namespace
 
 int main()
 {
     try
     {
-        exasol::udf::v2::WaitableSpscQueue<int> queue;
-        const int epoll_fd = ::epoll_create1(EPOLL_CLOEXEC);
-        test_check(epoll_fd != -1, "epoll_create1 failed");
-
-        std::array<int, 2> sockets{};
-        test_check(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()) == 0,
-                   "socketpair failed");
-        add_to_epoll(epoll_fd, queue.native_handle(), EPOLLIN);
-        add_to_epoll(epoll_fd, sockets[1], EPOLLIN);
-
-        test_check(queue.enqueue(42), "queue enqueue failed");
-        const char byte = 'x';
-        test_check(::write(sockets[0], &byte, sizeof(byte)) == sizeof(byte), "socket write failed");
-
-        std::array<epoll_event, 2> events{};
-        const int event_count = ::epoll_wait(epoll_fd, events.data(), events.size(), 1000);
-        test_check(event_count == 2, "epoll_wait did not report both descriptors");
-
-        bool queue_ready  = false;
-        bool socket_ready = false;
-        for (const auto& event : std::span(events).first(static_cast<std::size_t>(event_count)))
-        {
-            queue_ready |= event.data.fd == queue.native_handle();
-            socket_ready |= event.data.fd == sockets[1];
-        }
-        test_check(queue_ready, "queue descriptor was not ready");
-        test_check(socket_ready, "socket descriptor was not ready");
-
-        test_check(queue.drain_notifications() == 1, "unexpected queue notification count");
-        int value = 0;
-        test_check(queue.try_dequeue(value), "queue dequeue failed");
-        test_check(value == 42, "unexpected dequeued value");
-
-        const std::vector<int> batch{1, 2, 3};
-        test_check(queue.enqueue_batch(batch.begin(), batch.end()) == batch.size(),
-                   "batch enqueue failed");
-        test_check(queue.drain_notifications() == 1, "unexpected batch notification count");
-        for (int expected : batch)
-        {
-            test_check(queue.try_dequeue(value), "batch dequeue failed");
-            test_check(value == expected, "unexpected batch value");
-        }
-        test_check(!queue.try_dequeue(value), "queue should be empty");
-
-        exasol::udf::v2::WaitableMpmcQueue<int> mpmc;
-        test_check(mpmc.enqueue(7), "MPMC queue enqueue failed");
-        test_check(mpmc.drain_notifications() == 1, "unexpected MPMC notification count");
-        test_check(mpmc.try_dequeue(value), "MPMC queue dequeue failed");
-        test_check(value == 7, "unexpected MPMC value");
-
-        close_pair(sockets);
-        ::close(epoll_fd);
+        test_spsc_queue();
+        test_mpmc_queue();
     }
     catch (const std::exception& error)
     {

@@ -4,17 +4,13 @@
 #error "exasol::udf::v2::WaitableQueue requires Linux eventfd"
 #endif
 
-#include <sys/eventfd.h>
-#include <unistd.h>
-
-#include <cerrno>
 #include <cstdint>
 #include <iterator>
-#include <system_error>
 #include <utility>
 
 #include <exasol/udf/v2/mpmc_queue.hpp>
 #include <exasol/udf/v2/spsc_queue.hpp>
+#include <exasol/udf/v2/waitable_queue_notification.hpp>
 
 namespace exasol::udf::v2
 {
@@ -28,57 +24,21 @@ class WaitableQueue
 public:
     using queue_type = Queue;
 
-    WaitableQueue() : notification_fd_(::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC))
-    {
-        if (notification_fd_ == -1)
-        {
-            throw std::system_error(errno, std::generic_category(), "eventfd");
-        }
-    }
+    WaitableQueue() = default;
 
-    explicit WaitableQueue(Queue queue)
-        : queue_(std::move(queue)), notification_fd_(::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC))
-    {
-        if (notification_fd_ == -1)
-        {
-            throw std::system_error(errno, std::generic_category(), "eventfd");
-        }
-    }
+    explicit WaitableQueue(Queue queue) : queue_(std::move(queue)) {}
 
-    ~WaitableQueue()
-    {
-        if (notification_fd_ != -1)
-        {
-            ::close(notification_fd_);
-        }
-    }
+    ~WaitableQueue() = default;
 
     WaitableQueue(const WaitableQueue&)            = delete;
     WaitableQueue& operator=(const WaitableQueue&) = delete;
 
-    WaitableQueue(WaitableQueue&& other) noexcept
-        : queue_(std::move(other.queue_)),
-          notification_fd_(std::exchange(other.notification_fd_, -1))
-    {
-    }
-
-    WaitableQueue& operator=(WaitableQueue&& other) noexcept
-    {
-        if (this != &other)
-        {
-            if (notification_fd_ != -1)
-            {
-                ::close(notification_fd_);
-            }
-            queue_           = std::move(other.queue_);
-            notification_fd_ = std::exchange(other.notification_fd_, -1);
-        }
-        return *this;
-    }
+    WaitableQueue(WaitableQueue&&) noexcept = default;
+    WaitableQueue& operator=(WaitableQueue&&) noexcept = default;
 
     [[nodiscard]] int native_handle() const noexcept
     {
-        return notification_fd_;
+        return notification_.native_handle();
     }
 
     template <typename T>
@@ -88,7 +48,7 @@ public:
         {
             return false;
         }
-        notify();
+        notification_.notify();
         return true;
     }
 
@@ -106,7 +66,7 @@ public:
         }
         if (enqueued != 0)
         {
-            notify();
+            notification_.notify();
         }
         return enqueued;
     }
@@ -117,35 +77,9 @@ public:
         return queue_.try_dequeue(value);
     }
 
-    // Drains all eventfd notifications and returns their accumulated count.
-    // Callers should then dequeue until the queue is empty and recheck it
-    // before going back to epoll_wait().
     std::uint64_t drain_notifications()
     {
-        std::uint64_t total = 0;
-        for (;;)
-        {
-            std::uint64_t value  = 0;
-            const ssize_t result = ::read(notification_fd_, &value, sizeof(value));
-            if (result == sizeof(value))
-            {
-                total += value;
-                continue;
-            }
-            if (result == -1 && errno == EINTR)
-            {
-                continue;
-            }
-            if (result == -1 && errno == EAGAIN)
-            {
-                return total;
-            }
-            if (result == -1)
-            {
-                throw std::system_error(errno, std::generic_category(), "read eventfd");
-            }
-            throw std::system_error(EIO, std::generic_category(), "short read from eventfd");
-        }
+        return notification_.drain();
     }
 
     Queue& queue() noexcept
@@ -158,36 +92,8 @@ public:
     }
 
 private:
-    void notify()
-    {
-        constexpr std::uint64_t signal = 1;
-        for (;;)
-        {
-            const ssize_t result = ::write(notification_fd_, &signal, sizeof(signal));
-            if (result == sizeof(signal))
-            {
-                return;
-            }
-            if (result == -1 && errno == EINTR)
-            {
-                continue;
-            }
-            // A saturated eventfd is already readable. The queue item remains
-            // available, so no additional notification is needed.
-            if (result == -1 && errno == EAGAIN)
-            {
-                return;
-            }
-            if (result == -1)
-            {
-                throw std::system_error(errno, std::generic_category(), "write eventfd");
-            }
-            throw std::system_error(EIO, std::generic_category(), "short write to eventfd");
-        }
-    }
-
     Queue queue_;
-    int notification_fd_;
+    WaitableQueueNotification notification_;
 };
 
 template <typename T>
