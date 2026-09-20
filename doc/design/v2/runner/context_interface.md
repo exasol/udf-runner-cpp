@@ -3,7 +3,7 @@
 ## Purpose
 
 This document defines the worker-facing interface for one protocol-v2 connection. It is a design contract only. It
-does not define sockets, framing, FlatBuffer serialization, threads, queues, codecs, or other implementation details.
+does not define sockets, framing internals, threads, queues, codecs, or other transport implementation details.
 
 The worker sees three abstractions:
 
@@ -68,7 +68,7 @@ Context {
     receive_status() -> MessageStatus
     wait_for_message(optional<Duration> timeout) -> MessageStatus
     accept_call() -> Result<unique_ptr<Call>>
-    open_call(CallMessage) -> Result<unique_ptr<Call>>
+    open_call(CallMessageBuilder) -> Result<unique_ptr<Call>>
     control_stream() -> ControlStream&
     cancel() -> void
 }
@@ -106,8 +106,8 @@ The conceptual call contract is:
 ```text
 Call {
     receive_status() -> MessageStatus
-    receive(optional<Duration> timeout) -> Result<CallMessage>
-    send(CallMessage) -> Result<void>
+    receive(optional<Duration> timeout) -> Result<CallMessageView>
+    send(CallMessageBuilder) -> Result<void>
 }
 ```
 
@@ -117,13 +117,13 @@ Call {
 next complete call message, returns `timed_out` when the timeout expires, and returns a terminal result for
 cancellation, peer closure, or connection failure.
 
-The first successful `Call::receive()` returns the opening `CallMessage`, including its `open_call` field and any
- payloads, `DataSchema`, `Next`, `RecordBatch`, error, or close fields carried in the same protocol message. Subsequent
+The first successful `Call::receive()` returns the opening `CallMessageView`, including its `open_call` field and any
+payloads, `DataSchema`, `Next`, `RecordBatch`, error, or close fields carried in the same protocol message. Subsequent
 messages must not contain `open_call`.
 
 For a call returned by `open_call()`, the opening message has already been sent by the context. Its first successful
 `Call::receive()` returns the peer's first message and must not contain `open_call`. A `CallMessage` containing
-`open_call` is not valid for `Call::send()` after the call object has been created.
+`open_call` is not valid for a `CallMessageBuilder` passed to `Call::send()` after the call object has been created.
 
 If a control message or another call's message arrives while `Call::receive()` is blocked, the context dispatches it
 to its own stream and the call receive continues waiting. It does not return unrelated traffic.
@@ -189,7 +189,7 @@ The design permits, subject to protocol-state validation:
 - close alone;
 - close combined with payloads, `DataSchema`, `Next`, a `RecordBatch`, and/or an error.
 
-If multiple fields arrive in one protocol message, `Call::receive()` returns them together in one `CallMessage`.
+If multiple fields arrive in one protocol message, `Call::receive()` returns them together in one `CallMessageView`.
 
 An error without `close_call` is a non-terminal diagnostic. A message containing `close_call` terminates the call
 after the message is processed.
@@ -201,8 +201,8 @@ after the message is processed.
 ```text
 ControlStream {
     receive_status() -> MessageStatus
-    receive(optional<Duration> timeout) -> Result<ControlMessage>
-    send(ControlMessage) -> Result<void>
+    receive(optional<Duration> timeout) -> Result<ControlMessageView>
+    send(ControlMessageBuilder) -> Result<void>
 }
 ```
 
@@ -225,6 +225,108 @@ not expose `OpenCall`, `CloseCall`, `Next`, `ArrowSchema`, or `ArrowArray` objec
 
 An error without `close_connection` is a non-terminal diagnostic. `CloseConnection` starts or acknowledges connection
 shutdown and may be combined with an error or other permitted connection-level fields.
+
+## Specialized message builders and views
+
+Call and control traffic use separate builders and views. This prevents call-only fields from being sent on stream `0`
+and prevents connection-only fields from being sent on a call stream.
+
+### Call message builder
+
+```text
+CallMessageBuilder {
+    open_call(call_name) -> CallMessageBuilder&
+    payloads(payloads) -> CallMessageBuilder&
+    data_schema(ArrowSchema*, has_group_id, has_row_id) -> CallMessageBuilder&
+    next(byte_budget, reset, row_id) -> CallMessageBuilder&
+    record_batch(ArrowArray*, is_end_of_group) -> CallMessageBuilder&
+    error(code, message) -> CallMessageBuilder&
+    close_call() -> CallMessageBuilder&
+}
+```
+
+The call builder constructs exactly one composite call message. It owns FlatBuffer offsets and tracks Arrow ownership
+until the context accepts the send. `open_call()` is valid only when the builder is passed to `Context::open_call()`.
+
+### Control message builder
+
+```text
+ControlMessageBuilder {
+    server_capabilities(major, minor) -> ControlMessageBuilder&
+    keep_alive() -> ControlMessageBuilder&
+    payloads(payloads) -> ControlMessageBuilder&
+    error(code, message) -> ControlMessageBuilder&
+    close_connection() -> ControlMessageBuilder&
+}
+```
+
+The control builder cannot construct `OpenCall`, `CloseCall`, `Next`, `DataSchema`, or record-batch fields.
+
+### Call message view
+
+```text
+CallMessageView {
+    has_open_call() -> bool
+    open_call() -> OpenCallView
+    has_payloads() -> bool
+    payloads() -> PayloadsView
+    has_data_schema() -> bool
+    data_schema() -> DataSchemaView
+    has_next() -> bool
+    next() -> NextView
+    has_record_batch() -> bool
+    record_batch() -> RecordBatchView
+    has_error() -> bool
+    error() -> ErrorView
+    has_close_call() -> bool
+    close_call() -> CloseCallView
+}
+```
+
+`DataSchemaView` exposes the Arrow schema and its correlation flags. `RecordBatchView` exposes the Arrow array and
+`is_end_of_group`.
+
+### Control message view
+
+```text
+ControlMessageView {
+    has_server_capabilities() -> bool
+    server_capabilities() -> ServerCapabilitiesView
+    has_keep_alive() -> bool
+    keep_alive() -> KeepAliveView
+    has_payloads() -> bool
+    payloads() -> PayloadsView
+    has_error() -> bool
+    error() -> ErrorView
+    has_close_connection() -> bool
+    close_connection() -> CloseConnectionView
+}
+```
+
+The control view cannot expose call-specific fields.
+
+### View lifetime and verification
+
+Each specialized view retains a verified, immutable storage lease for the received frame. Generated FlatBuffer
+accessors point into that storage and remain valid until the view is destroyed. Receiving another message does not
+invalidate an existing view. Malformed FlatBuffer data produces an error rather than a view.
+
+The view also retains the Arrow schema and array ownership leases required by its fields. Arrow release callbacks are
+invoked exactly once.
+
+### Builder and view implementation contract
+
+Each `CallMessageBuilder` and `ControlMessageBuilder` owns one `flatbuffers::FlatBufferBuilder` and produces exactly
+one composite `StreamMessage`. Generated FlatBuffer offsets must be created from that builder and must not escape
+before the builder is finalized. A builder cannot be reused after finalization.
+
+The receive path verifies the complete frame with `flatbuffers::Verifier` before obtaining the generated `Frame` and
+`StreamMessage` accessors. The resulting specialized view retains a shared immutable storage lease containing the
+verified bytes and any Arrow ownership leases. The view is a view, not a copy, but remains valid independently of
+later receives.
+
+On successful send, the context takes responsibility for the finalized FlatBuffer storage and attached Arrow objects.
+If validation, finalization, or transport acceptance fails before ownership transfer, the builder retains ownership.
 
 ## Arrow schemas and record batches
 
@@ -252,8 +354,8 @@ The correlation flags describe the reserved prefix of `DataSchema.schema`:
 - correlation fields are identified by position, not by field name.
 
 FlatBuffers remain the representation for protocol metadata and control fields, including payloads, `Next`, errors,
-close messages, capabilities, keepalive, and connection close. The worker-facing interface does not expose the
-wire-level FlatBuffer `DataSchema` or `DataRecordBatch` objects.
+close messages, capabilities, keepalive, and connection close. Specialized views expose validated field accessors
+without exposing raw frame buffers or requiring workers to manage FlatBuffer view lifetimes.
 
 The worker-facing contract exposes the Arrow C Data Interface only. Arrow C++ types, Arrow IPC internals, and
 transport-specific buffer handling remain hidden.
@@ -332,6 +434,9 @@ The context validates, before delivering or sending messages:
 - `open_call` is rejected after the opening message;
 - control-message field combinations;
 - call-message field combinations;
+- FlatBuffer buffers are verified before a specialized view is created;
+- call builders cannot construct control-only fields;
+- control builders cannot construct call-only fields;
 - `DataSchema` must precede or accompany the first `RecordBatch`;
 - the schema field prefix must match `has_group_id` and `has_row_id`;
 - a second schema or changed correlation flags in one direction are rejected;
@@ -351,18 +456,18 @@ Invalid messages produce protocol errors and follow the applicable call or conne
 ### Composite call message
 
 The peer may open a call with one message containing `open_call`, payloads, `DataSchema`, and the first `RecordBatch`.
-The worker first calls `accept_call()`, then receives one `CallMessage` containing all four fields.
+The worker first calls `accept_call()`, then receives one `CallMessageView` containing all four fields.
 
 ### Outbound call
 
-The worker creates a nested call with a `CallMessage` containing `open_call` and its opening payloads. It calls
+The worker creates a nested call with a `CallMessageBuilder` containing `open_call` and its opening payloads. It calls
 `Context::open_call()`, receives a `Call` object, and then uses `Call::receive()` for the peer's response. The local
 opening message is not returned by that receive operation.
 
 ### Opening close
 
 The peer may open and close a call in one message. `accept_call()` returns the call, and its first `receive()` returns
-the opening `CallMessage` containing both `open_call` and `close_call`; the call then enters its closed state.
+the opening `CallMessageView` containing both `open_call` and `close_call`; the call then enters its closed state.
 
 ### Separate call messages
 
@@ -371,13 +476,13 @@ three successive `CallMessage` values.
 
 ### Error-only message
 
-The worker may send a `CallMessage` containing only `error`. The call remains active unless `close_call` is also
+The worker may send a `CallMessageBuilder` containing only `error`. The call remains active unless `close_call` is also
 present.
 
 ### Close with final data
 
-The worker may send one `CallMessage` containing a final record batch, payloads, an error, and `close_call`, subject to
-the call's protocol state.
+The worker may send one `CallMessageBuilder` containing a final record batch, payloads, an error, and `close_call`,
+subject to the call's protocol state.
 
 ### Control message during call receive
 
