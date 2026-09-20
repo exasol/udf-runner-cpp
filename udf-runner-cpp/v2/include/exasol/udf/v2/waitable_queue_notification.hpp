@@ -23,7 +23,7 @@ public:
 
     [[nodiscard]] int native_handle() const noexcept;
     void notify() const;
-    std::uint64_t drain() const;
+    [[nodiscard]] std::uint64_t drain() const;
 
 private:
     int notification_fd_;
