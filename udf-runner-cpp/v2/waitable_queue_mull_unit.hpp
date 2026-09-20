@@ -2,9 +2,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <span>
-
-#include <exasol/udf/v2/waitable_queue.hpp>
 
 namespace exasol::udf::v2::mull_test
 {
@@ -15,10 +14,10 @@ public:
     WaitableSpscQueueInt();
     ~WaitableSpscQueueInt();
 
-    WaitableSpscQueueInt(const WaitableSpscQueueInt&)                = delete;
-    WaitableSpscQueueInt& operator=(const WaitableSpscQueueInt&)     = delete;
-    WaitableSpscQueueInt(WaitableSpscQueueInt&&) noexcept            = default;
-    WaitableSpscQueueInt& operator=(WaitableSpscQueueInt&&) noexcept = default;
+    WaitableSpscQueueInt(const WaitableSpscQueueInt&)            = delete;
+    WaitableSpscQueueInt& operator=(const WaitableSpscQueueInt&) = delete;
+    WaitableSpscQueueInt(WaitableSpscQueueInt&&) noexcept;
+    WaitableSpscQueueInt& operator=(WaitableSpscQueueInt&&) noexcept;
 
     [[nodiscard]] int native_handle() const;
     bool enqueue(int value);
@@ -27,7 +26,8 @@ public:
     std::uint64_t drain_notifications();
 
 private:
-    WaitableSpscQueue<int> queue_;
+    class Impl;
+    std::unique_ptr<Impl> impl_;
 };
 
 class WaitableMpmcQueueInt
@@ -36,10 +36,10 @@ public:
     WaitableMpmcQueueInt();
     ~WaitableMpmcQueueInt();
 
-    WaitableMpmcQueueInt(const WaitableMpmcQueueInt&)                = delete;
-    WaitableMpmcQueueInt& operator=(const WaitableMpmcQueueInt&)     = delete;
-    WaitableMpmcQueueInt(WaitableMpmcQueueInt&&) noexcept            = default;
-    WaitableMpmcQueueInt& operator=(WaitableMpmcQueueInt&&) noexcept = default;
+    WaitableMpmcQueueInt(const WaitableMpmcQueueInt&)            = delete;
+    WaitableMpmcQueueInt& operator=(const WaitableMpmcQueueInt&) = delete;
+    WaitableMpmcQueueInt(WaitableMpmcQueueInt&&) noexcept;
+    WaitableMpmcQueueInt& operator=(WaitableMpmcQueueInt&&) noexcept;
 
     [[nodiscard]] int native_handle() const;
     bool enqueue(int value);
@@ -47,7 +47,8 @@ public:
     std::uint64_t drain_notifications();
 
 private:
-    WaitableMpmcQueue<int> queue_;
+    class Impl;
+    std::unique_ptr<Impl> impl_;
 };
 
 } // namespace exasol::udf::v2::mull_test
