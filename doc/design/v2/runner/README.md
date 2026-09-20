@@ -23,6 +23,8 @@ Arrow C Data Interface.
 - [lifecycle.md](lifecycle.md) defines connection, worker, context, and shutdown lifecycles.
 - [context_interface.md](context_interface.md) defines the worker-facing low-level context, call, and control-stream
   contract.
+- [context_implementation.md](context_implementation.md) defines the internal queues, background I/O thread,
+  notification, batching, and shutdown design.
 
 Mermaid `.mmd` files are the diagram sources of truth. Matching `.svg` files are rendered views linked from the
 documents.
