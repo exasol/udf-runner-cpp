@@ -24,6 +24,50 @@ behavior, and documentation. Do not infer permission to change v1 merely
 because a task concerns the repository or the UDF runner. After confirmation,
 keep v1 changes limited to the confirmed scope.
 
+## Ticket, PR, and changelog workflow
+
+Every change must have an associated GitHub ticket before implementation. Use
+the ticket as the source of scope and acceptance criteria.
+
+Use this exact PR title format:
+
+```text
+#<ticket-number>: <short PR title>
+```
+
+The PR description must link the ticket with `Fixes #<ticket-number>` or
+`Closes #<ticket-number>`, describe what changed, and list the validation that
+was run. Mention any checks that could not be run and explain why. A useful
+minimum structure is:
+
+```markdown
+## Summary
+
+- Describe the changes.
+
+## Validation
+
+- List tests and checks run.
+- Mention unavailable checks and why.
+
+Fixes #123
+```
+
+Every ticket addressed by a PR must also be mentioned in
+[`doc/changes/unreleased.md`](doc/changes/unreleased.md), with the ticket
+number and a concise description under the appropriate section:
+
+- `Bug Fixes`
+- `Features / Enhancements`
+- `Refactorings`
+- `Internal`
+
+For a PR addressing multiple tickets, use the primary ticket in the PR title,
+link every ticket in the PR description, and include every ticket in the
+changelog. Do not omit a changelog entry because a change is documentation-only
+or internal; use the appropriate category. The release tooling consumes the
+unreleased changelog, so update it before the PR is merged.
+
 ## SLC development
 
 Use `exaslct` for local SLC development. Install the project’s Poetry
