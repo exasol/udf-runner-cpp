@@ -32,6 +32,38 @@ The Linux-only symbol-leak tests inspect shared objects and static archives
 with `nm`. Preserve and extend these tests when changing exported interfaces,
 linking, generated code, or third-party dependencies.
 
+## Fuzzing
+
+The v2 fuzz targets are listed in [`FUZZING.md`](FUZZING.md). Discover the
+targets with:
+
+```bash
+poetry run -- nox --sessions=v2-fuzzing-targets
+```
+
+Local fuzzing must always be bounded. Use a short duration for exploratory
+runs, or use exactly the duration requested by the user. Do not run fuzzing
+indefinitely, use the CI campaign duration locally, or run all targets unless
+the user explicitly asks for that. Run one target at a time by default:
+
+```bash
+poetry run -- nox --sessions=v2-fuzzing -- \
+  --timeout-secs 30 \
+  --target frame \
+  --output-root /tmp/fuzzing
+```
+
+The `--timeout-secs` value must be changed to the user-requested duration when
+one is provided. The direct Bazel launcher is also allowed for a bounded run:
+
+```bash
+bazel run --config=asan-libfuzzer //:frame_fuzz_test_run -- \
+  --timeout_secs=30
+```
+
+The CI workflow runs the discovered targets as a separate bounded campaign;
+normal v2 test and coverage runs exclude targets tagged `fuzz-test`.
+
 ## Third-party dependency and symbol-leak policy
 
 Whenever a third-party dependency is added or modified, evaluate whether its
