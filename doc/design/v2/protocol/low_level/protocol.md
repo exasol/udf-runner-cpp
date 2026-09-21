@@ -73,6 +73,10 @@ The current control-stream message set is:
 record batch, or both. Schema and record-batch encoding, including inline buffer ordering, are defined in
 [data_stream.md](data_stream.md).
 
+`ServerCapabilities` may be accompanied by `Payloads(...)` in the same `ControlMessage` and frame. This allows a
+high-level protocol to identify itself during low-level initialization without adding high-level-specific fields to the
+low-level capabilities table.
+
 ### `ServerCapabilities`
 
 `ServerCapabilities` is sent by the `Server` on control stream `0` during initialization. It advertises the supported

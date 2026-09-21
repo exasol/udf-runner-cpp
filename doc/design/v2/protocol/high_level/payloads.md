@@ -4,6 +4,18 @@ This document defines the named payloads used by the current high-level protocol
 `Payloads(...)`. A scalar value uses `StringPayload` directly. A payload marked JSON uses a `StringPayload` whose
 value is UTF-8 JSON conforming to its linked schema.
 
+## Protocol Identification
+
+The repository-defined high-level protocol identifies itself during connection initialization by sending the following
+payloads together with `ServerCapabilities` in one control-stream `ControlMessage` on `stream_id = 0`:
+
+| Name | Value | Meaning |
+| --- | --- | --- |
+| `high_level_name` | `exasol.udf` | Identifies this high-level protocol. |
+| `high_level_version` | `2.0-dev` | Identifies the high-level protocol version. |
+
+Both values use `StringPayload`. Generic low-level implementations may ignore unrecognized capability payload names.
+
 ## Metadata Lifecycle
 
 Unless stated otherwise, script, call, and column metadata follow the same lifecycle rules:

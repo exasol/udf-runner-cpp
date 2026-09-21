@@ -254,7 +254,9 @@ union ControlMessageValue {
 
 // Control messages are the non-batch protocol messages carried in a Frame.
 // The union identifies mutually exclusive message categories. Payloads may be
-// combined with every field or sent alone. Next and data_schema may be sent
+// combined with every field or sent alone. In particular, the Server may send
+// capability-identifying payloads alongside ServerCapabilities on stream 0.
+// Next and data_schema may be sent
 // with OpenCall or alone. Error may be sent with CloseControlMessage or alone.
 // stream_id = 0 is reserved for out-of-call control traffic such as
 // ServerCapabilities, KeepAlive, and CloseConnection.

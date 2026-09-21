@@ -10,8 +10,27 @@ int main() {
         const auto version = exasol::udf::protocol::CreateVersion(builder, 2, 0);
         const auto capabilities = exasol::udf::protocol::CreateServerCapabilities(
             builder, version, exasol::udf::protocol::Endianness_Little, 4);
+        const auto high_level_name = builder.CreateString("exasol.udf");
+        const auto high_level_name_value = exasol::udf::protocol::CreateStringPayload(
+            builder, high_level_name);
+        const auto high_level_name_payload = exasol::udf::protocol::CreatePayload(
+            builder, builder.CreateString("high_level_name"),
+            exasol::udf::protocol::PayloadValue_StringPayload,
+            high_level_name_value.Union());
+        const auto high_level_version = builder.CreateString("2.0-dev");
+        const auto high_level_version_value = exasol::udf::protocol::CreateStringPayload(
+            builder, high_level_version);
+        const auto high_level_version_payload = exasol::udf::protocol::CreatePayload(
+            builder, builder.CreateString("high_level_version"),
+            exasol::udf::protocol::PayloadValue_StringPayload,
+            high_level_version_value.Union());
+        const auto capability_payloads = builder.CreateVector(
+            std::vector<exasol::udf::v2::third_party::flatbuffers::Offset<
+                exasol::udf::protocol::Payload>>{
+                high_level_name_payload, high_level_version_payload});
+        const auto payloads = exasol::udf::protocol::CreatePayloads(builder, capability_payloads);
         const auto control_message = exasol::udf::protocol::CreateControlMessage(
-            builder, 0, 0, 0, 0,
+            builder, payloads, 0, 0, 0,
             exasol::udf::protocol::ControlMessageValue_ServerCapabilities,
             capabilities.Union());
         const auto frame = exasol::udf::protocol::CreateFrame(builder, 0, control_message);
@@ -28,6 +47,15 @@ int main() {
         assert(decoded_capabilities->endianness() == exasol::udf::protocol::Endianness_Little);
         assert(decoded_capabilities->number_of_supported_workers() == 4);
         assert(decoded_capabilities->number_of_supported_workers() > 0);
+        assert(decoded->control_message()->payloads()->payloads()->size() == 2);
+        assert(decoded->control_message()->payloads()->payloads()->Get(0)->name()->str() ==
+               "high_level_name");
+        assert(decoded->control_message()->payloads()->payloads()->Get(0)
+                   ->payload_as_StringPayload()->value()->str() == "exasol.udf");
+        assert(decoded->control_message()->payloads()->payloads()->Get(1)->name()->str() ==
+               "high_level_version");
+        assert(decoded->control_message()->payloads()->payloads()->Get(1)
+                   ->payload_as_StringPayload()->value()->str() == "2.0-dev");
     }
 
     {
