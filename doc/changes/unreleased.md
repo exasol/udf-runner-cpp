@@ -8,7 +8,9 @@ n/a
 ## Features / Enhancements
 
  - 32: Added clang tidy to v2
+ - 36: Added developer guide for clang-tidy and clang-format
  - 38: Added Sonar Qube Public
+ - 49: Added Bazel-based fuzzing for v2
 
 ## Refactorings
 
