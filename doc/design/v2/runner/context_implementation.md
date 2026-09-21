@@ -177,9 +177,10 @@ data:
 7. Treat the split as one logical `Call::send()` operation. The worker does not observe the generated wire-message
    count.
 
-Groups before the final group in a batch end automatically when the group identifier changes. The final group ends
-only when the original `is_end_of_group` flag is true. Intermediate chunks produced by splitting always clear the
-flag; only the final chunk retains the original flag. A chunk boundary never implies a group boundary.
+Groups before the final group in a batch end automatically when the group identifier changes. When splitting, a chunk
+whose final row is followed by a different group ID must set `is_end_of_group` to `true`, because that chunk is the
+last batch of that group. A split inside one group sets the chunk flag to `false`. The final chunk retains the
+worker-provided `is_end_of_group` value for the final group. A chunk boundary by itself never implies a group boundary.
 
 The worker-side dispatcher is invoked synchronously by every context, call, and control-stream operation. There is no
 additional dispatcher thread. A `Call::send()` waiting for credit therefore continues to route control and unrelated
