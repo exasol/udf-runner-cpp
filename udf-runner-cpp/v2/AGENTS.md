@@ -1,5 +1,9 @@
 # v2 agent instructions
 
+v2 is the primary development area for new features and behavior. Use this
+guide for ordinary development unless the user explicitly requests work on v1
+and confirms that v1 may be changed.
+
 ## Build and test
 
 The v2 module is built independently from this directory with Bazel 8.3.1:

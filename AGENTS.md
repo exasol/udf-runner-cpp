@@ -6,9 +6,9 @@ This repository contains the extracted C++ UDF runner and its Script Language
 Container (SLC) integration.
 
 - [`udf-runner-cpp/v1`](udf-runner-cpp/v1) is the retained runner and its SLC
-  flavor.
+  flavor. Change it only after asking the user for confirmation.
 - [`udf-runner-cpp/v2`](udf-runner-cpp/v2) is the newer, independently built
-  Bazel module.
+  Bazel module and the primary development area.
 - [`flavors/test-udf-runner-cpp-v1`](flavors/test-udf-runner-cpp-v1) defines the
   SLC build and smoke-test workflow for v1.
 
@@ -16,6 +16,13 @@ For version-specific native development instructions, read:
 
 - [`udf-runner-cpp/v1/AGENTS.md`](udf-runner-cpp/v1/AGENTS.md)
 - [`udf-runner-cpp/v2/AGENTS.md`](udf-runner-cpp/v2/AGENTS.md)
+
+Normal feature development should target v2. Before changing anything under
+v1, ask the user for confirmation. This applies to v1 source code, Bazel
+configuration, tests, SLC flavor files, test-container integration, runtime
+behavior, and documentation. Do not infer permission to change v1 merely
+because a task concerns the repository or the UDF runner. After confirmation,
+keep v1 changes limited to the confirmed scope.
 
 ## SLC development
 

@@ -1,5 +1,14 @@
 # v1 agent instructions
 
+## Scope warning
+
+v1 is retained maintenance code, not the default development target. Ask the
+user for confirmation before changing anything in v1, including source code,
+Bazel configuration, tests, SLC flavor files, test-container integration,
+runtime behavior, or documentation. A general request concerning the
+repository or UDF runner is not confirmation to modify v1. For ordinary
+feature development, use [`v2/AGENTS.md`](../v2/AGENTS.md).
+
 ## Build
 
 The v1 runner is built with Bazel 8.3.1 in CI. Native dependency discovery is
