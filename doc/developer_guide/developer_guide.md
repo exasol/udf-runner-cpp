@@ -140,7 +140,7 @@ common issues early.
 
 ### Run apply-fixes
 
-You can try to run `clang-tidy-apply-replacements` with:
+You can try to run `clang-apply-replacements` with:
 ```bash
 bazel run @rules_clang_tidy//:apply-fixes --@rules_clang_tidy//:clang-apply-replacements=//tools/clang-tidy:apply-replacements-wrapper -- $(bazel info output_path)
 ```
