@@ -21,6 +21,18 @@ The combined LCOV report is written to:
 bazel-out/_coverage/_coverage_report.dat
 ```
 
+Print a text summary of the report with:
+
+```bash
+lcov --summary bazel-out/_coverage/_coverage_report.dat
+```
+
+For a file-by-file text listing, use:
+
+```bash
+lcov --list bazel-out/_coverage/_coverage_report.dat
+```
+
 Generate an HTML report from the LCOV data with:
 
 ```bash
