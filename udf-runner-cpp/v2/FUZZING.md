@@ -45,7 +45,8 @@ bazel test --config=asan-libfuzzer --test_output=errors \
   //:call_metadata_fuzz_test \
   //:connection_information_fuzz_test \
   //:export_specification_fuzz_test \
-  //:import_specification_fuzz_test
+  //:import_specification_fuzz_test \
+  //:queue_fuzz_test
 ```
 
 Use `--config=asan-ubsan-libfuzzer` for combined sanitizer coverage or
