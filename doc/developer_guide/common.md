@@ -28,8 +28,8 @@ poetry run nox -l
 ```
 
 Run a task with `poetry run nox -s <session>`. Repository-wide examples
-include release validation and preparation, JSON-schema validation, and the v2
-quality checks described in the [v2 guide](v2.md).
+include release validation and preparation, and the v2 quality checks described
+in the [v2 guide](v2.md).
 
 ## Release process
 
