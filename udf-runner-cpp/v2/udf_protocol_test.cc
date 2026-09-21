@@ -7,6 +7,31 @@
 int main() {
     {
         exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder builder;
+        const auto version = exasol::udf::protocol::CreateVersion(builder, 2, 0);
+        const auto capabilities = exasol::udf::protocol::CreateServerCapabilities(
+            builder, version, exasol::udf::protocol::Endianness_Little, 4);
+        const auto control_message = exasol::udf::protocol::CreateControlMessage(
+            builder, 0, 0, 0, 0,
+            exasol::udf::protocol::ControlMessageValue_ServerCapabilities,
+            capabilities.Union());
+        const auto frame = exasol::udf::protocol::CreateFrame(builder, 0, control_message);
+        builder.Finish(frame);
+
+        assert(exasol::udf::protocol::VerifyFrameBuffer(
+            builder.GetBufferPointer(), builder.GetSize()));
+        const auto* decoded = exasol::udf::protocol::GetFrame(builder.GetBufferPointer());
+        const auto* decoded_capabilities =
+            decoded->control_message()->value_as_ServerCapabilities();
+        assert(decoded->stream_id() == 0);
+        assert(decoded_capabilities->supported_version()->major() == 2);
+        assert(decoded_capabilities->supported_version()->minor() == 0);
+        assert(decoded_capabilities->endianness() == exasol::udf::protocol::Endianness_Little);
+        assert(decoded_capabilities->number_of_supported_workers() == 4);
+        assert(decoded_capabilities->number_of_supported_workers() > 0);
+    }
+
+    {
+        exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder builder;
         const auto call_name = builder.CreateString("example");
         const auto open_call = exasol::udf::protocol::CreateOpenCall(builder, call_name);
         const auto next = exasol::udf::protocol::CreateNext(builder, 1024);

@@ -63,7 +63,7 @@ authentication and peer identity validation.
 
 The current control-stream message set is:
 
-- `ServerCapabilities(version)` sent by the `Server` during initialization
+- `ServerCapabilities(version, endianness, number_of_supported_workers)` sent by the `Server` during initialization
 - `KeepAlive`
 - `Payloads(...)` when named payloads need to be exchanged without any active call
 - `CloseConnection` for orderly connection shutdown
@@ -72,6 +72,13 @@ The current control-stream message set is:
 `Payloads`, `Next`, `DataSchema`, and `Error` directly on the control table. `Frame` may contain a control message, a
 record batch, or both. Schema and record-batch encoding, including inline buffer ordering, are defined in
 [data_stream.md](data_stream.md).
+
+### `ServerCapabilities`
+
+`ServerCapabilities` is sent by the `Server` on control stream `0` during initialization. It advertises the supported
+protocol version, the server's native endianness for data buffers outside the FlatBuffers frame, and the positive number
+of workers the server supports. FlatBuffers frame metadata itself is always stored in little-endian format; see the
+[FlatBuffers endianness documentation](https://flatbuffers.dev/internals/).
 
 ## Stream Ownership
 

@@ -115,10 +115,17 @@ table Version {
   minor: uint32;
 }
 
+enum Endianness : uint8 {
+  Little = 0,
+  Big = 1
+}
+
 table ServerCapabilities {
   supported_version: Version;
-  // TODO: high level protocol
-  // TODO: number of worker
+  // Native endianness relevant to data buffers outside the FlatBuffers frame.
+  endianness: Endianness;
+  // Must be greater than zero when advertised by a server.
+  number_of_supported_workers: uint32;
 }
 
 table KeepAlive {}
