@@ -8,11 +8,12 @@ Build the instrumented targets with AddressSanitizer and libFuzzer:
 
 ```sh
 bazel build --config=asan-libfuzzer \
-  //:frame_fuzz_test_bin \
-  //:call_metadata_fuzz_test_bin \
-  //:connection_information_fuzz_test_bin \
-  //:export_specification_fuzz_test_bin \
-  //:import_specification_fuzz_test_bin
+  //:frame_fuzz_test \
+  //:call_metadata_fuzz_test \
+  //:connection_information_fuzz_test \
+  //:export_specification_fuzz_test \
+  //:import_specification_fuzz_test \
+  //:queue_fuzz_test
 ```
 
 Run a target through the rules_fuzzing launcher. The launcher stores generated
