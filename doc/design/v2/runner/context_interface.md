@@ -344,10 +344,8 @@ does not repeat them.
 
 `RecordBatch.is_end_of_group` is meaningful only when `DataSchema.has_group_id` is true. Groups before the final group
 in a batch end automatically when the group identifier changes. The flag controls the group identified by that
-batch's final row: `true` ends it, while `false` means it may continue in a later batch. When a batch is split at a
-boundary between groups, the chunk ending the earlier group must set `is_end_of_group` to `true`, even if the original
-unsplit batch's flag applied to a later group. The flag is not an end-of-stream marker, and an empty batch must not set
-it to true.
+batch's final row: `true` ends it, while `false` means it may continue in a later batch. The flag is not an
+end-of-stream marker, and an empty batch must not set it to true.
 
 The correlation flags describe the reserved prefix of `DataSchema.schema`:
 
@@ -449,7 +447,7 @@ The context validates, before delivering or sending messages:
 - `RecordBatch.is_end_of_group` must be false when `has_group_id` is false;
 - an empty `RecordBatch` must not set `is_end_of_group` to true;
 - groups before the final group in a batch end automatically when the group identifier changes;
-- only the final group in a batch is controlled by `is_end_of_group`;
+- the worker-provided flag controls only the final group in a batch;
 - one data stream per call;
 - `Next` byte-credit rules;
 - close and error semantics;
