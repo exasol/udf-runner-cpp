@@ -1,5 +1,7 @@
 import argparse
+import json
 import nox
+import os
 from packaging.version import InvalidVersion, Version
 from pathlib import Path
 import subprocess
@@ -188,3 +190,98 @@ def run_oft_udf_client_html(session: nox.Session):
     """
     html_file = session.posargs[0] if session.posargs else "report.html"
     run_oft_for_udf_client(session, "-o", "html", "-f", html_file)
+
+
+def _get_v2_fuzz_targets(session: nox.Session) -> tuple[str, ...]:
+    """Discover v2 fuzz targets from the Bazel package using a rule pattern."""
+    v2_dir = ROOT / "udf-runner-cpp" / "v2"
+    with session.chdir(v2_dir):
+        labels = session.run(
+            "bazel",
+            "query",
+            'filter("_fuzz_test$", //...)',
+            "--output=label",
+            silent=True,
+            external=True,
+        )
+
+    suffix = "_fuzz_test"
+    targets = {
+        label.removeprefix("//:").removesuffix(suffix)
+        for label in labels.splitlines()
+        if label.startswith("//:") and label.endswith(suffix)
+    }
+    if not targets:
+        session.error("No v2 cc_fuzz_test targets were found")
+    return tuple(sorted(targets))
+
+
+@nox.session(name="v2-fuzzing-targets", python=False)
+def list_v2_fuzzing_targets(session: nox.Session):
+    """Discover v2 Bazel fuzz targets and optionally write a GitHub matrix."""
+    parser = argparse.ArgumentParser(
+        usage=f"nox -s {session.name} -- [options]",
+    )
+    parser.add_argument(
+        "--github-output-var",
+        help="write the matrix JSON to this variable in GITHUB_OUTPUT",
+    )
+    args = parser.parse_args(session.posargs)
+
+    matrix = json.dumps(
+        {"target": list(_get_v2_fuzz_targets(session))},
+        separators=(",", ":"),
+    )
+    if args.github_output_var:
+        github_output = os.environ.get("GITHUB_OUTPUT")
+        if not github_output:
+            session.error("GITHUB_OUTPUT is required with --github-output-var")
+        with open(github_output, "a") as output:
+            output.write(f"{args.github_output_var}={matrix}\n")
+    else:
+        print(matrix)
+
+
+@nox.session(name="v2-fuzzing", python=False)
+def run_v2_fuzzing(session: nox.Session):
+    """Run v2 Bazel fuzzers with configurable sanitizer and output settings."""
+    parser = argparse.ArgumentParser(
+        usage=f"nox -s {session.name} -- [options]",
+    )
+    parser.add_argument("--timeout-secs", type=int, default=300)
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "fuzzing",
+    )
+    parser.add_argument("--bazel-config", default="asan-ubsan-libfuzzer")
+    parser.add_argument("--target", help="run only this discovered fuzz target")
+    args = parser.parse_args(session.posargs)
+
+    if args.timeout_secs < 0:
+        session.error("--timeout-secs must be non-negative")
+
+    output_root = args.output_root.expanduser().resolve()
+
+    targets = _get_v2_fuzz_targets(session)
+    if args.target:
+        if args.target not in targets:
+            session.error(f"Unknown v2 fuzz target: {args.target}")
+        targets = (args.target,)
+    v2_dir = ROOT / "udf-runner-cpp" / "v2"
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    with session.chdir(v2_dir):
+        for target in targets:
+            target_output_root = output_root / target
+            target_output_root.mkdir(parents=True, exist_ok=True)
+            session.run(
+                "bazel",
+                "run",
+                f"--config={args.bazel_config}",
+                f"//:{target}_fuzz_test_run",
+                "--",
+                f"--fuzzing_output_root={target_output_root}",
+                f"--timeout_secs={args.timeout_secs}",
+                external=True,
+            )

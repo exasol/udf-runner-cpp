@@ -1,0 +1,13 @@
+{
+  "has_truncate": false,
+  "has_replace": true,
+  "created_by": "fuzz-seed",
+  "source_column_names": ["id"],
+  "connection_information": {
+    "kind": "JDBC",
+    "address": "jdbc:example://host/database",
+    "user": "user",
+    "password": "secret"
+  },
+  "parameters": [{"key": "mode", "value": "append"}]
+}

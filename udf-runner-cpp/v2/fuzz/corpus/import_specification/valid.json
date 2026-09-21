@@ -1,0 +1,13 @@
+{
+  "is_subselect": true,
+  "connection_information": {
+    "kind": "JDBC",
+    "address": "jdbc:example://host/database",
+    "user": "user",
+    "password": "secret"
+  },
+  "subselect_column_specification": [
+    {"name": "id", "type_name": "DECIMAL", "precision": 18, "scale": 0}
+  ],
+  "parameters": [{"key": "mode", "value": "read"}]
+}

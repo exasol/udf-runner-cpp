@@ -24,7 +24,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential curl lcov
+          sudo apt-get install -y build-essential clang curl lcov
       - uses: bazel-contrib/setup-bazel@0.19.0
         with:
           bazelisk-cache: true
@@ -43,11 +43,23 @@ jobs:
       - name: Run clang-format
         run: bazel build --verbose_failures --config clang-format //...
         working-directory: ./udf-runner-cpp/v2
+      - name: Run v2 fuzz regression tests
+        run: |
+          bazel test --verbose_failures --test_output=errors --config asan-libfuzzer \
+            //:frame_fuzz_test \
+            //:call_metadata_fuzz_test \
+            //:connection_information_fuzz_test \
+            //:export_specification_fuzz_test \
+            //:import_specification_fuzz_test \
+            //:queue_fuzz_test
+        working-directory: ./udf-runner-cpp/v2
       - name: Run tests
         run: >-
           bazel test --verbose_failures --collect_code_coverage
           --combined_report=lcov
           --coverage_report_generator=@bazel_sonarqube//:sonarqube_coverage_generator
+          --build_tag_filters=-fuzz-test
+          --test_tag_filters=-fuzz-test
           //...
         working-directory: ./udf-runner-cpp/v2
       - name: SonarCloud Scan
