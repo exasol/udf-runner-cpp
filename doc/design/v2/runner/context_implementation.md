@@ -29,9 +29,9 @@ The outbound queue carries finalized call and control messages from the worker t
 - producer: worker thread;
 - consumer: background I/O thread;
 - worker enqueue: non-blocking;
-- background dequeue: batchable and blocking through the event loop;
+- background dequeue: batchable and non-blocking; the event loop blocks only on socket/eventfd readiness and its timer;
 - order: FIFO;
-- capacity: logically unbounded, subject to configured process memory limits;
+- capacity: logically unbounded; allocation is limited only by available process memory;
 - ownership: successful enqueue transfers the message and its Arrow ownership leases to the queue.
 
 Protocol backpressure is provided by `Next` byte budgets. The worker must not block merely because the background
@@ -46,8 +46,7 @@ The inbound queue carries verified messages and their storage leases from the ba
 - background enqueue: non-blocking;
 - worker dequeue: blocking with an optional timeout;
 - order: FIFO within each stream and according to the context dispatcher’s ordering contract;
-- capacity: bounded by configured memory limits; overflow is a terminal context failure because the background thread
-  must never block on user code;
+- capacity: logically unbounded; the background thread never blocks waiting for worker consumption;
 - ownership: successful enqueue transfers the verified storage lease to the queue.
 
 The worker may dequeue one message or all currently available messages. Batch dequeue must preserve FIFO order and
@@ -61,7 +60,6 @@ Every inbound queue item is an `InboundEnvelope` with at least:
 InboundEnvelope {
     StreamClass stream_class       // control or call
     StreamId stream_id             // 0 for control
-    optional<CallId> call_id
     VerifiedMessage message        // specialized call or control message
 }
 ```
@@ -73,17 +71,22 @@ The worker-side dispatcher is the only consumer of the physical inbound queue. I
 envelope as follows:
 
 - stream `0` goes to the context's control-stream pending list;
-- an envelope for an accepted call goes to that call's pending list;
+- an envelope for a nonzero `stream_id` goes to that stream's pending list;
 - an envelope containing `open_call` creates an inbound-call entry in the context's unaccepted-call list;
-- a message for a call that has not yet been accepted is retained with that call entry, not returned by another call;
-- a message for an unknown or already-closed stream is a protocol error.
+- a message for a call that has not yet been accepted is retained with that stream entry, not returned by another call;
+- a message for an already-closed stream is discarded as delayed traffic;
+- a message for a never-created stream is a protocol error.
+
+The worker-owned call registry keeps a closed-stream set keyed by `stream_id`. Closing a call records its stream ID
+before releasing its pending sequence, so delayed messages can be discarded without confusing them with a new call;
+stream IDs are never reused on a connection.
 
 The dispatcher validates stream state before routing: `open_call` is legal only in the first call message, stream `0`
 messages are decoded as control messages, and `close_connection` is handled as a context shutdown event rather than
 being placed in the control-stream pending list. `close_call` remains part of the call's pending `CallMessageView`
 so the worker can observe the call's final message before that call is marked closed.
 
-`accept_call()` removes the next entry from the unaccepted-call list and returns a `Call` bound to its `call_id`. Its
+`accept_call()` removes the next entry from the unaccepted-call list and returns a `Call` bound to its `stream_id`. Its
 already received opening message remains at the head of that call's pending list. `Call::receive()` and
 `ControlStream::receive()` first inspect their pending list, then drain the shared inbound queue and route a batch,
 and only then wait. This is what gives each logical consumer stream-local semantics while preserving the two-queue
@@ -108,9 +111,9 @@ try_dequeue_all_available() -> sequence<message>
 batch either transfers every item or transfers none; a partial transfer is not allowed. `try_dequeue_all_available()`
 must be a single producer/consumer
 drain, not a loop that repeatedly enters the queue through a blocking API. The returned sequence owns or references
-items until the caller finishes processing them. A queue implementation may use a bounded ring internally, but the
-outbound contract must provide enough configured storage for the intended `Next`-controlled workload; it must never
-make the worker wait for socket progress.
+items until the caller finishes processing them. A queue implementation may grow storage in segments, but its
+observable capacity is unbounded and it must never make the worker wait for socket progress or make the background
+thread wait for worker consumption.
 
 The batch operation removes every item available when the operation begins. Items added concurrently are handled by a
 subsequent drain. A batch is an optimization only; it must not alter ordering, ownership, close behavior, or error
@@ -152,6 +155,35 @@ it checks the queue again before clearing or blocking, closing the empty-to-wait
 
 If the context is already terminal, the operation throws the appropriate context exception and does not transfer
 ownership.
+
+### Worker-side data flow control
+
+The worker-side `Call::send()` path owns the outbound credit state for each call and data direction. A record-batch
+send is allowed to block on the inbound queue because the worker must process `Next` messages before it can send more
+data:
+
+1. Run synchronous worker-side dispatch before inspecting credit. This may route already received messages for other
+   streams without returning them from this send operation.
+2. If the remaining byte budget is zero, wait on the physical inbound queue until a `Next` for this stream arrives, a
+   terminal state is published, or the context is destroyed.
+3. Apply `Next.byte_budget` to the stream's remaining credit. `reset` and `row_id` update the resume position but do
+   not change the credit accounting rule.
+4. Measure only the Arrow buffer bytes of the pending record batch; FlatBuffer metadata and frame-length bytes are not
+   charged to the budget.
+5. If the batch fits, enqueue it and subtract its Arrow buffer-byte size.
+6. If it does not fit, slice it at row boundaries into multiple batches and enqueue the chunks in order. One row may
+   oversubscribe the remaining budget. A batch that cannot be safely sliced is sent as one logical row when any
+   nonzero credit exists.
+7. Treat the split as one logical `Call::send()` operation. The worker does not observe the generated wire-message
+   count.
+
+Groups before the final group in a batch end automatically when the group identifier changes. The final group ends
+only when the original `is_end_of_group` flag is true. Intermediate chunks produced by splitting always clear the
+flag; only the final chunk retains the original flag. A chunk boundary never implies a group boundary.
+
+The worker-side dispatcher is invoked synchronously by every context, call, and control-stream operation. There is no
+additional dispatcher thread. A `Call::send()` waiting for credit therefore continues to route control and unrelated
+call messages into their stream-specific pending sequences while waiting for its own `Next`.
 
 ### Background send path
 
@@ -195,8 +227,8 @@ observed by the changed generation, and a spurious wakeup is harmless.
 5. Increment `inbound_generation` once for the batch.
 6. Notify the worker.
 
-If an inbound queue cannot accept a message within its configured memory limit, publish a terminal context error,
-close the transport, and wake the worker. The background thread must not wait for user code to consume data.
+The inbound queue is logically unbounded. The background thread never waits for user code to consume data; it transfers
+ownership to the queue and continues processing socket readiness.
 
 ### Worker receive path
 
@@ -223,12 +255,14 @@ The background thread owns all transport-side state:
 - the connected non-blocking socket;
 - the frame decoder and receive buffer;
 - the current partially written outbound frame, if any;
+- the pending keepalive deadline;
 - the outbound eventfd;
 - the protocol connection state;
 - the outbound queue consumer and inbound queue producer roles.
 
 The worker never accesses these objects directly. The background thread must not call worker code, wait for a worker
-lock, or block on either queue. Its only blocking operation is the event-loop wait for socket/eventfd readiness.
+lock, or block on either queue. Its only blocking operation is the event-loop wait for socket/eventfd readiness or the
+keepalive deadline.
 
 ### Event-loop initialization
 
@@ -238,11 +272,13 @@ The background thread performs the following initialization before entering the 
 2. Create or adopt the close-on-exec, non-blocking outbound eventfd.
 3. Initialize the frame decoder, receive buffer, write state, and protocol state.
 4. Register the socket and eventfd with the chosen readiness mechanism (`poll`, `ppoll`, `epoll`, or an equivalent).
-5. Publish that the context is ready for worker operations.
+5. Initialize the next keepalive deadline.
+6. Publish that the context is ready for worker operations.
 
 The socket is always watched for readable/error/hangup events. It is watched for writable events only when the
 background thread has a pending frame or the outbound queue has been drained into its write state. Enabling writable
-readiness permanently would cause a busy loop on a normally writable socket.
+readiness permanently would cause a busy loop on a normally writable socket. The wait timeout is the earlier of the
+next keepalive deadline and any implementation-defined fairness deadline.
 
 ### Event-loop cycle
 
@@ -255,6 +291,7 @@ while context is active:
     wait for socket readiness or outbound eventfd
 
     process eventfd readiness
+    process keepalive deadline
     process socket error/hangup/EOF
     process socket readable readiness
     process socket writable readiness
@@ -266,16 +303,19 @@ The exact event ordering is:
 
 1. Drain the eventfd if it is readable. Reading until `EAGAIN` consumes coalesced worker notifications; the eventfd
    value is never interpreted as a message count.
-2. Process socket error/hangup flags. A pending protocol or transport error takes precedence over ordinary writes.
-3. Read until the non-blocking socket returns `EAGAIN`, EOF, or an error. Each complete frame is validated and added to
+2. If the keepalive deadline has expired and the connection is still active, create an internal stream-0 `KeepAlive`
+   frame and append it to the background-owned write list. Advance the deadline. Keepalives do not use the
+   worker-to-background SPSC queue and do not require another thread.
+3. Process socket error/hangup flags. A pending protocol or transport error takes precedence over ordinary writes.
+4. Read until the non-blocking socket returns `EAGAIN`, EOF, or an error. Each complete frame is validated and added to
    one inbound batch. Incomplete bytes remain in the receive buffer for the next cycle.
-4. Publish the inbound batch to the physical inbound queue, increment `inbound_generation`, and notify the worker.
-5. Drain the outbound queue into the background-owned write list. This is a batch operation and preserves FIFO order.
-6. Write until the socket returns `EAGAIN` or the write list is empty. A partial frame remains at the head of the
+5. Publish the inbound batch to the physical inbound queue, increment `inbound_generation`, and notify the worker.
+6. Drain the outbound queue into the background-owned write list. This is a batch operation and preserves FIFO order.
+7. Write until the socket returns `EAGAIN` or the write list is empty. A partial frame remains at the head of the
    write list; later frames cannot overtake it.
-7. If a peer `CloseConnection` was received, stop ordinary reads and writes, enqueue/send the required close reply if
+8. If a peer `CloseConnection` was received, stop ordinary reads and writes, enqueue/send the required close reply if
    possible, and perform peer shutdown.
-8. Recheck the outbound queue and write list before rebuilding the wait set. If work appeared, process it without
+9. Recheck the outbound queue and write list before rebuilding the wait set. If work appeared, process it without
    blocking in the readiness wait.
 
 The read and write drains are bounded by configured per-cycle byte/message budgets. If a peer is continuously readable
@@ -284,7 +324,13 @@ starves the other.
 
 ### Receive-side socket processing
 
-Socket reads append bytes to a background-owned receive buffer. The decoder repeatedly performs:
+Socket reads append bytes to a background-owned receive buffer. When the buffer has multiple writable regions, the
+background thread uses `readv` or the transport equivalent to fill those regions in one system call. It falls back to
+a scalar read when vectorized input is unavailable or not beneficial. Vectorized input is only a transfer
+optimization; framing still determines message boundaries and one read may contain part of one frame, one frame, or
+many frames.
+
+After each read or vectorized read, the decoder repeatedly performs:
 
 ```text
 while receive_buffer contains a complete frame:
@@ -301,23 +347,23 @@ limit, malformed framing, failed FlatBuffer verification, invalid stream transit
 import publishes a protocol error and stops normal I/O. EOF with no protocol close is handled as an unexpected peer
 close/transport error according to the protocol policy.
 
-The inbound batch is published only after all its envelopes are fully verified. If the inbound queue cannot accept the
-batch without blocking, the background thread records a queue-overflow failure, releases the batch, wakes the worker,
-and shuts down the transport.
+The inbound batch is published only after all its envelopes are fully verified. The logically unbounded inbound queue
+accepts the batch without blocking and takes ownership of its storage leases.
 
 ### Send-side socket processing
 
 The outbound queue contains finalized, framed messages. The background thread moves available items into its write
-list only when it owns the corresponding storage leases. It then performs non-blocking writes:
+list only when it owns the corresponding storage leases. When multiple complete frames are ready, it uses `writev` or
+the transport equivalent to write several frame regions in one system call. It then performs non-blocking writes:
 
 ```text
 while write_list is not empty:
-    result = socket.write(write_list.front().remaining_bytes)
+    result = socket.writev(write_list.remaining_iovecs())
     if result == complete:
-        release front message lease
-        remove front message
+        release all completed message leases
+        remove all completed messages
     if result == partial:
-        advance front offset
+        advance the first incomplete iovec and remove completed iovecs
         wait for writable readiness
         break
     if result == would_block:
@@ -329,9 +375,10 @@ while write_list is not empty:
         stop
 ```
 
-The background thread may read while a write is blocked. It must not dequeue a later message and write it before the
-current partial frame. Once a worker close message has been accepted into the outbound queue, no later worker message
-can be accepted, so the close message remains the final outbound protocol message.
+The background thread may read while a write is blocked. It must not reorder iovecs or dequeue a later message ahead of
+the current partial frame. Once a worker close message has been accepted into the outbound queue, no later worker
+message can be accepted, so the close message remains the final outbound protocol message. If vectorized writes are
+unavailable, the same write state is processed with scalar writes.
 
 ### Wait-set and shutdown rules
 

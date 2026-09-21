@@ -70,7 +70,6 @@ Context {
     accept_call() -> Result<unique_ptr<Call>>
     open_call(CallMessageBuilder) -> Result<unique_ptr<Call>>
     control_stream() -> ControlStream&
-    cancel() -> void
 }
 ```
 
@@ -267,21 +266,25 @@ The control builder cannot construct `OpenCall`, `CloseCall`, `Next`, `DataSchem
 ```text
 CallMessageView {
     has_open_call() -> bool
-    open_call() -> OpenCallView
+    open_call() -> const OpenCall*
     has_payloads() -> bool
-    payloads() -> PayloadsView
+    payloads() -> const Payloads*
     has_data_schema() -> bool
     data_schema() -> DataSchemaView
     has_next() -> bool
-    next() -> NextView
+    next() -> const Next*
     has_record_batch() -> bool
     record_batch() -> RecordBatchView
     has_error() -> bool
-    error() -> ErrorView
+    error() -> const Error*
     has_close_call() -> bool
-    close_call() -> CloseCallView
+    close_call() -> const CloseCall*
 }
 ```
+
+`CallMessageView` and `ControlMessageView` are the only specialized message views. Their nested protocol metadata
+accessors return generated FlatBuffer table pointers. `DataSchemaView` and `RecordBatchView` remain explicit Arrow C
+Data Interface adapters because the wire metadata must be converted to Arrow schema/array ownership for the worker.
 
 `DataSchemaView` exposes the Arrow schema and its correlation flags. `RecordBatchView` exposes the Arrow array and
 `is_end_of_group`.
@@ -291,15 +294,15 @@ CallMessageView {
 ```text
 ControlMessageView {
     has_server_capabilities() -> bool
-    server_capabilities() -> ServerCapabilitiesView
+    server_capabilities() -> const ServerCapabilities*
     has_keep_alive() -> bool
-    keep_alive() -> KeepAliveView
+    keep_alive() -> const KeepAlive*
     has_payloads() -> bool
-    payloads() -> PayloadsView
+    payloads() -> const Payloads*
     has_error() -> bool
-    error() -> ErrorView
+    error() -> const Error*
     has_close_connection() -> bool
-    close_connection() -> CloseConnectionView
+    close_connection() -> const CloseConnection*
 }
 ```
 
@@ -307,9 +310,9 @@ The control view cannot expose call-specific fields.
 
 ### View lifetime and verification
 
-Each specialized view retains a verified, immutable storage lease for the received frame. Generated FlatBuffer
-accessors point into that storage and remain valid until the view is destroyed. Receiving another message does not
-invalidate an existing view. Malformed FlatBuffer data produces an error rather than a view.
+Each top-level specialized view retains a verified, immutable storage lease for the received frame. Generated
+FlatBuffer accessors point into that storage and remain valid until the top-level view is destroyed. Receiving another
+message does not invalidate an existing view. Malformed FlatBuffer data produces an error rather than a view.
 
 The view also retains the Arrow schema and array ownership leases required by its fields. Arrow release callbacks are
 invoked exactly once.
@@ -339,10 +342,10 @@ an `ArrowSchema`. The conceptual `record_batch` field contains the interface-lev
 with that direction's first `RecordBatch`. A later `RecordBatch` uses the previously announced schema and flags and
 does not repeat them.
 
-`RecordBatch.is_end_of_group` is meaningful only when `DataSchema.has_group_id` is true. It indicates whether the
-group identified by the batch's final row is complete. A true value means no later batch in that direction contains
-the trailing group; a false value means the trailing group may continue. The flag is not an end-of-stream marker, and
-an empty batch must not set it to true.
+`RecordBatch.is_end_of_group` is meaningful only when `DataSchema.has_group_id` is true. Groups before the final group
+in a batch end automatically when the group identifier changes. The flag controls only the group identified by the
+batch's final row: `true` ends that final group, while `false` means it may continue in a later batch. The flag is not
+an end-of-stream marker, and an empty batch must not set it to true.
 
 The correlation flags describe the reserved prefix of `DataSchema.schema`:
 
@@ -371,10 +374,11 @@ Ownership follows the Arrow release contract:
 
 ## Dispatch and consumption rules
 
-The context internally dispatches incoming traffic to:
+The context internally dispatches incoming traffic synchronously when the worker invokes any context, call, or
+control-stream function. It does not use a dispatcher thread. Incoming traffic is routed by `stream_id` to:
 
 - a pending inbound-call queue;
-- one logical queue per accepted call;
+- one logical pending sequence per accepted call;
 - a stream-0 control queue;
 - terminal connection state.
 
@@ -404,9 +408,9 @@ sent opening message is not returned by `Call::receive()`.
 ## Lifecycle and terminal behavior
 
 The context owns the connection after successful context creation. A call object represents one logical call and is
-valid until call close, connection close, cancellation, peer disconnect, or fatal error.
+valid until call close, connection close, internal cancellation, peer disconnect, or fatal error.
 
-Cancellation, peer disconnect, connection close, and fatal errors wake all affected blocked operations. After
+Internal cancellation, peer disconnect, connection close, and fatal errors wake all affected blocked operations. After
 connection close begins:
 
 - no new calls are accepted;
@@ -421,7 +425,7 @@ Normal and abnormal termination are distinct:
 - call close with error is abnormal call termination;
 - connection close without error is normal connection termination;
 - connection close with error is abnormal connection termination;
-- cancellation and transport failure are reported as terminal operation results.
+- internal cancellation and transport failure are reported as terminal operation results.
 
 ## Validation responsibilities
 
@@ -442,6 +446,8 @@ The context validates, before delivering or sending messages:
 - a second schema or changed correlation flags in one direction are rejected;
 - `RecordBatch.is_end_of_group` must be false when `has_group_id` is false;
 - an empty `RecordBatch` must not set `is_end_of_group` to true;
+- groups before the final group in a batch end automatically when the group identifier changes;
+- only the final group in a batch is controlled by `is_end_of_group`;
 - one data stream per call;
 - `Next` byte-credit rules;
 - close and error semantics;

@@ -33,10 +33,10 @@ documents.
 
 The runner implements the protocol described in the [v2 protocol design](../README.md). In particular:
 
-- [low_level.md](../protocol/low_level.md) defines framing, streams, transport bindings, and close behavior.
-- [call_lifecycle.md](../protocol/call_lifecycle.md) defines the generic call abstraction.
-- [high_level_calls.md](../protocol/high_level_calls.md) defines `Run`, Function operations, and callbacks.
-- [high_level_payloads.md](../protocol/high_level_payloads.md) defines JSON and named payload contracts.
+- [protocol.md](../protocol/low_level/protocol.md) defines framing, streams, transport bindings, and close behavior.
+- [call_lifecycle.md](../protocol/low_level/call_lifecycle.md) defines the generic call abstraction.
+- [calls.md](../protocol/high_level/calls.md) defines `Run`, Function operations, and callbacks.
+- [payloads.md](../protocol/high_level/payloads.md) defines JSON and named payload contracts.
 
 The runner `Context` is the implementation boundary for those protocol rules. This design does not redefine their
 wire format.
