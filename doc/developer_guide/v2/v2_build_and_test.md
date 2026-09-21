@@ -1,9 +1,9 @@
 # v2 Build and Test Guide
 
 The v2 implementation is under
-[`udf-runner-cpp/v2`](../../udf-runner-cpp/v2). Its Bazel module is defined by
-[`MODULE.bazel`](../../udf-runner-cpp/v2/MODULE.bazel), and its targets are in
-[`BUILD.bazel`](../../udf-runner-cpp/v2/BUILD.bazel).
+[`udf-runner-cpp/v2`](../../../udf-runner-cpp/v2). Its Bazel module is defined by
+[`MODULE.bazel`](../../../udf-runner-cpp/v2/MODULE.bazel), and its targets are in
+[`BUILD.bazel`](../../../udf-runner-cpp/v2/BUILD.bazel).
 
 ## Build and test
 
