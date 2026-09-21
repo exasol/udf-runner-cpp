@@ -17,3 +17,6 @@ bazel test //...
 The test suite covers the FlatBuffers protocol, Arrow support, JSON schemas,
 queue implementations, and fuzz-target regression tests. For fuzzing-specific
 commands, see the [v2 fuzzing guide](v2_fuzzing.md).
+
+For static analysis and formatting checks, see the [v2 code-quality
+guide](v2_code_quality.md).
