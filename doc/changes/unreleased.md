@@ -9,6 +9,7 @@ n/a
 
  - 32: Added clang tidy to v2
  - 38: Added Sonar Qube Public
+ - 49: Added Bazel-based fuzzing for v2
 
 ## Refactorings
 
