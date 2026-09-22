@@ -104,14 +104,18 @@ call orchestration and do not alter the generic Client/Server stream rules in th
 
 1. run socket handling and user-code execution as independently wakeable activities
 2. wait for either DB socket activity or user-code activity; do not block solely on socket receive
-3. use `Next(...)` byte budgets to bound data in flight; do not impose a message-count limit
-4. send regular `KeepAlive` messages so `DB` can continue housekeeping
+3. queue record batches produced by user code until the first-batch rule or a usable `Next(...)` byte budget permits emission
+4. use `Next(...)` byte budgets to bound data in flight; do not impose a message-count limit
+5. send regular `KeepAlive` messages so `DB` can continue housekeeping
 
 ### `DB`
 
 1. prioritize nested-call responses before data-stream work
-2. if nothing is ready to send, block waiting for new incoming messages
-3. monitor peer liveness and terminate unhealthy sessions when needed
+2. receive and process record batches from `UDFRunner` as a distinct data-stream event; the first batch may accompany
+   call-opening/control traffic
+3. queue DB-produced input batches until the first-batch rule or a usable `Next(...)` byte budget permits emission
+4. if nothing is ready to send, block waiting for new incoming messages
+5. monitor peer liveness and terminate unhealthy sessions when needed
 
 See [endpoint_scheduling.svg](endpoint_scheduling.svg).
 
