@@ -67,7 +67,8 @@ number and a concise description under the appropriate section:
 For a PR addressing multiple tickets, use the primary ticket in the PR title,
 link every ticket in the PR description, and include every ticket in the
 changelog. Do not omit a changelog entry because a change is documentation-only
-or internal; use the appropriate category.
+or internal; use the appropriate category. The release tooling consumes the
+unreleased changelog, so update it before the PR is merged.
 
 ## Agent working guidelines
 

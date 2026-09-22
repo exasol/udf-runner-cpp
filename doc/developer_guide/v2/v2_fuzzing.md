@@ -19,12 +19,13 @@ bazel build --config=asan-libfuzzer \
 
 ## Run a fuzzing campaign
 
-Run a target through the rules_fuzzing launcher. Generated corpus entries and
-crash artifacts are stored below `/tmp/fuzzing` by default:
+For an exploratory local campaign, a short, bounded run of one target is a
+useful starting point. Generated corpus entries and crash artifacts are stored
+below `/tmp/fuzzing` by default:
 
 ```sh
 bazel run --config=asan-libfuzzer //:frame_fuzz_test_run -- \
-  --timeout_secs=60
+  --timeout_secs=30
 ```
 
 The available fuzz targets are discovered from Bazel with the Nox task:
@@ -37,8 +38,14 @@ Run one discovered target through Nox with:
 
 ```sh
 poetry run -- nox --sessions=v2-fuzzing -- \
-  --target frame --timeout-secs 300
+  --timeout-secs 30 \
+  --target frame \
+  --output-root /tmp/fuzzing
 ```
+
+For a specific investigation, set `--timeout-secs` to the duration appropriate
+for that investigation. The CI campaign duration can be used when reproducing
+or investigating CI behavior.
 
 ## Regression and replay
 

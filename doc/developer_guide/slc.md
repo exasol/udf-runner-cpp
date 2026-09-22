@@ -68,11 +68,41 @@ statement.
 
 The checked-in flavor is `test-udf-runner-cpp-v1`. SLC CI is managed by
 `exasol-script-languages-container-ci` and generated workflows under
-`.github/workflows/`. It prepares the test container, builds and scans the
-flavor, and runs the configured test set.
+`.github/workflows/`. The workflow prepares the test container, builds and scans
+the selected flavor with `exaslc-ci export-and-scan-vulnerabilities`, and runs
+the configured test set with `exaslc-ci run-tests`.
+
+Do not normally run the final test stage locally; CI invokes it with the
+selected test set. The equivalent CI command is:
+
+```bash
+poetry run -- exaslc-ci run-tests \
+  --flavor test-udf-runner-cpp-v1 \
+  --docker-user "$DOCKER_USERNAME" \
+  --docker-password "$DOCKER_PASSWORD" \
+  --test-set-name smoke \
+  --slc-directory "$SLC_DIRECTORY" \
+  --commit-sha "$COMMIT_SHA"
+```
 
 Register test files or folders in the flavor’s `ci.json` under
 `test_config.test_sets[].files` or `test_config.test_sets[].folders`.
+
+For example, a test set can register whole folders:
+
+```json
+{
+  "name": "smoke",
+  "files": [],
+  "folders": ["smoke", "cpp_test"],
+  "goal": "base_test_build_run",
+  "generic_language_tests": []
+}
+```
+
+Use `folders` to include all tests below a directory and `files` to select
+individual test files. Adding a test file without registering its file or
+folder does not make CI execute it.
 
 Check that CI recognizes the registration without running the long test job:
 
@@ -81,6 +111,10 @@ poetry run -- exaslc-ci get-test-matrix \
   --flavor test-udf-runner-cpp-v1 \
   --github-output-var test_matrix
 ```
+
+Confirm that the expected test set, runner, and `base_test_build_run` goal are
+present in the generated matrix. The full `exaslc-ci run-tests` invocation is
+performed by CI.
 
 The `.github/workflows/slc_ci*.yml` files are generated artifacts and must not
 be edited manually. Workflow changes belong in the supported setup tooling;
