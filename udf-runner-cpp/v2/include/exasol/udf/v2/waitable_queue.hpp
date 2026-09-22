@@ -28,18 +28,18 @@ class WaitableQueue
 public:
     using queue_type = Queue;
 
-    WaitableQueue() : notification_fd_(::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC))
+    WaitableQueue() : notification_fd(::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC))
     {
-        if (notification_fd_ == -1)
+        if (notification_fd == -1)
         {
             throw std::system_error(errno, std::generic_category(), "eventfd");
         }
     }
 
     explicit WaitableQueue(Queue queue)
-        : queue_(std::move(queue)), notification_fd_(::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC))
+        : queue_storage(std::move(queue)), notification_fd(::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC))
     {
-        if (notification_fd_ == -1)
+        if (notification_fd == -1)
         {
             throw std::system_error(errno, std::generic_category(), "eventfd");
         }
@@ -47,9 +47,9 @@ public:
 
     ~WaitableQueue()
     {
-        if (notification_fd_ != -1)
+        if (notification_fd != -1)
         {
-            ::close(notification_fd_);
+            ::close(notification_fd);
         }
     }
 
@@ -57,8 +57,8 @@ public:
     WaitableQueue& operator=(const WaitableQueue&) = delete;
 
     WaitableQueue(WaitableQueue&& other) noexcept
-        : queue_(std::move(other.queue_)),
-          notification_fd_(std::exchange(other.notification_fd_, -1))
+        : queue_storage(std::move(other.queue_storage)),
+          notification_fd(std::exchange(other.notification_fd, -1))
     {
     }
 
@@ -66,25 +66,25 @@ public:
     {
         if (this != &other)
         {
-            if (notification_fd_ != -1)
+            if (notification_fd != -1)
             {
-                ::close(notification_fd_);
+                ::close(notification_fd);
             }
-            queue_           = std::move(other.queue_);
-            notification_fd_ = std::exchange(other.notification_fd_, -1);
+            queue_storage   = std::move(other.queue_storage);
+            notification_fd = std::exchange(other.notification_fd, -1);
         }
         return *this;
     }
 
     [[nodiscard]] int native_handle() const noexcept
     {
-        return notification_fd_;
+        return notification_fd;
     }
 
     template <typename T>
     [[nodiscard]] bool enqueue(T&& value)
     {
-        if (!queue_.enqueue(std::forward<T>(value)))
+        if (!queue_storage.enqueue(std::forward<T>(value)))
         {
             return false;
         }
@@ -98,7 +98,7 @@ public:
         std::size_t enqueued = 0;
         for (; first != last; ++first)
         {
-            if (!queue_.enqueue(*first))
+            if (!queue_storage.enqueue(*first))
             {
                 break;
             }
@@ -114,7 +114,7 @@ public:
     template <typename Output>
     [[nodiscard]] bool try_dequeue(Output& value)
     {
-        return queue_.try_dequeue(value);
+        return queue_storage.try_dequeue(value);
     }
 
     // Drains all eventfd notifications and returns their accumulated count.
@@ -126,7 +126,7 @@ public:
         for (;;)
         {
             std::uint64_t value  = 0;
-            const ssize_t result = ::read(notification_fd_, &value, sizeof(value));
+            const ssize_t result = ::read(notification_fd, &value, sizeof(value));
             if (result == sizeof(value))
             {
                 total += value;
@@ -150,11 +150,11 @@ public:
 
     Queue& queue() noexcept
     {
-        return queue_;
+        return queue_storage;
     }
     const Queue& queue() const noexcept
     {
-        return queue_;
+        return queue_storage;
     }
 
 private:
@@ -163,7 +163,7 @@ private:
         constexpr std::uint64_t signal = 1;
         for (;;)
         {
-            const ssize_t result = ::write(notification_fd_, &signal, sizeof(signal));
+            const ssize_t result = ::write(notification_fd, &signal, sizeof(signal));
             if (result == sizeof(signal))
             {
                 return;
@@ -186,8 +186,8 @@ private:
         }
     }
 
-    Queue queue_;
-    int notification_fd_;
+    Queue queue_storage;
+    int notification_fd;
 };
 
 template <typename T>
