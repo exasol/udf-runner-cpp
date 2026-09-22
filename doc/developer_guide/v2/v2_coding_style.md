@@ -1,7 +1,7 @@
 # v2 C++ Coding Style
 
-This guide defines the conventions for new and substantially changed C++ code
-under [`udf-runner-cpp/v2`](../../../udf-runner-cpp/v2). The checked-in
+This guide defines the conventions for C++ code under
+[`udf-runner-cpp/v2`](../../../udf-runner-cpp/v2). The checked-in
 [`clang-format` configuration](../../../udf-runner-cpp/v2/tools/clang-format/.clang-format)
 and [`clang-tidy` configuration](../../../udf-runner-cpp/v2/tools/clang-tidy/.clang-tidy)
 are authoritative for automatically checked rules.
@@ -22,16 +22,24 @@ are authoritative for automatically checked rules.
 
 ## Names and namespaces
 
-- Use ASCII identifiers and lower camel case for functions, variables,
-  parameters, and data members.
-- Use upper camel case for classes and enum types. Use upper camel case for
-  scoped enum values as well.
+- Use ASCII identifiers and `lower_case` for functions, variables, parameters,
+  and data members.
+- Use `CamelCase` for classes and enum types. Use `CamelCase` for scoped enum
+  values as well.
 - Name factory functions with a `create` prefix and getters/setters with
-  `get`/`set` prefixes.
+  `get_`/`set_` prefixes, for example `get_value()` and `set_value()`.
 - Put file-local functions and types in an unnamed namespace.
 - Put project code in an appropriate `exasol::udf::v2` namespace rather than
   importing a namespace with `using namespace`.
 - Keep namespace aliases local and descriptive when they improve readability.
+
+The naming policy is enforced by clang-tidy’s
+`readability-identifier-naming` check. Class members have no naming prefix or
+suffix. When a member access would otherwise be ambiguous, qualify it with
+`this->`, for example `this->value`.
+
+Names required by an external ABI or framework are exceptions. For example,
+the libFuzzer entry point `LLVMFuzzerTestOneInput` keeps its required spelling.
 
 ## Functions and classes
 
@@ -42,8 +50,8 @@ are authoritative for automatically checked rules.
 - Mark overriding methods with `override`.
 - Keep class declarations ordered, where practical, as public, protected, then
   private; within each section, place types before methods and data members.
-- Avoid ambiguity between constructor parameters and members. Use distinct,
-  descriptive parameter names or qualify member access explicitly.
+- Avoid ambiguity between constructor parameters and members. Prefer the same
+  descriptive name and qualify member access with `this->`.
 - Separate function definitions with a blank line.
 
 ## Types, control flow, and errors
