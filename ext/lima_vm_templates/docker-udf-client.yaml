@@ -2,13 +2,24 @@
 # And provide all dependencies necessary to build the Exasol UDF client with Bazel
 # Also, it sets all environment variables needed to build the UDF client for Python and Java
 # TODO: Add R dependencies
-# $ limactl start ./docker-udf-client.yaml
+# Start this VM when the host has no Docker daemon:
+# $ limactl start ./ext/lima_vm_templates/docker-udf-client.yaml
+#
+# Connect Docker and exaslct to the Lima Docker daemon:
+# $ export DOCKER_HOST=$(limactl list docker-udf-client --format 'unix://{{.Dir}}/sock/docker.sock')
 # cd ./exaudfclient
 # $ limactl shell docker-udf-client bazel build --config no-tty --config optimize --config python --config fast-binary
 
-# To run exaslct, run
-# $ export DOCKER_HOST=$(limactl list docker-udf-client --format 'unix://{{.Dir}}/sock/docker.sock')
-# $ exaslct build --flavor-path ./flavors/...
+# To build the SLC Docker images/stages only, run
+# $ exaslct build --flavor-path ./flavors/<flavor-name>
+#
+# To export a deployable SLC archive, run
+# $ exaslct export --flavor-path ./flavors/<flavor-name> --export-path .build_output/slc
+#
+# To run a focused database test, use --test-file or --test-folder, for example:
+# $ exaslct run-db-test --flavor-path ./flavors/<flavor-name> \
+#     --test-container-folder ./test_container \
+#     --test-folder ./test_container/tests/test/smoke
 
 minimumLimaVersion: 1.1.0
 
