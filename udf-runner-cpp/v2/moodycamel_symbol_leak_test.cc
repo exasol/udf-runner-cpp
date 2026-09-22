@@ -15,8 +15,8 @@
 namespace
 {
 
-constexpr std::string_view kGlobalNamespacePrefix   = "_ZN10moodycamel";
-constexpr std::string_view kIsolatedNamespacePrefix = "_ZN6exasol3udf2v211third_party10moodycamel";
+constexpr std::string_view global_namespace_prefix   = "_ZN10moodycamel";
+constexpr std::string_view isolated_namespace_prefix = "_ZN6exasol3udf2v211third_party10moodycamel";
 
 [[noreturn]] void fail(const std::string& message)
 {
@@ -97,11 +97,11 @@ void verify_symbols(const std::string& path)
         }
         const std::string name = read_string(file, string_table.sh_offset + symbol.st_name,
                                              string_table.sh_size - symbol.st_name);
-        if (name.starts_with(kGlobalNamespacePrefix))
+        if (name.starts_with(global_namespace_prefix))
         {
             fail("queue library exports a global moodycamel symbol: " + name);
         }
-        if (name.starts_with(kIsolatedNamespacePrefix))
+        if (name.starts_with(isolated_namespace_prefix))
         {
             found_isolated_symbol = true;
         }

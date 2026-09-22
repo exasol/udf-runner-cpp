@@ -25,8 +25,8 @@ using export_fn_t  = int (*)(ArrowArray*, ArrowSchema*);
 using consume_fn_t = int (*)(ArrowArray*, ArrowSchema*, int64_t*, int64_t*);
 using error_fn_t   = const char* (*)();
 
-constexpr std::string_view kArrowMangledPrefix = "_ZN5arrow";
-constexpr std::string_view kDemoExportedPrefix = "udf_runner_cpp_v2_demo_";
+constexpr std::string_view arrow_mangled_prefix = "_ZN5arrow";
+constexpr std::string_view demo_exported_prefix = "udf_runner_cpp_v2_demo_";
 
 [[noreturn]] void fail(const std::string& message)
 {
@@ -140,11 +140,11 @@ void verify_symbols(const std::string& library_path)
 
         const std::string name = read_string(file, string_table.sh_offset + symbol.st_name,
                                              string_table.sh_size - symbol.st_name);
-        if (name.compare(0, kArrowMangledPrefix.size(), kArrowMangledPrefix) == 0)
+        if (name.compare(0, arrow_mangled_prefix.size(), arrow_mangled_prefix) == 0)
         {
             fail("shared library exports an Arrow C++ symbol: " + name);
         }
-        if (name.compare(0, kDemoExportedPrefix.size(), kDemoExportedPrefix) == 0)
+        if (name.compare(0, demo_exported_prefix.size(), demo_exported_prefix) == 0)
         {
             found_demo_symbol = true;
         }

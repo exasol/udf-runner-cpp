@@ -12,7 +12,8 @@ int main()
     const auto frame     = exasol::udf::protocol::CreateFrame(builder, 7, message);
     builder.Finish(frame);
 
-    assert(exasol::udf::protocol::VerifyFrameBuffer(builder.GetBufferPointer(), builder.GetSize()));
+    assert(
+        exasol::udf::protocol::verify_frame_buffer(builder.GetBufferPointer(), builder.GetSize()));
     const auto* decoded = exasol::udf::protocol::GetFrame(builder.GetBufferPointer());
     assert(decoded->stream_id() == 7);
     assert(decoded->message()->open_call()->call_name()->str() == "example");
