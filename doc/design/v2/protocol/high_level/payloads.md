@@ -38,8 +38,9 @@ in separate messages:
 | `script_name` | string | Name of the script used by subsequent `Run` or Function calls. |
 | `script_source` | string | Source code of that script. |
 
-Script metadata must be received before a `Run` or Function call that uses it. The shared [metadata lifecycle](#metadata-lifecycle)
-rules define when it is valid and how later values replace earlier values.
+Script metadata must be received before a `Run` or Function call that uses it, either before the call or in the same
+call-opening message. The shared [metadata lifecycle](#metadata-lifecycle) rules define when it is valid and how later
+values replace earlier values.
 
 ## Call Metadata
 
