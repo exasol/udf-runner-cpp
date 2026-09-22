@@ -13,7 +13,7 @@
 namespace exasol::udf::protocol
 {
 
-bool VerifyFrameBuffer(const void* data, std::size_t size);
+bool verify_frame_buffer(const void* data, std::size_t size);
 
 } // namespace exasol::udf::protocol
 
