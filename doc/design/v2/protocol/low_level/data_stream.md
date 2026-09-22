@@ -172,16 +172,17 @@ they are not embedded in `DataRecordBatchMetadata`.
   an inline batch is:
 
   ```text
-  frame-length prefix
+  uint32 frame_length (little-endian)
   serialized FlatBuffer Frame
   buffer 0 bytes
   buffer 1 bytes
   ...
   ```
 
-  The buffers follow immediately after the complete frame in `DataRecordBatchMetadata.buffers` order. They have no individual
-  framing, stream offsets, or per-buffer length prefixes. `Buffer.length` is the exact number of bytes to transfer
-  for each buffer; `Buffer.offset` is not used for inline transport.
+  The 4-byte prefix contains only the serialized `Frame` length; it excludes the prefix itself and all trailing buffers.
+  The buffers follow immediately after the complete frame in `DataRecordBatchMetadata.buffers` order. They have no
+  individual framing, stream offsets, or per-buffer length prefixes. `Buffer.length` is the exact number of bytes to
+  transfer for each buffer; `Buffer.offset` is not used for inline transport.
 - A sender may construct one `iovec` for the frame and one for each buffer and transmit them with `writev`. A receiver
   reads and verifies the frame first, allocates one destination for each advertised `Buffer.length`, and may receive
   the buffers with `readv`. Partial reads and writes must be continued until the complete sequence has been consumed

@@ -33,19 +33,37 @@ these roles. Transport-level roles do not limit which side may later open a call
 
 ## Message Layering
 
-The protocol uses a length-framed transport unit containing optional control and data portions:
+The protocol uses a length-framed transport unit containing one optional control message and one optional record-batch
+metadata object. The frame prefix is a 4-byte little-endian `uint32` containing the byte length of the serialized
+FlatBuffer `Frame`; the prefix itself is not included in that length. A standard FlatBuffers buffer is limited to 2 GiB
+by the builder ([official FlatBuffers implementation documentation](https://github.com/google/flatbuffers/blob/master/python/flatbuffers/builder.py)).
 
-- `Frame` is the length-framed FlatBuffer root object.
+- `Frame` is the length-framed FlatBuffer root object. The frame length must be positive and must not exceed the
+  supported 2 GiB FlatBuffers limit.
 - `control_message` carries control attributes.
 - `data_record_batch_metadata` carries one batch's metadata; its raw buffers follow separately when inline transport is used.
 
+For an inline record batch, the wire layout is:
+
+```text
++----------------------+-------------------+-------------------+-------------------+
+| uint32 frame_length  | serialized Frame | buffer 0 bytes   | ... buffer N bytes|
++----------------------+-------------------+-------------------+-------------------+
+                       frame_length bytes
+```
+
+The prefix covers only the serialized `Frame`, not the trailing inline buffers. A control-only frame has no trailing
+buffers. Each frame contains at most one `DataRecordBatchMetadata`; multiple record batches use multiple framed
+messages.
+
 Receive path:
 
-1. bytes on the socket
-2. one length-prefixed and decoded `Frame`
-3. `stream_id` selection
-4. optional `control_message` and `data_record_batch_metadata` processing
-5. inline buffer reads, if `data_record_batch_metadata.buffer_transport` is `Inline`
+1. read the 4-byte little-endian frame length;
+2. validate that it is positive and within the supported FlatBuffers limit;
+3. read and verify exactly that many serialized `Frame` bytes;
+4. select the `stream_id`;
+5. process the optional `control_message` and `data_record_batch_metadata`;
+6. read inline buffers, if `data_record_batch_metadata.buffer_transport` is `Inline`.
 
 This separation is important because the transport boundary and the typed protocol payload evolve independently.
 
