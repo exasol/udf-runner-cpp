@@ -18,4 +18,5 @@ n/a
 
 ## Internal
 
+* 51: Added agent and contributor guidance for v1/v2 development, SLC workflows, CI testing, and PR conventions
 * Updated Poetry dependencies and added developer guide and added .gitignore
