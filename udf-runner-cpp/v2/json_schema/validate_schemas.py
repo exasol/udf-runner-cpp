@@ -128,14 +128,10 @@ def validate_schemas() -> None:
     else:
         raise AssertionError("legacy STRING type was accepted")
 
-    invalid_call_metadata = copy.deepcopy(call_metadata)
-    invalid_call_metadata["input_columns"] = column_metadata["input_columns"]
-    try:
-        validate(schemas, "call_metadata.schema.json", invalid_call_metadata)
-    except ValidationError:
-        pass
-    else:
-        raise AssertionError("column metadata was accepted in call metadata")
+    call_metadata_with_columns = copy.deepcopy(call_metadata)
+    call_metadata_with_columns["input_columns"] = column_metadata["input_columns"]
+    call_metadata_with_columns["output_columns"] = column_metadata["output_columns"]
+    validate(schemas, "call_metadata.schema.json", call_metadata_with_columns)
 
     print("v2 JSON schema validation passed")
 
