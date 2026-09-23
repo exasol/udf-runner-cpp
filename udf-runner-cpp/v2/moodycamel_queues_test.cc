@@ -1,28 +1,40 @@
-#include <cassert>
-
 #include <exasol/udf/v2/mpmc_queue.hpp>
 #include <exasol/udf/v2/spsc_queue.hpp>
 
-int main()
+#include <gtest/gtest.h>
+
+TEST(MoodycamelQueuesTest, SupportsSpscQueue)
 {
     exasol::udf::v2::SpscQueue<int> spsc;
-    assert(spsc.enqueue(7));
+    ASSERT_TRUE(spsc.enqueue(7));
     int value = 0;
-    assert(spsc.try_dequeue(value));
-    assert(value == 7);
+    ASSERT_TRUE(spsc.try_dequeue(value));
+    EXPECT_EQ(value, 7);
+}
 
+TEST(MoodycamelQueuesTest, SupportsSpscCircularBuffer)
+{
     exasol::udf::v2::SpscCircularBuffer<int> circular(2);
-    assert(circular.try_enqueue(8));
-    assert(circular.try_dequeue(value));
-    assert(value == 8);
+    ASSERT_TRUE(circular.try_enqueue(8));
+    int value = 0;
+    ASSERT_TRUE(circular.try_dequeue(value));
+    EXPECT_EQ(value, 8);
+}
 
+TEST(MoodycamelQueuesTest, SupportsMpmcQueue)
+{
     exasol::udf::v2::MpmcQueue<int> mpmc;
-    assert(mpmc.enqueue(9));
-    assert(mpmc.try_dequeue(value));
-    assert(value == 9);
+    ASSERT_TRUE(mpmc.enqueue(9));
+    int value = 0;
+    ASSERT_TRUE(mpmc.try_dequeue(value));
+    EXPECT_EQ(value, 9);
+}
 
+TEST(MoodycamelQueuesTest, SupportsBlockingMpmcQueue)
+{
     exasol::udf::v2::BlockingMpmcQueue<int> blocking;
-    assert(blocking.enqueue(10));
-    assert(blocking.try_dequeue(value));
-    assert(value == 10);
+    ASSERT_TRUE(blocking.enqueue(10));
+    int value = 0;
+    ASSERT_TRUE(blocking.try_dequeue(value));
+    EXPECT_EQ(value, 10);
 }
