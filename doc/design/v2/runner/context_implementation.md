@@ -14,6 +14,8 @@ worker thread <-- inbound queue  -- background I/O thread <-- socket -- peer
 ```
 
 The worker never performs socket I/O. The background thread is the sole owner of the connected socket.
+One worker thread is the sole owner of the worker-facing context, its call objects, and its control-stream object;
+concurrent worker operations on one context are outside the contract.
 
 These are exactly two cross-thread queues. They are not one outbound and one inbound queue per call. The inbound
 queue is a multiplexed queue containing envelopes for stream `0`, accepted calls, and calls that have not yet been
@@ -24,7 +26,9 @@ producer/consumer queues.
 
 ### Outbound queue
 
-The outbound queue carries finalized call and control messages from the worker to the background thread.
+The outbound queue carries logical call and control messages from the worker to the background thread. A data message
+retains its unsplit Arrow record batch until the background thread applies authoritative credit and creates wire
+frames.
 
 - producer: worker thread;
 - consumer: background I/O thread;
@@ -148,51 +152,66 @@ it checks the queue again before clearing or blocking, closing the empty-to-wait
 ### Worker send path
 
 1. Check the context terminal state.
-2. Finalize the specialized call or control message builder.
-3. Enqueue the owned message without blocking.
-4. Notify the outbound eventfd if this enqueue changed the queue from empty to non-empty.
-5. Return to the worker.
+2. For a data-bearing call message, wait for the call's worker send grant using the optional send deadline.
+3. Validate and finalize the logical specialized call or control message builder. Do not split or serialize the data
+   batch into wire frames on the worker thread.
+4. Consume the worker grant by the whole Arrow buffer-byte size of the submitted batch. A positive grant admits the
+   current batch even when that one submission overshoots the grant.
+5. Enqueue the owned logical message without blocking.
+6. Notify the outbound eventfd if this enqueue changed the queue from empty to non-empty.
+7. Return to the worker.
 
 If the context is already terminal, the operation throws the appropriate context exception and does not transfer
 ownership.
 
-### Worker-side data flow control
+### Worker-side data flow permission
 
-The worker-side `Call::send()` path owns the outbound credit state for each call and data direction. A record-batch
-send is allowed to block on the inbound queue because the worker must process `Next` messages before it can send more
-data:
+The background thread owns authoritative `Next` credit and publishes a per-call worker send grant. The grant is a
+shared atomic byte allowance plus a generation used for timed waiting; it is not another queue. The worker-side
+`Call::send()` path behaves as follows:
 
-1. Run synchronous worker-side dispatch before inspecting credit. This may route already received messages for other
-   streams without returning them from this send operation.
-2. If the remaining byte budget is zero, wait on the physical inbound queue until a `Next` for this stream arrives, a
-   terminal state is published, or the context is destroyed.
-3. Apply `Next.byte_budget` to the stream's remaining credit. `reset` and `row_id` update the resume position but do
-   not change the credit accounting rule.
-4. Measure only the Arrow buffer bytes of the pending record batch; FlatBuffer metadata and frame-length bytes are not
-   charged to the budget.
-5. If the batch fits, enqueue it and subtract its Arrow buffer-byte size.
-6. If it does not fit, slice it at row boundaries into multiple batches and enqueue the chunks in order. One row may
-   oversubscribe the remaining budget. A batch that cannot be safely sliced is sent as one logical row when any
-   nonzero credit exists.
-7. Treat the split as one logical `Call::send()` operation. The worker does not observe the generated wire-message
-   count.
+1. Run synchronous worker-side dispatch before inspecting the grant.
+2. If the grant is zero, wait for a positive grant, the optional send deadline, or terminal state. A timeout returns
+   `timed_out` without consuming the builder or its Arrow ownership.
+3. Measure the whole unsplit batch's Arrow buffer bytes and consume that amount from the worker grant. A positive grant
+   admits the current batch even if this one submission overshoots it.
+4. Enqueue the logical batch. The worker never slices it and does not wait for the background thread to finish
+   transport-level splitting.
+5. The background thread later reconciles the grant with authoritative remaining credit and notifies the worker when
+   another batch may be submitted.
 
-Groups before the final group in a batch end automatically when the group identifier changes. When splitting, a chunk
-whose final row is followed by a different group ID must set `is_end_of_group` to `true`, because that chunk is the
-last batch of that group. A split inside one group sets the chunk flag to `false`. The final chunk retains the
-worker-provided `is_end_of_group` value for the final group. A chunk boundary by itself never implies a group boundary.
+The worker grant is only an admission mechanism. The background thread remains authoritative for actual bytes sent,
+row-boundary splitting, group-end flags, and waiting for additional `Next` credit.
 
-The worker-side dispatcher is invoked synchronously by every context, call, and control-stream operation. There is no
-additional dispatcher thread. A `Call::send()` waiting for credit therefore continues to route control and unrelated
-call messages into their stream-specific pending sequences while waiting for its own `Next`.
+### Background credit and split state
+
+For every call data direction, the background thread keeps:
+
+```text
+authoritative_remaining_credit
+pending_logical_batch_or_remainder
+worker_send_grant
+```
+
+Receiving `Next` increases `authoritative_remaining_credit` and publishes a corresponding positive worker grant. When
+the background consumes a logical batch, it charges each generated chunk against authoritative credit, not against the
+worker's coarse reservation. If the logical batch is larger than the current credit, the background sends the largest
+safe row-aligned prefix, permits at most the configured one-row oversubscription, and retains the remainder until more
+credit arrives. After the logical batch is complete, it reconciles unused credit into `worker_send_grant` and notifies
+the worker. A worker grant never authorizes the background to exceed actual protocol credit.
 
 ### Background send path
 
 1. Wait for socket or eventfd readiness.
 2. If eventfd is readable, drain its counter.
 3. Drain all currently available outbound messages.
-4. Send the drained messages in FIFO order.
-5. Release each message only after transport acceptance and the documented Arrow ownership handoff.
+4. For each data-bearing logical message, apply the call's authoritative remaining credit and create one or more
+   ordered wire frames. Split only at row boundaries; a group boundary sets `is_end_of_group` on the preceding frame.
+5. Send the generated frames in FIFO order.
+6. If the logical batch requires more credit, retain its unsent remainder and continue reading the socket until `Next`
+   arrives.
+7. Reconcile the call's worker send grant and notify the worker when another logical batch may be submitted.
+8. Release each logical message only after all generated frames and Arrow ownership handoff are complete.
 
 The socket is non-blocking. A message may require multiple writes. The background thread retains the current
 serialized frame and its ownership lease until the complete frame is written; `EAGAIN` leaves it pending and adds
@@ -339,6 +358,8 @@ while receive_buffer contains a complete frame:
     validate frame length and protocol version
     verify FlatBuffer structure and required fields
     decode stream id and message kind
+    if the call message contains Next:
+        update authoritative credit and worker send grant before outbound processing
     create verified storage lease
     append InboundEnvelope to current inbound batch
 ```
@@ -351,11 +372,18 @@ close/transport error according to the protocol policy.
 The inbound batch is published only after all its envelopes are fully verified. The logically unbounded inbound queue
 accepts the batch without blocking and takes ownership of its storage leases.
 
+`Next` remains visible in the inbound `CallMessageView` through a restricted `NextView` containing `reset` and
+`row_id`, even though the background thread has already consumed `byte_budget` for authoritative credit accounting. If
+a composite message contains both `Next` and other call fields, the credit update occurs before the background thread
+processes pending outbound data, while the complete composite message is still delivered to the worker unchanged
+except that the internal byte budget is not exposed.
+
 ### Send-side socket processing
 
-The outbound queue contains finalized, framed messages. The background thread moves available items into its write
-list only when it owns the corresponding storage leases. When multiple complete frames are ready, it uses `writev` or
-the transport equivalent to write several frame regions in one system call. It then performs non-blocking writes:
+The outbound queue contains logical messages and their ownership leases. The background thread converts them into
+finalized, framed messages before moving the resulting frame regions into its write list. When multiple complete
+frames are ready, it uses `writev` or the transport equivalent to write several frame regions in one system call. It
+then performs non-blocking writes:
 
 ```text
 while write_list is not empty:
@@ -415,9 +443,9 @@ messages are framed and published, then outbound messages are sent. The loop mus
 outbound queue, and pending partial writes before waiting again. EOF is a peer close and follows the peer-close
 sequence; a malformed frame is a protocol failure.
 
-The background thread never invokes a builder, view, `Call`, or worker callback. Builders are finalized before their
-message enters the outbound queue. Views are created only from verified bytes and are consumed by the worker after
-the inbound envelope has crossed the queue boundary.
+The background thread never invokes a worker-facing builder, view, `Call`, or worker callback. It may construct
+internal FlatBuffer frames from logical outbound envelopes after they leave the queue. Views are created only from
+verified bytes and are consumed by the worker after the inbound envelope has crossed the queue boundary.
 
 ## Builder, wire-message, and view handoff
 
@@ -426,16 +454,18 @@ The worker-facing specialized builders are not themselves queue items. The hando
 ```text
 CallMessageBuilder / ControlMessageBuilder
     -> validate state and field combinations
-    -> finish FlatBuffer StreamMessage and frame
-    -> OutboundEnvelope
+    -> logical OutboundEnvelope
     -> physical outbound queue
+    -> background credit accounting and data-batch splitting
+    -> finish FlatBuffer StreamMessage frame(s)
     -> background socket writer
 ```
 
-The builder retains Arrow C-interface ownership until finalization succeeds and the outbound enqueue succeeds. On a
-validation, finalization, terminal-state, or queue failure, ownership remains with the worker or the builder's error
-result according to the interface contract. After successful enqueue, the worker must not mutate or release the
-transferred Arrow objects.
+The builder retains Arrow C-interface ownership until logical finalization and outbound enqueue succeed. On a
+validation, send-grant timeout, terminal-state, or queue failure, ownership remains with the worker or the builder's
+error result according to the interface contract. After successful enqueue, the worker must not mutate or release the
+transferred Arrow objects. The background thread owns any Arrow slices and generated wire frames until the complete
+logical batch has been sent or discarded during shutdown.
 
 The receive handoff is:
 
@@ -599,13 +629,14 @@ The implementation must preserve these invariants in tests and code review:
    multiplexed inbound queue.
 2. Neither queue blocks its producer. The worker never waits for outbound socket progress, and the background thread
    never waits for worker consumption.
-3. Both queue consumers can remove all currently available items in one batch while preserving FIFO order.
-4. An outbound enqueue cannot be stranded between an eventfd drain and the next socket wait.
-5. An inbound notification cannot be lost between the worker's readiness check and its atomic wait.
-6. Queue items outlive the queue operation through explicit ownership leases; no view points into a recycled buffer.
-7. Once close or failure is published, no ordinary message is delivered after the close boundary and no new worker
+3. One worker thread performs all context-side dispatch and queue consumption for a connection.
+4. Both queue consumers can remove all currently available items in one batch while preserving FIFO order.
+5. An outbound enqueue cannot be stranded between an eventfd drain and the next socket wait.
+6. An inbound notification cannot be lost between the worker's readiness check and its atomic wait.
+7. Queue items outlive the queue operation through explicit ownership leases; no view points into a recycled buffer.
+8. Once close or failure is published, no ordinary message is delivered after the close boundary and no new worker
    message can be queued.
-8. Every receive status check is non-consuming; every receive operation consumes exactly one logical message from its
+9. Every receive status check is non-consuming; every receive operation consumes exactly one logical message from its
    selected stream.
 
 ## Failure and concurrency scenarios

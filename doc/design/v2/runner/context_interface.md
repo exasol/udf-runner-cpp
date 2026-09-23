@@ -106,7 +106,7 @@ The conceptual call contract is:
 Call {
     receive_status() -> MessageStatus
     receive(optional<Duration> timeout) -> Result<CallMessageView>
-    send(CallMessageBuilder) -> Result<void>
+    send(CallMessageBuilder, optional<Duration> timeout) -> Result<void>
 }
 ```
 
@@ -126,6 +126,11 @@ For a call returned by `open_call()`, the opening message has already been sent 
 
 If a control message or another call's message arrives while `Call::receive()` is blocked, the context dispatches it
 to its own stream and the call receive continues waiting. It does not return unrelated traffic.
+
+`Call::send()` waits for the context to grant permission for the next data batch when required by flow control. An
+absent timeout waits indefinitely, a zero timeout does not block, and an expired timeout returns `timed_out` without
+consuming the builder or its Arrow ownership. The background thread owns the authoritative credit and any internal
+batch splitting; the worker-facing send operation submits one logical batch.
 
 ## Composite call messages
 
@@ -272,7 +277,7 @@ CallMessageView {
     has_data_schema() -> bool
     data_schema() -> DataSchemaView
     has_next() -> bool
-    next() -> const Next*
+    next() -> NextView
     has_record_batch() -> bool
     record_batch() -> RecordBatchView
     has_error() -> bool
@@ -282,12 +287,27 @@ CallMessageView {
 }
 ```
 
-`CallMessageView` and `ControlMessageView` are the only specialized message views. Their nested protocol metadata
-accessors return generated FlatBuffer table pointers. `DataSchemaView` and `RecordBatchView` remain explicit Arrow C
-Data Interface adapters because the wire metadata must be converted to Arrow schema/array ownership for the worker.
+`CallMessageView` and `ControlMessageView` are the primary specialized message views. Their nested protocol metadata
+accessors return generated FlatBuffer table pointers, except for `NextView`, which intentionally hides the internal
+transport byte budget. `DataSchemaView` and `RecordBatchView` remain explicit Arrow C Data Interface adapters because
+the wire metadata must be converted to Arrow schema/array ownership for the worker.
 
 `DataSchemaView` exposes the Arrow schema and its correlation flags. `RecordBatchView` exposes the Arrow array and
 `is_end_of_group`.
+
+### Received Next view
+
+```text
+NextView {
+    reset() -> bool
+    row_id() -> uint64
+}
+```
+
+`NextView` does not expose `byte_budget`. The background thread consumes the received wire-level byte budget for
+authoritative flow control before the message is delivered to the worker. The outbound
+`CallMessageBuilder.next(byte_budget, reset, row_id)` operation remains available because the worker may grant credit
+to its peer.
 
 ### Control message view
 
@@ -396,8 +416,8 @@ The following rules apply:
 - a call receive never returns control-stream or other-call traffic;
 - a control receive never returns call traffic.
 
-One consumer is expected for each call and for the control stream. Concurrent receives from different calls are
-supported by the contract; concurrent receives from the same stream are outside this interface.
+One worker thread owns a context and all of its calls and control-stream objects. Each logical stream has one consumer,
+and concurrent operations on the same context, including receives from different calls, are outside this interface.
 
 After `accept_call()` succeeds, the accepted call's pending-message sequence begins with its opening composite
 message. The opening message is consumed exactly once by the first successful `Call::receive()`.
@@ -521,4 +541,5 @@ The design is complete when it is clear that:
 - data schemas use `ArrowSchema` and preserve `has_group_id` and `has_row_id`;
 - Arrow ownership and release responsibility are explicit;
 - cancellation, closure, timeout, and failure behavior is defined;
+- one worker thread owns each context and concurrent operations on that context are outside the contract;
 - no implementation details have leaked into the worker-facing contract.
