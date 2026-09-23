@@ -24,20 +24,26 @@ uses explicit move-only ownership instead of shared or copyable socket state.
 - Keep the common stream contract implementable by future TCP and TLS
   transports.
 
-## Non-goals for the initial implementation
+## Scope boundaries
+
+The following capabilities are needed by the broader networking stack, but
+required by transport-specific or higher-level components rather than the core
+`Socket` abstraction:
 
 - TCP, TLS, datagram sockets, abstract-namespace Unix addresses, name
-  resolution, socket-option policy, timeouts, polling loops, and protocol
-  framing.
-- Implicit unlinking of a filesystem path before bind or during destruction.
-- Thread safety for concurrent mutation of an individual socket object.
+  resolution, and transport-specific socket-option policy.
+- Timeouts, polling loops, and protocol framing.
+
+Here the socket abstraction does not provide implicit unlinking of a filesystem path
+before bind or during destruction, or thread safety
+for concurrent mutation of an individual socket object.
 
 The library is Linux/POSIX-specific. This follows the v2 library's existing use
 of Linux readiness descriptors.
 
 ## Namespace and public headers
 
-Public types belong to `exasol::udf::v2`. The implementation should provide a
+Public types belong to `exasol::udf::v2::socket`. The implementation should provide a
 small public header surface, for example:
 
 ```
@@ -49,24 +55,33 @@ The core header must not expose a TLS implementation or a TCP address type.
 
 ## Buffer types and vectored I/O
 
-The API uses project-owned buffer descriptors rather than `iovec` in its public
-contract. This makes the contract usable by TLS, whose I/O does not map
-one-for-one to `readv` and `writev`.
+The API uses `std::span` rather than exposing `iovec` in its public contract.
+This keeps the contract usable by TLS, whose I/O does not map one-for-one to
+`readv` and `writev`.
 
 ```cpp
 namespace exasol::udf::v2 {
 
-struct MutableBuffer {
-    std::byte* data;
-    std::size_t size;
-};
-
-struct ConstBuffer {
-    const std::byte* data;
-    std::size_t size;
-};
-
 enum class Shutdown { receive, send, both };
+
+class OwnedFileDescriptor {
+public:
+    OwnedFileDescriptor() noexcept;
+    ~OwnedFileDescriptor();
+
+    OwnedFileDescriptor(const OwnedFileDescriptor&) = delete;
+    OwnedFileDescriptor& operator=(const OwnedFileDescriptor&) = delete;
+    OwnedFileDescriptor(OwnedFileDescriptor&&) noexcept;
+    OwnedFileDescriptor& operator=(OwnedFileDescriptor&&) noexcept;
+
+    [[nodiscard]] int native_handle() const noexcept;
+    [[nodiscard]] bool is_open() const noexcept;
+    void close() noexcept;
+    [[nodiscard]] int release_native_handle() noexcept;
+
+private:
+    explicit OwnedFileDescriptor(int owned_fd) noexcept;
+};
 
 class Socket {
 public:
@@ -79,11 +94,13 @@ public:
     [[nodiscard]] virtual bool is_open() const noexcept = 0;
 
     virtual void close() noexcept = 0;
-    [[nodiscard]] virtual int release_native_handle() noexcept = 0;
+    [[nodiscard]] virtual OwnedFileDescriptor release_native_handle() noexcept = 0;
     virtual void shutdown(Shutdown how) = 0;
 
-    virtual std::size_t read_some(std::span<MutableBuffer> buffers) = 0;
-    virtual std::size_t write_some(std::span<const ConstBuffer> buffers) = 0;
+    virtual std::size_t read_some(
+        std::span<const std::span<std::byte>> buffers) = 0;
+    virtual std::size_t write_some(
+        std::span<const std::span<const std::byte>> buffers) = 0;
 
 protected:
     Socket() = default;
@@ -94,10 +111,10 @@ protected:
 } // namespace exasol::udf::v2
 ```
 
-`MutableBuffer` and `ConstBuffer` are non-owning. Their memory and the buffer
-array passed to an I/O operation must remain valid until that call returns. A
-call never changes caller-owned descriptor fields; its byte-count result tells
-the caller how far to advance through the buffers.
+The outer span and each contained byte span are non-owning. Their memory and
+the array of byte spans passed to an I/O operation must remain valid until that
+call returns. A call never changes caller-owned spans; its byte-count result
+tells the caller how far to advance through the buffers.
 
 For convenience, the implementation may offer non-virtual single-buffer
 overloads that forward a one-element `std::span` to the virtual operations:
@@ -110,14 +127,17 @@ std::size_t write_some(std::span<const std::byte> buffer);
 ## `Socket` behavioral contract
 
 `Socket` is the common, non-copyable stream interface. Concrete transports,
-not the abstract base, are move-only RAII values.
+not the abstract base, are move-only RAII values. `OwnedFileDescriptor` is the
+move-only RAII value used when ownership must leave a socket or listener.
 
 - `native_handle()` returns a **borrowed** descriptor. It is suitable for
   readiness registration, but callers must neither close it nor retain it
   after the owning socket has been closed, moved, released, or destroyed.
-- `release_native_handle()` transfers ownership to the caller and leaves the
-  socket closed. It returns `-1` when the socket is already closed. This is the
-  only ownership escape hatch.
+- `release_native_handle()` transfers ownership to an `OwnedFileDescriptor`
+  and leaves the socket closed. It returns an empty object when the socket is
+  already closed. This is the only ownership escape hatch, so transferred
+  descriptors are still closed automatically unless ownership is explicitly
+  released again.
 - `close()` is idempotent and `noexcept`. It marks the object closed and makes
   a best-effort POSIX `close`; destruction invokes the same behavior. A close
   error cannot safely be retried and is not reported by this API.
@@ -131,9 +151,9 @@ not the abstract base, are move-only RAII values.
 - `write_some` returns the number of bytes written. It returns `0` only when
   every supplied buffer has zero length; a non-empty write either makes
   progress or throws.
-- I/O validates buffer descriptors and the platform `IOV_MAX` limit. Invalid
-  descriptors, invalid closed sockets, and syscall failures throw
-  `std::system_error` using `std::generic_category()`.
+- I/O validates the platform `IOV_MAX` limit and total byte count. Closed
+  sockets and syscall failures throw `std::system_error` using
+  `std::generic_category()`.
 - I/O retries `EINTR`. It otherwise performs at most one kernel transfer
   operation, so partial progress is normal. `EAGAIN`/`EWOULDBLOCK` is reported
   as `std::system_error`; it is never converted to a zero-byte result.
@@ -163,7 +183,8 @@ public:
     UnixSocket& operator=(UnixSocket&&) noexcept;
 
     [[nodiscard]] static UnixSocket connect(const std::filesystem::path& path);
-    [[nodiscard]] static UnixSocket adopt_native_handle(int owned_fd);
+    [[nodiscard]] static UnixSocket adopt_native_handle(
+        OwnedFileDescriptor owned_fd);
 
     // Socket overrides
 };
@@ -184,7 +205,7 @@ public:
     [[nodiscard]] int native_handle() const noexcept;
     [[nodiscard]] bool is_open() const noexcept;
     void close() noexcept;
-    [[nodiscard]] int release_native_handle() noexcept;
+    [[nodiscard]] OwnedFileDescriptor release_native_handle() noexcept;
     [[nodiscard]] UnixSocket accept();
     void unlink_path();
 };
@@ -193,9 +214,10 @@ public:
 ```
 
 `UnixSocket::connect` creates a close-on-exec stream socket and connects it to
-the supplied filesystem path. `adopt_native_handle` consumes an already-owned,
-valid Unix stream descriptor; it is the explicit boundary for descriptor
-passing or interoperability.
+the supplied filesystem path. `adopt_native_handle` consumes an
+`OwnedFileDescriptor` containing a valid Unix stream descriptor; it is the
+explicit boundary for descriptor passing or interoperability. If adoption
+fails, the wrapper remains responsible for closing the descriptor.
 
 `UnixSocketListener::bind` creates a close-on-exec listener, binds it, and
 starts listening. It rejects empty and overlong paths before the syscall. It
@@ -236,7 +258,7 @@ changes and define their own read/write concurrency policy.
 All factory-created and accepted descriptors use close-on-exec. The API does
 not silently change a caller-provided descriptor's blocking mode. Callers that
 need a descriptor after object destruction must first call
-`release_native_handle()`.
+`release_native_handle()` and retain the returned `OwnedFileDescriptor`.
 
 ## Implementation acceptance tests
 
