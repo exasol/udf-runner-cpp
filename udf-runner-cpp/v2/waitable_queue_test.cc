@@ -3,34 +3,22 @@
 #include <unistd.h>
 
 #include <array>
-#include <cerrno>
 #include <cstdint>
-#include <cstdio>
-#include <cstdlib>
 #include <span>
-#include <system_error>
 #include <vector>
 
 #include <exasol/udf/v2/waitable_queue.hpp>
+#include <gtest/gtest.h>
 
 namespace
 {
 
-void test_check(bool condition, const char* message)
-{
-    if (!condition)
-    {
-        std::fprintf(stderr, "waitable queue test failure: %s\n", message);
-        std::abort();
-    }
-}
-
-void add_to_epoll(int epoll_fd, int fd, std::uint32_t events)
+bool add_to_epoll(int epoll_fd, int fd, std::uint32_t events)
 {
     epoll_event event{};
     event.events  = events;
     event.data.fd = fd;
-    test_check(::epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event) == 0, "epoll_ctl failed");
+    return ::epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event) == 0;
 }
 
 void close_pair(const std::array<int, 2>& sockets)
@@ -41,66 +29,56 @@ void close_pair(const std::array<int, 2>& sockets)
 
 } // namespace
 
-int main()
+TEST(WaitableQueueTest, NotifiesEpollAndSupportsBatchOperations)
 {
-    try
+    exasol::udf::v2::WaitableSpscQueue<int> queue;
+    const int epoll_fd = ::epoll_create1(EPOLL_CLOEXEC);
+    ASSERT_NE(epoll_fd, -1);
+
+    std::array<int, 2> sockets{};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
+    ASSERT_TRUE(add_to_epoll(epoll_fd, queue.native_handle(), EPOLLIN));
+    ASSERT_TRUE(add_to_epoll(epoll_fd, sockets[1], EPOLLIN));
+
+    ASSERT_TRUE(queue.enqueue(42));
+    const char byte = 'x';
+    ASSERT_EQ(::write(sockets[0], &byte, sizeof(byte)), sizeof(byte));
+
+    std::array<epoll_event, 2> events{};
+    const int event_count = ::epoll_wait(epoll_fd, events.data(), events.size(), 1000);
+    ASSERT_EQ(event_count, 2);
+
+    bool queue_ready  = false;
+    bool socket_ready = false;
+    for (const auto& event : std::span(events).first(static_cast<std::size_t>(event_count)))
     {
-        exasol::udf::v2::WaitableSpscQueue<int> queue;
-        const int epoll_fd = ::epoll_create1(EPOLL_CLOEXEC);
-        test_check(epoll_fd != -1, "epoll_create1 failed");
-
-        std::array<int, 2> sockets{};
-        test_check(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()) == 0,
-                   "socketpair failed");
-        add_to_epoll(epoll_fd, queue.native_handle(), EPOLLIN);
-        add_to_epoll(epoll_fd, sockets[1], EPOLLIN);
-
-        test_check(queue.enqueue(42), "queue enqueue failed");
-        const char byte = 'x';
-        test_check(::write(sockets[0], &byte, sizeof(byte)) == sizeof(byte), "socket write failed");
-
-        std::array<epoll_event, 2> events{};
-        const int event_count = ::epoll_wait(epoll_fd, events.data(), events.size(), 1000);
-        test_check(event_count == 2, "epoll_wait did not report both descriptors");
-
-        bool queue_ready  = false;
-        bool socket_ready = false;
-        for (const auto& event : std::span(events).first(static_cast<std::size_t>(event_count)))
-        {
-            queue_ready |= event.data.fd == queue.native_handle();
-            socket_ready |= event.data.fd == sockets[1];
-        }
-        test_check(queue_ready, "queue descriptor was not ready");
-        test_check(socket_ready, "socket descriptor was not ready");
-
-        test_check(queue.drain_notifications() == 1, "unexpected queue notification count");
-        int value = 0;
-        test_check(queue.try_dequeue(value), "queue dequeue failed");
-        test_check(value == 42, "unexpected dequeued value");
-
-        const std::vector<int> batch{1, 2, 3};
-        test_check(queue.enqueue_batch(batch.begin(), batch.end()) == batch.size(),
-                   "batch enqueue failed");
-        test_check(queue.drain_notifications() == 1, "unexpected batch notification count");
-        for (int expected : batch)
-        {
-            test_check(queue.try_dequeue(value), "batch dequeue failed");
-            test_check(value == expected, "unexpected batch value");
-        }
-        test_check(!queue.try_dequeue(value), "queue should be empty");
-
-        exasol::udf::v2::WaitableMpmcQueue<int> mpmc;
-        test_check(mpmc.enqueue(7), "MPMC queue enqueue failed");
-        test_check(mpmc.drain_notifications() == 1, "unexpected MPMC notification count");
-        test_check(mpmc.try_dequeue(value), "MPMC queue dequeue failed");
-        test_check(value == 7, "unexpected MPMC value");
-
-        close_pair(sockets);
-        ::close(epoll_fd);
+        queue_ready |= event.data.fd == queue.native_handle();
+        socket_ready |= event.data.fd == sockets[1];
     }
-    catch (const std::exception& error)
+    EXPECT_TRUE(queue_ready);
+    EXPECT_TRUE(socket_ready);
+
+    EXPECT_EQ(queue.drain_notifications(), 1);
+    int value = 0;
+    ASSERT_TRUE(queue.try_dequeue(value));
+    EXPECT_EQ(value, 42);
+
+    const std::vector<int> batch{1, 2, 3};
+    EXPECT_EQ(queue.enqueue_batch(batch.begin(), batch.end()), batch.size());
+    EXPECT_EQ(queue.drain_notifications(), 1);
+    for (int expected : batch)
     {
-        std::fprintf(stderr, "waitable queue test failure: %s\n", error.what());
-        return 1;
+        ASSERT_TRUE(queue.try_dequeue(value));
+        EXPECT_EQ(value, expected);
     }
+    EXPECT_FALSE(queue.try_dequeue(value));
+
+    exasol::udf::v2::WaitableMpmcQueue<int> mpmc;
+    ASSERT_TRUE(mpmc.enqueue(7));
+    EXPECT_EQ(mpmc.drain_notifications(), 1);
+    ASSERT_TRUE(mpmc.try_dequeue(value));
+    EXPECT_EQ(value, 7);
+
+    close_pair(sockets);
+    ::close(epoll_fd);
 }
