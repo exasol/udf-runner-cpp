@@ -7,6 +7,7 @@ This document describes the high-level protocol calls built on top of the generi
 This document covers:
 
 - `Run` and Function operations
+- `cleanup`
 - `get_connection` and `get_script`
 - which calls carry data streams
 - representative message sequences
@@ -27,6 +28,7 @@ Related diagrams:
 | --- | --- | --- |
 | `Run` | Yes, bidirectional | Each direction carries group and row correlation in the data itself. |
 | Function operation | No | One of `default_output_columns`, `virtual_schema_adapter`, `generate_sql_for_import_spec`, or `generate_sql_for_export_spec`. |
+| `cleanup` | No | DB-opened between calls to let UDFRunner release resources retained from completed calls. |
 
 ### Nested `UDFRunner`-opened calls
 
@@ -66,6 +68,19 @@ See [Group and Row Correlation](correlation.md).
 - has the operation-specific request and result payloads defined in
   [payloads.md](payloads.md)
 
+### `cleanup`
+
+- opened by `DB` between calls, after one or more preceding calls have completed
+- has no attached data stream, request payload, or normal result payload
+- gives `UDFRunner` an explicit opportunity to release resources retained from completed calls or nested calls
+- must complete cleanup before sending the normal `CloseCall`; `CloseCall` with `Error` reports cleanup failure
+- does not close the connection or prevent later calls after a normal close
+- may be repeated periodically by `DB`
+
+The v1 implementation contains an `MT_CLEANUP` message type, but uses it as a cleanup/termination response signal
+while processing older request types rather than as a standalone DB-issued operation. The v2 `cleanup` call keeps the
+name for compatibility while defining an explicit between-call lifecycle.
+
 ### `get_connection`
 
 - opened by `UDFRunner`
@@ -90,6 +105,8 @@ The current design keeps the high-level sequences intentionally simple:
 
 - nested callback-style calls execute while a parent `Run` or Function call remains active
 - `Run` combines `OpenCall`, `call_metadata`, input schema announcement, and the first input batch when practical
+- `cleanup` is sequenced between calls: the previous call closes, `DB` opens `cleanup`, and the next call starts only
+  after the cleanup call closes
 - normal completion of the call's data stream is marked by unilateral `CloseCall`; late in-flight stream messages are ignored
 
 See [nested_calls.svg](nested_calls.svg) and
@@ -116,6 +133,7 @@ call orchestration and do not alter the generic Client/Server stream rules in th
 3. queue DB-produced input batches until the first-batch rule or a usable `Next(...)` byte budget permits emission
 4. if nothing is ready to send, block waiting for new incoming messages
 5. monitor peer liveness and terminate unhealthy sessions when needed
+6. optionally open `cleanup` between calls and wait for its `CloseCall` before starting the next call
 
 See [endpoint_scheduling.svg](endpoint_scheduling.svg).
 

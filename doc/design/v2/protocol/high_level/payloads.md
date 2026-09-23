@@ -91,6 +91,14 @@ See the [import specification example](examples/import_specification.json).
 [export_specification.schema.json](../../../../../udf-runner-cpp/v2/json_schema/export_specification.schema.json).
 See the [export specification example](examples/export_specification.json).
 
+## Cleanup Call
+
+`cleanup` is a DB-opened, non-streaming call that may be issued between calls after one or more preceding calls have
+completed. It has no request payload and no normal result payload. The UDFRunner uses the call to release resources it
+still retains from completed calls or nested calls. It sends the normal `CloseCall` only after cleanup has completed; a
+`CloseCall` with `Error` reports cleanup failure. A normally closed `cleanup` call leaves the connection available for
+later calls, and the DB may issue another cleanup call after a later group of calls.
+
 ## Nested Calls
 
 `UDFRunner` may open these nested calls only while a `Run` or Function call is active:

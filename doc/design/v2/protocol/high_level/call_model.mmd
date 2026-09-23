@@ -6,8 +6,10 @@ flowchart TD
 
     Run["Run (DB-opened)"] -.->|instance of| Call
     Function["Function operation (DB-opened)"] -.->|instance of| Call
+    Cleanup["cleanup (DB-opened)"] -.->|instance of| Call
     GetConnection["get_connection (UDFRunner-opened)"] -.->|instance of| Call
     GetScript["get_script (UDFRunner-opened)"] -.->|instance of| Call
 
     Run --> RunData["Input/Output Data Stream"]
     Function --> FunctionKinds["default output columns / virtual schema / import SQL / export SQL"]
+    Cleanup --> CleanupSemantics["No payload or data stream; release retained resources"]
