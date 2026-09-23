@@ -183,6 +183,12 @@ shared atomic byte allowance plus a generation used for timed waiting; it is not
 The worker grant is only an admission mechanism. The background thread remains authoritative for actual bytes sent,
 row-boundary splitting, group-end flags, and waiting for additional `Next` credit.
 
+The background thread targets approximately 4 MiB (`4 * 1024 * 1024` bytes) of Arrow buffer bytes per generated
+record-batch frame. It accumulates complete rows until the next row would take the frame beyond that target. The next
+row is still included when necessary to preserve row boundaries, so a generated frame may be slightly larger than 4
+MiB. If one row is itself larger than 4 MiB, that row is emitted as one oversized frame. The 4 MiB target is therefore
+an approximate batching target, not a hard maximum, and does not override authoritative flow-control credit.
+
 ### Background credit and split state
 
 For every call data direction, the background thread keeps:
@@ -197,8 +203,10 @@ Receiving `Next` increases `authoritative_remaining_credit` and publishes a corr
 the background consumes a logical batch, it charges each generated chunk against authoritative credit, not against the
 worker's coarse reservation. If the logical batch is larger than the current credit, the background sends the largest
 safe row-aligned prefix, permits at most the configured one-row oversubscription, and retains the remainder until more
-credit arrives. After the logical batch is complete, it reconciles unused credit into `worker_send_grant` and notifies
-the worker. A worker grant never authorizes the background to exceed actual protocol credit.
+credit arrives. The approximately 4 MiB frame target is applied while selecting each row-aligned prefix; a row may
+make a frame exceed the target, but it must not be split. After the logical batch is complete, it reconciles unused
+credit into `worker_send_grant` and notifies the worker. A worker grant never authorizes the background to exceed actual
+protocol credit.
 
 ### Background send path
 
@@ -206,7 +214,9 @@ the worker. A worker grant never authorizes the background to exceed actual prot
 2. If eventfd is readable, drain its counter.
 3. Drain all currently available outbound messages.
 4. For each data-bearing logical message, apply the call's authoritative remaining credit and create one or more
-   ordered wire frames. Split only at row boundaries; a group boundary sets `is_end_of_group` on the preceding frame.
+   ordered wire frames. Target approximately 4 MiB of Arrow buffer bytes per frame and split only at row boundaries;
+   include the row that crosses the target, and emit an oversized row as its own frame. A group boundary sets
+   `is_end_of_group` on the preceding frame.
 5. Send the generated frames in FIFO order.
 6. If the logical batch requires more credit, retain its unsent remainder and continue reading the socket until `Next`
    arrives.
@@ -638,6 +648,8 @@ The implementation must preserve these invariants in tests and code review:
    message can be queued.
 9. Every receive status check is non-consuming; every receive operation consumes exactly one logical message from its
    selected stream.
+10. Background record-batch frames target approximately 4 MiB of Arrow buffer bytes, split only at row boundaries;
+    rows larger than the target are emitted as single oversized frames.
 
 ## Failure and concurrency scenarios
 
@@ -655,4 +667,7 @@ The implementation design must cover:
 - worker close while both queues contain messages;
 - peer close while outbound messages remain queued;
 - context destruction before explicit worker close;
+- a record batch split at approximately 4 MiB while preserving complete rows;
+- a row crossing the 4 MiB target and a row larger than 4 MiB;
+- group-end flags when a 4 MiB split falls at or inside a group;
 - user code that does not react to a protocol error or close message.
