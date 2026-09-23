@@ -24,5 +24,18 @@ The test suite covers the FlatBuffers protocol, Arrow support, JSON schemas,
 queue implementations, and fuzz-target regression tests. For fuzzing-specific
 commands, see the [v2 fuzzing guide](v2_fuzzing.md).
 
+## Benchmarks
+
+Build and run the waitable-queue benchmark with:
+
+```bash
+cd udf-runner-cpp/v2
+bazel run //:waitable_queue_benchmark
+```
+
+Benchmark results are diagnostic measurements. CPU frequency, scheduler
+activity, build mode, and system load can affect the results, so benchmarks
+must not be used as deterministic pass/fail tests.
+
 For static analysis and formatting checks, see the [v2 code-quality
 guide](v2_code_quality.md).
