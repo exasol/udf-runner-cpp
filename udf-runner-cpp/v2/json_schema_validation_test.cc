@@ -10,12 +10,18 @@ namespace isolated_nlohmann = exasol::udf::v2::third_party::nlohmann;
 namespace
 {
 
+class JsonSchemaTestError final : public std::runtime_error
+{
+public:
+    using std::runtime_error::runtime_error;
+};
+
 isolated_nlohmann::json read_json(const std::string& path)
 {
     std::ifstream input(path);
     if (!input.good())
     {
-        throw std::runtime_error("cannot open JSON schema: " + path);
+        throw JsonSchemaTestError("cannot open JSON schema: " + path);
     }
     return isolated_nlohmann::json::parse(input);
 }
