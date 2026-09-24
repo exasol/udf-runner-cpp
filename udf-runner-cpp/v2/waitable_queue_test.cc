@@ -39,6 +39,32 @@ void close_pair(const std::array<int, 2>& sockets)
     ::close(sockets[1]);
 }
 
+class LimitedQueue
+{
+public:
+    explicit LimitedQueue(std::size_t capacity) : remaining_(capacity)
+    {
+    }
+
+    bool enqueue(int)
+    {
+        if (remaining_ == 0)
+        {
+            return false;
+        }
+        --remaining_;
+        return true;
+    }
+
+    bool try_dequeue(int&)
+    {
+        return false;
+    }
+
+private:
+    std::size_t remaining_;
+};
+
 } // namespace
 
 int main()
@@ -88,6 +114,36 @@ int main()
             test_check(value == expected, "unexpected batch value");
         }
         test_check(!queue.try_dequeue(value), "queue should be empty");
+
+        const std::array<int, 0> empty_batch{};
+        test_check(queue.enqueue_batch(empty_batch.begin(), empty_batch.end()) == 0,
+                   "empty batch should not enqueue values");
+        test_check(queue.drain_notifications() == 0, "empty batch should not notify");
+
+        const auto& const_queue = queue;
+        test_check(&const_queue.queue() == &queue.queue(), "const queue access failed");
+
+        exasol::udf::v2::WaitableSpscQueue<int> moved_queue;
+        const int moved_handle = moved_queue.native_handle();
+        exasol::udf::v2::WaitableSpscQueue<int> move_constructed(std::move(moved_queue));
+        test_check(moved_queue.native_handle() == -1, "move construction retained source handle");
+        test_check(move_constructed.native_handle() == moved_handle,
+                   "move construction changed handle");
+
+        exasol::udf::v2::WaitableSpscQueue<int> move_assigned;
+        move_assigned = std::move(move_constructed);
+        test_check(move_constructed.native_handle() == -1,
+                   "move assignment retained source handle");
+        test_check(move_assigned.native_handle() == moved_handle, "move assignment changed handle");
+
+        exasol::udf::v2::WaitableQueue<LimitedQueue> limited_queue(LimitedQueue{1});
+        const std::array<int, 2> limited_batch{1, 2};
+        test_check(limited_queue.enqueue_batch(limited_batch.begin(), limited_batch.end()) == 1,
+                   "limited queue should stop at capacity");
+        test_check(limited_queue.drain_notifications() == 1,
+                   "limited queue should notify successful enqueue");
+        test_check(!limited_queue.enqueue(3), "full queue should reject enqueue");
+        test_check(limited_queue.drain_notifications() == 0, "failed enqueue should not notify");
 
         exasol::udf::v2::WaitableMpmcQueue<int> mpmc;
         test_check(mpmc.enqueue(7), "MPMC queue enqueue failed");
