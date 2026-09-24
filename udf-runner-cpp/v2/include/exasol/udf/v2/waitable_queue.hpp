@@ -27,7 +27,13 @@ namespace exasol::udf::v2
 class EventFd
 {
 public:
+    EventFd()          = default;
     virtual ~EventFd() = default;
+
+    EventFd(const EventFd&)            = delete;
+    EventFd& operator=(const EventFd&) = delete;
+    EventFd(EventFd&&)                 = default;
+    EventFd& operator=(EventFd&&)      = default;
 
     [[nodiscard]] virtual int native_handle() const noexcept = 0;
     virtual std::uint64_t read_notification()                = 0;
@@ -55,6 +61,24 @@ public:
 
     LinuxEventFd(const LinuxEventFd&)            = delete;
     LinuxEventFd& operator=(const LinuxEventFd&) = delete;
+
+    LinuxEventFd(LinuxEventFd&& other) noexcept
+        : file_descriptor(std::exchange(other.file_descriptor, -1))
+    {
+    }
+
+    LinuxEventFd& operator=(LinuxEventFd&& other) noexcept
+    {
+        if (this != &other)
+        {
+            if (file_descriptor != -1)
+            {
+                ::close(file_descriptor);
+            }
+            file_descriptor = std::exchange(other.file_descriptor, -1);
+        }
+        return *this;
+    }
 
     [[nodiscard]] int native_handle() const noexcept override
     {

@@ -70,8 +70,15 @@ public:
     using read_action  = std::variant<std::uint64_t, std::errc>;
     using write_action = std::variant<std::monostate, std::errc>;
 
-    std::deque<read_action> read_actions;
-    std::deque<write_action> write_actions;
+    void set_read_actions(std::deque<read_action> actions)
+    {
+        read_actions = std::move(actions);
+    }
+
+    void set_write_actions(std::deque<write_action> actions)
+    {
+        write_actions = std::move(actions);
+    }
 
     [[nodiscard]] int native_handle() const noexcept override
     {
@@ -107,6 +114,10 @@ public:
             throw std::system_error(std::make_error_code(*error), "mock eventfd write");
         }
     }
+
+private:
+    std::deque<read_action> read_actions;
+    std::deque<write_action> write_actions;
 };
 
 template <typename Function>
@@ -222,30 +233,30 @@ int main()
         test_check(!limited_queue.enqueue(3), "full queue should reject enqueue");
         test_check(limited_queue.drain_notifications() == 0, "failed enqueue should not notify");
 
-        auto read_event_fd          = std::make_unique<MockEventFd>();
-        read_event_fd->read_actions = {std::errc::interrupted, std::uint64_t{7},
-                                       std::errc::resource_unavailable_try_again};
+        auto read_event_fd = std::make_unique<MockEventFd>();
+        read_event_fd->set_read_actions(
+            {std::errc::interrupted, std::uint64_t{7}, std::errc::resource_unavailable_try_again});
         auto read_queue = exasol::udf::v2::WaitableQueue(LimitedQueue{1}, std::move(read_event_fd));
         test_check(read_queue.native_handle() == 42, "mock eventfd handle was not retained");
         test_check(read_queue.drain_notifications() == 7, "mock notification drain failed");
 
-        auto write_event_fd           = std::make_unique<MockEventFd>();
-        write_event_fd->write_actions = {std::errc::interrupted, std::monostate{},
-                                         std::errc::resource_unavailable_try_again};
+        auto write_event_fd = std::make_unique<MockEventFd>();
+        write_event_fd->set_write_actions(
+            {std::errc::interrupted, std::monostate{}, std::errc::resource_unavailable_try_again});
         auto write_queue =
             exasol::udf::v2::WaitableQueue(LimitedQueue{2}, std::move(write_event_fd));
         test_check(write_queue.enqueue(1), "interrupted mock write should retry");
         test_check(write_queue.enqueue(2), "saturated mock write should be ignored");
 
-        auto error_event_fd          = std::make_unique<MockEventFd>();
-        error_event_fd->read_actions = {std::errc::io_error};
+        auto error_event_fd = std::make_unique<MockEventFd>();
+        error_event_fd->set_read_actions({std::errc::io_error});
         auto error_queue =
             exasol::udf::v2::WaitableQueue(LimitedQueue{1}, std::move(error_event_fd));
         expect_system_error([&error_queue] { error_queue.drain_notifications(); },
                             std::errc::io_error, "read error should be propagated");
 
-        auto write_error_event_fd           = std::make_unique<MockEventFd>();
-        write_error_event_fd->write_actions = {std::errc::io_error};
+        auto write_error_event_fd = std::make_unique<MockEventFd>();
+        write_error_event_fd->set_write_actions({std::errc::io_error});
         auto write_error_queue =
             exasol::udf::v2::WaitableQueue(LimitedQueue{1}, std::move(write_error_event_fd));
         expect_system_error(
