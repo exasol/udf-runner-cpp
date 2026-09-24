@@ -28,7 +28,7 @@ class WaitableQueue
 public:
     using queue_type = Queue;
 
-    WaitableQueue() : notification_fd(::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC))
+    WaitableQueue()
     {
         if (notification_fd == -1)
         {
@@ -36,8 +36,7 @@ public:
         }
     }
 
-    explicit WaitableQueue(Queue queue)
-        : queue_storage(std::move(queue)), notification_fd(::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC))
+    explicit WaitableQueue(Queue queue) : queue_storage(std::move(queue))
     {
         if (notification_fd == -1)
         {
@@ -187,7 +186,7 @@ private:
     }
 
     Queue queue_storage;
-    int notification_fd;
+    int notification_fd = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
 };
 
 template <typename T>
