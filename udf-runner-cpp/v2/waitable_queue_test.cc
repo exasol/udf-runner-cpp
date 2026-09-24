@@ -136,6 +136,14 @@ void expect_invalid_argument(Function&& function, const char* message)
     }
 }
 
+template <typename Queue>
+void self_move_assign(Queue& queue)
+{
+    using move_assignment        = Queue& (Queue::*)(Queue&&) noexcept;
+    const move_assignment assign = &Queue::operator=;
+    (queue.*assign)(std::move(queue));
+}
+
 } // namespace
 
 int main()
@@ -203,6 +211,7 @@ int main()
         exasol::udf::v2::WaitableSpscQueue<int> move_assigned;
         move_assigned = std::move(move_constructed);
         test_check(move_assigned.native_handle() == moved_handle, "move assignment changed handle");
+        self_move_assign(move_assigned);
 
         exasol::udf::v2::WaitableQueue<LimitedQueue> limited_queue(LimitedQueue{1});
         const std::array<int, 2> limited_batch{1, 2};
@@ -251,6 +260,22 @@ int main()
                 static_cast<void>(queue);
             },
             "null eventfd implementation should be rejected");
+
+        {
+            exasol::udf::v2::LinuxEventFd event_fd;
+            ::close(event_fd.native_handle());
+            expect_system_error([&event_fd] { event_fd.read_notification(); },
+                                std::errc::bad_file_descriptor,
+                                "closed eventfd read should be rejected");
+        }
+
+        {
+            exasol::udf::v2::LinuxEventFd event_fd;
+            ::close(event_fd.native_handle());
+            expect_system_error([&event_fd] { event_fd.write_notification(); },
+                                std::errc::bad_file_descriptor,
+                                "closed eventfd write should be rejected");
+        }
 
         exasol::udf::v2::WaitableMpmcQueue<int> mpmc;
         test_check(mpmc.enqueue(7), "MPMC queue enqueue failed");
