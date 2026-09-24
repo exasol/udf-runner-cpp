@@ -63,6 +63,7 @@ alias(
     actual = "@v2_third_party//:package",
     tags = ["noclangtidy"],
 )
+```
 
 ## Mutation testing with Mull
 
@@ -92,4 +93,3 @@ mutation testing of C++ template implementations. Keep template-based tests in
 normal Bazel test coverage and exclude them from Mull with the `no-mull` tag.
 Do not add translation-unit wrappers solely to make template instantiations
 available to Mull.
-```
