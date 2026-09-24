@@ -7,6 +7,7 @@ n/a
 
 ## Features / Enhancements
 
+ - #54: Added v2 socket-library interface design
  - #32: Added clang tidy to v2
  - #36: Added developer guide for clang-tidy and clang-format
  - #38: Added Sonar Qube Public
