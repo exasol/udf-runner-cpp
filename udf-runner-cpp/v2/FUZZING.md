@@ -8,11 +8,12 @@ Build the instrumented targets with AddressSanitizer and libFuzzer:
 
 ```sh
 bazel build --config=asan-libfuzzer \
-  //:frame_fuzz_test_bin \
-  //:call_metadata_fuzz_test_bin \
-  //:connection_information_fuzz_test_bin \
-  //:export_specification_fuzz_test_bin \
-  //:import_specification_fuzz_test_bin
+  //:frame_fuzz_test \
+  //:call_metadata_fuzz_test \
+  //:connection_information_fuzz_test \
+  //:export_specification_fuzz_test \
+  //:import_specification_fuzz_test \
+  //:queue_fuzz_test
 ```
 
 Run a target through the rules_fuzzing launcher. The launcher stores generated
@@ -20,7 +21,7 @@ corpus entries and crash artifacts below `/tmp/fuzzing` by default:
 
 ```sh
 bazel run --config=asan-libfuzzer //:frame_fuzz_test_run -- \
-  --timeout_secs=60
+  --timeout_secs=30
 ```
 
 The available fuzz targets are discovered from Bazel with the Nox task:
@@ -33,8 +34,14 @@ Run one discovered target through Nox with:
 
 ```sh
 poetry run -- nox --sessions=v2-fuzzing -- \
-  --target frame --timeout-secs 300
+  --target frame --timeout-secs 30
 ```
+
+Local fuzzing must always be time-bounded. Use the short 30-second duration for
+exploration, or replace it with the exact duration requested by the user. Do
+not run an unbounded campaign, run all targets, or use the CI campaign duration
+locally unless explicitly requested. Prefer one target at a time during local
+development.
 
 Run the checked-in corpus as a bounded regression test:
 
@@ -44,7 +51,8 @@ bazel test --config=asan-libfuzzer --test_output=errors \
   //:call_metadata_fuzz_test \
   //:connection_information_fuzz_test \
   //:export_specification_fuzz_test \
-  //:import_specification_fuzz_test
+  //:import_specification_fuzz_test \
+  //:queue_fuzz_test
 ```
 
 Use `--config=asan-ubsan-libfuzzer` for combined sanitizer coverage or

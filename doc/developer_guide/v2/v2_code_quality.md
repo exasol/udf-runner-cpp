@@ -1,0 +1,95 @@
+# v2 Code Quality Guide
+
+## Static analysis with clang-tidy
+
+`clang-tidy` runs static analysis checks on C++ source files. It is integrated
+into the Bazel build as a configuration flag:
+
+```bash
+cd udf-runner-cpp/v2
+bazel build --verbose_failures --config clang-tidy //...
+```
+
+Run clang-tidy on changed `.cpp` files before submitting code for review to
+catch common issues early.
+
+### Apply clang-tidy fixes
+
+You can run `clang-apply-replacements` with:
+
+```bash
+bazel run @rules_clang_tidy//:apply-fixes \
+  --@rules_clang_tidy//:clang-apply-replacements=//tools/clang-tidy:apply-replacements-wrapper \
+  -- $(bazel info output_path)
+```
+
+Review the resulting diff carefully because automated fixes may not address
+all findings correctly.
+
+## Code formatting with clang-format
+
+Source files are checked with `clang-format` through Bazel aspects. Check
+formatting with:
+
+```bash
+cd udf-runner-cpp/v2
+bazel build --verbose_failures --config clang-format //...
+```
+
+Apply formatting fixes with:
+
+```bash
+bazel build --config clang-format-fix //...
+```
+
+Run the formatting fix before committing to keep source files consistent.
+
+## Excluding targets
+
+Targets that contain third-party or otherwise incompatible code can be excluded
+from both checks with the `noclangtidy` tag. The corresponding Bazel
+configurations exclude targets carrying this tag:
+
+```bazelrc
+build:clang-tidy --build_tag_filters=-noclangtidy
+build:clang-format --build_tag_filters=-noclangtidy
+```
+
+Apply the tag to a target as follows:
+
+```starlark
+alias(
+    name = "third_party_package",
+    actual = "@v2_third_party//:package",
+    tags = ["noclangtidy"],
+)
+
+## Mutation testing with Mull
+
+Mutation testing for the functional v2 C++ tests uses [Mull](https://mull-project.com/)
+with the pinned Mull 0.34.1 release and matching LLVM 20 toolchain. Install the
+LLVM 20 compiler and `mull-20`, then verify that `mull-runner-20` and
+`/usr/lib/mull-ir-frontend-20` are available.
+
+Run the mutation session from the repository root:
+
+```bash
+poetry run -- nox --sessions=mull
+```
+
+If the Bazel executable is named `bazelisk`, run:
+`BAZEL=bazelisk poetry run -- nox --sessions=mull`.
+
+The session builds the supported protocol, Arrow, and JSON-schema tests with
+Mull instrumentation and writes reports to `.build_output/mull/`. The session
+enforces the configured 80% mutation-score threshold. The LLVM major version
+can be changed with `MULL_LLVM_VERSION`; custom tool paths can be supplied
+with `MULL_CXX`, `MULL_RUNNER`, and `MULL_IR_FRONTEND`. The C compiler used by
+Bazel can be overridden with `MULL_CC`.
+
+With the current Mull, Clang, and Bazel setup, Mull does not support reliable
+mutation testing of C++ template implementations. Keep template-based tests in
+normal Bazel test coverage and exclude them from Mull with the `no-mull` tag.
+Do not add translation-unit wrappers solely to make template instantiations
+available to Mull.
+```
