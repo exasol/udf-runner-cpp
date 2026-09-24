@@ -1,7 +1,4 @@
-#include <cassert>
-#include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include <string>
 #include <string_view>
 #include <sys/wait.h>
@@ -9,6 +6,7 @@
 
 #include <exasol/udf/v2/assert.hpp>
 #include <exasol/udf/v2/exception.hpp>
+#include <gtest/gtest.h>
 
 namespace
 {
@@ -18,25 +16,30 @@ void trigger_assertion()
     EXASOL_UDF_ASSERT(false);
 }
 
-void test_exception()
+TEST(ExceptionTest, CapturesMessageLocationAndStacktrace)
 {
     const exasol::udf::v2::Exception error("example message");
-    assert(std::strcmp(error.what(), "example message") == 0);
-    assert(!error.stacktrace().empty());
-    assert(error.location().file_name() == std::string_view(__FILE__));
+    EXPECT_STREQ(error.what(), "example message");
+    EXPECT_FALSE(error.stacktrace().empty());
+    EXPECT_EQ(error.location().file_name(), std::string_view(__FILE__));
 }
 
-void test_assertion()
+TEST(ExceptionTest, AssertionAbortsAndPrintsStacktrace)
 {
     int output_pipe[2];
-    assert(::pipe(output_pipe) == 0);
+    const int pipe_result = ::pipe(output_pipe);
+    ASSERT_EQ(pipe_result, 0);
 
     const pid_t child = ::fork();
-    assert(child >= 0);
+    ASSERT_GE(child, 0);
     if (child == 0)
     {
         ::close(output_pipe[0]);
-        assert(::dup2(output_pipe[1], STDERR_FILENO) >= 0);
+        const int dup2_result = ::dup2(output_pipe[1], STDERR_FILENO);
+        if (dup2_result < 0)
+        {
+            std::_Exit(EXIT_FAILURE);
+        }
         ::close(output_pipe[1]);
         trigger_assertion();
         std::_Exit(EXIT_FAILURE);
@@ -51,20 +54,16 @@ void test_assertion()
         output.append(buffer, static_cast<std::size_t>(bytes_read));
     }
     ::close(output_pipe[0]);
+    ASSERT_GE(bytes_read, 0);
 
-    int status = 0;
-    assert(::waitpid(child, &status, 0) == child);
-    assert(WIFSIGNALED(status));
-    assert(WTERMSIG(status) == SIGABRT);
-    assert(!output.empty());
-    assert(output.find("Assertion failed: false") != std::string::npos);
-    assert(output.find("trigger_assertion") != std::string::npos);
+    int status              = 0;
+    const pid_t wait_result = ::waitpid(child, &status, 0);
+    ASSERT_EQ(wait_result, child);
+    ASSERT_TRUE(WIFSIGNALED(status));
+    EXPECT_EQ(WTERMSIG(status), SIGABRT);
+    EXPECT_FALSE(output.empty());
+    EXPECT_NE(output.find("Assertion failed: false"), std::string::npos);
+    EXPECT_NE(output.find("trigger_assertion"), std::string::npos);
 }
 
 } // namespace
-
-int main()
-{
-    test_exception();
-    test_assertion();
-}

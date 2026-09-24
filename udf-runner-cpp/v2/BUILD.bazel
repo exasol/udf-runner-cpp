@@ -380,6 +380,9 @@ cc_test(
     srcs = ["exception_test.cc"],
     copts = ["-std=c++23"],
     tags = ["no-mull"],
-    deps = [":exception"],
+    deps = [
+        ":exception",
+        "@googletest//:gtest_main",
+    ],
     target_compatible_with = ["@platforms//os:linux"],
 )
