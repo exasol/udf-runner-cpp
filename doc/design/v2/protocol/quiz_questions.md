@@ -69,6 +69,13 @@ This quiz is for protocol onboarding and architecture review. Answer the questio
 
 29. What does `Next(byte_budget, reset, row_id)` control, and what does it not control?
 
+TODO do we send total size of the group already and when do we do this in the old protocol (probably in the MT NEXT)
+
+SCALAR the size is vector size (batch size the db is using, usualy 2048)
+SET it is the group size
+
+i=1-100 group by i%2 -> 2 groups a 50 rows 
+
 30. Which batch may be sent without a previously received `Next(...)`?
 
 31. May a sender send less than the requested byte budget or send an indivisible batch larger than the remaining budget?
