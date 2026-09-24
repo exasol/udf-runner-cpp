@@ -7,6 +7,7 @@ n/a
 
 ## Features / Enhancements
 
+ - #61: Added stacktrace-aware exceptions and assertions to v2
  - #32: Added clang tidy to v2
  - #36: Added developer guide for clang-tidy and clang-format
  - #38: Added Sonar Qube Public
