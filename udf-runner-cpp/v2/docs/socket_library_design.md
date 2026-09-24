@@ -69,6 +69,9 @@ public:
     OwnedFileDescriptor() noexcept;
     ~OwnedFileDescriptor();
 
+    // Takes ownership of a valid raw file descriptor.
+    [[nodiscard]] static OwnedFileDescriptor adopt_native_handle(int owned_fd);
+
     OwnedFileDescriptor(const OwnedFileDescriptor&) = delete;
     OwnedFileDescriptor& operator=(const OwnedFileDescriptor&) = delete;
     OwnedFileDescriptor(OwnedFileDescriptor&&) noexcept;
@@ -138,6 +141,10 @@ move-only RAII value used when ownership must leave a socket or listener.
   already closed. This is the only ownership escape hatch, so transferred
   descriptors are still closed automatically unless ownership is explicitly
   released again.
+- `OwnedFileDescriptor::adopt_native_handle()` takes ownership of a valid raw
+  descriptor received from an external API or another process. The caller must
+  not close the raw descriptor after adoption; the wrapper closes it when it is
+  destroyed unless ownership is moved or explicitly released.
 - `close()` is idempotent and `noexcept`. It marks the object closed and makes
   a best-effort POSIX `close`; destruction invokes the same behavior. A close
   error cannot safely be retried and is not reported by this API.
@@ -219,6 +226,18 @@ the supplied filesystem path. `adopt_native_handle` consumes an
 explicit boundary for descriptor passing or interoperability. If adoption
 fails, the wrapper remains responsible for closing the descriptor.
 
+For example, a descriptor received from another process is adopted into RAII
+ownership before it is converted to a socket:
+
+```cpp
+auto owned_fd = OwnedFileDescriptor::adopt_native_handle(received_fd);
+auto socket = UnixSocket::adopt_native_handle(std::move(owned_fd));
+```
+
+If the second operation fails, the parameter object is destroyed and closes
+the descriptor. The socket library does not define how `received_fd` is
+obtained; that is the responsibility of the process-communication layer.
+
 `UnixSocketListener::bind` creates a close-on-exec listener, binds it, and
 starts listening. It rejects empty and overlong paths before the syscall. It
 never removes an existing directory entry: an `EADDRINUSE` bind error is
@@ -274,6 +293,8 @@ The eventual implementation must cover:
    would-block errors, interrupted syscalls, and Unix-path length validation.
 5. Shared contract tests that future TCP and TLS implementations can reuse to
    prove `Socket` substitutability, including vector I/O support.
+6. Adoption of a received raw descriptor into `OwnedFileDescriptor`, successful
+   conversion to `UnixSocket`, and cleanup when conversion fails.
 
 ## Legacy-library lessons retained in this design
 
