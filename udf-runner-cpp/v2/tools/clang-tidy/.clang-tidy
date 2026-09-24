@@ -552,7 +552,8 @@ Checks: >
   # -openmp-exception-escape,
   # -openmp-use-default-none,
   # -zircon-temporary-objects,
-HeaderFilterRegex: ""
+HeaderFilterRegex: '(^|/)(udf-runner-cpp/v2|_main)/.*'
+ExcludeHeaderFilterRegex: '(^|/)(external|third_party)/.*'
 WarningsAsErrors: "*"
 CheckOptions:
   - key: hicpp-signed-bitwise.IgnorePositiveIntegerLiterals
@@ -560,6 +561,10 @@ CheckOptions:
   - key: readability-magic-numbers.IgnoredIntegerValues
     value: '1;2;3;4;10'
   - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumConstantCase
     value: CamelCase
   - key: readability-identifier-naming.FunctionCase
     value: lower_case

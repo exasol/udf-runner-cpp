@@ -227,6 +227,9 @@ int main(int argc, char** argv)
         assert(names->GetString(0) == "alpha");
         assert(names->GetString(3) == "delta");
 
+        assert(export_batch(nullptr, nullptr) != 0);
+        assert(std::string(last_error()).find("must not be null") != std::string::npos);
+
         ArrowArray second_array{};
         ArrowSchema second_schema{};
         if (export_batch(&second_array, &second_schema) != 0)
@@ -242,6 +245,9 @@ int main(int argc, char** argv)
         }
         assert(row_count == 4);
         assert(id_sum == 10);
+
+        assert(consume_batch(nullptr, nullptr, nullptr, nullptr) != 0);
+        assert(std::string(last_error()).find("must not be null") != std::string::npos);
     }
     catch (const std::exception& error)
     {
