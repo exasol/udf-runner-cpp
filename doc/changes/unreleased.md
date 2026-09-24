@@ -18,6 +18,7 @@ n/a
 
 ## Internal
 
+* #60: Added Mull mutation testing workflow for v2
 * #51: Added agent and contributor guidance for v1/v2 development, SLC workflows, CI testing, and PR conventions
 * #56: Restructured the developer guide and synchronized agent guidance
 * Updated Poetry dependencies and added developer guide and added .gitignore
