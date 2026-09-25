@@ -67,7 +67,7 @@ jobs:
 
       - name: Upload Mull reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: mull-reports-${{ matrix.target }}
           path: .build_output/mull/
