@@ -117,6 +117,27 @@ custom tool paths can be supplied with `MULL_CXX`, `MULL_RUNNER`, and
 `MULL_IR_FRONTEND`. The C compiler used by Bazel can be overridden with
 `MULL_CC`.
 
+### Viewing Mull HTML reports
+
+Mull writes an HTML page and its matching JSON data file for each target to
+`.build_output/mull/`. The HTML page loads the JSON file dynamically, so serve
+the directory over HTTP instead of opening the page directly with `file://`:
+
+```bash
+cd .build_output/mull
+python3 -m http.server 8000
+```
+
+Then open `http://localhost:8000/<target>.html`, for example
+`http://localhost:8000/event_fd_test.html`. The page also loads the Mutation
+Testing Elements JavaScript from its configured CDN and therefore needs network
+access.
+
+The Mull workflow uploads these files as the
+`mull-reports-<target>` artifact. Download and extract the artifact, start the
+same HTTP server in the extracted directory, and open the target's HTML page in
+your browser.
+
 Mutation testing is not reliable for C++ template implementations or tests
 that only exercise third-party dependencies. Keep those tests in normal Bazel
 test coverage and exclude them from Mull with the `no-mull` tag. Production
