@@ -97,7 +97,10 @@ cc_test(
     name = "udf_protocol_test",
     srcs = ["udf_protocol_test.cc"],
     copts = ["-std=c++20"],
-    deps = [":udf_protocol"],
+    deps = [
+        ":udf_protocol",
+        "@googletest//:gtest_main",
+    ],
 )
 
 cc_binary(
@@ -179,7 +182,10 @@ cc_test(
     name = "arrow_core_test",
     srcs = ["arrow_core_test.cc"],
     copts = ["-std=c++20"],
-    deps = [":arrow_core"],
+    deps = [
+        ":arrow_core",
+        "@googletest//:gtest_main",
+    ],
 )
 
 cc_test(
@@ -205,7 +211,10 @@ cc_test(
     srcs = ["json_schema_validation_test.cc"],
     data = ["//json_schema:all_schemas"],
     copts = ["-std=c++17"],
-    deps = [":json_schema"],
+    deps = [
+        ":json_schema",
+        "@googletest//:gtest_main",
+    ],
 )
 
 cc_test(
@@ -288,7 +297,10 @@ cc_test(
     name = "moodycamel_queues_test",
     srcs = ["moodycamel_queues_test.cc"],
     copts = ["-std=c++20"],
-    deps = [":moodycamel_queues"],
+    deps = [
+        ":moodycamel_queues",
+        "@googletest//:gtest_main",
+    ],
 )
 
 cc_binary(
@@ -321,7 +333,10 @@ cc_test(
     name = "event_fd_test",
     srcs = ["event_fd_test.cc"],
     copts = ["-std=c++20"],
-    deps = [":event_fd"],
+    deps = [
+        ":event_fd",
+        "@googletest//:gtest_main",
+    ],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
@@ -340,7 +355,11 @@ cc_test(
     name = "waitable_queue_test",
     srcs = ["waitable_queue_test.cc"],
     copts = ["-std=c++20"],
-    deps = [":waitable_queue"],
+    deps = [
+        ":waitable_queue",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
@@ -348,7 +367,10 @@ cc_test(
     name = "waitable_queue_integration_test",
     srcs = ["waitable_queue_integration_test.cc"],
     copts = ["-std=c++20"],
-    deps = [":waitable_queue"],
+    deps = [
+        ":waitable_queue",
+        "@googletest//:gtest_main",
+    ],
     tags = ["no-coverage"],
     target_compatible_with = ["@platforms//os:linux"],
 )

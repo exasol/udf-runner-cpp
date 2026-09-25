@@ -1,24 +1,14 @@
 #include <unistd.h>
 
 #include <cstdint>
-#include <cstdlib>
-#include <iostream>
 #include <system_error>
 #include <utility>
 
 #include <exasol/udf/v2/event_fd.hpp>
+#include <gtest/gtest.h>
 
 namespace
 {
-
-void test_check(bool condition, const char* message)
-{
-    if (!condition)
-    {
-        std::cerr << "event fd test failure: " << message << '\n';
-        std::abort();
-    }
-}
 
 template <typename Function>
 void expect_system_error(Function&& function, std::errc expected, const char* message)
@@ -26,11 +16,11 @@ void expect_system_error(Function&& function, std::errc expected, const char* me
     try
     {
         function();
-        test_check(false, message);
+        ADD_FAILURE() << message;
     }
     catch (const std::system_error& error)
     {
-        test_check(error.code() == std::make_error_code(expected), "unexpected system error");
+        EXPECT_EQ(error.code(), std::make_error_code(expected));
     }
 }
 
@@ -44,52 +34,55 @@ void self_move_assign(Type& value)
 
 } // namespace
 
-int main()
+TEST(EventFdTest, AccumulatesNotifications)
 {
-    try
-    {
-        exasol::udf::v2::LinuxEventFd event_fd;
-        test_check(event_fd.native_handle() != -1, "eventfd construction failed");
+    exasol::udf::v2::LinuxEventFd event_fd;
+    ASSERT_NE(event_fd.native_handle(), -1);
 
-        event_fd.write_notification();
-        event_fd.write_notification();
-        test_check(event_fd.read_notification() == 2, "eventfd did not accumulate notifications");
-        expect_system_error([&event_fd] { event_fd.read_notification(); },
-                            std::errc::resource_unavailable_try_again,
-                            "empty eventfd read should report EAGAIN");
+    event_fd.write_notification();
+    event_fd.write_notification();
+    EXPECT_EQ(event_fd.read_notification(), 2);
+}
 
-        const int moved_handle = event_fd.native_handle();
-        exasol::udf::v2::LinuxEventFd move_constructed(std::move(event_fd));
-        test_check(move_constructed.native_handle() == moved_handle,
-                   "move construction changed the handle");
+TEST(EventFdTest, RejectsReadWhenEmpty)
+{
+    exasol::udf::v2::LinuxEventFd event_fd;
+    expect_system_error([&event_fd] { event_fd.read_notification(); },
+                        std::errc::resource_unavailable_try_again,
+                        "empty eventfd read should report EAGAIN");
+}
 
-        exasol::udf::v2::LinuxEventFd move_assigned;
-        move_assigned = std::move(move_constructed);
-        test_check(move_assigned.native_handle() == moved_handle,
-                   "move assignment changed the handle");
-        self_move_assign(move_assigned);
-        test_check(move_assigned.native_handle() == moved_handle,
-                   "self move assignment changed the handle");
+TEST(EventFdTest, SupportsMoveConstruction)
+{
+    exasol::udf::v2::LinuxEventFd event_fd;
+    const int moved_handle = event_fd.native_handle();
+    exasol::udf::v2::LinuxEventFd move_constructed(std::move(event_fd));
+    EXPECT_EQ(move_constructed.native_handle(), moved_handle);
+}
 
-        {
-            exasol::udf::v2::LinuxEventFd closed_event_fd;
-            ::close(closed_event_fd.native_handle());
-            expect_system_error([&closed_event_fd] { closed_event_fd.read_notification(); },
-                                std::errc::bad_file_descriptor,
-                                "closed eventfd read should be rejected");
-        }
+TEST(EventFdTest, SupportsMoveAssignmentAndSelfMove)
+{
+    exasol::udf::v2::LinuxEventFd source;
+    const int moved_handle = source.native_handle();
+    exasol::udf::v2::LinuxEventFd move_assigned;
+    move_assigned = std::move(source);
+    EXPECT_EQ(move_assigned.native_handle(), moved_handle);
+    self_move_assign(move_assigned);
+    EXPECT_EQ(move_assigned.native_handle(), moved_handle);
+}
 
-        {
-            exasol::udf::v2::LinuxEventFd closed_event_fd;
-            ::close(closed_event_fd.native_handle());
-            expect_system_error([&closed_event_fd] { closed_event_fd.write_notification(); },
-                                std::errc::bad_file_descriptor,
-                                "closed eventfd write should be rejected");
-        }
-    }
-    catch (const std::exception& error)
-    {
-        std::cerr << "event fd test failure: " << error.what() << '\n';
-        return 1;
-    }
+TEST(EventFdTest, RejectsReadOnClosedDescriptor)
+{
+    exasol::udf::v2::LinuxEventFd closed_event_fd;
+    ASSERT_EQ(::close(closed_event_fd.native_handle()), 0);
+    expect_system_error([&closed_event_fd] { closed_event_fd.read_notification(); },
+                        std::errc::bad_file_descriptor, "closed eventfd read should be rejected");
+}
+
+TEST(EventFdTest, RejectsWriteOnClosedDescriptor)
+{
+    exasol::udf::v2::LinuxEventFd closed_event_fd;
+    ASSERT_EQ(::close(closed_event_fd.native_handle()), 0);
+    expect_system_error([&closed_event_fd] { closed_event_fd.write_notification(); },
+                        std::errc::bad_file_descriptor, "closed eventfd write should be rejected");
 }

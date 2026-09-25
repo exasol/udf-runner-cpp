@@ -1,9 +1,8 @@
 #include "udf_protocol.hpp"
 
-#include <cassert>
-#include <cstdint>
+#include <gtest/gtest.h>
 
-int main()
+TEST(UdfProtocolTest, EncodesAndDecodesOpenCallFrame)
 {
     exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder builder;
     const auto call_name = builder.CreateString("example");
@@ -12,9 +11,12 @@ int main()
     const auto frame     = exasol::udf::protocol::CreateFrame(builder, 7, message);
     builder.Finish(frame);
 
-    assert(
+    ASSERT_TRUE(
         exasol::udf::protocol::verify_frame_buffer(builder.GetBufferPointer(), builder.GetSize()));
     const auto* decoded = exasol::udf::protocol::GetFrame(builder.GetBufferPointer());
-    assert(decoded->stream_id() == 7);
-    assert(decoded->message()->open_call()->call_name()->str() == "example");
+    ASSERT_NE(decoded, nullptr);
+    EXPECT_EQ(decoded->stream_id(), 7);
+    ASSERT_NE(decoded->message(), nullptr);
+    ASSERT_NE(decoded->message()->open_call(), nullptr);
+    EXPECT_EQ(decoded->message()->open_call()->call_name()->str(), "example");
 }
