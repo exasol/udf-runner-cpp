@@ -14,7 +14,7 @@ n/a
 
 ## Refactorings
 
-n/a
+* #44: Extracted WaitableQueue eventfd notifications into a reusable component
 
 ## Internal
 
