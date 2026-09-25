@@ -3,8 +3,8 @@
 
 #include "udf_protocol.hpp"
 
-extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t *data,
-                                      std::size_t size) {
-  exasol::udf::protocol::VerifyFrameBuffer(data, size);
-  return 0;
+extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size)
+{
+    exasol::udf::protocol::verify_frame_buffer(data, size);
+    return 0;
 }

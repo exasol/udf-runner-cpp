@@ -177,6 +177,12 @@ def run_oft_for_udf_client(session: nox.Session, *args) -> None:
         )
 
 
+@nox.session(name="mull-targets", python=False)
+def list_mull_targets_session(session: nox.Session):
+    """Expose Mull target discovery as a Nox session for CI."""
+    list_mull_targets(session)
+
+
 
 
 def list_mull_targets(session: nox.Session):

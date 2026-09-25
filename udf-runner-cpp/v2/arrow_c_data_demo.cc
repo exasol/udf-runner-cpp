@@ -18,12 +18,12 @@ namespace
 
 thread_local std::string g_last_error;
 
-void SetLastError(const arrow::Status& status)
+void set_last_error(const arrow::Status& status)
 {
     g_last_error = status.ToString();
 }
 
-arrow::Result<std::shared_ptr<arrow::RecordBatch>> MakeDemoRecordBatch()
+arrow::Result<std::shared_ptr<arrow::RecordBatch>> make_demo_record_batch()
 {
     arrow::Int64Builder id_builder;
     arrow::StringBuilder name_builder;
@@ -51,7 +51,7 @@ arrow::Result<std::shared_ptr<arrow::RecordBatch>> MakeDemoRecordBatch()
     return arrow::RecordBatch::Make(schema, num_rows, {std::move(ids), std::move(names)});
 }
 
-arrow::Status ExportDemoRecordBatch(ArrowArray* out_array, ArrowSchema* out_schema)
+arrow::Status export_demo_record_batch(ArrowArray* out_array, ArrowSchema* out_schema)
 {
     if (out_array == nullptr || out_schema == nullptr)
     {
@@ -62,7 +62,7 @@ arrow::Status ExportDemoRecordBatch(ArrowArray* out_array, ArrowSchema* out_sche
     std::memset(out_array, 0, sizeof(*out_array));
     std::memset(out_schema, 0, sizeof(*out_schema));
 
-    auto maybe_batch = MakeDemoRecordBatch();
+    auto maybe_batch = make_demo_record_batch();
     if (!maybe_batch.ok())
     {
         return maybe_batch.status();
@@ -71,10 +71,10 @@ arrow::Status ExportDemoRecordBatch(ArrowArray* out_array, ArrowSchema* out_sche
     return arrow::Status::OK();
 }
 
-arrow::Status ConsumeDemoRecordBatch(ArrowArray* array,
-                                     ArrowSchema* schema,
-                                     int64_t* out_row_count,
-                                     int64_t* out_id_sum)
+arrow::Status consume_demo_record_batch(ArrowArray* array,
+                                        ArrowSchema* schema,
+                                        int64_t* out_row_count,
+                                        int64_t* out_id_sum)
 {
     if (array == nullptr || schema == nullptr || out_row_count == nullptr || out_id_sum == nullptr)
     {
@@ -111,10 +111,10 @@ arrow::Status ConsumeDemoRecordBatch(ArrowArray* array,
 extern "C" UDF_RUNNER_CPP_V2_EXPORT int udf_runner_cpp_v2_demo_export_record_batch(
     ArrowArray* out_array, ArrowSchema* out_schema)
 {
-    const arrow::Status status = ExportDemoRecordBatch(out_array, out_schema);
+    const arrow::Status status = export_demo_record_batch(out_array, out_schema);
     if (!status.ok())
     {
-        SetLastError(status);
+        set_last_error(status);
         return 1;
     }
     g_last_error.clear();
@@ -124,10 +124,11 @@ extern "C" UDF_RUNNER_CPP_V2_EXPORT int udf_runner_cpp_v2_demo_export_record_bat
 extern "C" UDF_RUNNER_CPP_V2_EXPORT int udf_runner_cpp_v2_demo_consume_record_batch(
     ArrowArray* array, ArrowSchema* schema, int64_t* out_row_count, int64_t* out_id_sum)
 {
-    const arrow::Status status = ConsumeDemoRecordBatch(array, schema, out_row_count, out_id_sum);
+    const arrow::Status status =
+        consume_demo_record_batch(array, schema, out_row_count, out_id_sum);
     if (!status.ok())
     {
-        SetLastError(status);
+        set_last_error(status);
         return 1;
     }
     g_last_error.clear();
