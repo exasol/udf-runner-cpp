@@ -37,12 +37,15 @@ Generate an HTML report from the LCOV data with:
 
 ```bash
 genhtml bazel-out/_coverage/_coverage_report.dat \
+  --branch-coverage \
+  --fail-under-branches 80 \
   --output-directory coverage-html
 ```
 
 Open `coverage-html/index.html` in a browser to inspect line and file
-coverage. The `coverage-html` directory is local build output and should not
-be committed.
+coverage, including branch coverage. The command fails if total branch
+coverage is below 80%. The `coverage-html` directory is local build output and
+should not be committed.
 
 ## Generate the CI-compatible report
 
