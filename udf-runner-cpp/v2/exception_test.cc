@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <string>
 #include <string_view>
+#include <source_location>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -12,7 +13,16 @@
 namespace
 {
 
-void trigger_assertion()
+struct AssertionTermination
+{
+};
+
+[[noreturn]] void throw_assertion_termination()
+{
+    throw AssertionTermination{};
+}
+
+[[noreturn]] void trigger_assertion()
 {
     EXASOL_UDF_ASSERT(false);
 }
@@ -23,6 +33,21 @@ TEST(ExceptionTest, CapturesMessageLocationAndStacktrace)
     EXPECT_STREQ(error.what(), "example message");
     EXPECT_FALSE(error.stacktrace().empty());
     EXPECT_EQ(error.location().file_name(), std::string_view(__FILE__));
+}
+
+TEST(ExceptionTest, FormatsStacktraceEntries)
+{
+    EXPECT_EQ(exasol::udf::v2::detail::format_stacktrace_entry(1, "function", "", 0),
+              "  #1 function\n");
+    EXPECT_EQ(exasol::udf::v2::detail::format_stacktrace_entry(2, "function", "source.cc", 42),
+              "  #2 function (source.cc:42)\n");
+}
+
+TEST(ExceptionTest, ReportsAssertionFailureBeforeTermination)
+{
+    EXPECT_THROW(exasol::udf::v2::detail::assertion_failure(
+                     "false", std::source_location::current(), throw_assertion_termination),
+                 AssertionTermination);
 }
 
 TEST(ExceptionTest, AssertionAbortsAndPrintsStacktrace)
@@ -36,8 +61,7 @@ TEST(ExceptionTest, AssertionAbortsAndPrintsStacktrace)
     if (child == 0)
     {
         ::close(output_pipe[0]);
-        const int dup2_result = ::dup2(output_pipe[1], STDERR_FILENO);
-        if (dup2_result < 0)
+        if (const int dup2_result = ::dup2(output_pipe[1], STDERR_FILENO); dup2_result < 0)
         {
             std::_Exit(EXIT_FAILURE);
         }

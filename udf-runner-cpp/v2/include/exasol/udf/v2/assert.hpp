@@ -1,38 +1,64 @@
 #pragma once
 
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <source_location>
 #include <string>
+#include <string_view>
+
+#if __has_include(<print>)
+#include <print>
+#endif
 
 #include <exasol/udf/v2/exception.hpp>
 
 namespace exasol::udf::v2::detail
 {
 
-[[noreturn]] inline void assertion_failure(const char* expression, std::source_location location)
+inline std::string format_stacktrace_entry(const std::size_t frame_number,
+                                           const std::string_view description,
+                                           const std::string_view source_file,
+                                           const std::uint_least32_t source_line)
 {
-    const Exception error("Assertion failed: " + std::string(expression), location);
-    std::fprintf(stderr, "%s:%u: %s: %s\n", error.location().file_name(), error.location().line(),
-                 error.location().function_name(), error.what());
+    if (source_file.empty())
+    {
+        return "  #" + std::to_string(frame_number) + " " + std::string(description) + "\n";
+    }
+    return "  #" + std::to_string(frame_number) + " " + std::string(description) + " (" +
+           std::string(source_file) + ":" + std::to_string(source_line) + ")\n";
+}
 
+inline std::string format_assertion_failure(const Exception& error)
+{
+    std::string output = std::string(error.location().file_name()) + ":" +
+                         std::to_string(error.location().line()) + ":" +
+                         std::string(error.location().function_name()) + ": " + error.what() + "\n";
     std::size_t frame_number = 0;
     for (const auto& frame : error.stacktrace())
     {
-        const std::string description = frame.description();
-        const std::string source_file = frame.source_file();
-        if (source_file.empty())
-        {
-            std::fprintf(stderr, "  #%zu %s\n", frame_number, description.c_str());
-        }
-        else
-        {
-            std::fprintf(stderr, "  #%zu %s (%s:%u)\n", frame_number, description.c_str(),
-                         source_file.c_str(), frame.source_line());
-        }
+        output += format_stacktrace_entry(frame_number, frame.description(), frame.source_file(),
+                                          frame.source_line());
         ++frame_number;
     }
+    return output;
+}
+
+using AssertionTerminator = void (*)();
+
+[[noreturn]] inline void assertion_failure(const char* expression,
+                                           std::source_location location,
+                                           const AssertionTerminator terminator = std::abort)
+{
+    const Exception error("Assertion failed: " + std::string(expression), location);
+    const std::string output = format_assertion_failure(error);
+#if __has_include(<print>)
+    std::print(stderr, "{}", output);
+#else
+    static_cast<void>(std::fwrite(output.data(), sizeof(char), output.size(), stderr));
+#endif
     std::fflush(stderr);
+    terminator();
     std::abort();
 }
 
