@@ -172,7 +172,7 @@ void test_mock_queue_operations()
     test_check(value == 1, "unexpected mock queue value");
     test_check(!queue.try_dequeue(value), "mock queue should be empty");
 
-    const std::vector<int> batch{2, 3};
+    const std::vector batch{2, 3};
     test_check(queue.enqueue_batch(batch.begin(), batch.end()) == batch.size(),
                "mock batch enqueue failed");
     test_check(queue.queue().size() == batch.size(), "mock queue accessor returned wrong queue");
@@ -186,32 +186,32 @@ void test_mock_queue_operations()
 
 void test_mock_notification_paths()
 {
+    using enum std::errc;
     using WaitableQueue = exasol::udf::v2::WaitableQueue<MockQueue>;
 
     auto read_event_fd = std::make_unique<MockEventFd>();
     read_event_fd->set_read_actions(
-        {std::errc::interrupted, std::uint64_t{7}, std::errc::resource_unavailable_try_again});
+        {interrupted, std::uint64_t{7}, resource_unavailable_try_again});
     auto read_queue = WaitableQueue(MockQueue{}, std::move(read_event_fd));
     test_check(read_queue.drain_notifications() == 7, "interrupted read was not retried");
 
     auto write_event_fd = std::make_unique<MockEventFd>();
     write_event_fd->set_write_actions(
-        {std::errc::interrupted, std::monostate{}, std::errc::resource_unavailable_try_again});
+        {interrupted, std::monostate{}, resource_unavailable_try_again});
     auto write_queue = WaitableQueue(MockQueue{}, std::move(write_event_fd));
     test_check(write_queue.enqueue(1), "interrupted write was not retried");
     test_check(write_queue.enqueue(2), "saturated write was not ignored");
 
     auto read_error_event_fd = std::make_unique<MockEventFd>();
-    read_error_event_fd->set_read_actions({std::errc::io_error});
+    read_error_event_fd->set_read_actions({io_error});
     auto read_error_queue = WaitableQueue(MockQueue{}, std::move(read_error_event_fd));
-    expect_system_error([&read_error_queue] { read_error_queue.drain_notifications(); },
-                        std::errc::io_error);
+    expect_system_error([&read_error_queue] { read_error_queue.drain_notifications(); }, io_error);
 
     auto write_error_event_fd = std::make_unique<MockEventFd>();
-    write_error_event_fd->set_write_actions({std::errc::io_error});
+    write_error_event_fd->set_write_actions({io_error});
     auto write_error_queue = WaitableQueue(MockQueue{}, std::move(write_error_event_fd));
     expect_system_error([&write_error_queue] { static_cast<void>(write_error_queue.enqueue(1)); },
-                        std::errc::io_error);
+                        io_error);
 }
 
 void test_mock_capacity_and_moves()
@@ -219,7 +219,7 @@ void test_mock_capacity_and_moves()
     using WaitableQueue = exasol::udf::v2::WaitableQueue<MockQueue>;
 
     auto limited_queue = WaitableQueue(MockQueue{1}, std::make_unique<MockEventFd>());
-    const std::vector<int> batch{1, 2};
+    const std::vector batch{1, 2};
     test_check(limited_queue.enqueue_batch(batch.begin(), batch.end()) == 1,
                "mock queue should stop at capacity");
     test_check(!limited_queue.enqueue(3), "full mock queue should reject enqueue");

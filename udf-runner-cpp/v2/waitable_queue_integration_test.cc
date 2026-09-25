@@ -82,7 +82,7 @@ void test_spsc_epoll_and_queue_operations()
     test_check(queue.try_dequeue(value), "SPSC queue dequeue failed");
     test_check(value == 42, "unexpected SPSC queue value");
 
-    const std::vector<int> batch{1, 2, 3};
+    const std::vector batch{1, 2, 3};
     test_check(queue.enqueue_batch(batch.begin(), batch.end()) == batch.size(),
                "SPSC batch enqueue failed");
     test_check(queue.drain_notifications() == 1, "unexpected SPSC batch notification count");
@@ -126,7 +126,7 @@ void test_mpmc_queue_operations()
     test_check(queue.try_dequeue(value), "MPMC queue dequeue failed");
     test_check(value == 7, "unexpected MPMC queue value");
 
-    const std::vector<int> batch{8, 9};
+    const std::vector batch{8, 9};
     test_check(queue.enqueue_batch(batch.begin(), batch.end()) == batch.size(),
                "MPMC batch enqueue failed");
     test_check(queue.drain_notifications() == 1, "unexpected MPMC batch notification count");
