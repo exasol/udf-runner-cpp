@@ -28,6 +28,11 @@ struct AssertionTermination : std::exception
     EXASOL_UDF_ASSERT(false);
 }
 
+void trigger_successful_assertion()
+{
+    EXASOL_UDF_ASSERT(true);
+}
+
 TEST(ExceptionTest, CapturesMessageLocationAndStacktrace)
 {
     const exasol::udf::v2::Exception error("example message");
@@ -44,11 +49,33 @@ TEST(ExceptionTest, FormatsStacktraceEntries)
               "  #2 function (source.cc:42)\n");
 }
 
+TEST(ExceptionTest, FormatsAssertionFailure)
+{
+    const exasol::udf::v2::Exception error("example message");
+    const std::string output = exasol::udf::v2::detail::format_assertion_failure(error);
+
+    EXPECT_NE(output.find(__FILE__), std::string::npos);
+    EXPECT_NE(output.find("example message"), std::string::npos);
+    EXPECT_NE(output.find("  #0 "), std::string::npos);
+}
+
 TEST(ExceptionTest, ReportsAssertionFailureBeforeTermination)
 {
+    bool termination_called = false;
+    const auto terminator   = [&termination_called] {
+        termination_called = true;
+        throw_assertion_termination();
+    };
+
     EXPECT_THROW(exasol::udf::v2::detail::assertion_failure(
-                     "false", std::source_location::current(), throw_assertion_termination),
+                     "false", std::source_location::current(), terminator),
                  AssertionTermination);
+    EXPECT_TRUE(termination_called);
+}
+
+TEST(ExceptionTest, AssertionSucceedsForTrueCondition)
+{
+    EXPECT_NO_THROW(trigger_successful_assertion());
 }
 
 TEST(ExceptionTest, AssertionAbortsAndPrintsStacktrace)
