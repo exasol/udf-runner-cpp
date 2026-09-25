@@ -347,9 +347,26 @@ cc_test(
 
 cc_library(
     name = "event_fd",
-    srcs = ["event_fd.cc"],
     hdrs = ["include/exasol/udf/v2/event_fd.hpp"],
     includes = ["include"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "linux_event_fd",
+    srcs = ["linux_event_fd.cc"],
+    hdrs = ["include/exasol/udf/v2/linux_event_fd.hpp"],
+    includes = ["include"],
+    deps = [":event_fd"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "event_fd_factory",
+    srcs = ["event_fd_factory.cc"],
+    hdrs = ["include/exasol/udf/v2/event_fd_factory.hpp"],
+    includes = ["include"],
+    deps = [":linux_event_fd"],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
@@ -358,7 +375,8 @@ cc_test(
     srcs = ["event_fd_test.cc"],
     copts = ["-std=c++20"],
     deps = [
-        ":event_fd",
+        ":event_fd_factory",
+        ":linux_event_fd",
         "@googletest//:gtest_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],
@@ -371,6 +389,17 @@ cc_library(
     deps = [
         ":event_fd",
         ":moodycamel_queues",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "linux_waitable_queue",
+    hdrs = ["include/exasol/udf/v2/linux_waitable_queue.hpp"],
+    includes = ["include"],
+    deps = [
+        ":event_fd_factory",
+        ":waitable_queue",
     ],
     target_compatible_with = ["@platforms//os:linux"],
 )
@@ -392,7 +421,7 @@ cc_test(
     srcs = ["waitable_queue_integration_test.cc"],
     copts = ["-std=c++20"],
     deps = [
-        ":waitable_queue",
+        ":linux_waitable_queue",
         "@googletest//:gtest_main",
     ],
     tags = ["no-coverage", "no-mull"],
@@ -404,7 +433,7 @@ cc_binary(
     srcs = ["waitable_queue_benchmark.cc"],
     copts = ["-std=c++20"],
     deps = [
-        ":waitable_queue",
+        ":linux_waitable_queue",
         "@google_benchmark//:benchmark_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],
@@ -415,7 +444,7 @@ cc_fuzz_test(
     srcs = ["queue_fuzz_test.cc"],
     corpus = glob(["fuzz/corpus/queue/**"]),
     copts = ["-std=c++20"],
-    deps = [":waitable_queue"],
+    deps = [":linux_waitable_queue"],
     tags = ["fuzz-test"],
     target_compatible_with = ["@platforms//os:linux"],
 )

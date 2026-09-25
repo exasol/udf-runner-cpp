@@ -1,4 +1,4 @@
-#include <exasol/udf/v2/event_fd.hpp>
+#include <exasol/udf/v2/linux_event_fd.hpp>
 
 #include <sys/eventfd.h>
 #include <unistd.h>
@@ -9,8 +9,6 @@
 
 namespace exasol::udf::v2
 {
-
-EventFd::~EventFd() = default;
 
 LinuxEventFd::LinuxEventFd() : file_descriptor(::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC))
 {

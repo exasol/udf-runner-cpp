@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-#include <exasol/udf/v2/waitable_queue.hpp>
+#include <exasol/udf/v2/linux_waitable_queue.hpp>
 #include <gtest/gtest.h>
 
 namespace

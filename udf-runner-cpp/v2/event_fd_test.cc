@@ -6,6 +6,8 @@
 #include <utility>
 
 #include <exasol/udf/v2/event_fd.hpp>
+#include <exasol/udf/v2/event_fd_factory.hpp>
+#include <exasol/udf/v2/linux_event_fd.hpp>
 #include <gtest/gtest.h>
 
 namespace
@@ -50,6 +52,15 @@ TEST(EventFdTest, AccumulatesNotifications)
     event_fd.write_notification();
     event_fd.write_notification();
     EXPECT_EQ(event_fd.read_notification(), 2);
+}
+
+TEST(EventFdTest, FactoryCreatesLinuxEventFd)
+{
+    auto event_fd = exasol::udf::v2::make_linux_event_fd();
+    ASSERT_NE(event_fd, nullptr);
+    ASSERT_NE(event_fd->native_handle(), -1);
+    event_fd->write_notification();
+    EXPECT_EQ(event_fd->read_notification(), 1);
 }
 
 TEST(EventFdTest, RejectsReadWhenEmpty)

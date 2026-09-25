@@ -98,13 +98,16 @@ def main() -> None:
         args.v2_root,
         tuple(args.target),
     )
-    if not paths:
-        raise RuntimeError("Bazel aquery produced no mutation source paths")
-
-    include_paths = "includePaths:\n" + "".join(
-        f"  - {json.dumps(r'(^|.*/)' + re.escape(path) + r'$')}\n"
-        for path in paths
-    )
+    include_paths = "includePaths:\n"
+    if paths:
+        include_paths += "".join(
+            f"  - {json.dumps(r'(^|.*/)' + re.escape(path) + r'$')}\n"
+            for path in paths
+        )
+    else:
+        # Keep Mull from falling back to scanning every file when a target has
+        # no Mull-compatible production source after filtering.
+        include_paths += "  - \"(?!)\"\n"
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(include_paths + "\n" + args.template.read_text())
 

@@ -512,6 +512,10 @@ def _run_mull_target(
     )
     report_file = report_dir / f"{target_name}.txt"
     elements_report_file = report_dir / f"{target_name}.json"
+    output = mull_output if isinstance(mull_output, str) else ""
+    if not report_file.exists() and re.search(r"No mutants found", output, re.IGNORECASE):
+        _warn_about_zero_mutants(target_name, report_file)
+        return
     if not report_file.exists():
         session.error(f"Mull did not produce the expected report: {report_file}")
     if not elements_report_file.exists():
