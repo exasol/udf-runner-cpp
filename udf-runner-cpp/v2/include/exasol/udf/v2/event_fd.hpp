@@ -11,7 +11,7 @@ namespace exasol::udf::v2
 class EventFd
 {
 public:
-    EventFd() = default;
+    EventFd()          = default;
     virtual ~EventFd() = default;
 
     EventFd(const EventFd&)            = delete;
