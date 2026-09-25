@@ -417,24 +417,55 @@ class _MullMutationResult:
         return self.killed * 100 / self.total
 
 
-def _parse_mull_mutation_result(output: str) -> _MullMutationResult | None:
-    counts = [
-        (int(killed), int(total))
-        for killed, total in re.findall(r"Killed mutants \((\d+)/(\d+)\)", output)
+def _get_mull_mutant_total(report: object) -> int | None:
+    if not isinstance(report, dict) or not isinstance(report.get("files"), dict):
+        return None
+
+    total = 0
+    for file_report in report["files"].values():
+        if not isinstance(file_report, dict) or not isinstance(file_report.get("mutants"), list):
+            return None
+        for mutant in file_report["mutants"]:
+            if not isinstance(mutant, dict) or not isinstance(mutant.get("status"), str):
+                return None
+        total += len(file_report["mutants"])
+
+    return total
+
+
+def _parse_mull_mutation_result(output: str, report: object) -> _MullMutationResult | None:
+    total = _get_mull_mutant_total(report)
+    if total is None:
+        return None
+    if total == 0:
+        return _MullMutationResult(0, 0)
+
+    killed = [
+        (int(killed), int(reported_total))
+        for killed, reported_total in re.findall(
+            r"Killed mutants \((\d+)/(\d+)\)", output
+        )
     ]
-    if counts:
-        return _MullMutationResult(*max(counts, key=lambda count: count[1]))
+    if killed:
+        killed_count, reported_total = max(killed, key=lambda count: count[1])
+        if reported_total != total:
+            return None
+        return _MullMutationResult(killed_count, total)
 
     survived = [
-        (int(survived), int(total))
-        for survived, total in re.findall(r"Survived mutants \((\d+)/(\d+)\)", output)
+        (int(survived), int(reported_total))
+        for survived, reported_total in re.findall(
+            r"Survived mutants \((\d+)/(\d+)\)", output
+        )
     ]
     if survived:
-        survived_count, total = max(survived, key=lambda count: count[1])
+        survived_count, reported_total = max(survived, key=lambda count: count[1])
+        if reported_total != total:
+            return None
         return _MullMutationResult(total - survived_count, total)
 
-    if re.search(r"\b(?:no|zero) mutants?\b|no mutation points", output, re.IGNORECASE):
-        return _MullMutationResult(0, 0)
+    if re.search(r"Surviving mutants:\s*\d+", output, re.IGNORECASE):
+        return _MullMutationResult(0, total)
 
     return None
 
@@ -477,13 +508,23 @@ def _run_mull_target(
         executable,
         env=run_env,
         silent=True,
+        success_codes=(0, 1),
     )
     report_file = report_dir / f"{target_name}.txt"
+    elements_report_file = report_dir / f"{target_name}.json"
     if not report_file.exists():
         session.error(f"Mull did not produce the expected report: {report_file}")
-    report_output = report_file.read_text()
-    print(mull_output, end="")
-    mutation_result = _parse_mull_mutation_result(f"{mull_output or ''}\n{report_output}")
+    if not elements_report_file.exists():
+        session.error(f"Mull did not produce the expected Elements report: {elements_report_file}")
+    if isinstance(mull_output, str):
+        print(mull_output, end="")
+    try:
+        elements_report = json.loads(elements_report_file.read_text())
+    except json.JSONDecodeError as error:
+        session.error(f"Could not parse Mull Elements report '{elements_report_file}': {error}")
+    mutation_result = _parse_mull_mutation_result(
+        f"{mull_output or ''}\n{report_file.read_text()}", elements_report
+    )
     if mutation_result is None:
         session.error(f"Could not parse Mull mutation results for target '{target_name}'")
     if mutation_result.total == 0:
