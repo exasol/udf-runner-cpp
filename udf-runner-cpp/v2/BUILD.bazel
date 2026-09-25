@@ -357,6 +357,7 @@ cc_test(
     copts = ["-std=c++20"],
     deps = [
         ":waitable_queue",
+        "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],
