@@ -77,3 +77,16 @@ unreleased changelog, so update it before the PR is merged.
   namespace-sensitive code.
 - Prefer the existing Poetry, Nox, and Bazel entry points over ad hoc commands.
 - Keep generated files and build output out of commits.
+
+## Tool availability and Lima
+
+- When a required development tool is unavailable on the host, use the
+  repository's `docker-udf-client` Lima VM instead of installing a host-wide
+  package.
+- Start the VM with
+  `limactl start ./ext/lima_vm_templates/docker-udf-client.yaml` and run
+  commands in it with `limactl shell docker-udf-client <command>`.
+- If a required tool is missing in the VM, install it there and add its package
+  to the provisioning list in
+  [`ext/lima_vm_templates/docker-udf-client.yaml`](ext/lima_vm_templates/docker-udf-client.yaml)
+  so future VMs provide it automatically.
