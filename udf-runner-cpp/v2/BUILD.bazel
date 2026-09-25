@@ -375,8 +375,8 @@ cc_test(
     name = "waitable_queue_integration_test",
     srcs = ["waitable_queue_integration_test.cc"],
     copts = ["-std=c++20"],
+    tags = ["no-coverage", "no-mull"],
     deps = [":waitable_queue"],
-    tags = ["no-coverage"],
     target_compatible_with = ["@platforms//os:linux"],
 )
 

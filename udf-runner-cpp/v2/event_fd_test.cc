@@ -1,5 +1,6 @@
 #include <unistd.h>
 
+#include <cerrno>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
@@ -18,6 +19,12 @@ void test_check(bool condition, const char* message)
         std::cerr << "event fd test failure: " << message << '\n';
         std::abort();
     }
+}
+
+void expect_closed_descriptor(int file_descriptor, const char* message)
+{
+    errno = 0;
+    test_check(::close(file_descriptor) == -1 && errno == EBADF, message);
 }
 
 template <typename Function>
@@ -70,6 +77,22 @@ int main()
         self_move_assign(move_assigned);
         test_check(move_assigned.native_handle() == moved_handle,
                    "self move assignment changed the handle");
+
+        {
+            exasol::udf::v2::LinuxEventFd source;
+            exasol::udf::v2::LinuxEventFd destination;
+            const int replaced_handle = destination.native_handle();
+            destination               = std::move(source);
+            expect_closed_descriptor(replaced_handle,
+                                     "move assignment should close the replaced handle");
+        }
+
+        int destroyed_handle = -1;
+        {
+            exasol::udf::v2::LinuxEventFd scoped_event_fd;
+            destroyed_handle = scoped_event_fd.native_handle();
+        }
+        expect_closed_descriptor(destroyed_handle, "destructor should close the eventfd");
 
         {
             exasol::udf::v2::LinuxEventFd closed_event_fd;

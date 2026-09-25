@@ -98,15 +98,15 @@ poetry run -- nox --sessions=mull
 If the Bazel executable is named `bazelisk`, run:
 `BAZEL=bazelisk poetry run -- nox --sessions=mull`.
 
-The session currently runs the mutation smoke test with Mull instrumentation
-and writes reports to `.build_output/mull/`. The session enforces the
-configured 80% mutation-score threshold for this smoke test. The LLVM major
-version can be changed with `MULL_LLVM_VERSION`; custom tool paths can be
-supplied with `MULL_CXX`, `MULL_RUNNER`, and `MULL_IR_FRONTEND`. The C compiler
-used by Bazel can be overridden with `MULL_CC`.
+The session discovers Bazel `cc_test` targets and runs each eligible target with
+Mull instrumentation. It writes reports to `.build_output/mull/` and enforces
+an 80% mutation-score threshold for every target. The LLVM major version can be
+changed with `MULL_LLVM_VERSION`; custom tool paths can be supplied with
+`MULL_CXX`, `MULL_RUNNER`, and `MULL_IR_FRONTEND`. The C compiler used by Bazel
+can be overridden with `MULL_CC`.
 
-This smoke test validates the Mull setup; it is not production-code mutation
-coverage. With the current Mull, Clang, and Bazel setup, mutation testing is
-not reliable for C++ template implementations or tests that only exercise
-third-party dependencies. Keep those tests in normal Bazel test coverage and
-exclude them from Mull with the `no-mull` tag.
+Mutation testing is not reliable for C++ template implementations or tests
+that only exercise third-party dependencies. Keep those tests in normal Bazel
+test coverage and exclude them from Mull with the `no-mull` tag. Production
+implementation units with Mull-compatible non-template code should have a
+dedicated test target that remains in the mutation matrix.
