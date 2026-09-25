@@ -18,8 +18,8 @@ namespace isolated_nlohmann = exasol::udf::v2::third_party::nlohmann;
 namespace
 {
 
-constexpr std::string_view kGlobalNamespacePrefix   = "_ZN8nlohmann";
-constexpr std::string_view kIsolatedNamespacePrefix = "_ZN6exasol3udf2v211third_party8nlohmann";
+constexpr std::string_view global_namespace_prefix   = "_ZN8nlohmann";
+constexpr std::string_view isolated_namespace_prefix = "_ZN6exasol3udf2v211third_party8nlohmann";
 
 [[noreturn]] void fail(const std::string& message)
 {
@@ -133,11 +133,11 @@ void verify_symbols(const std::string& library_path)
 
         const std::string name = read_string(file, string_table.sh_offset + symbol.st_name,
                                              string_table.sh_size - symbol.st_name);
-        if (name.compare(0, kGlobalNamespacePrefix.size(), kGlobalNamespacePrefix) == 0)
+        if (name.compare(0, global_namespace_prefix.size(), global_namespace_prefix) == 0)
         {
             fail("validator exports a global nlohmann symbol: " + name);
         }
-        if (name.compare(0, kIsolatedNamespacePrefix.size(), kIsolatedNamespacePrefix) == 0)
+        if (name.compare(0, isolated_namespace_prefix.size(), isolated_namespace_prefix) == 0)
         {
             found_isolated_symbol = true;
         }

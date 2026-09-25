@@ -40,7 +40,7 @@ struct TimedItem
 
 // Includes raw enqueue and dequeue only; this is the queue-operation baseline
 // for the waitable round-trip benchmark.
-void BM_RawSpscRoundTrip(benchmark::State& state)
+void bm_raw_spsc_round_trip(benchmark::State& state)
 {
     exasol::udf::v2::SpscQueue<int> queue(1024);
     for (const auto iteration : state)
@@ -56,7 +56,7 @@ void BM_RawSpscRoundTrip(benchmark::State& state)
 
 // Includes enqueue, eventfd notification draining, and dequeue. The eventfd
 // write is part of the measured round trip.
-void BM_WaitableSpscRoundTrip(benchmark::State& state)
+void bm_waitable_spsc_round_trip(benchmark::State& state)
 {
     exasol::udf::v2::WaitableSpscQueue<int> queue(exasol::udf::v2::SpscQueue<int>(1024));
     for (const auto iteration : state)
@@ -73,7 +73,7 @@ void BM_WaitableSpscRoundTrip(benchmark::State& state)
 
 // Includes wait_enqueue and dequeue on a non-full blocking SPSC queue. The
 // benchmark measures the uncontended fast path rather than intentional waits.
-void BM_BlockingSpscRoundTrip(benchmark::State& state)
+void bm_blocking_spsc_round_trip(benchmark::State& state)
 {
     exasol::udf::v2::SpscCircularBuffer<int> queue(1024);
     for (const auto iteration : state)
@@ -90,7 +90,7 @@ void BM_BlockingSpscRoundTrip(benchmark::State& state)
 // Enqueue-only benchmarks pause timing while removing the item so the queue
 // remains empty for the next iteration. The waitable case includes its
 // eventfd write; notification draining is cleanup and is not timed.
-void BM_RawSpscEnqueueLatency(benchmark::State& state)
+void bm_raw_spsc_enqueue_latency(benchmark::State& state)
 {
     exasol::udf::v2::SpscQueue<int> queue(1024);
     for (const auto iteration : state)
@@ -106,7 +106,7 @@ void BM_RawSpscEnqueueLatency(benchmark::State& state)
     state.SetItemsProcessed(state.iterations());
 }
 
-void BM_WaitableSpscEnqueueLatency(benchmark::State& state)
+void bm_waitable_spsc_enqueue_latency(benchmark::State& state)
 {
     exasol::udf::v2::WaitableSpscQueue<int> queue(exasol::udf::v2::SpscQueue<int>(1024));
     for (const auto iteration : state)
@@ -123,7 +123,7 @@ void BM_WaitableSpscEnqueueLatency(benchmark::State& state)
     state.SetItemsProcessed(state.iterations());
 }
 
-void BM_BlockingSpscEnqueueLatency(benchmark::State& state)
+void bm_blocking_spsc_enqueue_latency(benchmark::State& state)
 {
     exasol::udf::v2::SpscCircularBuffer<int> queue(1024);
     for (const auto iteration : state)
@@ -142,7 +142,7 @@ void BM_BlockingSpscEnqueueLatency(benchmark::State& state)
 // Raw and waitable batch benchmarks use the same batch sizes. The waitable
 // queue emits one eventfd notification after the entire batch, exposing how
 // batching amortizes notification overhead.
-void BM_RawSpscBatch(benchmark::State& state)
+void bm_raw_spsc_batch(benchmark::State& state)
 {
     const auto batch_size = static_cast<std::size_t>(state.range(0));
     const std::vector<int> batch(batch_size, 1);
@@ -165,7 +165,7 @@ void BM_RawSpscBatch(benchmark::State& state)
     state.SetItemsProcessed(state.iterations() * static_cast<int64_t>(batch_size));
 }
 
-void BM_WaitableSpscBatch(benchmark::State& state)
+void bm_waitable_spsc_batch(benchmark::State& state)
 {
     const auto batch_size = static_cast<std::size_t>(state.range(0));
     const std::vector<int> batch(batch_size, 1);
@@ -190,7 +190,7 @@ void BM_WaitableSpscBatch(benchmark::State& state)
 // and dequeue. One item is outstanding at a time, so the result measures
 // wakeup latency rather than latency caused by queue backlog. The producer
 // handshake is outside the manually recorded interval.
-void BM_WaitableSpscEpollLatency(benchmark::State& state)
+void bm_waitable_spsc_epoll_latency(benchmark::State& state)
 {
     exasol::udf::v2::WaitableSpscQueue<TimedItem> queue{exasol::udf::v2::SpscQueue<TimedItem>(8)};
     const int epoll_fd = ::epoll_create1(EPOLL_CLOEXEC);
@@ -264,12 +264,12 @@ void BM_WaitableSpscEpollLatency(benchmark::State& state)
 
 } // namespace
 
-BENCHMARK(BM_RawSpscRoundTrip);
-BENCHMARK(BM_WaitableSpscRoundTrip);
-BENCHMARK(BM_BlockingSpscRoundTrip);
-BENCHMARK(BM_RawSpscEnqueueLatency);
-BENCHMARK(BM_WaitableSpscEnqueueLatency);
-BENCHMARK(BM_BlockingSpscEnqueueLatency);
-BENCHMARK(BM_RawSpscBatch)->Args({1})->Args({8})->Args({64})->Args({256});
-BENCHMARK(BM_WaitableSpscBatch)->Args({1})->Args({8})->Args({64})->Args({256});
-BENCHMARK(BM_WaitableSpscEpollLatency)->UseManualTime();
+BENCHMARK(bm_raw_spsc_round_trip);
+BENCHMARK(bm_waitable_spsc_round_trip);
+BENCHMARK(bm_blocking_spsc_round_trip);
+BENCHMARK(bm_raw_spsc_enqueue_latency);
+BENCHMARK(bm_waitable_spsc_enqueue_latency);
+BENCHMARK(bm_blocking_spsc_enqueue_latency);
+BENCHMARK(bm_raw_spsc_batch)->Args({1})->Args({8})->Args({64})->Args({256});
+BENCHMARK(bm_waitable_spsc_batch)->Args({1})->Args({8})->Args({64})->Args({256});
+BENCHMARK(bm_waitable_spsc_epoll_latency)->UseManualTime();

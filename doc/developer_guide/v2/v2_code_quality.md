@@ -13,6 +13,23 @@ bazel build --verbose_failures --config clang-tidy //...
 Run clang-tidy on changed `.cpp` files before submitting code for review to
 catch common issues early.
 
+The Bazel configuration uses `clang-tidy-22` by default. To use another
+installed executable, set `CLANG_TIDY` when invoking Bazel:
+
+```bash
+CLANG_TIDY=clang-tidy bazel build --verbose_failures --config clang-tidy //...
+```
+
+`CLANG_TIDY` may also contain an absolute path to the executable.
+
+The wrapper removes `-fno-canonical-system-headers` from the compiler
+arguments by default. To retain that argument, clear `CLANG_TIDY_REMOVED_ARG`:
+
+```bash
+CLANG_TIDY=clang-tidy CLANG_TIDY_REMOVED_ARG= \
+  bazel build --verbose_failures --config clang-tidy //...
+```
+
 ### Apply clang-tidy fixes
 
 You can run `clang-apply-replacements` with:
