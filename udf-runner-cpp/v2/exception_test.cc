@@ -1,5 +1,6 @@
 #include <array>
 #include <cstdlib>
+#include <exception>
 #include <string>
 #include <string_view>
 #include <source_location>
@@ -13,7 +14,7 @@
 namespace
 {
 
-struct AssertionTermination
+struct AssertionTermination : std::exception
 {
 };
 
