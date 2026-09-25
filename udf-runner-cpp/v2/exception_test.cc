@@ -1,3 +1,4 @@
+#include <array>
 #include <cstdlib>
 #include <string>
 #include <string_view>
@@ -26,8 +27,8 @@ TEST(ExceptionTest, CapturesMessageLocationAndStacktrace)
 
 TEST(ExceptionTest, AssertionAbortsAndPrintsStacktrace)
 {
-    int output_pipe[2];
-    const int pipe_result = ::pipe(output_pipe);
+    std::array<int, 2> output_pipe{};
+    const int pipe_result = ::pipe(output_pipe.data());
     ASSERT_EQ(pipe_result, 0);
 
     const pid_t child = ::fork();
@@ -47,11 +48,11 @@ TEST(ExceptionTest, AssertionAbortsAndPrintsStacktrace)
 
     ::close(output_pipe[1]);
     std::string output;
-    char buffer[4096];
+    std::array<char, 4096> buffer{};
     ssize_t bytes_read = 0;
-    while ((bytes_read = ::read(output_pipe[0], buffer, sizeof(buffer))) > 0)
+    while ((bytes_read = ::read(output_pipe[0], buffer.data(), buffer.size())) > 0)
     {
-        output.append(buffer, static_cast<std::size_t>(bytes_read));
+        output.append(buffer.data(), static_cast<std::size_t>(bytes_read));
     }
     ::close(output_pipe[0]);
     ASSERT_GE(bytes_read, 0);
