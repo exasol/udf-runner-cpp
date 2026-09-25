@@ -59,7 +59,7 @@ provision:
 - mode: system
   script: |
    export DEBIAN_FRONTEND=noninteractive
-   apt update && apt install -y protobuf-compiler libzmq3-dev openjdk-17-jdk build-essential git python3.12-dev python3-pip libpcre3-dev clang-tidy-20
+   apt update && apt install -y protobuf-compiler libzmq3-dev openjdk-17-jdk build-essential git python3.12-dev python3-pip libpcre3-dev clang-tidy-20 lcov
    curl -L  https://github.com/bazelbuild/bazelisk/releases/download/v1.27.0/bazelisk-linux-amd64 -o /usr/bin/bazel
    chmod +x /usr/bin/bazel
    pip install --break-system-packages numpy

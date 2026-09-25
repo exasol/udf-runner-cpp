@@ -322,10 +322,29 @@ cc_test(
 )
 
 cc_library(
+    name = "event_fd",
+    srcs = ["event_fd.cc"],
+    hdrs = ["include/exasol/udf/v2/event_fd.hpp"],
+    includes = ["include"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_test(
+    name = "event_fd_test",
+    srcs = ["event_fd_test.cc"],
+    copts = ["-std=c++20"],
+    deps = [":event_fd"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
     name = "waitable_queue",
     hdrs = ["include/exasol/udf/v2/waitable_queue.hpp"],
     includes = ["include"],
-    deps = [":moodycamel_queues"],
+    deps = [
+        ":event_fd",
+        ":moodycamel_queues",
+    ],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
@@ -337,6 +356,15 @@ cc_test(
         ":waitable_queue",
         "@googletest//:gtest_main",
     ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_test(
+    name = "waitable_queue_integration_test",
+    srcs = ["waitable_queue_integration_test.cc"],
+    copts = ["-std=c++20"],
+    deps = [":waitable_queue"],
+    tags = ["no-coverage"],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
