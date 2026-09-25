@@ -55,11 +55,18 @@ jobs:
         working-directory: ./udf-runner-cpp/v2
       - name: Run tests
         run: >-
+          bazel test --verbose_failures --test_output=errors
+          --build_tag_filters=-fuzz-test
+          --test_tag_filters=-fuzz-test
+          //...
+        working-directory: ./udf-runner-cpp/v2
+      - name: Run coverage tests
+        run: >-
           bazel test --verbose_failures --collect_code_coverage
           --combined_report=lcov
           --coverage_report_generator=@bazel_sonarqube//:sonarqube_coverage_generator
           --build_tag_filters=-fuzz-test
-          --test_tag_filters=-fuzz-test
+          --test_tag_filters=-fuzz-test,-no-coverage
           //...
         working-directory: ./udf-runner-cpp/v2
       - name: SonarCloud Scan
