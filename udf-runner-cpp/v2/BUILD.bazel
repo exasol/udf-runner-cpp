@@ -333,7 +333,10 @@ cc_test(
     name = "event_fd_test",
     srcs = ["event_fd_test.cc"],
     copts = ["-std=c++20"],
-    deps = [":event_fd"],
+    deps = [
+        ":event_fd",
+        "@googletest//:gtest_main",
+    ],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
@@ -363,7 +366,10 @@ cc_test(
     name = "waitable_queue_integration_test",
     srcs = ["waitable_queue_integration_test.cc"],
     copts = ["-std=c++20"],
-    deps = [":waitable_queue"],
+    deps = [
+        ":waitable_queue",
+        "@googletest//:gtest_main",
+    ],
     tags = ["no-coverage"],
     target_compatible_with = ["@platforms//os:linux"],
 )
