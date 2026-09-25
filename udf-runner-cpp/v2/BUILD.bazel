@@ -428,6 +428,20 @@ cc_test(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
+cc_test(
+    name = "linux_waitable_queue_test",
+    srcs = ["linux_waitable_queue_test.cc"],
+    copts = ["-std=c++20"],
+    deps = [
+        ":linux_waitable_queue",
+        "@googletest//:gtest_main",
+    ],
+    # The factory functions under test are templates; per the developer
+    # guide, mutation testing is unreliable for template implementations.
+    tags = ["no-mull"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
 cc_binary(
     name = "waitable_queue_benchmark",
     srcs = ["waitable_queue_benchmark.cc"],
