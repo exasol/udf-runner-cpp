@@ -123,13 +123,13 @@ TEST_F(SpscEpollTest, SupportsQueueOperationsAndBatches)
 
 TEST_F(SpscEpollTest, SupportsMoves)
 {
-    auto moved_queue = exasol::udf::v2::make_waitable_spsc_queue<int>();
+    auto moved_queue       = exasol::udf::v2::make_waitable_spsc_queue<int>();
     const int moved_handle = moved_queue.native_handle();
-    auto move_constructed = std::move(moved_queue);
+    auto move_constructed  = std::move(moved_queue);
     EXPECT_EQ(move_constructed.native_handle(), moved_handle);
 
     auto move_assigned = exasol::udf::v2::make_waitable_spsc_queue<int>();
-    move_assigned = std::move(move_constructed);
+    move_assigned      = std::move(move_constructed);
     EXPECT_EQ(move_assigned.native_handle(), moved_handle);
     self_move_assign(move_assigned);
 }
@@ -166,20 +166,20 @@ TEST(WaitableQueueIntegrationTest, MpmcBatchAndEmptyBatchOperations)
 
 TEST(WaitableQueueIntegrationTest, MpmcProvidesQueueAccess)
 {
-    auto queue = exasol::udf::v2::make_waitable_mpmc_queue<int>();
+    auto queue              = exasol::udf::v2::make_waitable_mpmc_queue<int>();
     const auto& const_queue = queue;
     EXPECT_EQ(&const_queue.queue(), &queue.queue());
 }
 
 TEST(WaitableQueueIntegrationTest, MpmcSupportsMoves)
 {
-    auto moved_queue = exasol::udf::v2::make_waitable_mpmc_queue<int>();
+    auto moved_queue       = exasol::udf::v2::make_waitable_mpmc_queue<int>();
     const int moved_handle = moved_queue.native_handle();
-    auto move_constructed = std::move(moved_queue);
+    auto move_constructed  = std::move(moved_queue);
     EXPECT_EQ(move_constructed.native_handle(), moved_handle);
 
     auto move_assigned = exasol::udf::v2::make_waitable_mpmc_queue<int>();
-    move_assigned = std::move(move_constructed);
+    move_assigned      = std::move(move_constructed);
     EXPECT_EQ(move_assigned.native_handle(), moved_handle);
     self_move_assign(move_assigned);
 }

@@ -292,8 +292,7 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, const std::size_
         case 1:
             run_queue(std::type_identity<exasol::udf::v2::MpmcQueue<Value>>{},
                       std::bool_constant<false>{}, operation_span, 2 + producer_bit,
-                      2 + consumer_bit, false,
-                      [] { return exasol::udf::v2::MpmcQueue<Value>{}; });
+                      2 + consumer_bit, false, [] { return exasol::udf::v2::MpmcQueue<Value>{}; });
             break;
         case 2:
             run_queue(std::type_identity<exasol::udf::v2::WaitableSpscQueue<Value>>{},
