@@ -96,6 +96,13 @@ Run the mutation session from the repository root:
 poetry run -- nox --sessions=mull
 ```
 
+If Bazel reports stale or incompatible Mull output from a previous VM or host
+build, clean the Mull-specific output roots and reports before retrying:
+
+```bash
+poetry run -- nox --sessions=mull-clean
+```
+
 If the Bazel executable is named `bazelisk`, run:
 `BAZEL=bazelisk poetry run -- nox --sessions=mull`.
 

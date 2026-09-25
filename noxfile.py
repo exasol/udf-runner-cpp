@@ -184,6 +184,54 @@ def list_mull_targets_session(session: nox.Session):
     _write_mull_matrix(session)
 
 
+@nox.session(name="mull-clean", python=False)
+def clean_mull_session(session: nox.Session):
+    """Remove Mull reports and stale Bazel output roots."""
+    bazel = os.environ.get("BAZEL", "bazel")
+    v2_root = ROOT / "udf-runner-cpp" / "v2"
+    report_dir = ROOT / ".build_output" / "mull"
+    configured_root = Path(
+        os.environ.get("MULL_BAZEL_OUTPUT_ROOT", ROOT / ".build_output" / "bazel-mull")
+    )
+    output_roots = (configured_root, v2_root / ".build_output" / "bazel-mull")
+
+    for output_root in dict.fromkeys(output_roots):
+        if not output_root.exists():
+            continue
+        _validate_mull_cleanup_path(output_root, configured_root, v2_root)
+        with session.chdir(v2_root):
+            session.run(
+                bazel,
+                f"--output_user_root={output_root}",
+                "shutdown",
+                external=True,
+            )
+        shutil.rmtree(output_root)
+
+    if report_dir.exists():
+        shutil.rmtree(report_dir)
+
+
+def _validate_mull_cleanup_path(path: Path, configured_root: Path, v2_root: Path) -> None:
+    """Reject cleanup paths that could remove unrelated user data."""
+    resolved_path = path.resolve()
+    repository_root = ROOT.resolve()
+    current_root = (ROOT / ".build_output" / "bazel-mull").resolve()
+    legacy_root = (v2_root / ".build_output" / "bazel-mull").resolve()
+    if resolved_path in {current_root, legacy_root}:
+        return
+    if path == configured_root and os.environ.get("MULL_BAZEL_OUTPUT_ROOT"):
+        if resolved_path in {Path("/"), Path.home(), Path("/tmp"), repository_root}:
+            raise ValueError(f"Refusing to remove unsafe Mull output root: {resolved_path}")
+        if not resolved_path.name.startswith("bazel-mull"):
+            raise ValueError(
+                "MULL_BAZEL_OUTPUT_ROOT must name a bazel-mull directory when using "
+                "the mull-clean session"
+            )
+        return
+    raise ValueError(f"Refusing to remove unexpected Mull output root: {resolved_path}")
+
+
 def _write_mull_matrix(session: nox.Session):
     """List Mull targets and optionally write a GitHub Actions matrix."""
     parser = argparse.ArgumentParser(usage=f"nox -s {session.name} -- [options]")
