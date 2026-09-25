@@ -1,66 +1,32 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
+#include <functional>
 #include <source_location>
 #include <string>
 #include <string_view>
-
-#if __has_include(<print>)
-#include <print>
-#endif
 
 #include <exasol/udf/v2/exception.hpp>
 
 namespace exasol::udf::v2::detail
 {
 
-inline std::string format_stacktrace_entry(const std::size_t frame_number,
-                                           const std::string_view description,
-                                           const std::string_view source_file,
-                                           const std::uint_least32_t source_line)
-{
-    if (source_file.empty())
-    {
-        return "  #" + std::to_string(frame_number) + " " + std::string(description) + "\n";
-    }
-    return "  #" + std::to_string(frame_number) + " " + std::string(description) + " (" +
-           std::string(source_file) + ":" + std::to_string(source_line) + ")\n";
-}
+[[nodiscard]] std::string format_stacktrace_entry(const std::size_t frame_number,
+                                                  const std::string_view description,
+                                                  const std::string_view source_file,
+                                                  const std::uint_least32_t source_line);
 
-inline std::string format_assertion_failure(const Exception& error)
-{
-    std::string output = std::string(error.location().file_name()) + ":" +
-                         std::to_string(error.location().line()) + ":" +
-                         std::string(error.location().function_name()) + ": " + error.what() + "\n";
-    std::size_t frame_number = 0;
-    for (const auto& frame : error.stacktrace())
-    {
-        output += format_stacktrace_entry(frame_number, frame.description(), frame.source_file(),
-                                          frame.source_line());
-        ++frame_number;
-    }
-    return output;
-}
+[[nodiscard]] std::string format_assertion_failure(const Exception& error);
 
-using AssertionTerminator = void (*)();
+using AssertionTerminator = std::function<void()>;
 
-[[noreturn]] inline void assertion_failure(const char* expression,
-                                           std::source_location location,
-                                           const AssertionTerminator terminator = std::abort)
-{
-    const Exception error("Assertion failed: " + std::string(expression), location);
-    const std::string output = format_assertion_failure(error);
-#if __has_include(<print>)
-    std::print(stderr, "{}", output);
-#else
-    static_cast<void>(std::fwrite(output.data(), sizeof(char), output.size(), stderr));
-#endif
-    std::fflush(stderr);
-    terminator();
-    std::abort();
-}
+// Keep production termination injectable so tests can replace abort with a throwing callback.
+[[noreturn]] void assertion_failure(
+    const char* expression, std::source_location location, AssertionTerminator terminator = [] {
+        std::abort();
+    });
 
 } // namespace exasol::udf::v2::detail
 

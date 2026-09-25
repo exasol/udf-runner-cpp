@@ -402,6 +402,7 @@ cc_fuzz_test(
 
 cc_library(
     name = "exception",
+    srcs = ["assert.cc"],
     hdrs = [
         "include/exasol/udf/v2/assert.hpp",
         "include/exasol/udf/v2/exception.hpp",
