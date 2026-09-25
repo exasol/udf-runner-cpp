@@ -24,9 +24,9 @@ using AssertionTerminator = std::function<void()>;
 
 // Keep production termination injectable so tests can replace abort with a throwing callback.
 [[noreturn]] void assertion_failure(
-    const char* expression, std::source_location location, AssertionTerminator terminator = [] {
-        std::abort();
-    });
+    const char* expression,
+    std::source_location location,
+    const AssertionTerminator& terminator = [] { std::abort(); });
 
 } // namespace exasol::udf::v2::detail
 

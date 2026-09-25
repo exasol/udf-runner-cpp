@@ -39,7 +39,7 @@ std::string format_assertion_failure(const Exception& error)
 
 [[noreturn]] void assertion_failure(const char* expression,
                                     std::source_location location,
-                                    AssertionTerminator terminator)
+                                    const AssertionTerminator& terminator)
 {
     std::ostringstream message;
     message << "Assertion failed: " << expression;
