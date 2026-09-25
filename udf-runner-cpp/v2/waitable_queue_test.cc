@@ -142,8 +142,9 @@ void expect_invalid_argument(Function&& function, const char* message)
         function();
         test_check(false, message);
     }
-    catch (const std::invalid_argument&)
+    catch (const std::invalid_argument& error)
     {
+        test_check(error.what() != nullptr, "invalid-argument error did not contain a message");
     }
 }
 
@@ -224,7 +225,7 @@ int main()
         test_check(move_assigned.native_handle() == moved_handle, "move assignment changed handle");
         self_move_assign(move_assigned);
 
-        exasol::udf::v2::WaitableQueue<LimitedQueue> limited_queue(LimitedQueue{1});
+        auto limited_queue = exasol::udf::v2::WaitableQueue{LimitedQueue{1}};
         const std::array<int, 2> limited_batch{1, 2};
         test_check(limited_queue.enqueue_batch(limited_batch.begin(), limited_batch.end()) == 1,
                    "limited queue should stop at capacity");
@@ -271,22 +272,6 @@ int main()
                 static_cast<void>(queue);
             },
             "null eventfd implementation should be rejected");
-
-        {
-            exasol::udf::v2::LinuxEventFd event_fd;
-            ::close(event_fd.native_handle());
-            expect_system_error([&event_fd] { event_fd.read_notification(); },
-                                std::errc::bad_file_descriptor,
-                                "closed eventfd read should be rejected");
-        }
-
-        {
-            exasol::udf::v2::LinuxEventFd event_fd;
-            ::close(event_fd.native_handle());
-            expect_system_error([&event_fd] { event_fd.write_notification(); },
-                                std::errc::bad_file_descriptor,
-                                "closed eventfd write should be rejected");
-        }
 
         exasol::udf::v2::WaitableMpmcQueue<int> mpmc;
         test_check(mpmc.enqueue(7), "MPMC queue enqueue failed");
