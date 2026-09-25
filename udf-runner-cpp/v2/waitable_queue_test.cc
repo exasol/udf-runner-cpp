@@ -56,7 +56,11 @@ private:
 class MockEventFd : public exasol::udf::v2::EventFd
 {
 public:
-    MOCK_METHOD(int, native_handle, (), (const, noexcept, override));
+    [[nodiscard]] int native_handle() const noexcept override
+    {
+        return 42;
+    }
+
     MOCK_METHOD(std::uint64_t, read_notification, (), (override));
     MOCK_METHOD(void, write_notification, (), (override));
 };
@@ -70,7 +74,6 @@ using testing::Throw;
 TEST(WaitableQueueTest, EnqueuesDequeuesAndDrainsNotifications)
 {
     auto event_fd = std::make_unique<StrictMock<MockEventFd>>();
-    EXPECT_CALL(*event_fd, native_handle()).WillOnce(Return(42));
     EXPECT_CALL(*event_fd, write_notification()).WillOnce(Return());
     EXPECT_CALL(*event_fd, read_notification())
         .WillOnce(Return(3))
@@ -203,7 +206,6 @@ TEST(WaitableQueueTest, HandlesZeroCapacity)
 TEST(WaitableQueueTest, SupportsMoveConstruction)
 {
     auto event_fd = std::make_unique<StrictMock<MockEventFd>>();
-    EXPECT_CALL(*event_fd, native_handle()).WillOnce(Return(42));
 
     using WaitableQueue = exasol::udf::v2::WaitableQueue<MockQueue>;
     WaitableQueue moved_queue(MockQueue{}, std::move(event_fd));
@@ -214,7 +216,6 @@ TEST(WaitableQueueTest, SupportsMoveConstruction)
 TEST(WaitableQueueTest, SupportsMoveAssignmentAndSelfMove)
 {
     auto source_event_fd = std::make_unique<StrictMock<MockEventFd>>();
-    EXPECT_CALL(*source_event_fd, native_handle()).WillOnce(Return(42));
     auto target_event_fd = std::make_unique<StrictMock<MockEventFd>>();
 
     using WaitableQueue = exasol::udf::v2::WaitableQueue<MockQueue>;

@@ -27,81 +27,97 @@ class SpscEpollTest : public testing::Test
 protected:
     void SetUp() override
     {
-        ASSERT_NE(epoll_fd, -1);
-        ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
-        ASSERT_TRUE(add_to_epoll(queue.native_handle(), EPOLLIN));
-        ASSERT_TRUE(add_to_epoll(sockets[1], EPOLLIN));
+        ASSERT_NE(epoll_fd_storage, -1);
+        ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets_storage.data()), 0);
+        ASSERT_TRUE(add_to_epoll(queue_storage.native_handle(), EPOLLIN));
+        ASSERT_TRUE(add_to_epoll(sockets_storage[1], EPOLLIN));
     }
 
     void TearDown() override
     {
-        ::close(sockets[0]);
-        ::close(sockets[1]);
-        ::close(epoll_fd);
+        ::close(sockets_storage[0]);
+        ::close(sockets_storage[1]);
+        ::close(epoll_fd_storage);
     }
 
-    bool add_to_epoll(int fd, std::uint32_t events)
+    bool add_to_epoll(int fd, std::uint32_t events) const
     {
         epoll_event event{};
         event.events  = events;
         event.data.fd = fd;
-        return ::epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event) == 0;
+        return ::epoll_ctl(epoll_fd_storage, EPOLL_CTL_ADD, fd, &event) == 0;
     }
 
-    exasol::udf::v2::WaitableSpscQueue<int> queue;
-    int epoll_fd = ::epoll_create1(EPOLL_CLOEXEC);
-    std::array<int, 2> sockets{};
+    exasol::udf::v2::WaitableSpscQueue<int>& queue() noexcept
+    {
+        return queue_storage;
+    }
+
+    [[nodiscard]] int epoll_fd() const noexcept
+    {
+        return epoll_fd_storage;
+    }
+
+    [[nodiscard]] const std::array<int, 2>& sockets() const noexcept
+    {
+        return sockets_storage;
+    }
+
+private:
+    exasol::udf::v2::WaitableSpscQueue<int> queue_storage;
+    int epoll_fd_storage = ::epoll_create1(EPOLL_CLOEXEC);
+    std::array<int, 2> sockets_storage{};
 };
 
 } // namespace
 
 TEST_F(SpscEpollTest, ReportsQueueAndSocketReadiness)
 {
-    ASSERT_TRUE(queue.enqueue(42));
+    ASSERT_TRUE(queue().enqueue(42));
     const char byte = 'x';
-    ASSERT_EQ(::write(sockets[0], &byte, sizeof(byte)), sizeof(byte));
+    ASSERT_EQ(::write(sockets()[0], &byte, sizeof(byte)), sizeof(byte));
 
     std::array<epoll_event, 2> events{};
-    const int event_count = ::epoll_wait(epoll_fd, events.data(), events.size(), 1000);
+    const int event_count = ::epoll_wait(epoll_fd(), events.data(), events.size(), 1000);
     ASSERT_EQ(event_count, 2);
 
     bool queue_ready  = false;
     bool socket_ready = false;
     for (const auto& event : std::span(events).first(static_cast<std::size_t>(event_count)))
     {
-        queue_ready |= event.data.fd == queue.native_handle();
-        socket_ready |= event.data.fd == sockets[1];
+        queue_ready |= event.data.fd == queue().native_handle();
+        socket_ready |= event.data.fd == sockets()[1];
     }
     EXPECT_TRUE(queue_ready);
     EXPECT_TRUE(socket_ready);
-    EXPECT_EQ(queue.drain_notifications(), 1);
+    EXPECT_EQ(queue().drain_notifications(), 1);
 }
 
 TEST_F(SpscEpollTest, SupportsQueueOperationsAndBatches)
 {
-    ASSERT_TRUE(queue.enqueue(42));
-    EXPECT_EQ(queue.drain_notifications(), 1);
+    ASSERT_TRUE(queue().enqueue(42));
+    EXPECT_EQ(queue().drain_notifications(), 1);
 
     int value = 0;
-    ASSERT_TRUE(queue.try_dequeue(value));
+    ASSERT_TRUE(queue().try_dequeue(value));
     EXPECT_EQ(value, 42);
 
     const std::vector batch{1, 2, 3};
-    EXPECT_EQ(queue.enqueue_batch(batch.begin(), batch.end()), batch.size());
-    EXPECT_EQ(queue.drain_notifications(), 1);
+    EXPECT_EQ(queue().enqueue_batch(batch.begin(), batch.end()), batch.size());
+    EXPECT_EQ(queue().drain_notifications(), 1);
     for (int expected : batch)
     {
-        ASSERT_TRUE(queue.try_dequeue(value));
+        ASSERT_TRUE(queue().try_dequeue(value));
         EXPECT_EQ(value, expected);
     }
-    EXPECT_FALSE(queue.try_dequeue(value));
+    EXPECT_FALSE(queue().try_dequeue(value));
 
     const std::array<int, 0> empty_batch{};
-    EXPECT_EQ(queue.enqueue_batch(empty_batch.begin(), empty_batch.end()), 0);
-    EXPECT_EQ(queue.drain_notifications(), 0);
+    EXPECT_EQ(queue().enqueue_batch(empty_batch.begin(), empty_batch.end()), 0);
+    EXPECT_EQ(queue().drain_notifications(), 0);
 
-    const auto& const_queue = queue;
-    EXPECT_EQ(&const_queue.queue(), &queue.queue());
+    const auto& const_queue = queue();
+    EXPECT_EQ(&const_queue.queue(), &queue().queue());
 }
 
 TEST_F(SpscEpollTest, SupportsMoves)
