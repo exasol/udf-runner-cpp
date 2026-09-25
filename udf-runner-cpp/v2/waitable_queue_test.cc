@@ -156,6 +156,38 @@ void self_move_assign(Queue& queue)
     (queue.*assign)(std::move(queue));
 }
 
+template <typename Queue>
+void exercise_notification_paths()
+{
+    using WaitableQueue = exasol::udf::v2::WaitableQueue<Queue>;
+
+    auto read_event_fd = std::make_unique<MockEventFd>();
+    read_event_fd->set_read_actions(
+        {std::errc::interrupted, std::uint64_t{7}, std::errc::resource_unavailable_try_again});
+    auto read_queue = WaitableQueue(Queue{}, std::move(read_event_fd));
+    test_check(read_queue.native_handle() == 42, "mock eventfd handle was not retained");
+    test_check(read_queue.drain_notifications() == 7, "mock notification drain failed");
+
+    auto write_event_fd = std::make_unique<MockEventFd>();
+    write_event_fd->set_write_actions(
+        {std::errc::interrupted, std::monostate{}, std::errc::resource_unavailable_try_again});
+    auto write_queue = WaitableQueue(Queue{}, std::move(write_event_fd));
+    test_check(write_queue.enqueue(1), "interrupted mock write should retry");
+    test_check(write_queue.enqueue(2), "saturated mock write should be ignored");
+
+    auto error_event_fd = std::make_unique<MockEventFd>();
+    error_event_fd->set_read_actions({std::errc::io_error});
+    auto error_queue = WaitableQueue(Queue{}, std::move(error_event_fd));
+    expect_system_error([&error_queue] { error_queue.drain_notifications(); }, std::errc::io_error,
+                        "read error should be propagated");
+
+    auto write_error_event_fd = std::make_unique<MockEventFd>();
+    write_error_event_fd->set_write_actions({std::errc::io_error});
+    auto write_error_queue = WaitableQueue(Queue{}, std::move(write_error_event_fd));
+    expect_system_error([&write_error_queue] { static_cast<void>(write_error_queue.enqueue(1)); },
+                        std::errc::io_error, "write error should be propagated");
+}
+
 } // namespace
 
 int main()
@@ -234,35 +266,14 @@ int main()
         test_check(!limited_queue.enqueue(3), "full queue should reject enqueue");
         test_check(limited_queue.drain_notifications() == 0, "failed enqueue should not notify");
 
-        auto read_event_fd = std::make_unique<MockEventFd>();
-        read_event_fd->set_read_actions(
-            {std::errc::interrupted, std::uint64_t{7}, std::errc::resource_unavailable_try_again});
-        auto read_queue = exasol::udf::v2::WaitableQueue(LimitedQueue{1}, std::move(read_event_fd));
-        test_check(read_queue.native_handle() == 42, "mock eventfd handle was not retained");
-        test_check(read_queue.drain_notifications() == 7, "mock notification drain failed");
+        auto empty_limited_queue = exasol::udf::v2::WaitableQueue{LimitedQueue{0}};
+        test_check(
+            empty_limited_queue.enqueue_batch(limited_batch.begin(), limited_batch.end()) == 0,
+            "empty limited queue should reject a batch");
+        test_check(empty_limited_queue.drain_notifications() == 0,
+                   "rejected batch should not notify");
 
-        auto write_event_fd = std::make_unique<MockEventFd>();
-        write_event_fd->set_write_actions(
-            {std::errc::interrupted, std::monostate{}, std::errc::resource_unavailable_try_again});
-        auto write_queue =
-            exasol::udf::v2::WaitableQueue(LimitedQueue{2}, std::move(write_event_fd));
-        test_check(write_queue.enqueue(1), "interrupted mock write should retry");
-        test_check(write_queue.enqueue(2), "saturated mock write should be ignored");
-
-        auto error_event_fd = std::make_unique<MockEventFd>();
-        error_event_fd->set_read_actions({std::errc::io_error});
-        auto error_queue =
-            exasol::udf::v2::WaitableQueue(LimitedQueue{1}, std::move(error_event_fd));
-        expect_system_error([&error_queue] { error_queue.drain_notifications(); },
-                            std::errc::io_error, "read error should be propagated");
-
-        auto write_error_event_fd = std::make_unique<MockEventFd>();
-        write_error_event_fd->set_write_actions({std::errc::io_error});
-        auto write_error_queue =
-            exasol::udf::v2::WaitableQueue(LimitedQueue{1}, std::move(write_error_event_fd));
-        expect_system_error(
-            [&write_error_queue] { static_cast<void>(write_error_queue.enqueue(1)); },
-            std::errc::io_error, "write error should be propagated");
+        exercise_notification_paths<exasol::udf::v2::SpscQueue<int>>();
 
         expect_invalid_argument(
             [] {
@@ -278,6 +289,35 @@ int main()
         test_check(mpmc.drain_notifications() == 1, "unexpected MPMC notification count");
         test_check(mpmc.try_dequeue(value), "MPMC queue dequeue failed");
         test_check(value == 7, "unexpected MPMC value");
+
+        const std::vector<int> mpmc_batch{8, 9};
+        test_check(mpmc.enqueue_batch(mpmc_batch.begin(), mpmc_batch.end()) == mpmc_batch.size(),
+                   "MPMC batch enqueue failed");
+        test_check(mpmc.drain_notifications() == 1, "unexpected MPMC batch notification count");
+        for (int expected : mpmc_batch)
+        {
+            test_check(mpmc.try_dequeue(value), "MPMC batch dequeue failed");
+            test_check(value == expected, "unexpected MPMC batch value");
+        }
+        test_check(mpmc.enqueue_batch(empty_batch.begin(), empty_batch.end()) == 0,
+                   "empty MPMC batch should not enqueue values");
+        test_check(mpmc.drain_notifications() == 0, "empty MPMC batch should not notify");
+
+        const auto& const_mpmc = mpmc;
+        test_check(&const_mpmc.queue() == &mpmc.queue(), "const MPMC queue access failed");
+
+        exasol::udf::v2::WaitableMpmcQueue<int> moved_mpmc;
+        const int moved_mpmc_handle = moved_mpmc.native_handle();
+        exasol::udf::v2::WaitableMpmcQueue<int> constructed_mpmc(std::move(moved_mpmc));
+        test_check(constructed_mpmc.native_handle() == moved_mpmc_handle,
+                   "MPMC move construction changed handle");
+        exasol::udf::v2::WaitableMpmcQueue<int> assigned_mpmc;
+        assigned_mpmc = std::move(constructed_mpmc);
+        test_check(assigned_mpmc.native_handle() == moved_mpmc_handle,
+                   "MPMC move assignment changed handle");
+        self_move_assign(assigned_mpmc);
+
+        exercise_notification_paths<exasol::udf::v2::MpmcQueue<int>>();
 
         close_pair(sockets);
         ::close(epoll_fd);

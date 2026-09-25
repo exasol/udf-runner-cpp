@@ -1,8 +1,8 @@
 #include <unistd.h>
 
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
+#include <iostream>
 #include <system_error>
 #include <utility>
 
@@ -15,7 +15,7 @@ void test_check(bool condition, const char* message)
 {
     if (!condition)
     {
-        std::fprintf(stderr, "event fd test failure: %s\n", message);
+        std::cerr << "event fd test failure: " << message << '\n';
         std::abort();
     }
 }
@@ -89,7 +89,7 @@ int main()
     }
     catch (const std::exception& error)
     {
-        std::fprintf(stderr, "event fd test failure: %s\n", error.what());
+        std::cerr << "event fd test failure: " << error.what() << '\n';
         return 1;
     }
 }

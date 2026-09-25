@@ -42,6 +42,10 @@ public:
         }
     }
 
+    ~WaitableQueue() noexcept
+    {
+        notification_fd.reset();
+    }
     WaitableQueue(const WaitableQueue&)            = delete;
     WaitableQueue& operator=(const WaitableQueue&) = delete;
 
