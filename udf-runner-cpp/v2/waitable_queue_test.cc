@@ -239,15 +239,8 @@ void test_mock_capacity_and_moves()
 
 TEST(WaitableQueueTest, MockEventFdAndQueueOperations)
 {
-    try
-    {
-        test_mock_queue_operations();
-        test_mock_notification_paths();
-        test_mock_capacity_and_moves();
-        expect_invalid_argument();
-    }
-    catch (const std::exception& error)
-    {
-        FAIL() << error.what();
-    }
+    test_mock_queue_operations();
+    test_mock_notification_paths();
+    test_mock_capacity_and_moves();
+    expect_invalid_argument();
 }
