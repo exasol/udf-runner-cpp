@@ -87,7 +87,7 @@ cc_library(
     name = "udf_protocol",
     srcs = ["udf_protocol.cc"],
     hdrs = ["udf_protocol.hpp", ":udf_protocol_generated"],
-    copts = ["-std=c++20"],
+    copts = ["-std=c++23"],
     # Do not depend on the ordinary runtime headers: the generated protocol
     # header must resolve all runtime includes through the isolated copy.
     deps = [":private_flatbuffers_runtime"],
@@ -96,7 +96,7 @@ cc_library(
 cc_test(
     name = "udf_protocol_test",
     srcs = ["udf_protocol_test.cc"],
-    copts = ["-std=c++20"],
+    copts = ["-std=c++23"],
     deps = [
         ":udf_protocol",
         "@googletest//:gtest_main",
@@ -106,7 +106,7 @@ cc_test(
 cc_binary(
     name = "udf_protocol_shared",
     srcs = ["udf_protocol.cc"],
-    copts = ["-std=c++20"],
+    copts = ["-std=c++23"],
     linkshared = 1,
     deps = [":udf_protocol"],
 )
@@ -114,7 +114,7 @@ cc_binary(
 cc_test(
     name = "udf_protocol_symbol_leak_test",
     srcs = ["nm_runner.hpp", "udf_protocol_symbol_leak_test.cc"],
-    copts = ["-std=c++20"],
+    copts = ["-std=c++23"],
     # The test inspects the built shared object with nm. data makes the
     # artifact available at runtime and args passes its runfiles path.
     data = [":udf_protocol_shared"],
@@ -126,7 +126,7 @@ cc_test(
 cc_test(
     name = "udf_protocol_static_symbol_leak_test",
     srcs = ["nm_runner.hpp", "udf_protocol_static_symbol_leak_test.cc"],
-    copts = ["-std=c++20"],
+    copts = ["-std=c++23"],
     # cc_library produces multiple artifacts, so the test receives all
     # locations and selects the static .a archive for nm inspection.
     data = [":udf_protocol"],
@@ -141,7 +141,7 @@ cc_test(
         "flatbuffers_header_order_test.cc",
         "flatbuffers_header_order_reverse.cc",
     ],
-    copts = ["-std=c++20"],
+    copts = ["-std=c++23"],
     # Compile both include orders against the ordinary runtime and the
     # isolated runtime to protect against header-guard and macro collisions.
     deps = [":udf_protocol", "@flatbuffers//:runtime_cc"],
@@ -165,7 +165,7 @@ cc_binary(
     srcs = ["arrow_c_data_demo.cc"],
     additional_linker_inputs = [":arrow_c_data_demo_exports"],
     copts = [
-        "-std=c++20",
+        "-std=c++23",
         "-fvisibility=hidden",
         "-fvisibility-inlines-hidden",
     ],
@@ -181,7 +181,7 @@ cc_binary(
 cc_test(
     name = "arrow_core_test",
     srcs = ["arrow_core_test.cc"],
-    copts = ["-std=c++20"],
+    copts = ["-std=c++23"],
     deps = [
         ":arrow_core",
         "@googletest//:gtest_main",
@@ -191,7 +191,7 @@ cc_test(
 cc_test(
     name = "arrow_c_data_demo_test",
     srcs = ["arrow_c_data_demo_test.cc"],
-    copts = ["-std=c++20"],
+    copts = ["-std=c++23"],
     data = [":libarrow_c_data_demo.so"],
     args = ["$(location :libarrow_c_data_demo.so)"],
     linkopts = ["-ldl"],
@@ -203,6 +203,7 @@ cc_library(
     name = "json_schema",
     hdrs = ["include/exasol/udf/v2/json_schema.hpp"],
     includes = ["include"],
+    copts = ["-std=c++23"],
     deps = ["@v2_json_schema_validator//:json_schema_validator"],
 )
 
@@ -210,7 +211,7 @@ cc_test(
     name = "json_schema_validation_test",
     srcs = ["json_schema_validation_test.cc"],
     data = ["//json_schema:all_schemas"],
-    copts = ["-std=c++17"],
+    copts = ["-std=c++23"],
     deps = [
         ":json_schema",
         "@googletest//:gtest_main",
@@ -220,7 +221,7 @@ cc_test(
 cc_test(
     name = "json_schema_symbol_leak_test",
     srcs = ["json_schema_symbol_leak_test.cc"],
-    copts = ["-std=c++17"],
+    copts = ["-std=c++23"],
     linkopts = ["-ldl"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [":json_schema"],
@@ -231,7 +232,7 @@ cc_fuzz_test(
     srcs = ["frame_fuzz_test.cc"],
     corpus = glob(["fuzz/corpus/frame/**"]),
     dicts = ["fuzz/frame.dict"],
-    copts = ["-std=c++20"],
+    copts = ["-std=c++23"],
     deps = [":udf_protocol"],
     tags = ["fuzz-test"],
 )
@@ -241,7 +242,7 @@ cc_fuzz_test(
     srcs = ["call_metadata_fuzz_test.cc", "test_utils/json_schema_fuzzing.hpp"],
     corpus = glob(["fuzz/corpus/call_metadata/**"]),
     dicts = ["fuzz/json.dict"],
-    copts = ["-std=c++17"],
+    copts = ["-std=c++23"],
     data = ["//json_schema:all_schemas"],
     deps = [":json_schema"],
     tags = ["fuzz-test"],
@@ -252,7 +253,7 @@ cc_fuzz_test(
     srcs = ["connection_information_fuzz_test.cc", "test_utils/json_schema_fuzzing.hpp"],
     corpus = glob(["fuzz/corpus/connection_information/**"]),
     dicts = ["fuzz/json.dict"],
-    copts = ["-std=c++17"],
+    copts = ["-std=c++23"],
     data = ["//json_schema:all_schemas"],
     deps = [":json_schema"],
     tags = ["fuzz-test"],
@@ -263,7 +264,7 @@ cc_fuzz_test(
     srcs = ["export_specification_fuzz_test.cc", "test_utils/json_schema_fuzzing.hpp"],
     corpus = glob(["fuzz/corpus/export_specification/**"]),
     dicts = ["fuzz/json.dict"],
-    copts = ["-std=c++17"],
+    copts = ["-std=c++23"],
     data = ["//json_schema:all_schemas"],
     deps = [":json_schema"],
     tags = ["fuzz-test"],
@@ -274,7 +275,7 @@ cc_fuzz_test(
     srcs = ["import_specification_fuzz_test.cc", "test_utils/json_schema_fuzzing.hpp"],
     corpus = glob(["fuzz/corpus/import_specification/**"]),
     dicts = ["fuzz/json.dict"],
-    copts = ["-std=c++17"],
+    copts = ["-std=c++23"],
     data = ["//json_schema:all_schemas"],
     deps = [":json_schema"],
     tags = ["fuzz-test"],
@@ -287,6 +288,7 @@ cc_library(
         "include/exasol/udf/v2/spsc_queue.hpp",
     ],
     includes = ["include"],
+    copts = ["-std=c++23"],
     deps = [
         "@v2_concurrentqueue//:concurrentqueue",
         "@v2_readerwriterqueue//:readerwriterqueue",
@@ -296,7 +298,7 @@ cc_library(
 cc_test(
     name = "moodycamel_queues_test",
     srcs = ["moodycamel_queues_test.cc"],
-    copts = ["-std=c++20"],
+    copts = ["-std=c++23"],
     deps = [
         ":moodycamel_queues",
         "@googletest//:gtest_main",
@@ -306,7 +308,7 @@ cc_test(
 cc_binary(
     name = "moodycamel_queues_shared",
     srcs = ["moodycamel_queues_shared.cc"],
-    copts = ["-std=c++20"],
+    copts = ["-std=c++23"],
     linkshared = 1,
     deps = [":moodycamel_queues"],
 )
@@ -314,7 +316,7 @@ cc_binary(
 cc_test(
     name = "moodycamel_symbol_leak_test",
     srcs = ["moodycamel_symbol_leak_test.cc"],
-    copts = ["-std=c++20"],
+    copts = ["-std=c++23"],
     data = [":moodycamel_queues_shared"],
     args = ["$(location :moodycamel_queues_shared)"],
     target_compatible_with = ["@platforms//os:linux"],
@@ -326,13 +328,14 @@ cc_library(
     srcs = ["event_fd.cc"],
     hdrs = ["include/exasol/udf/v2/event_fd.hpp"],
     includes = ["include"],
+    copts = ["-std=c++23"],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
 cc_test(
     name = "event_fd_test",
     srcs = ["event_fd_test.cc"],
-    copts = ["-std=c++20"],
+    copts = ["-std=c++23"],
     deps = [
         ":event_fd",
         "@googletest//:gtest_main",
@@ -344,6 +347,7 @@ cc_library(
     name = "waitable_queue",
     hdrs = ["include/exasol/udf/v2/waitable_queue.hpp"],
     includes = ["include"],
+    copts = ["-std=c++23"],
     deps = [
         ":event_fd",
         ":moodycamel_queues",
@@ -354,7 +358,7 @@ cc_library(
 cc_test(
     name = "waitable_queue_test",
     srcs = ["waitable_queue_test.cc"],
-    copts = ["-std=c++20"],
+    copts = ["-std=c++23"],
     deps = [
         ":waitable_queue",
         "@googletest//:gtest",
@@ -366,7 +370,7 @@ cc_test(
 cc_test(
     name = "waitable_queue_integration_test",
     srcs = ["waitable_queue_integration_test.cc"],
-    copts = ["-std=c++20"],
+    copts = ["-std=c++23"],
     deps = [
         ":waitable_queue",
         "@googletest//:gtest_main",
@@ -378,7 +382,7 @@ cc_test(
 cc_binary(
     name = "waitable_queue_benchmark",
     srcs = ["waitable_queue_benchmark.cc"],
-    copts = ["-std=c++20"],
+    copts = ["-std=c++23"],
     deps = [
         ":waitable_queue",
         "@google_benchmark//:benchmark_main",
@@ -390,8 +394,32 @@ cc_fuzz_test(
     name = "queue_fuzz_test",
     srcs = ["queue_fuzz_test.cc"],
     corpus = glob(["fuzz/corpus/queue/**"]),
-    copts = ["-std=c++20"],
+    copts = ["-std=c++23"],
     deps = [":waitable_queue"],
     tags = ["fuzz-test"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "exception",
+    srcs = ["assert.cc"],
+    hdrs = [
+        "include/exasol/udf/v2/assert.hpp",
+        "include/exasol/udf/v2/exception.hpp",
+    ],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    linkopts = ["-lstdc++exp"],
+)
+
+cc_test(
+    name = "exception_test",
+    srcs = ["exception_test.cc"],
+    copts = ["-std=c++23"],
+    tags = ["no-mull"],
+    deps = [
+        ":exception",
+        "@googletest//:gtest_main",
+    ],
     target_compatible_with = ["@platforms//os:linux"],
 )
