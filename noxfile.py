@@ -179,7 +179,6 @@ def run_oft_for_udf_client(session: nox.Session, *args) -> None:
 
 
 
-@nox.session(name="mull-targets", python=False)
 def list_mull_targets(session: nox.Session):
     """List Mull targets and optionally write a GitHub Actions matrix."""
     parser = argparse.ArgumentParser(usage=f"nox -s {session.name} -- [options]")
