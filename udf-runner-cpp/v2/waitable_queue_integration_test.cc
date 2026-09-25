@@ -14,20 +14,6 @@
 namespace
 {
 
-bool add_to_epoll(int epoll_fd, int fd, std::uint32_t events)
-{
-    epoll_event event{};
-    event.events  = events;
-    event.data.fd = fd;
-    return ::epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event) == 0;
-}
-
-void close_pair(const std::array<int, 2>& sockets)
-{
-    ::close(sockets[0]);
-    ::close(sockets[1]);
-}
-
 template <typename Queue>
 void self_move_assign(Queue& queue)
 {
@@ -36,19 +22,41 @@ void self_move_assign(Queue& queue)
     (queue.*assign)(std::move(queue));
 }
 
+class SpscEpollTest : public testing::Test
+{
+protected:
+    void SetUp() override
+    {
+        ASSERT_NE(epoll_fd, -1);
+        ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
+        ASSERT_TRUE(add_to_epoll(queue.native_handle(), EPOLLIN));
+        ASSERT_TRUE(add_to_epoll(sockets[1], EPOLLIN));
+    }
+
+    void TearDown() override
+    {
+        ::close(sockets[0]);
+        ::close(sockets[1]);
+        ::close(epoll_fd);
+    }
+
+    bool add_to_epoll(int fd, std::uint32_t events)
+    {
+        epoll_event event{};
+        event.events  = events;
+        event.data.fd = fd;
+        return ::epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event) == 0;
+    }
+
+    exasol::udf::v2::WaitableSpscQueue<int> queue;
+    int epoll_fd = ::epoll_create1(EPOLL_CLOEXEC);
+    std::array<int, 2> sockets{};
+};
+
 } // namespace
 
-TEST(WaitableQueueIntegrationTest, SpscEpollAndQueueOperations)
+TEST_F(SpscEpollTest, ReportsQueueAndSocketReadiness)
 {
-    exasol::udf::v2::WaitableSpscQueue<int> queue;
-    const int epoll_fd = ::epoll_create1(EPOLL_CLOEXEC);
-    ASSERT_NE(epoll_fd, -1);
-
-    std::array<int, 2> sockets{};
-    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
-    ASSERT_TRUE(add_to_epoll(epoll_fd, queue.native_handle(), EPOLLIN));
-    ASSERT_TRUE(add_to_epoll(epoll_fd, sockets[1], EPOLLIN));
-
     ASSERT_TRUE(queue.enqueue(42));
     const char byte = 'x';
     ASSERT_EQ(::write(sockets[0], &byte, sizeof(byte)), sizeof(byte));
@@ -66,8 +74,14 @@ TEST(WaitableQueueIntegrationTest, SpscEpollAndQueueOperations)
     }
     EXPECT_TRUE(queue_ready);
     EXPECT_TRUE(socket_ready);
-
     EXPECT_EQ(queue.drain_notifications(), 1);
+}
+
+TEST_F(SpscEpollTest, SupportsQueueOperationsAndBatches)
+{
+    ASSERT_TRUE(queue.enqueue(42));
+    EXPECT_EQ(queue.drain_notifications(), 1);
+
     int value = 0;
     ASSERT_TRUE(queue.try_dequeue(value));
     EXPECT_EQ(value, 42);
@@ -88,21 +102,22 @@ TEST(WaitableQueueIntegrationTest, SpscEpollAndQueueOperations)
 
     const auto& const_queue = queue;
     EXPECT_EQ(&const_queue.queue(), &queue.queue());
+}
 
+TEST_F(SpscEpollTest, SupportsMoves)
+{
     exasol::udf::v2::WaitableSpscQueue<int> moved_queue;
     const int moved_handle = moved_queue.native_handle();
     exasol::udf::v2::WaitableSpscQueue<int> move_constructed(std::move(moved_queue));
     EXPECT_EQ(move_constructed.native_handle(), moved_handle);
+
     exasol::udf::v2::WaitableSpscQueue<int> move_assigned;
     move_assigned = std::move(move_constructed);
     EXPECT_EQ(move_assigned.native_handle(), moved_handle);
     self_move_assign(move_assigned);
-
-    close_pair(sockets);
-    ASSERT_EQ(::close(epoll_fd), 0);
 }
 
-TEST(WaitableQueueIntegrationTest, MpmcQueueOperations)
+TEST(WaitableQueueIntegrationTest, MpmcSingleValueOperations)
 {
     exasol::udf::v2::WaitableMpmcQueue<int> queue;
     ASSERT_TRUE(queue.enqueue(7));
@@ -111,10 +126,16 @@ TEST(WaitableQueueIntegrationTest, MpmcQueueOperations)
     int value = 0;
     ASSERT_TRUE(queue.try_dequeue(value));
     EXPECT_EQ(value, 7);
+}
 
+TEST(WaitableQueueIntegrationTest, MpmcBatchAndEmptyBatchOperations)
+{
+    exasol::udf::v2::WaitableMpmcQueue<int> queue;
     const std::vector batch{8, 9};
     EXPECT_EQ(queue.enqueue_batch(batch.begin(), batch.end()), batch.size());
     EXPECT_EQ(queue.drain_notifications(), 1);
+
+    int value = 0;
     for (int expected : batch)
     {
         ASSERT_TRUE(queue.try_dequeue(value));
@@ -124,14 +145,22 @@ TEST(WaitableQueueIntegrationTest, MpmcQueueOperations)
     const std::array<int, 0> empty_batch{};
     EXPECT_EQ(queue.enqueue_batch(empty_batch.begin(), empty_batch.end()), 0);
     EXPECT_EQ(queue.drain_notifications(), 0);
+}
 
+TEST(WaitableQueueIntegrationTest, MpmcProvidesQueueAccess)
+{
+    exasol::udf::v2::WaitableMpmcQueue<int> queue;
     const auto& const_queue = queue;
     EXPECT_EQ(&const_queue.queue(), &queue.queue());
+}
 
+TEST(WaitableQueueIntegrationTest, MpmcSupportsMoves)
+{
     exasol::udf::v2::WaitableMpmcQueue<int> moved_queue;
     const int moved_handle = moved_queue.native_handle();
     exasol::udf::v2::WaitableMpmcQueue<int> move_constructed(std::move(moved_queue));
     EXPECT_EQ(move_constructed.native_handle(), moved_handle);
+
     exasol::udf::v2::WaitableMpmcQueue<int> move_assigned;
     move_assigned = std::move(move_constructed);
     EXPECT_EQ(move_assigned.native_handle(), moved_handle);
