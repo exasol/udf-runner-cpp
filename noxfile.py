@@ -1,4 +1,5 @@
 import argparse
+from dataclasses import dataclass
 import json
 import nox
 import os
@@ -180,12 +181,10 @@ def run_oft_for_udf_client(session: nox.Session, *args) -> None:
 @nox.session(name="mull-targets", python=False)
 def list_mull_targets_session(session: nox.Session):
     """Expose Mull target discovery as a Nox session for CI."""
-    list_mull_targets(session)
+    _write_mull_matrix(session)
 
 
-
-
-def list_mull_targets(session: nox.Session):
+def _write_mull_matrix(session: nox.Session):
     """List Mull targets and optionally write a GitHub Actions matrix."""
     parser = argparse.ArgumentParser(usage=f"nox -s {session.name} -- [options]")
     parser.add_argument(
@@ -235,20 +234,23 @@ def _get_mull_targets(session: nox.Session) -> tuple[str, ...]:
     return targets
 
 
-@nox.session(name="mull", python=False)
-def run_mull(session: nox.Session):
-    """Run Mull mutation testing for the functional v2 C++ tests."""
-    parser = argparse.ArgumentParser(usage=f"nox -s {session.name} -- [options]")
-    parser.add_argument("--target")
-    args = parser.parse_args(session.posargs)
+@dataclass(frozen=True)
+class _MullToolchain:
+    bazel: str
+    compiler: str
+    c_compiler: str
+    runner: str
+    frontend: Path
 
+
+def _get_mull_toolchain(session: nox.Session) -> _MullToolchain:
     llvm_version = os.environ.get("MULL_LLVM_VERSION", "20")
     bazel = os.environ.get("BAZEL", "bazel")
     compiler = os.environ.get("MULL_CXX", f"clang++-{llvm_version}")
     c_compiler = os.environ.get("MULL_CC", compiler.replace("clang++", "clang", 1))
     runner = os.environ.get("MULL_RUNNER", f"mull-runner-{llvm_version}")
-    frontend = os.environ.get(
-        "MULL_IR_FRONTEND", f"/usr/lib/mull-ir-frontend-{llvm_version}"
+    frontend = Path(
+        os.environ.get("MULL_IR_FRONTEND", f"/usr/lib/mull-ir-frontend-{llvm_version}")
     )
 
     required_tools = [bazel, c_compiler, compiler, runner]
@@ -260,28 +262,37 @@ def run_mull(session: nox.Session):
             + ". Install the matching LLVM/Mull toolchain or override MULL_CXX "
             "and MULL_RUNNER."
         )
-    if not Path(frontend).exists():
+    if not frontend.exists():
         session.error(
             f"Mull IR frontend does not exist: {frontend}. "
             "Override MULL_IR_FRONTEND with the version-matched plugin path."
         )
+    return _MullToolchain(bazel, compiler, c_compiler, runner, frontend)
 
+
+def _get_mull_paths() -> tuple[Path, Path, Path]:
     v2_root = ROOT / "udf-runner-cpp" / "v2"
     report_dir = ROOT / ".build_output" / "mull"
     report_dir.mkdir(parents=True, exist_ok=True)
     bazel_output_root = Path(
         os.environ.get("MULL_BAZEL_OUTPUT_ROOT", ROOT / ".build_output" / "bazel-mull")
     )
+    return v2_root, report_dir, bazel_output_root
 
-    target_names = (args.target,) if args.target else _get_mull_targets(session)
-    targets = [f"//:{target}" for target in target_names]
-    bazel_startup_args = [f"--output_user_root={bazel_output_root}"]
-    generated_config = report_dir / "mull.yml"
+
+def _generate_mull_config(
+    session: nox.Session,
+    toolchain: _MullToolchain,
+    targets: list[str],
+    v2_root: Path,
+    bazel_output_root: Path,
+    generated_config: Path,
+) -> None:
     session.run(
         "python",
         str(ROOT / "tools" / "generate_mull_config.py"),
         "--bazel",
-        bazel,
+        toolchain.bazel,
         "--output-user-root",
         str(bazel_output_root),
         "--v2-root",
@@ -292,91 +303,149 @@ def run_mull(session: nox.Session):
         str(generated_config),
         *sum((["--target", target] for target in targets), []),
     )
+
+
+def _build_mull_targets(
+    session: nox.Session,
+    toolchain: _MullToolchain,
+    targets: list[str],
+    bazel_startup_args: list[str],
+    generated_config: Path,
+    run_env: dict[str, str],
+) -> Path:
     bazel_args = [
         "build",
         "--compilation_mode=dbg",
         "--copt=-O0",
         "--copt=-g",
         "--copt=-grecord-command-line",
-        f"--copt=-fpass-plugin={frontend}",
+        f"--copt=-fpass-plugin={toolchain.frontend}",
         f"--action_env=MULL_CONFIG={generated_config}",
         "--per_file_copt=.*\\.c$@-std=gnu11",
-        f"--repo_env=CC={c_compiler}",
-        f"--repo_env=CXX={compiler}",
+        f"--repo_env=CC={toolchain.c_compiler}",
+        f"--repo_env=CXX={toolchain.compiler}",
         "--verbose_failures",
         *targets,
     ]
     if build_jobs := os.environ.get("MULL_BAZEL_BUILD_JOBS"):
         bazel_args.insert(1, f"--jobs={build_jobs}")
 
+    session.run(toolchain.bazel, *bazel_startup_args, *bazel_args, env=run_env)
+    return Path(
+        session.run(
+            toolchain.bazel,
+            *bazel_startup_args,
+            "info",
+            "bazel-bin",
+            "--compilation_mode=dbg",
+            silent=True,
+            external=True,
+        ).strip()
+    )
+
+
+def _get_mull_library_search_args(bazel_bin: Path) -> list[str]:
+    library_paths = sorted(bazel_bin.glob("_solib_*"))
+    library_paths.extend(
+        path
+        for path in (
+            Path("/lib64"),
+            Path("/lib/x86_64-linux-gnu"),
+            Path("/usr/lib/x86_64-linux-gnu"),
+        )
+        if path.is_dir()
+    )
+    return [argument for path in library_paths for argument in ("--ld-search-path", str(path))]
+
+
+def _run_mull_target(
+    session: nox.Session,
+    toolchain: _MullToolchain,
+    target: str,
+    report_dir: Path,
+    library_search_args: list[str],
+    run_env: dict[str, str],
+) -> None:
+    target_name = target.rsplit(":", maxsplit=1)[1]
+    executable = Path("bazel-bin") / target_name
+    if not executable.exists():
+        session.error(f"Bazel did not produce expected test binary: {executable}")
+    mull_output = session.run(
+        toolchain.runner,
+        "--mutation-score-threshold",
+        "80",
+        *library_search_args,
+        "--ide-reporter-show-killed",
+        "--reporters",
+        "IDE",
+        "--reporters",
+        "Elements",
+        "--report-dir",
+        str(report_dir),
+        "--report-name",
+        target_name,
+        executable,
+        env=run_env,
+        silent=True,
+    )
+    report_file = report_dir / f"{target_name}.txt"
+    report_output = report_file.read_text() if report_file.exists() else ""
+    print(mull_output, end="")
+    mutation_counts = re.findall(
+        r"(?:Killed|Survived) mutants \((\d+)/(\d+)\)",
+        f"{mull_output or ''}\n{report_output}",
+    )
+    if not mutation_counts or max(int(total) for _, total in mutation_counts) == 0:
+        session.error(
+            f"Mull target '{target_name}' produced no mutants; "
+            "check the instrumentation configuration"
+        )
+
+
+@nox.session(name="mull", python=False)
+def run_mull(session: nox.Session):
+    """Run Mull mutation testing for the functional v2 C++ tests."""
+    parser = argparse.ArgumentParser(usage=f"nox -s {session.name} -- [options]")
+    parser.add_argument("--target")
+    args = parser.parse_args(session.posargs)
+
+    toolchain = _get_mull_toolchain(session)
+    v2_root, report_dir, bazel_output_root = _get_mull_paths()
+
+    target_names = (args.target,) if args.target else _get_mull_targets(session)
+    targets = [f"//:{target}" for target in target_names]
+    bazel_startup_args = [f"--output_user_root={bazel_output_root}"]
+    generated_config = report_dir / "mull.yml"
     run_env = os.environ.copy()
     run_env["MULL_CONFIG"] = str(generated_config)
 
     with session.chdir(v2_root):
-        session.run(bazel, *bazel_startup_args, *bazel_args, env=run_env)
-        bazel_bin = Path(
-            session.run(
-                bazel,
-                *bazel_startup_args,
-                "info",
-                "bazel-bin",
-                "--compilation_mode=dbg",
-                silent=True,
-                external=True,
-            ).strip()
+        _generate_mull_config(
+            session,
+            toolchain,
+            targets,
+            v2_root,
+            bazel_output_root,
+            generated_config,
         )
-        library_paths = sorted(bazel_bin.glob("_solib_*"))
-        library_paths.extend(
-            path
-            for path in (
-                Path("/lib64"),
-                Path("/lib/x86_64-linux-gnu"),
-                Path("/usr/lib/x86_64-linux-gnu"),
-            )
-            if path.is_dir()
+        bazel_bin = _build_mull_targets(
+            session,
+            toolchain,
+            targets,
+            bazel_startup_args,
+            generated_config,
+            run_env,
         )
-        ld_search_args = [
-            argument
-            for path in library_paths
-            for argument in ("--ld-search-path", str(path))
-        ]
+        library_search_args = _get_mull_library_search_args(bazel_bin)
         for target in targets:
-            target_name = target.rsplit(":", maxsplit=1)[1]
-            executable = Path("bazel-bin") / target_name
-            if not executable.exists():
-                session.error(f"Bazel did not produce expected test binary: {executable}")
-            mull_output = session.run(
-                runner,
-                "--mutation-score-threshold",
-                "80",
-                *ld_search_args,
-                "--ide-reporter-show-killed",
-                "--reporters",
-                "IDE",
-                "--reporters",
-                "Elements",
-                "--report-dir",
-                str(report_dir),
-                "--report-name",
-                target_name,
-                executable,
-                env=run_env,
-                silent=True,
+            _run_mull_target(
+                session,
+                toolchain,
+                target,
+                report_dir,
+                library_search_args,
+                run_env,
             )
-            report_output = ""
-            report_file = report_dir / f"{target_name}.txt"
-            if report_file.exists():
-                report_output = report_file.read_text()
-            print(mull_output, end="")
-            mutation_counts = re.findall(
-                r"(?:Killed|Survived) mutants \((\d+)/(\d+)\)",
-                f"{mull_output or ''}\n{report_output}",
-            )
-            if not mutation_counts or max(int(total) for _, total in mutation_counts) == 0:
-                session.error(
-                    f"Mull target '{target_name}' produced no mutants; "
-                    "check the instrumentation configuration"
-                )
 
 @nox.session(name="run-oft", python=False)
 def run_oft_udf_client_plaintext(session: nox.Session):
