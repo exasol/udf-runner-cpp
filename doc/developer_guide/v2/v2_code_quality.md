@@ -108,10 +108,14 @@ If the Bazel executable is named `bazelisk`, run:
 
 The session discovers Bazel `cc_test` targets and runs each eligible target with
 Mull instrumentation. It writes reports to `.build_output/mull/` and enforces
-an 80% mutation-score threshold for every target. The LLVM major version can be
-changed with `MULL_LLVM_VERSION`; custom tool paths can be supplied with
-`MULL_CXX`, `MULL_RUNNER`, and `MULL_IR_FRONTEND`. The C compiler used by Bazel
-can be overridden with `MULL_CC`.
+an 80% mutation-score threshold for every target that produces at least one
+mutant. Targets for which Mull produces no mutants emit a warning and succeed;
+the warning is shown in local Nox output and as a GitHub Actions annotation.
+Build failures, test failures, invalid reports, and mutation scores below 80%
+remain errors. The LLVM major version can be changed with `MULL_LLVM_VERSION`;
+custom tool paths can be supplied with `MULL_CXX`, `MULL_RUNNER`, and
+`MULL_IR_FRONTEND`. The C compiler used by Bazel can be overridden with
+`MULL_CC`.
 
 Mutation testing is not reliable for C++ template implementations or tests
 that only exercise third-party dependencies. Keep those tests in normal Bazel

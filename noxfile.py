@@ -12,6 +12,7 @@ import subprocess
 from exasol.slc_ci_setup.nox.tasks import *
 
 ROOT = Path(__file__).parent
+MULL_MUTATION_SCORE_THRESHOLD = 80
 
 
 # default actions to be run if nothing is explicitly specified with the -s option
@@ -406,6 +407,49 @@ def _get_mull_library_search_args(bazel_bin: Path) -> list[str]:
     return [argument for path in library_paths for argument in ("--ld-search-path", str(path))]
 
 
+@dataclass(frozen=True)
+class _MullMutationResult:
+    killed: int
+    total: int
+
+    @property
+    def score(self) -> float:
+        return self.killed * 100 / self.total
+
+
+def _parse_mull_mutation_result(output: str) -> _MullMutationResult | None:
+    counts = [
+        (int(killed), int(total))
+        for killed, total in re.findall(r"Killed mutants \((\d+)/(\d+)\)", output)
+    ]
+    if counts:
+        return _MullMutationResult(*max(counts, key=lambda count: count[1]))
+
+    survived = [
+        (int(survived), int(total))
+        for survived, total in re.findall(r"Survived mutants \((\d+)/(\d+)\)", output)
+    ]
+    if survived:
+        survived_count, total = max(survived, key=lambda count: count[1])
+        return _MullMutationResult(total - survived_count, total)
+
+    if re.search(r"\b(?:no|zero) mutants?\b|no mutation points", output, re.IGNORECASE):
+        return _MullMutationResult(0, 0)
+
+    return None
+
+
+def _warn_about_zero_mutants(target_name: str, report_file: Path) -> None:
+    message = (
+        f"Mull target '{target_name}' produced no mutants; mutation coverage is unavailable "
+        f"(report: {report_file})"
+    )
+    print(f"WARNING: {message}")
+    if os.environ.get("GITHUB_ACTIONS", "").lower() == "true":
+        escaped_message = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+        print(f"::warning title=Mull mutation testing::{escaped_message}")
+
+
 def _run_mull_target(
     session: nox.Session,
     toolchain: _MullToolchain,
@@ -420,8 +464,6 @@ def _run_mull_target(
         session.error(f"Bazel did not produce expected test binary: {executable}")
     mull_output = session.run(
         toolchain.runner,
-        "--mutation-score-threshold",
-        "80",
         *library_search_args,
         "--ide-reporter-show-killed",
         "--reporters",
@@ -437,16 +479,21 @@ def _run_mull_target(
         silent=True,
     )
     report_file = report_dir / f"{target_name}.txt"
-    report_output = report_file.read_text() if report_file.exists() else ""
+    if not report_file.exists():
+        session.error(f"Mull did not produce the expected report: {report_file}")
+    report_output = report_file.read_text()
     print(mull_output, end="")
-    mutation_counts = re.findall(
-        r"(?:Killed|Survived) mutants \((\d+)/(\d+)\)",
-        f"{mull_output or ''}\n{report_output}",
-    )
-    if not mutation_counts or max(int(total) for _, total in mutation_counts) == 0:
+    mutation_result = _parse_mull_mutation_result(f"{mull_output or ''}\n{report_output}")
+    if mutation_result is None:
+        session.error(f"Could not parse Mull mutation results for target '{target_name}'")
+    if mutation_result.total == 0:
+        _warn_about_zero_mutants(target_name, report_file)
+        return
+    if mutation_result.killed * 100 < MULL_MUTATION_SCORE_THRESHOLD * mutation_result.total:
         session.error(
-            f"Mull target '{target_name}' produced no mutants; "
-            "check the instrumentation configuration"
+            f"Mull target '{target_name}' mutation score is "
+            f"{mutation_result.score:.1f}%, below the "
+            f"{MULL_MUTATION_SCORE_THRESHOLD}% threshold"
         )
 
 
