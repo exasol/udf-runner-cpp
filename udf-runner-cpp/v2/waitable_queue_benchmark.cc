@@ -58,7 +58,7 @@ void bm_raw_spsc_round_trip(benchmark::State& state)
 // write is part of the measured round trip.
 void bm_waitable_spsc_round_trip(benchmark::State& state)
 {
-    exasol::udf::v2::WaitableSpscQueue<int> queue(exasol::udf::v2::SpscQueue<int>(1024));
+    auto queue = exasol::udf::v2::make_waitable_spsc_queue<int>(exasol::udf::v2::SpscQueue<int>(1024));
     for (const auto iteration : state)
     {
         benchmark::DoNotOptimize(&iteration);
@@ -108,7 +108,7 @@ void bm_raw_spsc_enqueue_latency(benchmark::State& state)
 
 void bm_waitable_spsc_enqueue_latency(benchmark::State& state)
 {
-    exasol::udf::v2::WaitableSpscQueue<int> queue(exasol::udf::v2::SpscQueue<int>(1024));
+    auto queue = exasol::udf::v2::make_waitable_spsc_queue<int>(exasol::udf::v2::SpscQueue<int>(1024));
     for (const auto iteration : state)
     {
         benchmark::DoNotOptimize(&iteration);
@@ -169,7 +169,7 @@ void bm_waitable_spsc_batch(benchmark::State& state)
 {
     const auto batch_size = static_cast<std::size_t>(state.range(0));
     const std::vector<int> batch(batch_size, 1);
-    exasol::udf::v2::WaitableSpscQueue<int> queue{exasol::udf::v2::SpscQueue<int>(batch_size)};
+    auto queue = exasol::udf::v2::make_waitable_spsc_queue<int>(exasol::udf::v2::SpscQueue<int>(batch_size));
 
     for (const auto iteration : state)
     {
@@ -192,7 +192,8 @@ void bm_waitable_spsc_batch(benchmark::State& state)
 // handshake is outside the manually recorded interval.
 void bm_waitable_spsc_epoll_latency(benchmark::State& state)
 {
-    exasol::udf::v2::WaitableSpscQueue<TimedItem> queue{exasol::udf::v2::SpscQueue<TimedItem>(8)};
+    auto queue = exasol::udf::v2::make_waitable_spsc_queue<TimedItem>(
+        exasol::udf::v2::SpscQueue<TimedItem>(8));
     const int epoll_fd = ::epoll_create1(EPOLL_CLOEXEC);
     benchmark_check(epoll_fd != -1, "epoll_create1 failed");
 

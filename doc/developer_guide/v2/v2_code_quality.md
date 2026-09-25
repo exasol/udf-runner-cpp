@@ -146,6 +146,6 @@ dedicated test target that remains in the mutation matrix.
 
 The generic `WaitableQueue` template uses an injected `EventFd` interface and
 does not construct a Linux descriptor itself. Linux production callers should
-use the Linux waitable-queue wrapper, which obtains descriptors through the
-EventFd factory. This keeps unit tests using mock EventFd implementations from
-mutating unrelated Linux descriptor code.
+use the Linux waitable-queue factory functions, which obtain descriptors
+through the EventFd factory. This keeps unit tests using mock EventFd
+implementations from mutating unrelated Linux descriptor code.

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <memory>
 #include <utility>
 
 #include <exasol/udf/v2/event_fd_factory.hpp>
@@ -11,34 +10,34 @@
 namespace exasol::udf::v2
 {
 
-template <typename Queue>
-class LinuxWaitableQueue : public WaitableQueue<Queue>
+template <typename T>
+using WaitableSpscQueue = WaitableQueue<SpscQueue<T>>;
+
+template <typename T>
+using WaitableMpmcQueue = WaitableQueue<MpmcQueue<T>>;
+
+template <typename T>
+[[nodiscard]] WaitableSpscQueue<T> make_waitable_spsc_queue()
 {
-    using Base = WaitableQueue<Queue>;
-
-public:
-    LinuxWaitableQueue() : Base(Queue{}, make_linux_event_fd())
-    {
-    }
-
-    explicit LinuxWaitableQueue(Queue queue)
-        : Base(std::move(queue), make_linux_event_fd())
-    {
-    }
-
-    LinuxWaitableQueue(Queue queue, std::unique_ptr<EventFd> event_fd)
-        : Base(std::move(queue), std::move(event_fd))
-    {
-    }
-
-    LinuxWaitableQueue(LinuxWaitableQueue&&) noexcept = default;
-    LinuxWaitableQueue& operator=(LinuxWaitableQueue&&) noexcept = default;
-};
+    return WaitableSpscQueue<T>(SpscQueue<T>{}, make_linux_event_fd());
+}
 
 template <typename T>
-using WaitableSpscQueue = LinuxWaitableQueue<SpscQueue<T>>;
+[[nodiscard]] WaitableSpscQueue<T> make_waitable_spsc_queue(SpscQueue<T> queue)
+{
+    return WaitableSpscQueue<T>(std::move(queue), make_linux_event_fd());
+}
 
 template <typename T>
-using WaitableMpmcQueue = LinuxWaitableQueue<MpmcQueue<T>>;
+[[nodiscard]] WaitableMpmcQueue<T> make_waitable_mpmc_queue()
+{
+    return WaitableMpmcQueue<T>(MpmcQueue<T>{}, make_linux_event_fd());
+}
+
+template <typename T>
+[[nodiscard]] WaitableMpmcQueue<T> make_waitable_mpmc_queue(MpmcQueue<T> queue)
+{
+    return WaitableMpmcQueue<T>(std::move(queue), make_linux_event_fd());
+}
 
 } // namespace exasol::udf::v2

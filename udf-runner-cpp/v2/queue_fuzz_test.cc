@@ -194,15 +194,16 @@ void consume(Queue& queue,
     }
 }
 
-template <typename Queue, bool Waitable>
+template <typename Queue, bool Waitable, typename QueueFactory>
 void run_queue(const std::type_identity<Queue>,
                const std::bool_constant<Waitable>,
                const std::span<const Byte> operations,
                const std::size_t producer_count,
                const std::size_t consumer_count,
-               const bool preserve_order)
+               const bool preserve_order,
+               QueueFactory create_queue)
 {
-    Queue queue;
+    Queue queue = create_queue();
     std::vector<std::vector<Value>> produced(producer_count);
     std::vector<std::vector<Value>> consumed(consumer_count);
     for (auto& values : produced)
@@ -285,21 +286,25 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, const std::size_
     {
         case 0:
             run_queue(std::type_identity<exasol::udf::v2::SpscQueue<Value>>{},
-                      std::bool_constant<false>{}, operation_span, 1, 1, true);
+                      std::bool_constant<false>{}, operation_span, 1, 1, true,
+                      [] { return exasol::udf::v2::SpscQueue<Value>{}; });
             break;
         case 1:
             run_queue(std::type_identity<exasol::udf::v2::MpmcQueue<Value>>{},
                       std::bool_constant<false>{}, operation_span, 2 + producer_bit,
-                      2 + consumer_bit, false);
+                      2 + consumer_bit, false,
+                      [] { return exasol::udf::v2::MpmcQueue<Value>{}; });
             break;
         case 2:
             run_queue(std::type_identity<exasol::udf::v2::WaitableSpscQueue<Value>>{},
-                      std::bool_constant<true>{}, operation_span, 1, 1, true);
+                      std::bool_constant<true>{}, operation_span, 1, 1, true,
+                      [] { return exasol::udf::v2::make_waitable_spsc_queue<Value>(); });
             break;
         case 3:
             run_queue(std::type_identity<exasol::udf::v2::WaitableMpmcQueue<Value>>{},
                       std::bool_constant<true>{}, operation_span, 2 + producer_bit,
-                      2 + consumer_bit, false);
+                      2 + consumer_bit, false,
+                      [] { return exasol::udf::v2::make_waitable_mpmc_queue<Value>(); });
             break;
         default:
             fuzz_failure();
