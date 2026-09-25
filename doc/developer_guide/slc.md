@@ -20,8 +20,9 @@ export DOCKER_HOST="$(limactl list docker-udf-client \
 ```
 
 After setting `DOCKER_HOST`, run normal `exaslct` commands from the host. The
-Lima template provides Bazel, Protobuf, ZeroMQ, SWIG, Python, Poetry, and the
-native dependency environment used by the v1 build.
+Lima template provides Bazel, Protobuf, ZeroMQ, SWIG, Python, Poetry, the LLVM
+20/Mull mutation-testing toolchain, and the native dependency environment used
+by the v1 build.
 
 Export the checked-in v1 flavor to a local archive with:
 
