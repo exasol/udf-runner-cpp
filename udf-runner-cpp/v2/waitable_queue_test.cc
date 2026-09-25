@@ -1,28 +1,18 @@
-#include <cstdlib>
-
 #include <cstdint>
 #include <deque>
 #include <limits>
 #include <memory>
-#include <iostream>
+#include <stdexcept>
 #include <system_error>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include <exasol/udf/v2/waitable_queue.hpp>
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 namespace
 {
-
-void test_check(bool condition, const char* message)
-{
-    if (!condition)
-    {
-        std::abort();
-    }
-    static_cast<void>(message);
-}
 
 class MockQueue
 {
@@ -63,197 +53,185 @@ private:
     std::deque<int> values;
 };
 
-class MockEventFd final : public exasol::udf::v2::EventFd
+class MockEventFd : public exasol::udf::v2::EventFd
 {
 public:
-    using read_action  = std::variant<std::uint64_t, std::errc>;
-    using write_action = std::variant<std::monostate, std::errc>;
-
-    void set_read_actions(std::deque<read_action> actions)
-    {
-        read_actions = std::move(actions);
-    }
-
-    void set_write_actions(std::deque<write_action> actions)
-    {
-        write_actions = std::move(actions);
-    }
-
     [[nodiscard]] int native_handle() const noexcept override
     {
         return 42;
     }
 
-    std::uint64_t read_notification() override
-    {
-        const auto action = read_actions.empty()
-                                ? read_action{std::errc::resource_unavailable_try_again}
-                                : read_actions.front();
-        if (!read_actions.empty())
-        {
-            read_actions.pop_front();
-        }
-        if (const auto* error = std::get_if<std::errc>(&action))
-        {
-            throw std::system_error(std::make_error_code(*error), "mock eventfd read");
-        }
-        return std::get<std::uint64_t>(action);
-    }
-
-    void write_notification() override
-    {
-        const auto action =
-            write_actions.empty() ? write_action{std::monostate{}} : write_actions.front();
-        if (!write_actions.empty())
-        {
-            write_actions.pop_front();
-        }
-        if (const auto* error = std::get_if<std::errc>(&action))
-        {
-            throw std::system_error(std::make_error_code(*error), "mock eventfd write");
-        }
-    }
-
-private:
-    std::deque<read_action> read_actions;
-    std::deque<write_action> write_actions;
+    MOCK_METHOD(std::uint64_t, read_notification, (), (override));
+    MOCK_METHOD(void, write_notification, (), (override));
 };
 
-template <typename Function>
-void expect_system_error(Function&& function, std::errc expected)
-{
-    try
-    {
-        function();
-        test_check(false, "expected system error");
-    }
-    catch (const std::system_error& error)
-    {
-        test_check(error.code() == std::make_error_code(expected), "unexpected system error");
-    }
-}
-
-template <typename Queue>
-void self_move_assign(Queue& queue)
-{
-    using move_assignment        = Queue& (Queue::*)(Queue&&) noexcept;
-    const move_assignment assign = &Queue::operator=;
-    (queue.*assign)(std::move(queue));
-}
-
-void expect_invalid_argument()
-{
-    try
-    {
-        auto null_event_fd = std::unique_ptr<exasol::udf::v2::EventFd>{};
-        auto queue         = exasol::udf::v2::WaitableQueue(MockQueue{}, std::move(null_event_fd));
-        static_cast<void>(queue);
-        test_check(false, "null eventfd implementation was accepted");
-    }
-    catch (const std::invalid_argument& error)
-    {
-        test_check(error.what() != nullptr, "invalid-argument error did not contain a message");
-    }
-}
-
-void test_mock_queue_operations()
-{
-    using WaitableQueue = exasol::udf::v2::WaitableQueue<MockQueue>;
-
-    auto event_fd = std::make_unique<MockEventFd>();
-    event_fd->set_read_actions({std::uint64_t{3}, std::errc::resource_unavailable_try_again});
-    auto queue = WaitableQueue(MockQueue{}, std::move(event_fd));
-    test_check(queue.native_handle() == 42, "mock eventfd handle was not retained");
-    test_check(queue.enqueue(1), "mock queue enqueue failed");
-    test_check(queue.drain_notifications() == 3, "mock notification drain failed");
-
-    int value = 0;
-    test_check(queue.try_dequeue(value), "mock queue dequeue failed");
-    test_check(value == 1, "unexpected mock queue value");
-    test_check(!queue.try_dequeue(value), "mock queue should be empty");
-
-    const std::vector batch{2, 3};
-    test_check(queue.enqueue_batch(batch.begin(), batch.end()) == batch.size(),
-               "mock batch enqueue failed");
-    test_check(queue.queue().size() == batch.size(), "mock queue accessor returned wrong queue");
-    const auto& const_queue = queue;
-    test_check(&const_queue.queue() == &queue.queue(), "const queue access failed");
-
-    const std::vector<int> empty_batch;
-    test_check(queue.enqueue_batch(empty_batch.begin(), empty_batch.end()) == 0,
-               "empty mock batch should not enqueue values");
-}
-
-void test_mock_notification_paths()
-{
-    using enum std::errc;
-    using WaitableQueue = exasol::udf::v2::WaitableQueue<MockQueue>;
-
-    auto read_event_fd = std::make_unique<MockEventFd>();
-    read_event_fd->set_read_actions(
-        {interrupted, std::uint64_t{7}, resource_unavailable_try_again});
-    auto read_queue = WaitableQueue(MockQueue{}, std::move(read_event_fd));
-    test_check(read_queue.drain_notifications() == 7, "interrupted read was not retried");
-
-    auto write_event_fd = std::make_unique<MockEventFd>();
-    write_event_fd->set_write_actions(
-        {interrupted, std::monostate{}, resource_unavailable_try_again});
-    auto write_queue = WaitableQueue(MockQueue{}, std::move(write_event_fd));
-    test_check(write_queue.enqueue(1), "interrupted write was not retried");
-    test_check(write_queue.enqueue(2), "saturated write was not ignored");
-
-    auto read_error_event_fd = std::make_unique<MockEventFd>();
-    read_error_event_fd->set_read_actions({io_error});
-    auto read_error_queue = WaitableQueue(MockQueue{}, std::move(read_error_event_fd));
-    expect_system_error([&read_error_queue] { read_error_queue.drain_notifications(); }, io_error);
-
-    auto write_error_event_fd = std::make_unique<MockEventFd>();
-    write_error_event_fd->set_write_actions({io_error});
-    auto write_error_queue = WaitableQueue(MockQueue{}, std::move(write_error_event_fd));
-    expect_system_error([&write_error_queue] { static_cast<void>(write_error_queue.enqueue(1)); },
-                        io_error);
-}
-
-void test_mock_capacity_and_moves()
-{
-    using WaitableQueue = exasol::udf::v2::WaitableQueue<MockQueue>;
-
-    auto limited_queue = WaitableQueue(MockQueue{1}, std::make_unique<MockEventFd>());
-    const std::vector batch{1, 2};
-    test_check(limited_queue.enqueue_batch(batch.begin(), batch.end()) == 1,
-               "mock queue should stop at capacity");
-    test_check(!limited_queue.enqueue(3), "full mock queue should reject enqueue");
-
-    auto empty_queue = WaitableQueue(MockQueue{0}, std::make_unique<MockEventFd>());
-    test_check(empty_queue.enqueue_batch(batch.begin(), batch.end()) == 0,
-               "empty mock queue should reject a batch");
-
-    WaitableQueue moved_queue(MockQueue{}, std::make_unique<MockEventFd>());
-    const int moved_handle = moved_queue.native_handle();
-    WaitableQueue move_constructed(std::move(moved_queue));
-    test_check(move_constructed.native_handle() == moved_handle,
-               "mock move construction changed handle");
-    WaitableQueue move_assigned(MockQueue{}, std::make_unique<MockEventFd>());
-    move_assigned = std::move(move_constructed);
-    test_check(move_assigned.native_handle() == moved_handle,
-               "mock move assignment changed handle");
-    self_move_assign(move_assigned);
-}
+using testing::Return;
+using testing::StrictMock;
+using testing::Throw;
 
 } // namespace
 
-int main()
+TEST(WaitableQueueTest, EnqueuesDequeuesAndDrainsNotifications)
 {
+    auto event_fd = std::make_unique<StrictMock<MockEventFd>>();
+    EXPECT_CALL(*event_fd, write_notification()).WillOnce(Return());
+    EXPECT_CALL(*event_fd, read_notification())
+        .WillOnce(Return(3))
+        .WillOnce(Throw(
+            std::system_error(std::make_error_code(std::errc::resource_unavailable_try_again))));
+
+    using WaitableQueue = exasol::udf::v2::WaitableQueue<MockQueue>;
+    auto queue          = WaitableQueue(MockQueue{}, std::move(event_fd));
+    EXPECT_EQ(queue.native_handle(), 42);
+    ASSERT_TRUE(queue.enqueue(1));
+    EXPECT_EQ(queue.drain_notifications(), 3);
+
+    int value = 0;
+    ASSERT_TRUE(queue.try_dequeue(value));
+    EXPECT_EQ(value, 1);
+    EXPECT_FALSE(queue.try_dequeue(value));
+}
+
+TEST(WaitableQueueTest, EnqueuesBatchesAndProvidesQueueAccessors)
+{
+    auto event_fd = std::make_unique<StrictMock<MockEventFd>>();
+    EXPECT_CALL(*event_fd, write_notification()).WillOnce(Return());
+
+    using WaitableQueue = exasol::udf::v2::WaitableQueue<MockQueue>;
+    auto queue          = WaitableQueue(MockQueue{}, std::move(event_fd));
+    const std::vector batch{2, 3};
+    EXPECT_EQ(queue.enqueue_batch(batch.begin(), batch.end()), batch.size());
+    EXPECT_EQ(queue.queue().size(), batch.size());
+    const auto& const_queue = queue;
+    EXPECT_EQ(&const_queue.queue(), &queue.queue());
+}
+
+TEST(WaitableQueueTest, DoesNotNotifyForEmptyBatch)
+{
+    auto event_fd       = std::make_unique<StrictMock<MockEventFd>>();
+    using WaitableQueue = exasol::udf::v2::WaitableQueue<MockQueue>;
+    auto queue          = WaitableQueue(MockQueue{}, std::move(event_fd));
+    const std::vector<int> empty_batch;
+    EXPECT_EQ(queue.enqueue_batch(empty_batch.begin(), empty_batch.end()), 0);
+}
+
+TEST(WaitableQueueTest, RetriesInterruptedReads)
+{
+    auto event_fd = std::make_unique<StrictMock<MockEventFd>>();
+    EXPECT_CALL(*event_fd, read_notification())
+        .WillOnce(Throw(std::system_error(std::make_error_code(std::errc::interrupted))))
+        .WillOnce(Return(7))
+        .WillOnce(Throw(
+            std::system_error(std::make_error_code(std::errc::resource_unavailable_try_again))));
+
+    using WaitableQueue = exasol::udf::v2::WaitableQueue<MockQueue>;
+    auto queue          = WaitableQueue(MockQueue{}, std::move(event_fd));
+    EXPECT_EQ(queue.drain_notifications(), 7);
+}
+
+TEST(WaitableQueueTest, RetriesInterruptedWritesAndIgnoresSaturation)
+{
+    auto event_fd = std::make_unique<StrictMock<MockEventFd>>();
+    EXPECT_CALL(*event_fd, write_notification())
+        .WillOnce(Throw(std::system_error(std::make_error_code(std::errc::interrupted))))
+        .WillOnce(Return())
+        .WillOnce(Throw(
+            std::system_error(std::make_error_code(std::errc::resource_unavailable_try_again))));
+
+    using WaitableQueue = exasol::udf::v2::WaitableQueue<MockQueue>;
+    auto queue          = WaitableQueue(MockQueue{}, std::move(event_fd));
+    EXPECT_TRUE(queue.enqueue(1));
+    EXPECT_TRUE(queue.enqueue(2));
+}
+
+TEST(WaitableQueueTest, PropagatesReadErrors)
+{
+    auto event_fd = std::make_unique<StrictMock<MockEventFd>>();
+    EXPECT_CALL(*event_fd, read_notification())
+        .WillOnce(Throw(std::system_error(std::make_error_code(std::errc::io_error))));
+
+    using WaitableQueue = exasol::udf::v2::WaitableQueue<MockQueue>;
+    auto queue          = WaitableQueue(MockQueue{}, std::move(event_fd));
     try
     {
-        test_mock_queue_operations();
-        test_mock_notification_paths();
-        test_mock_capacity_and_moves();
-        expect_invalid_argument();
+        static_cast<void>(queue.drain_notifications());
+        ADD_FAILURE() << "expected read error";
     }
-    catch (const std::exception& error)
+    catch (const std::system_error& error)
     {
-        std::cerr << "waitable queue test failure: " << error.what() << '\n';
-        return 1;
+        EXPECT_EQ(error.code(), std::make_error_code(std::errc::io_error));
     }
+}
+
+TEST(WaitableQueueTest, PropagatesWriteErrors)
+{
+    auto event_fd = std::make_unique<StrictMock<MockEventFd>>();
+    EXPECT_CALL(*event_fd, write_notification())
+        .WillOnce(Throw(std::system_error(std::make_error_code(std::errc::io_error))));
+
+    using WaitableQueue = exasol::udf::v2::WaitableQueue<MockQueue>;
+    auto queue          = WaitableQueue(MockQueue{}, std::move(event_fd));
+    try
+    {
+        static_cast<void>(queue.enqueue(1));
+        ADD_FAILURE() << "expected write error";
+    }
+    catch (const std::system_error& error)
+    {
+        EXPECT_EQ(error.code(), std::make_error_code(std::errc::io_error));
+    }
+}
+
+TEST(WaitableQueueTest, StopsAtLimitedCapacity)
+{
+    auto event_fd = std::make_unique<StrictMock<MockEventFd>>();
+    EXPECT_CALL(*event_fd, write_notification()).WillOnce(Return());
+
+    using WaitableQueue = exasol::udf::v2::WaitableQueue<MockQueue>;
+    auto queue          = WaitableQueue(MockQueue{1}, std::move(event_fd));
+    const std::vector batch{1, 2};
+    EXPECT_EQ(queue.enqueue_batch(batch.begin(), batch.end()), 1);
+    EXPECT_FALSE(queue.enqueue(3));
+}
+
+TEST(WaitableQueueTest, HandlesZeroCapacity)
+{
+    auto event_fd       = std::make_unique<StrictMock<MockEventFd>>();
+    using WaitableQueue = exasol::udf::v2::WaitableQueue<MockQueue>;
+    auto queue          = WaitableQueue(MockQueue{0}, std::move(event_fd));
+    const std::vector batch{1, 2};
+    EXPECT_EQ(queue.enqueue_batch(batch.begin(), batch.end()), 0);
+}
+
+TEST(WaitableQueueTest, SupportsMoveConstruction)
+{
+    auto event_fd = std::make_unique<StrictMock<MockEventFd>>();
+
+    using WaitableQueue = exasol::udf::v2::WaitableQueue<MockQueue>;
+    WaitableQueue moved_queue(MockQueue{}, std::move(event_fd));
+    WaitableQueue move_constructed(std::move(moved_queue));
+    EXPECT_EQ(move_constructed.native_handle(), 42);
+}
+
+TEST(WaitableQueueTest, SupportsMoveAssignmentAndSelfMove)
+{
+    auto source_event_fd = std::make_unique<StrictMock<MockEventFd>>();
+    auto target_event_fd = std::make_unique<StrictMock<MockEventFd>>();
+
+    using WaitableQueue = exasol::udf::v2::WaitableQueue<MockQueue>;
+    WaitableQueue source(MockQueue{}, std::move(source_event_fd));
+    WaitableQueue target(MockQueue{}, std::move(target_event_fd));
+    target = std::move(source);
+    EXPECT_EQ(target.native_handle(), 42);
+    using move_assignment        = WaitableQueue& (WaitableQueue::*)(WaitableQueue&&) noexcept;
+    const move_assignment assign = &WaitableQueue::operator=;
+    (target.*assign)(std::move(target));
+}
+
+TEST(WaitableQueueTest, RejectsNullEventFd)
+{
+    auto null_event_fd = std::unique_ptr<exasol::udf::v2::EventFd>{};
+    EXPECT_THROW(
+        { auto queue = exasol::udf::v2::WaitableQueue(MockQueue{}, std::move(null_event_fd)); },
+        std::invalid_argument);
 }

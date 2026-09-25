@@ -88,6 +88,18 @@ the libFuzzer entry point `LLVMFuzzerTestOneInput` keeps its required spelling.
 - Add or update tests when changing behavior, public interfaces, parsing,
   serialization, concurrency, or dependency boundaries.
 - Prefer small, focused tests that make failures easy to diagnose.
+- Write functional unit tests with GoogleTest `TEST` or `TEST_F` cases. Use
+  `ASSERT_*` for prerequisites and `EXPECT_*` for independent checks; use
+  `@googletest//:gtest_main` instead of a hand-written `main()`.
+- GoogleMock is available through the GoogleTest dependency. Use it only to
+  verify meaningful interactions with collaborators, callbacks, or failure
+  boundaries. Do not add production abstractions solely to create a mock.
+- Keep custom entry points for ELF inspection, dynamic-loading, include-order,
+  and other specialized tests where they make the test's purpose clearer.
+- Use Google Benchmark for performance tests. Exclude setup and cleanup from
+  measured regions when appropriate, use `benchmark::DoNotOptimize` for values
+  that must remain observable, and do not make benchmarks depend on fixed
+  timing thresholds or a particular machine.
 - Run the v2 build and tests, then the `clang-format` and `clang-tidy` checks
   described in the [code quality guide](v2_code_quality.md).
 - Do not suppress a static-analysis warning without documenting the reason at
