@@ -43,12 +43,48 @@ Needs: dsn
 Covers:
 - `feat~udf-v2-execution~1`
 
-### Function calls
+### Default output columns call
 
-`req~udf-v2-function-calls~1`
+`req~udf-v2-default-output-columns-call~1`
 
-The protocol shall support the DB-opened Function operations `default_output_columns`, `virtual_schema_adapter`,
-`generate_sql_for_import_spec`, and `generate_sql_for_export_spec`.
+The protocol shall support the DB-opened `default_output_columns` call, which returns the default output-column
+definition for the script.
+
+Needs: dsn
+
+Covers:
+- `feat~udf-v2-execution~1`
+
+### Virtual schema adapter call
+
+`req~udf-v2-virtual-schema-adapter-call~1`
+
+The protocol shall support the DB-opened `virtual_schema_adapter` call, which accepts a virtual-schema request and
+returns the adapter result.
+
+Needs: dsn
+
+Covers:
+- `feat~udf-v2-execution~1`
+
+### Generate SQL for import specification call
+
+`req~udf-v2-generate-sql-for-import-spec-call~1`
+
+The protocol shall support the DB-opened `generate_sql_for_import_spec` call, which accepts an import specification
+and returns generated SQL.
+
+Needs: dsn
+
+Covers:
+- `feat~udf-v2-execution~1`
+
+### Generate SQL for export specification call
+
+`req~udf-v2-generate-sql-for-export-spec-call~1`
+
+The protocol shall support the DB-opened `generate_sql_for_export_spec` call, which accepts an export specification
+and returns generated SQL.
 
 Needs: dsn
 
