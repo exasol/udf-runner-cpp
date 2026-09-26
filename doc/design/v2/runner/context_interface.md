@@ -539,8 +539,6 @@ The design is complete when it is clear that:
 - close messages can carry other permitted fields;
 - record batches use an Arrow `ArrowArray` plus `is_end_of_group` metadata;
 - data schemas use `ArrowSchema` and preserve `has_group_id` and `has_row_id`;
-- background record-batch splitting targets approximately 4 MiB, permits row-boundary overshoot, and emits an
-  oversized row as a single frame;
 - Arrow ownership and release responsibility are explicit;
 - cancellation, closure, timeout, and failure behavior is defined;
 - one worker thread owns each context and concurrent operations on that context are outside the contract;

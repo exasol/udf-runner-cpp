@@ -152,16 +152,18 @@ it checks the queue again before clearing or blocking, closing the empty-to-wait
 ### Worker send path
 
 1. Check the context terminal state.
-2. For a data-bearing call message, wait for the call's worker send grant using the optional send deadline.
+2. For the first record batch in a data direction, admit the batch without a worker send grant. For every later batch,
+   wait for the call's worker send grant using the optional send deadline.
 3. Validate and finalize the logical specialized call or control message builder. Do not split or serialize the data
    batch into wire frames on the worker thread.
-4. Consume the worker grant by the whole Arrow buffer-byte size of the submitted batch. A positive grant admits the
-   current batch even when that one submission overshoots the grant.
+4. For a later batch, consume the worker grant by the whole Arrow buffer-byte size of the submitted batch. A positive
+   grant admits the current batch even when that one submission overshoots the grant. The first-batch exemption does
+   not consume credit.
 5. Enqueue the owned logical message without blocking.
 6. Notify the outbound eventfd if this enqueue changed the queue from empty to non-empty.
 7. Return to the worker.
 
-If the context is already terminal, the operation throws the appropriate context exception and does not transfer
+If the context is already terminal, the operation returns the appropriate terminal `Result` and does not transfer
 ownership.
 
 ### Worker-side data flow permission
@@ -171,8 +173,9 @@ shared atomic byte allowance plus a generation used for timed waiting; it is not
 `Call::send()` path behaves as follows:
 
 1. Run synchronous worker-side dispatch before inspecting the grant.
-2. If the grant is zero, wait for a positive grant, the optional send deadline, or terminal state. A timeout returns
-   `timed_out` without consuming the builder or its Arrow ownership.
+2. If this is not the first record batch in the direction and the grant is zero, wait for a positive grant, the optional
+   send deadline, or terminal state. A timeout returns `timed_out` without consuming the builder or its Arrow
+   ownership. The first batch does not wait for `Next` credit.
 3. Measure the whole unsplit batch's Arrow buffer bytes and consume that amount from the worker grant. A positive grant
    admits the current batch even if this one submission overshoots it.
 4. Enqueue the logical batch. The worker never slices it and does not wait for the background thread to finish
@@ -197,16 +200,18 @@ For every call data direction, the background thread keeps:
 authoritative_remaining_credit
 pending_logical_batch_or_remainder
 worker_send_grant
+first_batch_pending
 ```
 
-Receiving `Next` increases `authoritative_remaining_credit` and publishes a corresponding positive worker grant. When
-the background consumes a logical batch, it charges each generated chunk against authoritative credit, not against the
-worker's coarse reservation. If the logical batch is larger than the current credit, the background sends the largest
-safe row-aligned prefix, permits at most the configured one-row oversubscription, and retains the remainder until more
-credit arrives. The approximately 4 MiB frame target is applied while selecting each row-aligned prefix; a row may
-make a frame exceed the target, but it must not be split. After the logical batch is complete, it reconciles unused
-credit into `worker_send_grant` and notifies the worker. A worker grant never authorizes the background to exceed actual
-protocol credit.
+The first record batch is admitted without `Next` credit. After that batch is accepted for the direction,
+`first_batch_pending` becomes false. Receiving `Next` then increases `authoritative_remaining_credit` and publishes a
+corresponding positive worker grant. When the background consumes a later logical batch, it charges each generated
+chunk against authoritative credit, not against the worker's coarse reservation. If the logical batch is larger than the
+current credit, the background sends the largest safe row-aligned prefix, permits at most the configured one-row
+oversubscription, and retains the remainder until more credit arrives. The approximately 4 MiB frame target is applied
+while selecting each row-aligned prefix; a row may make a frame exceed the target, but it must not be split. After the
+logical batch is complete, it reconciles unused credit into `worker_send_grant` and notifies the worker. A worker grant
+never authorizes the background to exceed actual protocol credit.
 
 ### Background send path
 
@@ -266,7 +271,7 @@ ownership to the queue and continues processing socket readiness.
 2. Drain all currently available physical inbound envelopes and route them to pending lists.
 3. Check the requested stream's pending list again.
 4. If a message exists, return its specialized view.
-5. If the context is terminal, throw or return the terminal context result.
+5. If the context is terminal, return the terminal context result.
 6. If no timeout remains, return timeout status.
 7. Snapshot `inbound_generation` and wait until it changes or the deadline expires.
 8. Repeat all checks after waking.
@@ -344,7 +349,8 @@ The exact event ordering is:
 7. Write until the socket returns `EAGAIN` or the write list is empty. A partial frame remains at the head of the
    write list; later frames cannot overtake it.
 8. If a peer `CloseConnection` was received, stop ordinary reads and writes, enqueue/send the required close reply if
-   possible, and perform peer shutdown.
+   possible, and perform peer shutdown. If this endpoint initiated `CloseConnection`, continue polling until the
+   peer's `CloseConnection` reply arrives before closing the transport.
 9. Recheck the outbound queue and write list before rebuilding the wait set. If work appeared, process it without
    blocking in the readiness wait.
 
@@ -530,14 +536,14 @@ After a background transport or protocol failure:
 3. reject all new outbound enqueues;
 4. wake all worker receive waiters;
 5. close the socket;
-6. make later worker send and receive operations throw the corresponding context exception.
+6. make later worker send and receive operations return the corresponding terminal `Result`.
 
-The exceptions distinguish at least:
+The terminal operation statuses distinguish at least:
 
 ```text
-ContextClosed
-ContextTransportError
-ContextProtocolError
+closed
+transport_error
+protocol_error
 ```
 
 Timeout remains a normal non-terminal receive result. It is not converted into a context exception.
@@ -572,13 +578,17 @@ When the worker sends `ControlMessageBuilder.close_connection()` through the con
 4. enqueue `CloseConnection` as the final outbound message, including any required close/error fields;
 5. allow previously queued outbound messages to send in FIFO order;
 6. send `CloseConnection` completely, including any partial-write continuation;
-7. stop socket polling, close the socket, release remaining outbound items, and transition to `Closed`.
+7. continue socket polling for the peer's `CloseConnection` reply while rejecting ordinary traffic;
+8. after the reply arrives, stop socket polling, close the socket, release remaining outbound items, and transition to
+   `Closed`.
 
 The close message is queued behind messages already accepted by the outbound queue. No worker operation can enqueue
-behind it because the state check rejects operations after step 1. If sending the close message fails, the context still
-transitions to `Closed` and retains the transport failure as the close diagnostic.
+behind it because the state check rejects operations after step 1. The initiator must not close the transport merely
+because its `CloseConnection` frame was written: it waits for the peer's reply. If the peer disconnects or the bounded
+shutdown deadline expires before the reply, the context transitions to `Closed` with the transport or timeout
+diagnostic.
 
-No messages are delivered to the worker after worker-initiated close. Any later worker send or receive throws
+No messages are delivered to the worker after worker-initiated close. Any later worker send or receive returns
 `ContextClosed`.
 
 The worker should process messages before requesting close if it needs their contents. The close operation’s inbound
@@ -612,7 +622,7 @@ When the background thread receives `CloseConnection`:
 5. close the socket;
 6. transition to `Closed`;
 7. wake all worker waiters;
-8. make later worker send and receive operations throw `ContextClosed`.
+8. make later worker send and receive operations return `ContextClosed`.
 
 The peer close is not delivered as ordinary call traffic after connection shutdown begins.
 
@@ -648,8 +658,6 @@ The implementation must preserve these invariants in tests and code review:
    message can be queued.
 9. Every receive status check is non-consuming; every receive operation consumes exactly one logical message from its
    selected stream.
-10. Background record-batch frames target approximately 4 MiB of Arrow buffer bytes, split only at row boundaries;
-    rows larger than the target are emitted as single oversized frames.
 
 ## Failure and concurrency scenarios
 
@@ -667,7 +675,6 @@ The implementation design must cover:
 - worker close while both queues contain messages;
 - peer close while outbound messages remain queued;
 - context destruction before explicit worker close;
-- a record batch split at approximately 4 MiB while preserving complete rows;
-- a row crossing the 4 MiB target and a row larger than 4 MiB;
-- group-end flags when a 4 MiB split falls at or inside a group;
+- first-batch transmission before any `Next` credit;
+- waiting for and receiving the peer's `CloseConnection` reply;
 - user code that does not react to a protocol error or close message.
