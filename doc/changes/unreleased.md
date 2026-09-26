@@ -7,6 +7,7 @@ n/a
 
 ## Features / Enhancements
 
+ - #71: Documented the v2 runner architecture, worker-facing context interface, and background I/O design
  - #70: Added the v2 UDF protocol design and validation artifacts
  - #61: Added stacktrace-aware exceptions and assertions to v2
  - #32: Added clang tidy to v2

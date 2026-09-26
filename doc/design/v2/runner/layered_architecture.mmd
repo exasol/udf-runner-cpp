@@ -1,0 +1,9 @@
+flowchart TB
+    Api[API namespace\ncaller-facing C++ contracts]
+    Internal[Internal namespace\nsockets, acceptor, worker pool, contexts]
+    Arrow[Arrow C Data Interface\nArrowArray and ArrowSchema]
+    Protocol[Protocol v2\nframing, streams, calls, payloads]
+
+    Api --> Internal
+    Api --- Arrow
+    Internal --> Protocol
