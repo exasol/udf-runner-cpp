@@ -25,9 +25,6 @@ n/a
   Linux queue construction from the generic waitable-queue mutation target;
   updated artifact uploads to the Node.js 24-compatible action version
 * #64: Added GoogleTest, GoogleMock, and Google Benchmark support for v2 tests
-* Added a dedicated coverage-eligible test target for the Linux
-  waitable-queue factory functions and excluded benchmark sources from the
-  Sonar coverage requirement
 * #57: Defined and enforced public v2 C++ coding style
 * #51: Added agent and contributor guidance for v1/v2 development, SLC workflows, CI testing, and PR conventions
 * #56: Restructured the developer guide and synchronized agent guidance
