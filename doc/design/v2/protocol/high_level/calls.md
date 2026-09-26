@@ -1,5 +1,19 @@
 # UDF Protocol v2: High-Level Calls
 
+`dsn~udf-v2-high-level-calls~1`
+
+This design defines execution calls, callbacks, data scheduling, and high-level lifecycle behavior.
+
+Covers:
+- `req~udf-v2-calls-and-callbacks~1`
+- `req~udf-v2-logical-streams~1`
+- `req~udf-v2-flow-controlled-data~1`
+- `req~udf-v2-lifecycle-and-liveness~1`
+
+Depends:
+- `dsn~udf-v2-call-lifecycle~1`
+- `dsn~udf-v2-data-stream~1`
+
 This document describes the high-level protocol calls built on top of the generic call and data-stream mechanisms.
 
 ## Scope

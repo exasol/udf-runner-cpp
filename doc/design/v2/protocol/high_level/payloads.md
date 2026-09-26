@@ -1,5 +1,17 @@
 # UDF Protocol v2: High-Level Payload Contracts
 
+`dsn~udf-v2-payload-contracts~1`
+
+This design defines versioned protocol, script, call, callback, and schema payload contracts.
+
+Covers:
+- `req~udf-v2-calls-and-callbacks~1`
+- `req~udf-v2-evolvable-metadata~1`
+- `req~udf-v2-data-contract~1`
+
+Depends:
+- `dsn~udf-v2-low-level-protocol~1`
+
 This document defines the named payloads used by the current high-level protocol. Every payload is carried in
 `Payloads(...)`. A scalar value uses `StringPayload` directly. A payload marked JSON uses a `StringPayload` whose
 value is UTF-8 JSON conforming to its linked schema.

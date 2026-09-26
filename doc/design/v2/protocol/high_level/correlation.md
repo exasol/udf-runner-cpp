@@ -1,5 +1,15 @@
 # UDF Protocol v2: Group and Row Correlation
 
+`dsn~udf-v2-correlation~1`
+
+This design defines deterministic group and row identity in Run record batches.
+
+Covers:
+- `req~udf-v2-data-contract~1`
+
+Depends:
+- `dsn~udf-v2-data-stream~1`
+
 This document defines how group and row correlation columns are represented in `Run` record batches.
 
 ## Correlation Columns

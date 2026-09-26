@@ -22,8 +22,16 @@ jobs:
       - name: Run Plaintext Report
         run: |
           poetry run nox -s run-oft
+      - name: Run v2 HTML Report
+        run: |
+          poetry run -- nox -s run-oft-v2-html -- oft_report_v2.html
+      - name: Run v2 Plaintext Report
+        run: |
+          poetry run nox -s run-oft-v2
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: "oft_report.html"
-          path: oft_report.html
+          name: "oft_reports"
+          path: |
+            oft_report.html
+            oft_report_v2.html

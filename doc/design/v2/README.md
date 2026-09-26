@@ -3,6 +3,7 @@
 This directory contains the split protocol design for the new UDF protocol.
 
 - [protocol/design_draft.md](protocol/design_draft.md) is the umbrella design draft.
+- [protocol/requirements.md](protocol/requirements.md) is the normative OFT requirements artifact.
 - [protocol/low_level/protocol.md](protocol/low_level/protocol.md) describes the wire-level rules, generic call lifecycle, and control
   stream.
 - [protocol/high_level/calls.md](protocol/high_level/calls.md) describes `Run`, Function operations,
@@ -17,3 +18,6 @@ The low-level schema defines reusable Arrow-compatible physical type capabilitie
 logical/extension metadata are defined by `high_level/type_mapping.md`.
 
 The JSON schemas and external examples can be validated with `poetry run nox -s validate-json-schemas`.
+
+The v2 requirements and design trace can be checked with `poetry run nox -s run-oft-v2`. OpenFastTrace reports
+implemented frame/schema coverage separately from protocol behavior that is still in design.

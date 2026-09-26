@@ -1,5 +1,15 @@
 # UDF Protocol v2: High-Level Exasol-to-Arrow Type Mapping
 
+`dsn~udf-v2-type-mapping~1`
+
+This design defines the physical, logical, and extension metadata mapping for Exasol column types.
+
+Covers:
+- `req~udf-v2-data-contract~1`
+
+Depends:
+- `dsn~udf-v2-data-stream~1`
+
 This document is the normative high-level type-conversion contract for v2 data-stream column schemas. The protocol uses a
 self-owned subset of Arrow's schema model in `udf_protocol.fbs`; it does not import Arrow's FlatBuffers schema.
 `Field.custom_metadata` carries only conversion-specific extension annotations as string key/value pairs.

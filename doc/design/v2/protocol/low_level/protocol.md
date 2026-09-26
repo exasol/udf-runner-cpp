@@ -1,5 +1,17 @@
 # UDF Protocol v2: Low-Level Protocol
 
+`dsn~udf-v2-low-level-protocol~1`
+
+This design covers framing, stream identity, lifecycle, transport bindings, defensive validation, and resource safety.
+
+Covers:
+- `req~udf-v2-framing-and-serialization~1`
+- `req~udf-v2-logical-streams~1`
+- `req~udf-v2-lifecycle-and-liveness~1`
+- `req~udf-v2-transport-bindings~1`
+- `req~udf-v2-defensive-validation~1`
+- `req~udf-v2-resource-safety~1`
+
 This document captures the low-level wire rules and generic call lifecycle for the new UDF protocol. It intentionally
 excludes high-level call semantics and scheduling policy; those live in [../high_level/calls.md](../high_level/calls.md).
 

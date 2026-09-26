@@ -151,7 +151,7 @@ def prepare_release(session: nox.Session):
 
 
 def get_oft_jar(session: nox.Session) -> Path:
-    oft_version = "4.1.0"
+    oft_version = "4.10.0"
     oft_jar = Path.home() / ".m2" / "repository" / "org" / "itsallcode" / "openfasttrace" / "openfasttrace" / oft_version / f"openfasttrace-{oft_version}.jar"
     if not oft_jar.exists():
         print(f"Downloading OpenFastTrace {oft_version}")
@@ -176,6 +176,26 @@ def run_oft_for_udf_client(session: nox.Session, *args) -> None:
             "-t",
             "V2,_",
             *args
+        )
+
+
+def run_oft_for_v2_protocol(session: nox.Session, *args) -> None:
+    """Trace the v2 protocol requirements, design, implementation, and tests."""
+    oft_jar = get_oft_jar(session)
+    v2_root = ROOT / "udf-runner-cpp" / "v2"
+    v2_docs = ROOT / "doc" / "design" / "v2" / "protocol"
+
+    with session.chdir(ROOT):
+        session.run(
+            "java",
+            "-jar",
+            oft_jar,
+            "trace",
+            "-a",
+            "feat,req,dsn,impl,utest",
+            v2_docs,
+            v2_root,
+            *args,
         )
 
 
@@ -612,6 +632,19 @@ def run_oft_udf_client_html(session: nox.Session):
     """
     html_file = session.posargs[0] if session.posargs else "report.html"
     run_oft_for_udf_client(session, "-o", "html", "-f", html_file)
+
+
+@nox.session(name="run-oft-v2", python=False)
+def run_oft_v2_plaintext(session: nox.Session):
+    """Trace the v2 protocol requirements and implementation coverage."""
+    run_oft_for_v2_protocol(session)
+
+
+@nox.session(name="run-oft-v2-html", python=False)
+def run_oft_v2_html(session: nox.Session):
+    """Create an HTML trace report for the v2 protocol."""
+    html_file = session.posargs[0] if session.posargs else "oft_report_v2.html"
+    run_oft_for_v2_protocol(session, "-o", "html", "-f", html_file)
 
 
 def _get_v2_fuzz_targets(session: nox.Session) -> tuple[str, ...]:

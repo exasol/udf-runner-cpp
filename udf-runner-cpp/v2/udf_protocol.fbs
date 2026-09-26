@@ -1,5 +1,6 @@
 // First draft of the wire-level flatbuffer schema for the new UDF protocol.
 
+// [impl~udf-v2-flatbuffers-schema~1 -> dsn~udf-v2-frame-schema-implementation~1]
 namespace exasol.udf.protocol;
 
 enum BufferTransport : uint8 {

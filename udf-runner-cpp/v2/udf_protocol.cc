@@ -1,3 +1,4 @@
+// [impl~udf-v2-frame-verification~1 -> dsn~udf-v2-frame-schema-implementation~1]
 #include "udf_protocol.hpp"
 
 namespace exasol::udf::protocol

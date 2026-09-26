@@ -3,6 +3,7 @@
 #include <string>
 
 #include <exasol/udf/v2/json_schema.hpp>
+// [utest~udf-v2-json-schema-validation~1 -> dsn~udf-v2-frame-schema-implementation~1]
 #include <gtest/gtest.h>
 
 namespace isolated_nlohmann = exasol::udf::v2::third_party::nlohmann;

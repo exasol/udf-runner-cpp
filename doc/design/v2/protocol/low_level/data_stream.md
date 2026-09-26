@@ -1,5 +1,15 @@
 # UDF Protocol v2: Data Stream
 
+`dsn~udf-v2-data-stream~1`
+
+This design defines schema announcements, record batches, inline buffers, and explicit flow control.
+
+Covers:
+- `req~udf-v2-flow-controlled-data~1`
+- `req~udf-v2-data-contract~1`
+- `req~udf-v2-framing-and-serialization~1`
+- `req~udf-v2-defensive-validation~1`
+
 This document describes the generic low-level data-stream behavior attached to a call. It excludes framing details
 and high-level command semantics.
 

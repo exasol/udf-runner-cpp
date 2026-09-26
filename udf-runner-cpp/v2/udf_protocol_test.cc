@@ -1,3 +1,4 @@
+// [utest~udf-v2-frame-encoding~1 -> dsn~udf-v2-frame-schema-implementation~1]
 #include "udf_protocol.hpp"
 
 #include <cassert>

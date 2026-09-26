@@ -1,5 +1,13 @@
 # UDF Protocol v2: Generic Call Lifecycle
 
+`dsn~udf-v2-call-lifecycle~1`
+
+This design defines generic calls, nested calls, closure, and abnormal termination.
+
+Covers:
+- `req~udf-v2-calls-and-callbacks~1`
+- `req~udf-v2-lifecycle-and-liveness~1`
+
 This document describes the generic `Call` abstraction shared by all protocol interactions. It intentionally
 excludes wire-level framing details and command-specific behavior.
 

@@ -1,3 +1,4 @@
+// [impl~udf-v2-frame-api~1 -> dsn~udf-v2-frame-schema-implementation~1]
 #ifndef EXASOL_UDF_V2_UDF_PROTOCOL_HPP_
 #define EXASOL_UDF_V2_UDF_PROTOCOL_HPP_
 

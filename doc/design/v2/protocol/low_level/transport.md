@@ -1,5 +1,14 @@
 # UDF Transport Technology Overview
 
+`dsn~udf-v2-transport-options~1`
+
+This design compares transport bindings and defines the local and remote security constraints.
+
+Covers:
+- `req~udf-v2-transport-bindings~1`
+- `req~udf-v2-peer-security~1`
+- `req~udf-v2-resource-safety~1`
+
 This document summarizes technology choices for moving calls and tabular data
 between a database engine and user-defined function (UDF) code. It is a
 technology overview, not a protocol specification.
