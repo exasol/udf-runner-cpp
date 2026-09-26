@@ -20,6 +20,7 @@ n/a
 
 ## Internal
 
+* #70: Removed the standalone JSON schema validation script and its dedicated CI workflow
 * #60: Added Mull mutation testing workflow and report-viewing documentation
   for v2; targets without generated mutants now produce warnings instead of
   failing the workflow, and separated Linux EventFd code and factory-based
