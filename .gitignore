@@ -10,4 +10,5 @@ dist
 *.swp
 MODULE.bazel.lock
 bazel-*
+/udf-runner-cpp/v2/coverage-html/
 .serena

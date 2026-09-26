@@ -28,7 +28,7 @@ alternate Exasol type names.
 | `TIMESTAMP` | `Timestamp(unit, "")` | Select the smallest unit preserving declared precision. |
 | `TIMESTAMP WITH LOCAL TIME ZONE` | `Timestamp(unit, "UTC")` | Normalize Exasol's UTC-normalized value for transport. |
 | `DATE` | `Date(Day)` | Preserve calendar-day semantics. |
-| `CHAR` | `Utf8` | Preserve fixed-length padding and character metadata as Exasol semantics. |
+| `CHAR` | `Utf8` | Preserve declared character length and character metadata as Exasol semantics; do not transport padding bytes. |
 | `VARCHAR` | `Utf8` | Preserve declared character length and character metadata. |
 | `BOOLEAN` | `Bool` | Preserve nullable values. |
 | `HASHTYPE` | `FixedSizeBinary` | Preserve declared byte width and transport raw bytes. |
@@ -61,7 +61,7 @@ For a declared `DECIMAL(p,s)`, select the smallest Arrow decimal width that supp
 - `DOUBLE PRECISION` maps to `FloatingPoint(Double)`.
 - `1 <= p <= 9` maps to `Decimal(32)` with `bit_width = 32`.
 - `10 <= p <= 18` maps to `Decimal(64)` with `bit_width = 64`.
-- `19 <= p <= 36` maps to `Decimal(128)` with `bit_width = 128`.
+- `19 <= p <= 38` maps to `Decimal(128)` with `bit_width = 128`.
 - All three mappings preserve `precision = p` and `scale = s`, including scale-zero decimals. Consumers may cast a
   decimal to an integer when appropriate, but observed values never change the protocol representation.
 For every decimal field, `0 <= scale <= precision` is required. Decimal conversion is parameter-preserving and
@@ -74,11 +74,11 @@ See the [decimal field metadata example](examples/decimal_field_metadata.json).
 
 ### Strings
 
-`CHAR(n)` and `VARCHAR(n)` map to `Utf8`. Preserve the declared character length and `ASCII`/`UTF8` character set.
-The official Exasol documentation defines the valid lengths and character-set syntax.
-`CHAR` padding remains an Exasol logical concern; it is not a reason to use
-`FixedSizeBinary`, and the mapping does not reinterpret character data as bytes. An empty Exasol string is `NULL`
-and therefore follows the nullable-field semantics.
+`CHAR(n)` and `VARCHAR(n)` map to `Utf8`. Preserve the declared character length and `ASCII`/`UTF8` character set
+as column metadata. The protocol transports the UTF-8 character value without adding or removing `CHAR` padding
+bytes; padding remains an Exasol logical concern. The official Exasol documentation defines the valid lengths and
+character-set syntax. Padding is not a reason to use `FixedSizeBinary`, and the mapping does not reinterpret character
+data as bytes. An empty Exasol string is `NULL` and therefore follows the nullable-field semantics.
 
 ### Date and time
 
@@ -200,7 +200,7 @@ required extension metadata. Future mappings may add Arrow interval types, nativ
 
 | Mapping | Classification | Reason |
 | --- | --- | --- |
-| `DOUBLE PRECISION`, `DATE`, `CHAR(n)`, `VARCHAR(n)`, `BOOLEAN` | Value-preserving | The Arrow representation preserves the values and declared semantics. |
+| `DOUBLE PRECISION`, `DATE`, `CHAR(n)`, `VARCHAR(n)`, `BOOLEAN` | Value-preserving | The Arrow representation preserves the values and declared metadata; `CHAR` padding is not transported separately. |
 | `DECIMAL` | Parameter- and value-preserving | The smallest Decimal32/64/128 width is selected from declared precision and scale. |
 | `TIMESTAMP(p)` | Precision- and value-preserving | The smallest sufficient Arrow unit is selected. |
 | `TIMESTAMP ... WITH LOCAL TIME ZONE` | Value-preserving after UTC normalization | Original session-local representation is not preserved. |

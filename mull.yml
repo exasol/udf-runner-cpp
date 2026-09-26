@@ -1,0 +1,11 @@
+# Static Mull configuration. The Nox session prepends Bazel-generated
+# includePaths before passing this file to Mull.
+excludePaths:
+  - "(^|.*/).*_test\\.(cc|cpp)"
+  - "(^|.*/).*_benchmark\\.cc"
+  - "(^|.*/)third_party/.*"
+  - ".*bazel-out/.*"
+
+parallelization:
+  workers: 2
+  executionWorkers: 2

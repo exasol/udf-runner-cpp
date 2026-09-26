@@ -1,0 +1,36 @@
+diff --git a/cpp/src/arrow/util/config.h b/cpp/src/arrow/util/config.h
+new file mode 100644
+index 000000000..a3315ae23
+--- /dev/null
++++ b/cpp/src/arrow/util/config.h
+@@ -0,0 +1,19 @@
++#pragma once
++
++#define ARROW_VERSION_MAJOR 25
++#define ARROW_VERSION_MINOR 0
++#define ARROW_VERSION_PATCH 0
++#define ARROW_VERSION ((ARROW_VERSION_MAJOR * 1000) + ARROW_VERSION_MINOR) * 1000 + ARROW_VERSION_PATCH
++#define ARROW_VERSION_STRING "25.0.0"
++#define ARROW_SO_VERSION "2500"
++#define ARROW_FULL_SO_VERSION "2500.0.0"
++#define ARROW_CXX_COMPILER_ID "Bazel"
++#define ARROW_CXX_COMPILER_VERSION ""
++#define ARROW_BUILD_TYPE ""
++#define ARROW_PACKAGE_KIND ""
++
++#define ARROW_ENABLE_THREADING
++
++#if defined(__SIZEOF_INT128__)
++#define ARROW_USE_NATIVE_INT128
++#endif
+diff --git a/cpp/src/arrow/util/config_internal.h b/cpp/src/arrow/util/config_internal.h
+new file mode 100644
+index 000000000..a228c197f
+--- /dev/null
++++ b/cpp/src/arrow/util/config_internal.h
+@@ -0,0 +1,5 @@
++#pragma once
++
++#define ARROW_CXX_COMPILER_FLAGS ""
++#define ARROW_GIT_ID ""
++#define ARROW_GIT_DESCRIPTION ""

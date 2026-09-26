@@ -1,0 +1,493 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("@rules_fuzzing//fuzzing:cc_defs.bzl", "cc_fuzz_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# Keep this list synchronized with @flatbuffers//:public_headers. The private
+# runtime below needs a separate copy of every public header so its include
+# paths, include guards, and configuration macros cannot collide with an
+# ordinary FlatBuffers installation in a consumer translation unit.
+FLATBUFFERS_PUBLIC_HEADERS = [
+    "allocator.h",
+    "array.h",
+    "base.h",
+    "buffer.h",
+    "buffer_ref.h",
+    "code_generator.h",
+    "code_generators.h",
+    "default_allocator.h",
+    "detached_buffer.h",
+    "file_manager.h",
+    "flatbuffer_builder.h",
+    "flatbuffers.h",
+    "flex_flat_util.h",
+    "flexbuffers.h",
+    "grpc.h",
+    "hash.h",
+    "idl.h",
+    "minireflect.h",
+    "reflection.h",
+    "reflection_generated.h",
+    "registry.h",
+    "stl_emulation.h",
+    "string.h",
+    "struct.h",
+    "table.h",
+    "util.h",
+    "vector.h",
+    "vector_downward.h",
+    "verifier.h",
+]
+
+genrule(
+    name = "private_flatbuffers_headers",
+    srcs = ["@flatbuffers//:public_headers"],
+    # Bazel genrules require explicit output files. The output paths form a
+    # private include tree matching the rewritten includes produced below.
+    outs = [
+        "private_flatbuffers/exasol/udf/v2/third_party/flatbuffers/" + header
+        for header in FLATBUFFERS_PUBLIC_HEADERS
+    ],
+    tools = ["private_flatbuffers_headers.sh"],
+    # Pass one generated output to the script as an output-directory anchor;
+    # $(SRCS) expands to the external FlatBuffers header files. The helper
+    # copies and rewrites each header into the private include tree.
+    cmd = "bash $(location private_flatbuffers_headers.sh) " +
+          "$(location private_flatbuffers/exasol/udf/v2/third_party/flatbuffers/allocator.h) " +
+          "$(SRCS)",
+)
+
+cc_library(
+    name = "private_flatbuffers_runtime",
+    hdrs = [":private_flatbuffers_headers"],
+    # This include path makes rewritten includes such as
+    # exasol/udf/v2/third_party/flatbuffers/base.h resolvable without exposing
+    # the ordinary flatbuffers/... include tree through this target.
+    includes = ["private_flatbuffers"],
+)
+
+genrule(
+    name = "udf_protocol_generated",
+    srcs = ["udf_protocol.fbs"],
+    outs = ["udf_protocol_generated.h"],
+    tools = ["@flatbuffers//:flatc"],
+    # flatc emits the standard FlatBuffers runtime include path and macro
+    # names. Rewrite both after generation so the protocol header uses the
+    # private runtime and can coexist with another FlatBuffers version.
+    cmd = "$(location @flatbuffers//:flatc) --cpp -o $(@D) $(location udf_protocol.fbs) && " +
+          "sed -i " +
+          "-e 's#flatbuffers/#exasol/udf/v2/third_party/flatbuffers/#g' " +
+          "-e 's/FLATBUFFERS_/EXASOL_UDF_V2_FLATBUFFERS_/g' " +
+          "$(@D)/udf_protocol_generated.h",
+)
+
+cc_library(
+    name = "udf_protocol",
+    srcs = ["udf_protocol.cc"],
+    hdrs = ["udf_protocol.hpp", ":udf_protocol_generated"],
+    copts = ["-std=c++23"],
+    # Do not depend on the ordinary runtime headers: the generated protocol
+    # header must resolve all runtime includes through the isolated copy.
+    deps = [":private_flatbuffers_runtime"],
+)
+
+cc_library(
+    name = "mutation_smoke",
+    srcs = ["mutation_smoke.cc"],
+    hdrs = ["mutation_smoke.hpp"],
+    copts = ["-std=c++23"],
+)
+
+cc_test(
+    name = "mutation_smoke_test",
+    srcs = ["mutation_smoke_test.cc"],
+    copts = ["-std=c++23"],
+    deps = [":mutation_smoke"],
+)
+
+cc_test(
+    name = "udf_protocol_test",
+    srcs = ["udf_protocol_test.cc"],
+    copts = ["-std=c++23"],
+    tags = ["no-mull"],
+    deps = [
+        ":udf_protocol",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_binary(
+    name = "udf_protocol_shared",
+    srcs = ["udf_protocol.cc"],
+    copts = ["-std=c++23"],
+    linkshared = 1,
+    deps = [":udf_protocol"],
+)
+
+cc_test(
+    name = "udf_protocol_symbol_leak_test",
+    srcs = ["nm_runner.hpp", "udf_protocol_symbol_leak_test.cc"],
+    copts = ["-std=c++23"],
+    tags = ["no-mull"],
+    # The test inspects the built shared object with nm. data makes the
+    # artifact available at runtime and args passes its runfiles path.
+    data = [":udf_protocol_shared"],
+    args = ["$(location :udf_protocol_shared)"],
+    # nm and the inspected ELF dynamic symbol table are Linux-specific.
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_test(
+    name = "udf_protocol_static_symbol_leak_test",
+    srcs = ["nm_runner.hpp", "udf_protocol_static_symbol_leak_test.cc"],
+    copts = ["-std=c++23"],
+    tags = ["no-mull"],
+    # cc_library produces multiple artifacts, so the test receives all
+    # locations and selects the static .a archive for nm inspection.
+    data = [":udf_protocol"],
+    args = ["$(locations :udf_protocol)"],
+    # nm and the inspected ELF archive are Linux-specific.
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_test(
+    name = "flatbuffers_header_order_test",
+    srcs = [
+        "flatbuffers_header_order_test.cc",
+        "flatbuffers_header_order_reverse.cc",
+    ],
+    copts = ["-std=c++23"],
+    tags = ["no-mull"],
+    # Compile both include orders against the ordinary runtime and the
+    # isolated runtime to protect against header-guard and macro collisions.
+    deps = [":udf_protocol", "@flatbuffers//:runtime_cc"],
+)
+
+alias(
+    name = "arrow_core",
+    actual = "@v2_arrow//:arrow_core",
+    # Arrow and its vendored sources are third-party code. Keep them out of
+    # the repository's clang-tidy and clang-format CI profiles.
+    tags = ["noclangtidy"],
+)
+
+filegroup(
+    name = "arrow_c_data_demo_exports",
+    srcs = ["arrow_c_data_demo.exports.map"],
+)
+
+cc_binary(
+    name = "libarrow_c_data_demo.so",
+    srcs = ["arrow_c_data_demo.cc"],
+    additional_linker_inputs = [":arrow_c_data_demo_exports"],
+    copts = [
+        "-std=c++23",
+        "-fvisibility=hidden",
+        "-fvisibility-inlines-hidden",
+    ],
+    linkopts = [
+        "-Wl,--exclude-libs,ALL",
+        "-Wl,--exclude-libs,libarrow_core.a",
+        "-Wl,--version-script=$(location :arrow_c_data_demo_exports)",
+    ],
+    linkshared = 1,
+    deps = [":arrow_core"],
+)
+
+cc_test(
+    name = "arrow_core_test",
+    srcs = ["arrow_core_test.cc"],
+    copts = ["-std=c++23"],
+    tags = ["no-mull"],
+    deps = [
+        ":arrow_core",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "arrow_c_data_demo_test",
+    srcs = ["arrow_c_data_demo_test.cc"],
+    copts = ["-std=c++23"],
+    tags = ["no-mull"],
+    data = [":libarrow_c_data_demo.so"],
+    args = ["$(location :libarrow_c_data_demo.so)"],
+    linkopts = ["-ldl"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [":arrow_core"],
+)
+
+cc_library(
+    name = "json_schema",
+    hdrs = ["include/exasol/udf/v2/json_schema.hpp"],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    deps = ["@v2_json_schema_validator//:json_schema_validator"],
+)
+
+cc_test(
+    name = "json_schema_validation_test",
+    srcs = ["json_schema_validation_test.cc"],
+    data = ["//json_schema:all_schemas"],
+    copts = ["-std=c++23"],
+    tags = ["no-mull"],
+    deps = [
+        ":json_schema",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "json_schema_symbol_leak_test",
+    srcs = ["json_schema_symbol_leak_test.cc"],
+    copts = ["-std=c++23"],
+    tags = ["no-mull"],
+    linkopts = ["-ldl"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [":json_schema"],
+)
+
+cc_fuzz_test(
+    name = "frame_fuzz_test",
+    srcs = ["frame_fuzz_test.cc"],
+    corpus = glob(["fuzz/corpus/frame/**"]),
+    dicts = ["fuzz/frame.dict"],
+    copts = ["-std=c++23"],
+    deps = [":udf_protocol"],
+    tags = ["fuzz-test"],
+)
+
+cc_fuzz_test(
+    name = "call_metadata_fuzz_test",
+    srcs = ["call_metadata_fuzz_test.cc", "test_utils/json_schema_fuzzing.hpp"],
+    corpus = glob(["fuzz/corpus/call_metadata/**"]),
+    dicts = ["fuzz/json.dict"],
+    copts = ["-std=c++23"],
+    data = ["//json_schema:all_schemas"],
+    deps = [":json_schema"],
+    tags = ["fuzz-test"],
+)
+
+cc_fuzz_test(
+    name = "connection_information_fuzz_test",
+    srcs = ["connection_information_fuzz_test.cc", "test_utils/json_schema_fuzzing.hpp"],
+    corpus = glob(["fuzz/corpus/connection_information/**"]),
+    dicts = ["fuzz/json.dict"],
+    copts = ["-std=c++23"],
+    data = ["//json_schema:all_schemas"],
+    deps = [":json_schema"],
+    tags = ["fuzz-test"],
+)
+
+cc_fuzz_test(
+    name = "export_specification_fuzz_test",
+    srcs = ["export_specification_fuzz_test.cc", "test_utils/json_schema_fuzzing.hpp"],
+    corpus = glob(["fuzz/corpus/export_specification/**"]),
+    dicts = ["fuzz/json.dict"],
+    copts = ["-std=c++23"],
+    data = ["//json_schema:all_schemas"],
+    deps = [":json_schema"],
+    tags = ["fuzz-test"],
+)
+
+cc_fuzz_test(
+    name = "import_specification_fuzz_test",
+    srcs = ["import_specification_fuzz_test.cc", "test_utils/json_schema_fuzzing.hpp"],
+    corpus = glob(["fuzz/corpus/import_specification/**"]),
+    dicts = ["fuzz/json.dict"],
+    copts = ["-std=c++23"],
+    data = ["//json_schema:all_schemas"],
+    deps = [":json_schema"],
+    tags = ["fuzz-test"],
+)
+
+cc_library(
+    name = "moodycamel_queues",
+    hdrs = [
+        "include/exasol/udf/v2/mpmc_queue.hpp",
+        "include/exasol/udf/v2/spsc_queue.hpp",
+    ],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    deps = [
+        "@v2_concurrentqueue//:concurrentqueue",
+        "@v2_readerwriterqueue//:readerwriterqueue",
+    ],
+)
+
+cc_test(
+    name = "moodycamel_queues_test",
+    srcs = ["moodycamel_queues_test.cc"],
+    copts = ["-std=c++23"],
+    tags = ["no-mull"],
+    deps = [
+        ":moodycamel_queues",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_binary(
+    name = "moodycamel_queues_shared",
+    srcs = ["moodycamel_queues_shared.cc"],
+    copts = ["-std=c++23"],
+    linkshared = 1,
+    deps = [":moodycamel_queues"],
+)
+
+cc_test(
+    name = "moodycamel_symbol_leak_test",
+    srcs = ["moodycamel_symbol_leak_test.cc"],
+    copts = ["-std=c++23"],
+    tags = ["no-mull"],
+    data = [":moodycamel_queues_shared"],
+    args = ["$(location :moodycamel_queues_shared)"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [":moodycamel_queues"],
+)
+
+cc_library(
+    name = "event_fd",
+    hdrs = ["include/exasol/udf/v2/event_fd.hpp"],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "linux_event_fd",
+    srcs = ["linux_event_fd.cc"],
+    hdrs = ["include/exasol/udf/v2/linux_event_fd.hpp"],
+    includes = ["include"],
+    deps = [":event_fd"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "event_fd_factory",
+    srcs = ["event_fd_factory.cc"],
+    hdrs = ["include/exasol/udf/v2/event_fd_factory.hpp"],
+    includes = ["include"],
+    deps = [":linux_event_fd"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_test(
+    name = "event_fd_test",
+    srcs = ["event_fd_test.cc"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":event_fd_factory",
+        ":linux_event_fd",
+        "@googletest//:gtest_main",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "waitable_queue",
+    hdrs = ["include/exasol/udf/v2/waitable_queue.hpp"],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":event_fd",
+        ":moodycamel_queues",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "linux_waitable_queue",
+    hdrs = ["include/exasol/udf/v2/linux_waitable_queue.hpp"],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":event_fd_factory",
+        ":waitable_queue",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_test(
+    name = "waitable_queue_test",
+    srcs = ["waitable_queue_test.cc"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":waitable_queue",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_test(
+    name = "waitable_queue_integration_test",
+    srcs = ["waitable_queue_integration_test.cc"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":linux_waitable_queue",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["no-coverage", "no-mull"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_test(
+    name = "linux_waitable_queue_test",
+    srcs = ["linux_waitable_queue_test.cc"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":linux_waitable_queue",
+        "@googletest//:gtest_main",
+    ],
+    # The factory functions under test are templates; per the developer
+    # guide, mutation testing is unreliable for template implementations.
+    tags = ["no-mull"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_binary(
+    name = "waitable_queue_benchmark",
+    srcs = ["waitable_queue_benchmark.cc"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":linux_waitable_queue",
+        "@google_benchmark//:benchmark_main",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_fuzz_test(
+    name = "queue_fuzz_test",
+    srcs = ["queue_fuzz_test.cc"],
+    corpus = glob(["fuzz/corpus/queue/**"]),
+    copts = ["-std=c++23"],
+    deps = [":linux_waitable_queue"],
+    tags = ["fuzz-test"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "exception",
+    srcs = ["assert.cc"],
+    hdrs = [
+        "include/exasol/udf/v2/assert.hpp",
+        "include/exasol/udf/v2/exception.hpp",
+    ],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    linkopts = ["-lstdc++exp"],
+)
+
+cc_test(
+    name = "exception_test",
+    srcs = ["exception_test.cc"],
+    copts = ["-std=c++23"],
+    tags = ["no-mull"],
+    deps = [
+        ":exception",
+        "@googletest//:gtest_main",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)

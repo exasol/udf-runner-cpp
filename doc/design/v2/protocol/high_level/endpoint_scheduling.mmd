@@ -4,9 +4,10 @@ stateDiagram-v2
         UdfIdle --> UdfInitializing: Accept
         UdfInitializing --> UdfActive: Capabilities
         UdfActive --> UdfWaitingForActivity: Wait for DB or user code
-        UdfWaitingForActivity --> UdfSendingData: Next credit
+        UdfWaitingForActivity --> UdfOutputReady: User-code output ready
+        UdfOutputReady --> UdfSendingData: First batch or Next credit
         UdfSendingData --> UdfActive: Transfer done
-        UdfWaitingForActivity --> UdfActive: Socket or user-code event
+        UdfWaitingForActivity --> UdfActive: Socket or non-output user-code event
     }
 
     state "DB" as DB {
@@ -16,7 +17,9 @@ stateDiagram-v2
         DbActive --> DbHandlingNestedCall: Call
         DbHandlingNestedCall --> DbActive: Reply
         DbActive --> DbWaitingForUdfMessage: Wait
-        DbWaitingForUdfMessage --> DbActive: Message
-        DbActive --> DbSendingData: Data transfer
+        DbWaitingForUdfMessage --> DbActive: Control message
+        DbWaitingForUdfMessage --> DbReceivingData: RecordBatch received
+        DbReceivingData --> DbActive: RecordBatch processed
+        DbActive --> DbSendingData: Data available
         DbSendingData --> DbActive: Transfer done
     }

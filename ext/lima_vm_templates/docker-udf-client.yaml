@@ -2,18 +2,29 @@
 # And provide all dependencies necessary to build the Exasol UDF client with Bazel
 # Also, it sets all environment variables needed to build the UDF client for Python and Java
 # TODO: Add R dependencies
-# $ limactl start ./docker-udf-client.yaml
+# Start this VM when the host has no Docker daemon:
+# $ limactl start ./ext/lima_vm_templates/docker-udf-client.yaml
+#
+# Connect Docker and exaslct to the Lima Docker daemon:
+# $ export DOCKER_HOST=$(limactl list docker-udf-client --format 'unix://{{.Dir}}/sock/docker.sock')
 # cd ./exaudfclient
 # $ limactl shell docker-udf-client bazel build --config no-tty --config optimize --config python --config fast-binary
 
-# To run exaslct, run
-# $ export DOCKER_HOST=$(limactl list docker-udf-client --format 'unix://{{.Dir}}/sock/docker.sock')
-# $ exaslct build --flavor-path ./flavors/...
+# To build the SLC Docker images/stages only, run
+# $ exaslct build --flavor-path ./flavors/<flavor-name>
+#
+# To export a deployable SLC archive, run
+# $ exaslct export --flavor-path ./flavors/<flavor-name> --export-path .build_output/slc
+#
+# To run a focused database test, use --test-file or --test-folder, for example:
+# $ exaslct run-db-test --flavor-path ./flavors/<flavor-name> \
+#     --test-container-folder ./test_container \
+#     --test-folder ./test_container/tests/test/smoke
 
 minimumLimaVersion: 1.1.0
 
 base:
-- template://_images/ubuntu-lts
+- template://_images/ubuntu-24.04
 - template://_default/mounts
 
 # containerd is managed by Docker, not by Lima, so the values are set to false here.
@@ -47,17 +58,28 @@ provision:
     curl -fsSL https://get.docker.com | sh
 - mode: system
   script: |
+   #!/bin/bash
+   set -eux -o pipefail
    export DEBIAN_FRONTEND=noninteractive
-   apt update && apt install -y protobuf-compiler libzmq3-dev openjdk-17-jdk build-essential git python3.12-dev python3-pip libpcre3-dev clang-tidy-20
+   curl -1sLf 'https://dl.cloudsmith.io/public/mull-project/mull-stable/setup.deb.sh' | bash
+   apt update && apt install -y protobuf-compiler libzmq3-dev openjdk-17-jdk build-essential git python3.12-dev python3-pip libpcre3-dev clang-tidy-20 lcov
+   apt install -y clang-20 mull-20=0.34.1
+   mull-runner-20 --version
+   test -x /usr/lib/mull-ir-frontend-20
    curl -L  https://github.com/bazelbuild/bazelisk/releases/download/v1.27.0/bazelisk-linux-amd64 -o /usr/bin/bazel
    chmod +x /usr/bin/bazel
    pip install --break-system-packages numpy
    curl -L -o swig-2.0.4.tar.gz https://exasol-script-languages-dependencies.s3.eu-central-1.amazonaws.com/swig-2.0.4.tar.gz && tar zxf swig-2.0.4.tar.gz && (cd swig-2.0.4 && ./configure --prefix=/usr && make && make install) && rm -rf swig-2.0.4 swig-2.0.4.tar.gz
-   curl -sSL https://install.python-poetry.org | POETRY_HOME=/usr/local/bin/poetry python3 -
+   poetry_home=/opt/poetry
+   if [ ! -x "$poetry_home/bin/poetry" ]; then
+     curl -sSL https://install.python-poetry.org | POETRY_HOME="$poetry_home" python3 - --version 2.3.0
+   fi
+   ln -sfn "$poetry_home/bin/poetry" /usr/local/bin/poetry
+   /usr/local/bin/poetry --version
 - mode: system
   script: |
    #!/bin/sh
-   echo 'export PATH="/usr/local/bin/poetry/bin:$PATH"' > /etc/profile.d/poetry.sh
+   echo 'export PATH="/opt/poetry/bin:$PATH"' > /etc/profile.d/poetry.sh
    chmod +x /etc/profile.d/poetry.sh
 probes:
 - script: |

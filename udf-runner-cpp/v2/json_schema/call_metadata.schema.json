@@ -8,12 +8,6 @@
     "input_iter_type", "output_iter_type",
     "single_call_mode"
   ],
-  "not": {
-    "anyOf": [
-      { "required": ["input_columns"] },
-      { "required": ["output_columns"] }
-    ]
-  },
   "properties": {
     "database_name": { "type": "string" },
     "database_version": { "type": "string" },
@@ -29,8 +23,6 @@
     "scope_user": { "type": "string" },
     "input_iter_type": { "enum": ["EXACTLY_ONCE", "MULTIPLE"] },
     "output_iter_type": { "enum": ["EXACTLY_ONCE", "MULTIPLE"] },
-    "input_columns": { "type": "array", "items": { "$ref": "column.schema.json" } },
-    "output_columns": { "type": "array", "items": { "$ref": "column.schema.json" } },
     "single_call_mode": { "type": "boolean" }
   }
 }

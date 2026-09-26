@@ -33,17 +33,37 @@ these roles. Transport-level roles do not limit which side may later open a call
 
 ## Message Layering
 
-The protocol uses two layers that should remain distinct:
+The protocol uses a length-framed transport unit containing one optional control message and one optional record-batch
+metadata object. The frame prefix is a 4-byte little-endian `uint32` containing the byte length of the serialized
+FlatBuffer `Frame`; the prefix itself is not included in that length. A standard FlatBuffers buffer is limited to 2 GiB
+by the builder ([official FlatBuffers implementation documentation](https://github.com/google/flatbuffers/blob/master/python/flatbuffers/builder.py)).
 
-- `Frame` is the low-level length-framed unit on the transport connection.
-- `StreamMessage` is the typed protocol payload carried inside a `Frame`.
+- `Frame` is the length-framed FlatBuffer root object. The frame length must be positive and must not exceed the
+  supported 2 GiB FlatBuffers limit.
+- `control_message` carries control attributes.
+- `data_record_batch_metadata` carries one batch's metadata; its raw buffers follow separately when inline transport is used.
+
+For an inline record batch, the wire layout is:
+
+```text
++----------------------+-------------------+-------------------+-------------------+
+| uint32 frame_length  | serialized Frame | buffer 0 bytes   | ... buffer N bytes|
++----------------------+-------------------+-------------------+-------------------+
+                       frame_length bytes
+```
+
+The prefix covers only the serialized `Frame`, not the trailing inline buffers. A control-only frame has no trailing
+buffers. Each frame contains at most one `DataRecordBatchMetadata`; multiple record batches use multiple framed
+messages.
 
 Receive path:
 
-1. bytes on the socket
-2. one decoded `Frame`
-3. `stream_id` selection
-4. one decoded `StreamMessage`
+1. read the 4-byte little-endian frame length;
+2. validate that it is positive and within the supported FlatBuffers limit;
+3. read and verify exactly that many serialized `Frame` bytes;
+4. select the `stream_id`;
+5. process the optional `control_message` and `data_record_batch_metadata`;
+6. read inline buffers, if `data_record_batch_metadata.buffer_transport` is `Inline`.
 
 This separation is important because the transport boundary and the typed protocol payload evolve independently.
 
@@ -61,13 +81,26 @@ authentication and peer identity validation.
 
 The current control-stream message set is:
 
-- `ServerCapabilities(version)` sent by the `Server` during initialization
+- `ServerCapabilities(version, endianness, number_of_supported_workers)` sent by the `Server` during initialization
 - `KeepAlive`
 - `Payloads(...)` when named payloads need to be exchanged without any active call
 - `CloseConnection` for orderly connection shutdown
 
-`StreamMessage` is a composite message with independently optional fields. This allows related fields, such as a
-close field and `Error`, to travel together in one `Frame`.
+`ControlMessage` uses a union for mutually exclusive message categories while keeping compatible attributes such as
+`Payloads`, `Next`, `DataSchema`, and `Error` directly on the control table. `Frame` may contain a control message, a
+record batch, or both. Schema and record-batch encoding, including inline buffer ordering, are defined in
+[data_stream.md](data_stream.md).
+
+`ServerCapabilities` may be accompanied by `Payloads(...)` in the same `ControlMessage` and frame. This allows a
+high-level protocol to identify itself during low-level initialization without adding high-level-specific fields to the
+low-level capabilities table.
+
+### `ServerCapabilities`
+
+`ServerCapabilities` is sent by the `Server` on control stream `0` during initialization. It advertises the supported
+protocol version, the server's native endianness for data buffers outside the FlatBuffers frame, and the positive number
+of workers the server supports. FlatBuffers frame metadata itself is always stored in little-endian format; see the
+[FlatBuffers endianness documentation](https://flatbuffers.dev/internals/).
 
 ## Stream Ownership
 
@@ -103,8 +136,10 @@ See [connection_lifecycle.svg](connection_lifecycle.svg).
 ## Close Semantics
 
 `CloseCall` closes the call on its non-zero stream. Either peer may send it; no call-close acknowledgement is
-required. A `CloseCall` with `Error` is an abnormal call termination. Without `Error`, it is normal termination.
-After sending or receiving `CloseCall`, neither peer sends further call-scoped traffic on that stream.
+required, and the receiver must not send a reply or any other message on that stream. A `CloseCall` with `Error` is
+an abnormal call termination. Without `Error`, it is normal termination. After sending or receiving `CloseCall`, the
+local endpoint sends no further call-scoped traffic on that stream. Messages already in transit may still arrive after
+either event; the endpoint ignores those late stream messages while still processing a received `CloseCall`.
 
 `CloseConnection` closes the entire connection and is valid only on stream `0`. Either peer may initiate shutdown
 by sending it. The receiver sends `CloseConnection` in reply, optionally with its own `Error`, then closes the
