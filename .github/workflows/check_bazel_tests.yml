@@ -147,7 +147,7 @@ jobs:
           OPENSSL_LIBRARY_PREFIX: "/usr/lib/x86_64-linux-gnu"
           OPENSSL_INCLUDE_PREFIX: "/usr/include/openssl"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: "${{ matrix.name }}"

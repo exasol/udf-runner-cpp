@@ -1,9 +1,5 @@
 #pragma once
 
-#if !defined(__linux__)
-#error "exasol::udf::v2::WaitableQueue requires Linux eventfd"
-#endif
-
 #include <cstdint>
 #include <iterator>
 #include <memory>
@@ -12,8 +8,6 @@
 #include <utility>
 
 #include <exasol/udf/v2/event_fd.hpp>
-#include <exasol/udf/v2/mpmc_queue.hpp>
-#include <exasol/udf/v2/spsc_queue.hpp>
 
 namespace exasol::udf::v2
 {
@@ -23,15 +17,6 @@ class WaitableQueue
 {
 public:
     using queue_type = Queue;
-
-    WaitableQueue() : WaitableQueue(Queue{}, std::make_unique<LinuxEventFd>())
-    {
-    }
-
-    explicit WaitableQueue(Queue queue)
-        : WaitableQueue(std::move(queue), std::make_unique<LinuxEventFd>())
-    {
-    }
 
     WaitableQueue(Queue queue, std::unique_ptr<EventFd> event_fd)
         : queue_storage(std::move(queue)), notification_fd(std::move(event_fd))
@@ -172,11 +157,5 @@ private:
     Queue queue_storage;
     std::unique_ptr<EventFd> notification_fd;
 };
-
-template <typename T>
-using WaitableSpscQueue = WaitableQueue<SpscQueue<T>>;
-
-template <typename T>
-using WaitableMpmcQueue = WaitableQueue<MpmcQueue<T>>;
 
 } // namespace exasol::udf::v2

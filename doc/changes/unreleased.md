@@ -19,6 +19,11 @@ n/a
 
 ## Internal
 
+* #60: Added Mull mutation testing workflow and report-viewing documentation
+  for v2; targets without generated mutants now produce warnings instead of
+  failing the workflow, and separated Linux EventFd code and factory-based
+  Linux queue construction from the generic waitable-queue mutation target;
+  updated artifact uploads to the Node.js 24-compatible action version
 * #64: Added GoogleTest, GoogleMock, and Google Benchmark support for v2 tests
 * #57: Defined and enforced public v2 C++ coding style
 * #51: Added agent and contributor guidance for v1/v2 development, SLC workflows, CI testing, and PR conventions

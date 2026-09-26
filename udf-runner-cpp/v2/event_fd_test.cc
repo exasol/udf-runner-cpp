@@ -1,10 +1,13 @@
 #include <unistd.h>
 
+#include <cerrno>
 #include <cstdint>
 #include <system_error>
 #include <utility>
 
 #include <exasol/udf/v2/event_fd.hpp>
+#include <exasol/udf/v2/event_fd_factory.hpp>
+#include <exasol/udf/v2/linux_event_fd.hpp>
 #include <gtest/gtest.h>
 
 namespace
@@ -32,6 +35,13 @@ void self_move_assign(Type& value)
     (value.*assign)(std::move(value));
 }
 
+void expect_closed_descriptor(int file_descriptor)
+{
+    errno = 0;
+    EXPECT_EQ(::close(file_descriptor), -1);
+    EXPECT_EQ(errno, EBADF);
+}
+
 } // namespace
 
 TEST(EventFdTest, AccumulatesNotifications)
@@ -42,6 +52,15 @@ TEST(EventFdTest, AccumulatesNotifications)
     event_fd.write_notification();
     event_fd.write_notification();
     EXPECT_EQ(event_fd.read_notification(), 2);
+}
+
+TEST(EventFdTest, FactoryCreatesLinuxEventFd)
+{
+    auto event_fd = exasol::udf::v2::make_linux_event_fd();
+    ASSERT_NE(event_fd, nullptr);
+    ASSERT_NE(event_fd->native_handle(), -1);
+    event_fd->write_notification();
+    EXPECT_EQ(event_fd->read_notification(), 1);
 }
 
 TEST(EventFdTest, RejectsReadWhenEmpty)
@@ -69,6 +88,28 @@ TEST(EventFdTest, SupportsMoveAssignmentAndSelfMove)
     EXPECT_EQ(move_assigned.native_handle(), moved_handle);
     self_move_assign(move_assigned);
     EXPECT_EQ(move_assigned.native_handle(), moved_handle);
+}
+
+TEST(EventFdTest, MoveAssignmentClosesReplacedDescriptor)
+{
+    exasol::udf::v2::LinuxEventFd source;
+    exasol::udf::v2::LinuxEventFd destination;
+    const int replaced_handle = destination.native_handle();
+
+    destination = std::move(source);
+
+    expect_closed_descriptor(replaced_handle);
+}
+
+TEST(EventFdTest, DestructorClosesDescriptor)
+{
+    int destroyed_handle = -1;
+    {
+        exasol::udf::v2::LinuxEventFd event_fd;
+        destroyed_handle = event_fd.native_handle();
+    }
+
+    expect_closed_descriptor(destroyed_handle);
 }
 
 TEST(EventFdTest, RejectsReadOnClosedDescriptor)

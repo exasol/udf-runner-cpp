@@ -93,10 +93,25 @@ cc_library(
     deps = [":private_flatbuffers_runtime"],
 )
 
+cc_library(
+    name = "mutation_smoke",
+    srcs = ["mutation_smoke.cc"],
+    hdrs = ["mutation_smoke.hpp"],
+    copts = ["-std=c++23"],
+)
+
+cc_test(
+    name = "mutation_smoke_test",
+    srcs = ["mutation_smoke_test.cc"],
+    copts = ["-std=c++23"],
+    deps = [":mutation_smoke"],
+)
+
 cc_test(
     name = "udf_protocol_test",
     srcs = ["udf_protocol_test.cc"],
     copts = ["-std=c++23"],
+    tags = ["no-mull"],
     deps = [
         ":udf_protocol",
         "@googletest//:gtest_main",
@@ -115,6 +130,7 @@ cc_test(
     name = "udf_protocol_symbol_leak_test",
     srcs = ["nm_runner.hpp", "udf_protocol_symbol_leak_test.cc"],
     copts = ["-std=c++23"],
+    tags = ["no-mull"],
     # The test inspects the built shared object with nm. data makes the
     # artifact available at runtime and args passes its runfiles path.
     data = [":udf_protocol_shared"],
@@ -127,6 +143,7 @@ cc_test(
     name = "udf_protocol_static_symbol_leak_test",
     srcs = ["nm_runner.hpp", "udf_protocol_static_symbol_leak_test.cc"],
     copts = ["-std=c++23"],
+    tags = ["no-mull"],
     # cc_library produces multiple artifacts, so the test receives all
     # locations and selects the static .a archive for nm inspection.
     data = [":udf_protocol"],
@@ -142,6 +159,7 @@ cc_test(
         "flatbuffers_header_order_reverse.cc",
     ],
     copts = ["-std=c++23"],
+    tags = ["no-mull"],
     # Compile both include orders against the ordinary runtime and the
     # isolated runtime to protect against header-guard and macro collisions.
     deps = [":udf_protocol", "@flatbuffers//:runtime_cc"],
@@ -182,6 +200,7 @@ cc_test(
     name = "arrow_core_test",
     srcs = ["arrow_core_test.cc"],
     copts = ["-std=c++23"],
+    tags = ["no-mull"],
     deps = [
         ":arrow_core",
         "@googletest//:gtest_main",
@@ -192,6 +211,7 @@ cc_test(
     name = "arrow_c_data_demo_test",
     srcs = ["arrow_c_data_demo_test.cc"],
     copts = ["-std=c++23"],
+    tags = ["no-mull"],
     data = [":libarrow_c_data_demo.so"],
     args = ["$(location :libarrow_c_data_demo.so)"],
     linkopts = ["-ldl"],
@@ -212,6 +232,7 @@ cc_test(
     srcs = ["json_schema_validation_test.cc"],
     data = ["//json_schema:all_schemas"],
     copts = ["-std=c++23"],
+    tags = ["no-mull"],
     deps = [
         ":json_schema",
         "@googletest//:gtest_main",
@@ -222,6 +243,7 @@ cc_test(
     name = "json_schema_symbol_leak_test",
     srcs = ["json_schema_symbol_leak_test.cc"],
     copts = ["-std=c++23"],
+    tags = ["no-mull"],
     linkopts = ["-ldl"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [":json_schema"],
@@ -299,6 +321,7 @@ cc_test(
     name = "moodycamel_queues_test",
     srcs = ["moodycamel_queues_test.cc"],
     copts = ["-std=c++23"],
+    tags = ["no-mull"],
     deps = [
         ":moodycamel_queues",
         "@googletest//:gtest_main",
@@ -317,6 +340,7 @@ cc_test(
     name = "moodycamel_symbol_leak_test",
     srcs = ["moodycamel_symbol_leak_test.cc"],
     copts = ["-std=c++23"],
+    tags = ["no-mull"],
     data = [":moodycamel_queues_shared"],
     args = ["$(location :moodycamel_queues_shared)"],
     target_compatible_with = ["@platforms//os:linux"],
@@ -325,10 +349,27 @@ cc_test(
 
 cc_library(
     name = "event_fd",
-    srcs = ["event_fd.cc"],
     hdrs = ["include/exasol/udf/v2/event_fd.hpp"],
     includes = ["include"],
     copts = ["-std=c++23"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "linux_event_fd",
+    srcs = ["linux_event_fd.cc"],
+    hdrs = ["include/exasol/udf/v2/linux_event_fd.hpp"],
+    includes = ["include"],
+    deps = [":event_fd"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "event_fd_factory",
+    srcs = ["event_fd_factory.cc"],
+    hdrs = ["include/exasol/udf/v2/event_fd_factory.hpp"],
+    includes = ["include"],
+    deps = [":linux_event_fd"],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
@@ -337,7 +378,8 @@ cc_test(
     srcs = ["event_fd_test.cc"],
     copts = ["-std=c++23"],
     deps = [
-        ":event_fd",
+        ":event_fd_factory",
+        ":linux_event_fd",
         "@googletest//:gtest_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],
@@ -351,6 +393,18 @@ cc_library(
     deps = [
         ":event_fd",
         ":moodycamel_queues",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "linux_waitable_queue",
+    hdrs = ["include/exasol/udf/v2/linux_waitable_queue.hpp"],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":event_fd_factory",
+        ":waitable_queue",
     ],
     target_compatible_with = ["@platforms//os:linux"],
 )
@@ -372,10 +426,24 @@ cc_test(
     srcs = ["waitable_queue_integration_test.cc"],
     copts = ["-std=c++23"],
     deps = [
-        ":waitable_queue",
+        ":linux_waitable_queue",
         "@googletest//:gtest_main",
     ],
-    tags = ["no-coverage"],
+    tags = ["no-coverage", "no-mull"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_test(
+    name = "linux_waitable_queue_test",
+    srcs = ["linux_waitable_queue_test.cc"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":linux_waitable_queue",
+        "@googletest//:gtest_main",
+    ],
+    # The factory functions under test are templates; per the developer
+    # guide, mutation testing is unreliable for template implementations.
+    tags = ["no-mull"],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
@@ -384,7 +452,7 @@ cc_binary(
     srcs = ["waitable_queue_benchmark.cc"],
     copts = ["-std=c++23"],
     deps = [
-        ":waitable_queue",
+        ":linux_waitable_queue",
         "@google_benchmark//:benchmark_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],
@@ -395,7 +463,7 @@ cc_fuzz_test(
     srcs = ["queue_fuzz_test.cc"],
     corpus = glob(["fuzz/corpus/queue/**"]),
     copts = ["-std=c++23"],
-    deps = [":waitable_queue"],
+    deps = [":linux_waitable_queue"],
     tags = ["fuzz-test"],
     target_compatible_with = ["@platforms//os:linux"],
 )

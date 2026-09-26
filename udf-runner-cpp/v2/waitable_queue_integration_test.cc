@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-#include <exasol/udf/v2/waitable_queue.hpp>
+#include <exasol/udf/v2/linux_waitable_queue.hpp>
 #include <gtest/gtest.h>
 
 namespace
@@ -64,7 +64,8 @@ protected:
     }
 
 private:
-    exasol::udf::v2::WaitableSpscQueue<int> queue_storage;
+    exasol::udf::v2::WaitableSpscQueue<int> queue_storage =
+        exasol::udf::v2::make_waitable_spsc_queue<int>();
     int epoll_fd_storage = ::epoll_create1(EPOLL_CLOEXEC);
     std::array<int, 2> sockets_storage{};
 };
@@ -122,63 +123,13 @@ TEST_F(SpscEpollTest, SupportsQueueOperationsAndBatches)
 
 TEST_F(SpscEpollTest, SupportsMoves)
 {
-    exasol::udf::v2::WaitableSpscQueue<int> moved_queue;
+    auto moved_queue       = exasol::udf::v2::make_waitable_spsc_queue<int>();
     const int moved_handle = moved_queue.native_handle();
-    exasol::udf::v2::WaitableSpscQueue<int> move_constructed(std::move(moved_queue));
+    auto move_constructed  = std::move(moved_queue);
     EXPECT_EQ(move_constructed.native_handle(), moved_handle);
 
-    exasol::udf::v2::WaitableSpscQueue<int> move_assigned;
-    move_assigned = std::move(move_constructed);
-    EXPECT_EQ(move_assigned.native_handle(), moved_handle);
-    self_move_assign(move_assigned);
-}
-
-TEST(WaitableQueueIntegrationTest, MpmcSingleValueOperations)
-{
-    exasol::udf::v2::WaitableMpmcQueue<int> queue;
-    ASSERT_TRUE(queue.enqueue(7));
-    EXPECT_EQ(queue.drain_notifications(), 1);
-
-    int value = 0;
-    ASSERT_TRUE(queue.try_dequeue(value));
-    EXPECT_EQ(value, 7);
-}
-
-TEST(WaitableQueueIntegrationTest, MpmcBatchAndEmptyBatchOperations)
-{
-    exasol::udf::v2::WaitableMpmcQueue<int> queue;
-    const std::vector batch{8, 9};
-    EXPECT_EQ(queue.enqueue_batch(batch.begin(), batch.end()), batch.size());
-    EXPECT_EQ(queue.drain_notifications(), 1);
-
-    int value = 0;
-    for (int expected : batch)
-    {
-        ASSERT_TRUE(queue.try_dequeue(value));
-        EXPECT_EQ(value, expected);
-    }
-
-    const std::array<int, 0> empty_batch{};
-    EXPECT_EQ(queue.enqueue_batch(empty_batch.begin(), empty_batch.end()), 0);
-    EXPECT_EQ(queue.drain_notifications(), 0);
-}
-
-TEST(WaitableQueueIntegrationTest, MpmcProvidesQueueAccess)
-{
-    exasol::udf::v2::WaitableMpmcQueue<int> queue;
-    const auto& const_queue = queue;
-    EXPECT_EQ(&const_queue.queue(), &queue.queue());
-}
-
-TEST(WaitableQueueIntegrationTest, MpmcSupportsMoves)
-{
-    exasol::udf::v2::WaitableMpmcQueue<int> moved_queue;
-    const int moved_handle = moved_queue.native_handle();
-    exasol::udf::v2::WaitableMpmcQueue<int> move_constructed(std::move(moved_queue));
-    EXPECT_EQ(move_constructed.native_handle(), moved_handle);
-
-    exasol::udf::v2::WaitableMpmcQueue<int> move_assigned;
-    move_assigned = std::move(move_constructed);
+    auto move_assigned = exasol::udf::v2::make_waitable_spsc_queue<int>();
+    move_assigned      = std::move(move_constructed);
     EXPECT_EQ(move_assigned.native_handle(), moved_handle);
     self_move_assign(move_assigned);
 }

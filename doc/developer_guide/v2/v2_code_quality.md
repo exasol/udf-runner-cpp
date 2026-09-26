@@ -81,3 +81,66 @@ alias(
     tags = ["noclangtidy"],
 )
 ```
+
+## Mutation testing with Mull
+
+Mutation testing for the functional v2 C++ tests uses [Mull](https://mull-project.com/)
+with the pinned Mull 0.34.1 release and matching LLVM 20 toolchain. The
+`docker-udf-client` Lima template provisions these tools automatically; on
+other environments install the LLVM 20 compiler and `mull-20`, then verify
+that `mull-runner-20` and `/usr/lib/mull-ir-frontend-20` are available.
+
+Run the mutation session from the repository root:
+
+```bash
+poetry run -- nox --sessions=mull
+```
+
+If Bazel reports stale or incompatible Mull output from a previous VM or host
+build, clean the Mull-specific output roots and reports before retrying:
+
+```bash
+poetry run -- nox --sessions=mull-clean
+```
+
+If the Bazel executable is named `bazelisk`, run:
+`BAZEL=bazelisk poetry run -- nox --sessions=mull`.
+
+The session discovers Bazel `cc_test` targets and runs each eligible target with
+Mull instrumentation. It writes reports to `.build_output/mull/` and enforces
+an 80% mutation-score threshold for every target that produces at least one
+mutant. Targets for which Mull produces no mutants emit a warning and succeed;
+the warning is shown in local Nox output and as a GitHub Actions annotation.
+Build failures, test failures, invalid reports, and mutation scores below 80%
+remain errors. The LLVM major version can be changed with `MULL_LLVM_VERSION`;
+custom tool paths can be supplied with `MULL_CXX`, `MULL_RUNNER`, and
+`MULL_IR_FRONTEND`. The C compiler used by Bazel can be overridden with
+`MULL_CC`.
+
+### Viewing Mull HTML reports
+
+Mull writes an HTML page and its matching JSON data file for each target to
+`.build_output/mull/`. The HTML page loads the JSON file dynamically, so serve
+the directory over HTTP instead of opening the page directly with `file://`:
+
+```bash
+cd .build_output/mull
+python3 -m http.server 8000
+```
+
+Then open `http://localhost:8000/<target>.html`, for example
+`http://localhost:8000/event_fd_test.html`. The page also loads the Mutation
+Testing Elements JavaScript from its configured CDN and therefore needs network
+access.
+
+The Mull workflow uploads these files as the
+`mull-reports-<target>` artifact. Download and extract the artifact, start the
+same HTTP server in the extracted directory, and open the target's HTML page in
+your browser.
+
+Mutation testing is not reliable for C++ template implementations or tests
+that only exercise third-party dependencies. Keep those tests in normal Bazel
+test coverage and exclude them from Mull with the `no-mull` tag. Production
+implementation units with Mull-compatible non-template code should have a
+dedicated test target that remains in the mutation matrix.
+
