@@ -1,0 +1,5 @@
+{
+  "name": "CREATED_AT",
+  "nullable": false,
+  "arrow_storage_type": "Timestamp(Microsecond, UTC)"
+}

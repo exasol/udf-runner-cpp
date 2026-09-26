@@ -1,0 +1,32 @@
+stateDiagram-v2
+    state "Outbound direction" as Outbound {
+        [*] --> OutboundIdle
+
+        OutboundIdle --> SchemaAnnounced: Send schema
+        OutboundIdle --> WaitingForNext: Send schema + first batch
+        SchemaAnnounced --> WaitingForNext: Send first batch
+        OutboundIdle --> BudgetAvailable: Receive Next hint
+        SchemaAnnounced --> BudgetAvailable: Receive Next hint
+        BudgetAvailable --> BudgetAvailable: Send batch while budget remains
+        BudgetAvailable --> BudgetAvailable: Send schema + first batch
+        BudgetAvailable --> WaitingForNext: Budget no longer usable
+        WaitingForNext --> BudgetAvailable: Receive Next hint
+        WaitingForNext --> OutboundCompleted: Finish stream
+
+        OutboundCompleted --> [*]
+    }
+
+    state "Inbound direction" as Inbound {
+        [*] --> InboundIdle
+
+        InboundIdle --> SchemaReceived: Receive schema
+        InboundIdle --> BatchesInFlight: Receive schema + first batch
+        InboundIdle --> InboundIdle: Send Next hint
+        SchemaReceived --> BatchesInFlight: Receive first batch
+        SchemaReceived --> SchemaReceived: Send Next hint
+        BatchesInFlight --> BatchesInFlight: Receive batch
+        BatchesInFlight --> BatchesInFlight: Send Next hint
+        BatchesInFlight --> InboundCompleted: Finish stream
+
+        InboundCompleted --> [*]
+    }

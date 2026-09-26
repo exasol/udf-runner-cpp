@@ -1,0 +1,25 @@
+stateDiagram-v2
+    state "UDFRunner" as UDF {
+        [*] --> UdfIdle
+        UdfIdle --> UdfInitializing: Accept
+        UdfInitializing --> UdfActive: Capabilities
+        UdfActive --> UdfWaitingForActivity: Wait for DB or user code
+        UdfWaitingForActivity --> UdfOutputReady: User-code output ready
+        UdfOutputReady --> UdfSendingData: First batch or Next credit
+        UdfSendingData --> UdfActive: Transfer done
+        UdfWaitingForActivity --> UdfActive: Socket or non-output user-code event
+    }
+
+    state "DB" as DB {
+        [*] --> DbIdle
+        DbIdle --> DbInitializing: Connect
+        DbInitializing --> DbActive: Capabilities
+        DbActive --> DbHandlingNestedCall: Call
+        DbHandlingNestedCall --> DbActive: Reply
+        DbActive --> DbWaitingForUdfMessage: Wait
+        DbWaitingForUdfMessage --> DbActive: Control message
+        DbWaitingForUdfMessage --> DbReceivingData: RecordBatch received
+        DbReceivingData --> DbActive: RecordBatch processed
+        DbActive --> DbSendingData: Data available
+        DbSendingData --> DbActive: Transfer done
+    }

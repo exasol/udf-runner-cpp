@@ -143,4 +143,3 @@ that only exercise third-party dependencies. Keep those tests in normal Bazel
 test coverage and exclude them from Mull with the `no-mull` tag. Production
 implementation units with Mull-compatible non-template code should have a
 dedicated test target that remains in the mutation matrix.
-
