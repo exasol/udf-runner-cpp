@@ -17,7 +17,10 @@ Covers:
 - `req~udf-v2-callback-extensibility~1`
 - `req~udf-v2-logical-streams~1`
 - `req~udf-v2-flow-controlled-data~1`
-- `req~udf-v2-lifecycle-and-liveness~1`
+- `req~udf-v2-call-lifecycle~1`
+- `req~udf-v2-error-handling~1`
+- `req~udf-v2-peer-liveness~1`
+- `req~udf-v2-late-message-handling~1`
 
 Depends:
 - `dsn~udf-v2-call-lifecycle~1`

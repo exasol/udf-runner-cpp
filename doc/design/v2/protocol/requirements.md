@@ -217,18 +217,68 @@ Needs: dsn
 Covers:
 - `feat~udf-v2-communication~1`
 
-### Lifecycle and liveness
+### Call lifecycle
 
-`req~udf-v2-lifecycle-and-liveness~1`
+`req~udf-v2-call-lifecycle~1`
 
-The protocol shall define connection and call closure, error handling, keepalive behavior, peer failure detection,
-and behavior for late messages.
+The protocol shall define generic call opening, normal and abnormal call closure, and the terminal state of a call's
+stream after closure.
+
+Needs: dsn
+
+Covers:
+- `feat~udf-v2-communication~1`
+
+### Connection lifecycle
+
+`req~udf-v2-connection-lifecycle~1`
+
+The protocol shall define connection shutdown, including the `CloseConnection` exchange, transport closure, and
+simultaneous shutdown initiated by both peers.
 
 Needs: dsn
 
 Covers:
 - `feat~udf-v2-communication~1`
 - `feat~udf-v2-deployment~1`
+
+### Error handling
+
+`req~udf-v2-error-handling~1`
+
+The protocol shall distinguish terminal errors carried with close messages from non-terminal diagnostic `Error`
+messages that allow the enclosing call or connection to continue when recovery is possible.
+
+Needs: dsn
+
+Covers:
+- `feat~udf-v2-communication~1`
+- `feat~udf-v2-deployment~1`
+
+### Peer liveness
+
+`req~udf-v2-peer-liveness~1`
+
+The protocol shall define `KeepAlive` behavior, peer failure detection, and termination of sessions whose peer is no
+longer healthy.
+
+Needs: dsn
+
+Covers:
+- `feat~udf-v2-communication~1`
+- `feat~udf-v2-deployment~1`
+
+### Late-message handling
+
+`req~udf-v2-late-message-handling~1`
+
+The protocol shall define that messages already in flight may arrive after call or connection closure and shall be
+ignored when they target a closed stream or session.
+
+Needs: dsn
+
+Covers:
+- `feat~udf-v2-communication~1`
 
 ## Deployment and security requirements
 

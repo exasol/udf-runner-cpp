@@ -7,7 +7,11 @@ This design covers framing, stream identity, lifecycle, transport bindings, defe
 Covers:
 - `req~udf-v2-framing-and-serialization~1`
 - `req~udf-v2-logical-streams~1`
-- `req~udf-v2-lifecycle-and-liveness~1`
+- `req~udf-v2-call-lifecycle~1`
+- `req~udf-v2-connection-lifecycle~1`
+- `req~udf-v2-error-handling~1`
+- `req~udf-v2-peer-liveness~1`
+- `req~udf-v2-late-message-handling~1`
 - `req~udf-v2-transport-bindings~1`
 - `req~udf-v2-defensive-validation~1`
 - `req~udf-v2-resource-safety~1`
