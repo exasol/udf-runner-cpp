@@ -12,7 +12,10 @@ Covers:
 - `req~udf-v2-error-handling~1`
 - `req~udf-v2-peer-liveness~1`
 - `req~udf-v2-late-message-handling~1`
-- `req~udf-v2-transport-bindings~1`
+- `req~udf-v2-unix-socket-binding~1`
+- `req~udf-v2-tcp-binding-extensibility~1`
+- `req~udf-v2-tls-binding-extensibility~1`
+- `req~udf-v2-memfd-binding-extensibility~1`
 - `req~udf-v2-defensive-validation~1`
 - `req~udf-v2-resource-safety~1`
 

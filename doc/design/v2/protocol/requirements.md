@@ -282,16 +282,56 @@ Covers:
 
 ## Deployment and security requirements
 
-### Transport bindings
+### Unix socket binding
 
-`req~udf-v2-transport-bindings~1`
+`req~udf-v2-unix-socket-binding~1`
 
-The initial binding shall use Unix-domain stream sockets while preserving the same framing and protocol semantics for
-future TCP/TLS bindings. Inline buffers shall work on every binding.
+The initial protocol binding shall use Unix-domain stream sockets, preserve the length-framed protocol semantics, and
+support inline buffer transfer.
 
 Needs: dsn
 
 Covers:
+- `feat~udf-v2-deployment~1`
+
+### TCP binding extensibility
+
+`req~udf-v2-tcp-binding-extensibility~1`
+
+The protocol shall be extensible to TCP without changing framing, logical stream ownership, call semantics, control
+traffic, or flow control. TCP bindings shall use inline buffers unless a portable out-of-band mechanism is explicitly
+defined and negotiated.
+
+Needs: dsn
+
+Covers:
+- `feat~udf-v2-communication~1`
+- `feat~udf-v2-deployment~1`
+
+### TLS binding extensibility
+
+`req~udf-v2-tls-binding-extensibility~1`
+
+The protocol shall be extensible to a TLS-secured remote binding without changing protocol semantics. TLS bindings
+shall integrate with the peer authentication and identity-validation requirements.
+
+Needs: dsn
+
+Covers:
+- `feat~udf-v2-communication~1`
+- `feat~udf-v2-deployment~1`
+
+### Memfd binding extensibility
+
+`req~udf-v2-memfd-binding-extensibility~1`
+
+The protocol shall be extensible to Unix-domain descriptor passing for `memfd`-backed buffers, with explicit
+descriptor correlation, ownership, lifetime, cleanup, integrity validation, and file-descriptor limits.
+
+Needs: dsn
+
+Covers:
+- `feat~udf-v2-communication~1`
 - `feat~udf-v2-deployment~1`
 
 ### Peer security

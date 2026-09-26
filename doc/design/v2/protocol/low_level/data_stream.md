@@ -8,6 +8,7 @@ Covers:
 - `req~udf-v2-flow-controlled-data~1`
 - `req~udf-v2-data-contract~1`
 - `req~udf-v2-framing-and-serialization~1`
+- `req~udf-v2-memfd-binding-extensibility~1`
 - `req~udf-v2-defensive-validation~1`
 
 This document describes the generic low-level data-stream behavior attached to a call. It excludes framing details

@@ -5,7 +5,10 @@
 This design compares transport bindings and defines the local and remote security constraints.
 
 Covers:
-- `req~udf-v2-transport-bindings~1`
+- `req~udf-v2-unix-socket-binding~1`
+- `req~udf-v2-tcp-binding-extensibility~1`
+- `req~udf-v2-tls-binding-extensibility~1`
+- `req~udf-v2-memfd-binding-extensibility~1`
 - `req~udf-v2-peer-security~1`
 - `req~udf-v2-resource-safety~1`
 
