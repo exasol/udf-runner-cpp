@@ -5,7 +5,13 @@
 This design defines execution calls, callbacks, data scheduling, and high-level lifecycle behavior.
 
 Covers:
-- `req~udf-v2-calls-and-callbacks~1`
+- `req~udf-v2-run-call~1`
+- `req~udf-v2-function-calls~1`
+- `req~udf-v2-cleanup-call~1`
+- `req~udf-v2-get-connection-callback~1`
+- `req~udf-v2-get-script-callback~1`
+- `req~udf-v2-call-extensibility~1`
+- `req~udf-v2-callback-extensibility~1`
 - `req~udf-v2-logical-streams~1`
 - `req~udf-v2-flow-controlled-data~1`
 - `req~udf-v2-lifecycle-and-liveness~1`

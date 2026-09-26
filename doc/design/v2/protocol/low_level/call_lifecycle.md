@@ -5,7 +5,8 @@
 This design defines generic calls, nested calls, closure, and abnormal termination.
 
 Covers:
-- `req~udf-v2-calls-and-callbacks~1`
+- `req~udf-v2-call-extensibility~1`
+- `req~udf-v2-callback-extensibility~1`
 - `req~udf-v2-lifecycle-and-liveness~1`
 
 This document describes the generic `Call` abstraction shared by all protocol interactions. It intentionally

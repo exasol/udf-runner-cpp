@@ -31,16 +31,90 @@ Needs: req
 
 ## Functional requirements
 
-### Calls and callbacks
+### Run call
 
-`req~udf-v2-calls-and-callbacks~1`
+`req~udf-v2-run-call~1`
 
-The protocol shall support `Run`, Function operations, script metadata, connection lookup, and script lookup, with
-an extension path for future callback operations.
+The protocol shall support a DB-opened `Run` call with call metadata, column metadata, and an attached bidirectional
+data stream.
 
 Needs: dsn
 
 Covers:
+- `feat~udf-v2-execution~1`
+
+### Function calls
+
+`req~udf-v2-function-calls~1`
+
+The protocol shall support the DB-opened Function operations `default_output_columns`, `virtual_schema_adapter`,
+`generate_sql_for_import_spec`, and `generate_sql_for_export_spec`.
+
+Needs: dsn
+
+Covers:
+- `feat~udf-v2-execution~1`
+
+### Cleanup call
+
+`req~udf-v2-cleanup-call~1`
+
+The protocol shall support a DB-opened, non-streaming `cleanup` call between calls so `UDFRunner` can release
+resources retained from completed calls or nested calls.
+
+Needs: dsn
+
+Covers:
+- `feat~udf-v2-execution~1`
+
+### Get-connection callback
+
+`req~udf-v2-get-connection-callback~1`
+
+The protocol shall support a `UDFRunner`-opened `get_connection` nested callback that returns the requested
+connection information while its parent call remains active.
+
+Needs: dsn
+
+Covers:
+- `feat~udf-v2-execution~1`
+
+### Get-script callback
+
+`req~udf-v2-get-script-callback~1`
+
+The protocol shall support a `UDFRunner`-opened `get_script` nested callback that returns script content while its
+parent call remains active.
+
+Needs: dsn
+
+Covers:
+- `feat~udf-v2-execution~1`
+
+### Call extensibility
+
+`req~udf-v2-call-extensibility~1`
+
+The generic call mechanism shall allow future DB- or `UDFRunner`-opened call types to be added without redesigning
+call opening, payload exchange, stream ownership, or closure semantics.
+
+Needs: dsn
+
+Covers:
+- `feat~udf-v2-communication~1`
+- `feat~udf-v2-execution~1`
+
+### Callback extensibility
+
+`req~udf-v2-callback-extensibility~1`
+
+The callback mechanism shall allow future nested operations, such as `execute_query`, to be added without creating a
+separate callback transport or changing the generic nested-call mechanism.
+
+Needs: dsn
+
+Covers:
+- `feat~udf-v2-communication~1`
 - `feat~udf-v2-execution~1`
 
 ### Logical streams

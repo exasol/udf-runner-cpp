@@ -5,7 +5,11 @@
 This design defines versioned protocol, script, call, callback, and schema payload contracts.
 
 Covers:
-- `req~udf-v2-calls-and-callbacks~1`
+- `req~udf-v2-run-call~1`
+- `req~udf-v2-function-calls~1`
+- `req~udf-v2-cleanup-call~1`
+- `req~udf-v2-get-connection-callback~1`
+- `req~udf-v2-get-script-callback~1`
 - `req~udf-v2-evolvable-metadata~1`
 - `req~udf-v2-data-contract~1`
 
