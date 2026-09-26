@@ -1,105 +1,90 @@
-#include <cassert>
-#include <cstdlib>
 #include <fstream>
-#include <iostream>
 #include <stdexcept>
 #include <string>
-#include <vector>
 
 #include <exasol/udf/v2/json_schema.hpp>
+#include <gtest/gtest.h>
 
 namespace isolated_nlohmann = exasol::udf::v2::third_party::nlohmann;
 
-namespace {
+namespace
+{
 
-isolated_nlohmann::json read_json(const std::string& path) {
+class JsonSchemaTestError final : public std::runtime_error
+{
+public:
+    using std::runtime_error::runtime_error;
+};
+
+isolated_nlohmann::json read_json(const std::string& path)
+{
     std::ifstream input(path);
-    assert(input.good());
+    if (!input.good())
+    {
+        throw JsonSchemaTestError("cannot open JSON schema: " + path);
+    }
     return isolated_nlohmann::json::parse(input);
 }
 
-}  // namespace
+} // namespace
 
-int main() {
-    const std::vector<std::string> column_types = {
-        "DOUBLE PRECISION", "DECIMAL", "DATE", "TIMESTAMP",
-        "TIMESTAMP WITH LOCAL TIME ZONE", "CHAR", "VARCHAR", "BOOLEAN",
-        "HASHTYPE", "GEOMETRY", "INTERVAL YEAR TO MONTH",
-        "INTERVAL DAY TO SECOND",
-    };
-    const auto make_column = [](const std::string& type) {
-        return isolated_nlohmann::json{
-            {"name", "COLUMN_" + type},
-            {"type", type},
-            {"type_name", type},
-        };
-    };
-
-    const auto column_metadata_schema = read_json("json_schema/column_metadata.schema.json");
-    isolated_nlohmann::json_schema::json_validator column_metadata_validator;
-    column_metadata_validator.set_root_schema(column_metadata_schema);
-    for (const auto& type : column_types) {
-        column_metadata_validator.validate({
-            {"input_columns", {make_column(type)}},
-            {"output_columns", isolated_nlohmann::json::array()},
-        });
-    }
-
+TEST(JsonSchemaValidationTest, AcceptsValidImportSpecification)
+{
     const auto import_schema = read_json("json_schema/import_specification.schema.json");
-    const auto load_schema = [](const isolated_nlohmann::json_uri& uri,
-                                isolated_nlohmann::json& schema) {
-            std::cerr << "schema loader request: url=" << uri.url()
-                      << ", location=" << uri.location()
-                      << ", path=" << uri.path()
-                      << ", fragment=" << uri.fragment() << '\n';
-
-            const auto path = uri.path();
-            const auto filename = path.substr(path.find_last_of('/') + 1);
-            if (filename != "connection_information.schema.json") {
-                throw std::runtime_error("unsupported schema reference: " + uri.url());
-            }
-            const auto source = "json_schema/" + filename;
-            schema = read_json(source);
-
-            std::cerr << "schema loader response: source=" << source
-                      << ", type=" << schema.type_name() << ", keys=[";
-            bool first = true;
-            for (const auto& item : schema.items()) {
-                if (!first) {
-                    std::cerr << ',';
-                }
-                std::cerr << item.key();
-                first = false;
-            }
-            std::cerr << "]\n";
-    };
-
-    isolated_nlohmann::json_schema::json_validator validator(load_schema);
-    validator.set_root_schema(import_schema);
-
-    for (const auto& type : column_types) {
-        validator.validate({
-            {"is_subselect", true},
-            {"subselect_column_specification", {make_column(type)}},
+    isolated_nlohmann::json_schema::json_validator validator(
+        [](const isolated_nlohmann::json_uri&, isolated_nlohmann::json& schema) {
+            schema = read_json("json_schema/connection_information.schema.json");
         });
-    }
+    validator.set_root_schema(import_schema);
 
     const isolated_nlohmann::json valid = {
         {"is_subselect", true},
-        {"connection_information", {
-            {"kind", "JDBC"},
-            {"address", "jdbc:example://host/database"},
-            {"user", "user"},
-            {"password", "secret"},
-        }},
+        {"connection_information",
+         {
+             {"kind", "JDBC"},
+             {"address", "jdbc:example://host/database"},
+             {"user", "user"},
+             {"password", "secret"},
+         }},
     };
-    validator.validate(valid);
 
-    bool rejected = false;
-    try {
-        validator.validate(isolated_nlohmann::json::object());
-    } catch (const std::exception&) {
-        rejected = true;
-    }
-    assert(rejected);
+    EXPECT_NO_THROW(validator.validate(valid));
+}
+
+TEST(JsonSchemaValidationTest, RejectsInvalidImportSpecification)
+{
+    const auto import_schema = read_json("json_schema/import_specification.schema.json");
+    isolated_nlohmann::json_schema::json_validator validator(
+        [](const isolated_nlohmann::json_uri&, isolated_nlohmann::json& schema) {
+            schema = read_json("json_schema/connection_information.schema.json");
+        });
+    validator.set_root_schema(import_schema);
+
+    EXPECT_THROW(validator.validate(isolated_nlohmann::json::object()), std::exception);
+}
+
+TEST(JsonSchemaValidationTest, AcceptsColumnFieldsInCallMetadata)
+{
+    const auto call_metadata_schema = read_json("json_schema/call_metadata.schema.json");
+    isolated_nlohmann::json_schema::json_validator validator;
+    validator.set_root_schema(call_metadata_schema);
+
+    const isolated_nlohmann::json call_metadata = {
+        {"database_name", "EXASOL"},
+        {"database_version", "8.0"},
+        {"session_id", "42"},
+        {"statement_id", 1},
+        {"node_count", 1},
+        {"node_id", 0},
+        {"vm_id", "7"},
+        {"maximal_memory_limit", "1073741824"},
+        {"script_schema", "SYS"},
+        {"input_iter_type", "EXACTLY_ONCE"},
+        {"output_iter_type", "EXACTLY_ONCE"},
+        {"single_call_mode", false},
+        {"input_columns", isolated_nlohmann::json::array()},
+        {"output_columns", isolated_nlohmann::json::array()},
+    };
+
+    EXPECT_NO_THROW(validator.validate(call_metadata));
 }

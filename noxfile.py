@@ -1,12 +1,18 @@
 import argparse
+from dataclasses import dataclass
+import json
 import nox
+import os
 from packaging.version import InvalidVersion, Version
 from pathlib import Path
+import re
+import shutil
 import subprocess
 
 from exasol.slc_ci_setup.nox.tasks import *
 
 ROOT = Path(__file__).parent
+MULL_MUTATION_SCORE_THRESHOLD = 80
 
 
 # default actions to be run if nothing is explicitly specified with the -s option
@@ -183,6 +189,414 @@ def validate_json_schemas(session: nox.Session):
     )
 
 
+@nox.session(name="mull-targets", python=False)
+def list_mull_targets_session(session: nox.Session):
+    """Expose Mull target discovery as a Nox session for CI."""
+    _write_mull_matrix(session)
+
+
+@nox.session(name="mull-clean", python=False)
+def clean_mull_session(session: nox.Session):
+    """Remove Mull reports and stale Bazel output roots."""
+    bazel = os.environ.get("BAZEL", "bazel")
+    v2_root = ROOT / "udf-runner-cpp" / "v2"
+    report_dir = ROOT / ".build_output" / "mull"
+    configured_root = Path(
+        os.environ.get("MULL_BAZEL_OUTPUT_ROOT", ROOT / ".build_output" / "bazel-mull")
+    )
+    output_roots = (configured_root, v2_root / ".build_output" / "bazel-mull")
+
+    for output_root in dict.fromkeys(output_roots):
+        if not output_root.exists():
+            continue
+        _validate_mull_cleanup_path(output_root, configured_root, v2_root)
+        with session.chdir(v2_root):
+            session.run(
+                bazel,
+                f"--output_user_root={output_root}",
+                "shutdown",
+                external=True,
+            )
+        shutil.rmtree(output_root)
+
+    if report_dir.exists():
+        shutil.rmtree(report_dir)
+
+
+def _validate_mull_cleanup_path(path: Path, configured_root: Path, v2_root: Path) -> None:
+    """Reject cleanup paths that could remove unrelated user data."""
+    resolved_path = path.resolve()
+    repository_root = ROOT.resolve()
+    current_root = (ROOT / ".build_output" / "bazel-mull").resolve()
+    legacy_root = (v2_root / ".build_output" / "bazel-mull").resolve()
+    if resolved_path in {current_root, legacy_root}:
+        return
+    if path == configured_root and os.environ.get("MULL_BAZEL_OUTPUT_ROOT"):
+        if resolved_path in {Path("/"), Path.home(), Path("/tmp"), repository_root}:
+            raise ValueError(f"Refusing to remove unsafe Mull output root: {resolved_path}")
+        if not resolved_path.name.startswith("bazel-mull"):
+            raise ValueError(
+                "MULL_BAZEL_OUTPUT_ROOT must name a bazel-mull directory when using "
+                "the mull-clean session"
+            )
+        return
+    raise ValueError(f"Refusing to remove unexpected Mull output root: {resolved_path}")
+
+
+def _write_mull_matrix(session: nox.Session):
+    """List Mull targets and optionally write a GitHub Actions matrix."""
+    parser = argparse.ArgumentParser(usage=f"nox -s {session.name} -- [options]")
+    parser.add_argument(
+        "--github-output-var",
+        help="write the matrix JSON to this variable in GITHUB_OUTPUT",
+    )
+    args = parser.parse_args(session.posargs)
+
+    matrix = json.dumps({"target": list(_get_mull_targets(session))}, separators=(",", ":"))
+    if args.github_output_var:
+        github_output = os.environ.get("GITHUB_OUTPUT")
+        if not github_output:
+            session.error("GITHUB_OUTPUT is required with --github-output-var")
+        with open(github_output, "a") as output:
+            output.write(f"{args.github_output_var}={matrix}\n")
+    else:
+        print(matrix)
+
+
+def _get_mull_targets(session: nox.Session) -> tuple[str, ...]:
+    """Discover Bazel cc_test targets not explicitly excluded from Mull."""
+    v2_root = ROOT / "udf-runner-cpp" / "v2"
+    bazel = os.environ.get("BAZEL", "bazel")
+    bazel_startup_args = []
+    if output_user_root := os.environ.get("MULL_BAZEL_OUTPUT_ROOT"):
+        bazel_startup_args.append(f"--output_user_root={output_user_root}")
+    with session.chdir(v2_root):
+        labels = session.run(
+            bazel,
+            *bazel_startup_args,
+            "query",
+            'kind("cc_test rule", //...) except attr("tags", "no-mull", //...)',
+            "--output=label",
+            silent=True,
+            external=True,
+        )
+
+    targets = tuple(
+        sorted(
+            label.rsplit(":", maxsplit=1)[1]
+            for label in labels.splitlines()
+            if label.startswith("//:") and ":" in label
+        )
+    )
+    if not targets:
+        session.error("No Bazel cc_test targets available for Mull were found")
+    return targets
+
+
+@dataclass(frozen=True)
+class _MullToolchain:
+    bazel: str
+    compiler: str
+    c_compiler: str
+    runner: str
+    frontend: Path
+
+
+def _get_mull_toolchain(session: nox.Session) -> _MullToolchain:
+    llvm_version = os.environ.get("MULL_LLVM_VERSION", "20")
+    bazel = os.environ.get("BAZEL", "bazel")
+    compiler = os.environ.get("MULL_CXX", f"clang++-{llvm_version}")
+    c_compiler = os.environ.get("MULL_CC", compiler.replace("clang++", "clang", 1))
+    runner = os.environ.get("MULL_RUNNER", f"mull-runner-{llvm_version}")
+    frontend = Path(
+        os.environ.get("MULL_IR_FRONTEND", f"/usr/lib/mull-ir-frontend-{llvm_version}")
+    )
+
+    required_tools = [bazel, c_compiler, compiler, runner]
+    missing_tools = [tool for tool in required_tools if shutil.which(tool) is None]
+    if missing_tools:
+        session.error(
+            "Mull requires these executable(s) on PATH: "
+            + ", ".join(missing_tools)
+            + ". Install the matching LLVM/Mull toolchain or override MULL_CXX "
+            "and MULL_RUNNER."
+        )
+    if not frontend.exists():
+        session.error(
+            f"Mull IR frontend does not exist: {frontend}. "
+            "Override MULL_IR_FRONTEND with the version-matched plugin path."
+        )
+    return _MullToolchain(bazel, compiler, c_compiler, runner, frontend)
+
+
+def _get_mull_paths() -> tuple[Path, Path, Path]:
+    v2_root = ROOT / "udf-runner-cpp" / "v2"
+    report_dir = ROOT / ".build_output" / "mull"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    bazel_output_root = Path(
+        os.environ.get("MULL_BAZEL_OUTPUT_ROOT", ROOT / ".build_output" / "bazel-mull")
+    )
+    return v2_root, report_dir, bazel_output_root
+
+
+def _generate_mull_config(
+    session: nox.Session,
+    toolchain: _MullToolchain,
+    targets: list[str],
+    v2_root: Path,
+    bazel_output_root: Path,
+    generated_config: Path,
+) -> None:
+    session.run(
+        "python",
+        str(ROOT / "tools" / "generate_mull_config.py"),
+        "--bazel",
+        toolchain.bazel,
+        "--output-user-root",
+        str(bazel_output_root),
+        "--v2-root",
+        str(v2_root),
+        "--template",
+        str(ROOT / "mull.yml"),
+        "--output",
+        str(generated_config),
+        *sum((["--target", target] for target in targets), []),
+    )
+
+
+def _build_mull_targets(
+    session: nox.Session,
+    toolchain: _MullToolchain,
+    targets: list[str],
+    bazel_startup_args: list[str],
+    generated_config: Path,
+    run_env: dict[str, str],
+) -> Path:
+    bazel_args = [
+        "build",
+        "--compilation_mode=dbg",
+        "--copt=-O0",
+        "--copt=-g",
+        "--copt=-grecord-command-line",
+        f"--copt=-fpass-plugin={toolchain.frontend}",
+        f"--action_env=MULL_CONFIG={generated_config}",
+        "--per_file_copt=.*\\.c$@-std=gnu11",
+        f"--repo_env=CC={toolchain.c_compiler}",
+        f"--repo_env=CXX={toolchain.compiler}",
+        "--verbose_failures",
+        *targets,
+    ]
+    if build_jobs := os.environ.get("MULL_BAZEL_BUILD_JOBS"):
+        bazel_args.insert(1, f"--jobs={build_jobs}")
+
+    session.run(toolchain.bazel, *bazel_startup_args, *bazel_args, env=run_env)
+    return Path(
+        session.run(
+            toolchain.bazel,
+            *bazel_startup_args,
+            "info",
+            "bazel-bin",
+            "--compilation_mode=dbg",
+            silent=True,
+            external=True,
+        ).strip()
+    )
+
+
+def _get_mull_library_search_args(bazel_bin: Path) -> list[str]:
+    library_paths = sorted(bazel_bin.glob("_solib_*"))
+    library_paths.extend(
+        path
+        for path in (
+            Path("/lib64"),
+            Path("/lib/x86_64-linux-gnu"),
+            Path("/usr/lib/x86_64-linux-gnu"),
+        )
+        if path.is_dir()
+    )
+    return [argument for path in library_paths for argument in ("--ld-search-path", str(path))]
+
+
+@dataclass(frozen=True)
+class _MullMutationResult:
+    killed: int
+    total: int
+
+    @property
+    def score(self) -> float:
+        return self.killed * 100 / self.total
+
+
+def _get_mull_mutant_total(report: object) -> int | None:
+    if not isinstance(report, dict) or not isinstance(report.get("files"), dict):
+        return None
+
+    total = 0
+    for file_report in report["files"].values():
+        if not isinstance(file_report, dict) or not isinstance(file_report.get("mutants"), list):
+            return None
+        for mutant in file_report["mutants"]:
+            if not isinstance(mutant, dict) or not isinstance(mutant.get("status"), str):
+                return None
+        total += len(file_report["mutants"])
+
+    return total
+
+
+def _parse_mull_mutation_result(output: str, report: object) -> _MullMutationResult | None:
+    total = _get_mull_mutant_total(report)
+    if total is None:
+        return None
+    if total == 0:
+        return _MullMutationResult(0, 0)
+
+    killed = [
+        (int(killed), int(reported_total))
+        for killed, reported_total in re.findall(
+            r"Killed mutants \((\d+)/(\d+)\)", output
+        )
+    ]
+    if killed:
+        killed_count, reported_total = max(killed, key=lambda count: count[1])
+        if reported_total != total:
+            return None
+        return _MullMutationResult(killed_count, total)
+
+    survived = [
+        (int(survived), int(reported_total))
+        for survived, reported_total in re.findall(
+            r"Survived mutants \((\d+)/(\d+)\)", output
+        )
+    ]
+    if survived:
+        survived_count, reported_total = max(survived, key=lambda count: count[1])
+        if reported_total != total:
+            return None
+        return _MullMutationResult(total - survived_count, total)
+
+    if re.search(r"Surviving mutants:\s*\d+", output, re.IGNORECASE):
+        return _MullMutationResult(0, total)
+
+    return None
+
+
+def _warn_about_zero_mutants(target_name: str, report_file: Path) -> None:
+    message = (
+        f"Mull target '{target_name}' produced no mutants; mutation coverage is unavailable "
+        f"(report: {report_file})"
+    )
+    print(f"WARNING: {message}")
+    if os.environ.get("GITHUB_ACTIONS", "").lower() == "true":
+        escaped_message = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+        print(f"::warning title=Mull mutation testing::{escaped_message}")
+
+
+def _run_mull_target(
+    session: nox.Session,
+    toolchain: _MullToolchain,
+    target: str,
+    report_dir: Path,
+    library_search_args: list[str],
+    run_env: dict[str, str],
+) -> None:
+    target_name = target.rsplit(":", maxsplit=1)[1]
+    executable = Path("bazel-bin") / target_name
+    if not executable.exists():
+        session.error(f"Bazel did not produce expected test binary: {executable}")
+    mull_output = session.run(
+        toolchain.runner,
+        *library_search_args,
+        "--ide-reporter-show-killed",
+        "--reporters",
+        "IDE",
+        "--reporters",
+        "Elements",
+        "--report-dir",
+        str(report_dir),
+        "--report-name",
+        target_name,
+        executable,
+        env=run_env,
+        silent=True,
+        success_codes=(0, 1),
+    )
+    report_file = report_dir / f"{target_name}.txt"
+    elements_report_file = report_dir / f"{target_name}.json"
+    output = mull_output if isinstance(mull_output, str) else ""
+    if not report_file.exists() and re.search(r"No mutants found", output, re.IGNORECASE):
+        _warn_about_zero_mutants(target_name, report_file)
+        return
+    if not report_file.exists():
+        session.error(f"Mull did not produce the expected report: {report_file}")
+    if not elements_report_file.exists():
+        session.error(f"Mull did not produce the expected Elements report: {elements_report_file}")
+    if isinstance(mull_output, str):
+        print(mull_output, end="")
+    try:
+        elements_report = json.loads(elements_report_file.read_text())
+    except json.JSONDecodeError as error:
+        session.error(f"Could not parse Mull Elements report '{elements_report_file}': {error}")
+    mutation_result = _parse_mull_mutation_result(
+        f"{mull_output or ''}\n{report_file.read_text()}", elements_report
+    )
+    if mutation_result is None:
+        session.error(f"Could not parse Mull mutation results for target '{target_name}'")
+    if mutation_result.total == 0:
+        _warn_about_zero_mutants(target_name, report_file)
+        return
+    if mutation_result.killed * 100 < MULL_MUTATION_SCORE_THRESHOLD * mutation_result.total:
+        session.error(
+            f"Mull target '{target_name}' mutation score is "
+            f"{mutation_result.score:.1f}%, below the "
+            f"{MULL_MUTATION_SCORE_THRESHOLD}% threshold"
+        )
+
+
+@nox.session(name="mull", python=False)
+def run_mull(session: nox.Session):
+    """Run Mull mutation testing for the functional v2 C++ tests."""
+    parser = argparse.ArgumentParser(usage=f"nox -s {session.name} -- [options]")
+    parser.add_argument("--target")
+    args = parser.parse_args(session.posargs)
+
+    toolchain = _get_mull_toolchain(session)
+    v2_root, report_dir, bazel_output_root = _get_mull_paths()
+
+    target_names = (args.target,) if args.target else _get_mull_targets(session)
+    targets = [f"//:{target}" for target in target_names]
+    bazel_startup_args = [f"--output_user_root={bazel_output_root}"]
+    generated_config = report_dir / "mull.yml"
+    run_env = os.environ.copy()
+    run_env["MULL_CONFIG"] = str(generated_config)
+
+    with session.chdir(v2_root):
+        _generate_mull_config(
+            session,
+            toolchain,
+            targets,
+            v2_root,
+            bazel_output_root,
+            generated_config,
+        )
+        bazel_bin = _build_mull_targets(
+            session,
+            toolchain,
+            targets,
+            bazel_startup_args,
+            generated_config,
+            run_env,
+        )
+        library_search_args = _get_mull_library_search_args(bazel_bin)
+        for target in targets:
+            _run_mull_target(
+                session,
+                toolchain,
+                target,
+                report_dir,
+                library_search_args,
+                run_env,
+            )
+
 @nox.session(name="run-oft", python=False)
 def run_oft_udf_client_plaintext(session: nox.Session):
     """
@@ -198,3 +612,98 @@ def run_oft_udf_client_html(session: nox.Session):
     """
     html_file = session.posargs[0] if session.posargs else "report.html"
     run_oft_for_udf_client(session, "-o", "html", "-f", html_file)
+
+
+def _get_v2_fuzz_targets(session: nox.Session) -> tuple[str, ...]:
+    """Discover v2 fuzz targets from the Bazel package using a rule pattern."""
+    v2_dir = ROOT / "udf-runner-cpp" / "v2"
+    with session.chdir(v2_dir):
+        labels = session.run(
+            "bazel",
+            "query",
+            'filter("_fuzz_test$", //...)',
+            "--output=label",
+            silent=True,
+            external=True,
+        )
+
+    suffix = "_fuzz_test"
+    targets = {
+        label.removeprefix("//:").removesuffix(suffix)
+        for label in labels.splitlines()
+        if label.startswith("//:") and label.endswith(suffix)
+    }
+    if not targets:
+        session.error("No v2 cc_fuzz_test targets were found")
+    return tuple(sorted(targets))
+
+
+@nox.session(name="v2-fuzzing-targets", python=False)
+def list_v2_fuzzing_targets(session: nox.Session):
+    """Discover v2 Bazel fuzz targets and optionally write a GitHub matrix."""
+    parser = argparse.ArgumentParser(
+        usage=f"nox -s {session.name} -- [options]",
+    )
+    parser.add_argument(
+        "--github-output-var",
+        help="write the matrix JSON to this variable in GITHUB_OUTPUT",
+    )
+    args = parser.parse_args(session.posargs)
+
+    matrix = json.dumps(
+        {"target": list(_get_v2_fuzz_targets(session))},
+        separators=(",", ":"),
+    )
+    if args.github_output_var:
+        github_output = os.environ.get("GITHUB_OUTPUT")
+        if not github_output:
+            session.error("GITHUB_OUTPUT is required with --github-output-var")
+        with open(github_output, "a") as output:
+            output.write(f"{args.github_output_var}={matrix}\n")
+    else:
+        print(matrix)
+
+
+@nox.session(name="v2-fuzzing", python=False)
+def run_v2_fuzzing(session: nox.Session):
+    """Run v2 Bazel fuzzers with configurable sanitizer and output settings."""
+    parser = argparse.ArgumentParser(
+        usage=f"nox -s {session.name} -- [options]",
+    )
+    parser.add_argument("--timeout-secs", type=int, default=300)
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "fuzzing",
+    )
+    parser.add_argument("--bazel-config", default="asan-ubsan-libfuzzer")
+    parser.add_argument("--target", help="run only this discovered fuzz target")
+    args = parser.parse_args(session.posargs)
+
+    if args.timeout_secs < 0:
+        session.error("--timeout-secs must be non-negative")
+
+    output_root = args.output_root.expanduser().resolve()
+
+    targets = _get_v2_fuzz_targets(session)
+    if args.target:
+        if args.target not in targets:
+            session.error(f"Unknown v2 fuzz target: {args.target}")
+        targets = (args.target,)
+    v2_dir = ROOT / "udf-runner-cpp" / "v2"
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    with session.chdir(v2_dir):
+        for target in targets:
+            target_output_root = output_root / target
+            target_output_root.mkdir(parents=True, exist_ok=True)
+            session.run(
+                "bazel",
+                "run",
+                f"--config={args.bazel_config}",
+                f"//:{target}_fuzz_test_run",
+                "--",
+                f"--fuzzing_output_root={target_output_root}",
+                f"--timeout_secs={args.timeout_secs}",
+                external=True,
+            )

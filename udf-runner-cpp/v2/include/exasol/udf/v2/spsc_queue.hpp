@@ -8,13 +8,13 @@
 #include <readerwriterqueue.h>
 #undef moodycamel
 
-namespace exasol::udf::v2 {
+namespace exasol::udf::v2
+{
 
 template <typename T>
 using SpscQueue = third_party::moodycamel::ReaderWriterQueue<T>;
 
 template <typename T>
-using SpscCircularBuffer =
-    third_party::moodycamel::BlockingReaderWriterCircularBuffer<T>;
+using SpscCircularBuffer = third_party::moodycamel::BlockingReaderWriterCircularBuffer<T>;
 
-}  // namespace exasol::udf::v2
+} // namespace exasol::udf::v2

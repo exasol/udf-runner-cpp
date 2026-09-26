@@ -4,7 +4,21 @@
 #include <cstdint>
 #include <vector>
 
-int main() {
+#include <gtest/gtest.h>
+
+namespace
+{
+
+bool verify_frame(const exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder& builder)
+{
+    exasol::udf::v2::third_party::flatbuffers::Verifier verifier(
+        builder.GetBufferPointer(), builder.GetSize());
+    return exasol::udf::protocol::VerifyFrameBuffer(verifier);
+}
+
+} // namespace
+
+TEST(UdfProtocolTest, EncodesProtocolFrames) {
     {
         exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder builder;
         const auto version = exasol::udf::protocol::CreateVersion(builder, 2, 0);
@@ -36,8 +50,7 @@ int main() {
         const auto frame = exasol::udf::protocol::CreateFrame(builder, 0, control_message);
         builder.Finish(frame);
 
-        assert(exasol::udf::protocol::VerifyFrameBuffer(
-            builder.GetBufferPointer(), builder.GetSize()));
+        assert(verify_frame(builder));
         const auto* decoded = exasol::udf::protocol::GetFrame(builder.GetBufferPointer());
         const auto* decoded_capabilities =
             decoded->control_message()->value_as_ServerCapabilities();
@@ -70,8 +83,7 @@ int main() {
             builder, 7, control_message);
         builder.Finish(frame);
 
-        assert(exasol::udf::protocol::VerifyFrameBuffer(
-            builder.GetBufferPointer(), builder.GetSize()));
+        assert(verify_frame(builder));
         const auto* decoded = exasol::udf::protocol::GetFrame(builder.GetBufferPointer());
         assert(decoded->stream_id() == 7);
         assert(decoded->data_record_batch_metadata() == nullptr);
@@ -94,8 +106,7 @@ int main() {
         const auto frame = exasol::udf::protocol::CreateFrame(builder, 7, 0, batch);
         builder.Finish(frame);
 
-        assert(exasol::udf::protocol::VerifyFrameBuffer(
-            builder.GetBufferPointer(), builder.GetSize()));
+        assert(verify_frame(builder));
         const auto* decoded = exasol::udf::protocol::GetFrame(builder.GetBufferPointer());
         assert(decoded->control_message() == nullptr);
         assert(decoded->data_record_batch_metadata()->length() == 3);
@@ -119,8 +130,7 @@ int main() {
             builder, 7, control_message, batch);
         builder.Finish(frame);
 
-        assert(exasol::udf::protocol::VerifyFrameBuffer(
-            builder.GetBufferPointer(), builder.GetSize()));
+        assert(verify_frame(builder));
         const auto* decoded = exasol::udf::protocol::GetFrame(builder.GetBufferPointer());
         assert(decoded->control_message()->value_as_OpenCall()->call_name()->str() == "first_batch");
         assert(decoded->data_record_batch_metadata() != nullptr);
@@ -144,8 +154,7 @@ int main() {
             builder, 7, control_message);
         builder.Finish(frame);
 
-        assert(exasol::udf::protocol::VerifyFrameBuffer(
-            builder.GetBufferPointer(), builder.GetSize()));
+        assert(verify_frame(builder));
         const auto* decoded = exasol::udf::protocol::GetFrame(builder.GetBufferPointer());
         const auto* decoded_close = decoded->control_message()->value_as_CloseControlMessage();
         assert(decoded_close->close_call() != nullptr);
