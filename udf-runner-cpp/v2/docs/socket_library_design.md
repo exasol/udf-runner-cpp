@@ -4,7 +4,7 @@
 
 This document defines the public design for the v2 stream-socket library. Its
 first implementation supports Unix-domain stream sockets addressed by filesystem
-paths.  The API is deliberately shaped so that TCP and TLS can be added without
+paths. The API is deliberately shaped so that TCP and TLS can be added without
 changing code that consumes a `Socket`.
 
 The design takes the useful separation between a common socket abstraction,
@@ -26,15 +26,15 @@ uses explicit move-only ownership instead of shared or copyable socket state.
 
 ## Scope boundaries
 
-The following capabilities are needed by the broader networking stack, but
-required by transport-specific or higher-level components rather than the core
-`Socket` abstraction:
+The following capabilities are needed by the broader networking stack like
+transport-specific or higher-level components. But are not required by the
+core `Socket` abstraction that is being focused now:
 
 - TCP, TLS, datagram sockets, abstract-namespace Unix addresses, name
   resolution, and transport-specific socket-option policy.
 - Timeouts, polling loops, and protocol framing.
 
-Here the socket abstraction does not provide implicit unlinking of a filesystem path
+The socket abstraction does not provide implicit unlinking of a filesystem path
 before bind or during destruction, or thread safety
 for concurrent mutation of an individual socket object.
 
