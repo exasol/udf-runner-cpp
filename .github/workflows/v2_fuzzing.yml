@@ -26,7 +26,7 @@ jobs:
     outputs:
       fuzz_matrix: ${{ steps.discover.outputs.fuzz_matrix }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Install dependencies
@@ -35,7 +35,7 @@ jobs:
           sudo apt-get install -y build-essential clang curl
           pipx install poetry
           poetry install --no-interaction --no-ansi --only main
-      - uses: bazel-contrib/setup-bazel@8cb04a772ab4c1eb984e9c1b493a182e96c5e425 # 0.19.0
+      - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
         with:
           bazelisk-cache: true
       - name: Discover fuzz targets
@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Install dependencies
@@ -60,7 +60,7 @@ jobs:
           sudo apt-get install -y build-essential clang curl
           pipx install poetry
           poetry install --no-interaction --no-ansi --only main
-      - uses: bazel-contrib/setup-bazel@8cb04a772ab4c1eb984e9c1b493a182e96c5e425 # 0.19.0
+      - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
         with:
           bazelisk-cache: true
       - name: Run bounded fuzzing campaign
@@ -73,7 +73,7 @@ jobs:
           FUZZ_TARGET: ${{ matrix.target }}
       - name: Upload fuzzing artifacts
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: v2-fuzzing-${{ matrix.target }}
           path: ${{ runner.temp }}/fuzzing/${{ matrix.target }}
