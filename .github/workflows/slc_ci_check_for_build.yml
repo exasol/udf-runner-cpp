@@ -16,26 +16,31 @@ on:
         description: "Build-Mode: Possible value 'no_build_needed', 'normal', 'rebuild'"
         value: ${{ jobs.check_for_build.outputs.build_mode }}
 
+permissions:
+  contents: read
+
 jobs:
   check_for_build:
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: ${{ github.event_name == 'pull_request' }}
         with:
           fetch-depth: 0
           submodules: 'recursive'
           ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: ${{ github.event_name != 'pull_request' }}
         with:
           fetch-depth: 0
           submodules: 'recursive'
+          persist-credentials: false
 
       - name: Setup Python & Poetry Environment
-        uses: exasol/python-toolbox/.github/actions/python-environment@v9
+        uses: exasol/python-toolbox/.github/actions/python-environment@8b2cd1ebe7e8ad923be55a95ec5da6f4867d1a8e # v11
         with:
           python-version: "3.10"
           poetry-version: "2.3.0"

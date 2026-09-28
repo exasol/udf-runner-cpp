@@ -6,13 +6,18 @@ on:
       - master
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Setup Python & Poetry Environment
-        uses: exasol/python-toolbox/.github/actions/python-environment@v6
+        uses: exasol/python-toolbox/.github/actions/python-environment@8b2cd1ebe7e8ad923be55a95ec5da6f4867d1a8e # v11
         with:
           python-version: "3.10"
           poetry-version: "2.3.0"
@@ -22,7 +27,7 @@ jobs:
       - name: Run Plaintext Report
         run: |
           poetry run nox -s run-oft
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: "oft_report.html"

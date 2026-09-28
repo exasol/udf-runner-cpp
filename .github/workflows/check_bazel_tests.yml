@@ -6,6 +6,9 @@ on:
       - main
   pull_request:
 
+permissions:
+  contents: read
+
 env:
   USE_BAZEL_VERSION: 8.3.1
   BAZEL_PACKAGE_VERSION: 8.3.1
@@ -18,14 +21,15 @@ jobs:
   v2:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential clang curl lcov
-      - uses: bazel-contrib/setup-bazel@0.19.0
+      - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
         with:
           bazelisk-cache: true
       - name: Build
@@ -71,7 +75,7 @@ jobs:
         working-directory: ./udf-runner-cpp/v2
       - name: SonarCloud Scan
         if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-        uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
+        uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
         with:
           projectBaseDir: ./udf-runner-cpp/v2
         env:
@@ -80,7 +84,9 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Search for duplicated error codes
         run: bash find_duplicate_error_codes.sh
 
@@ -125,7 +131,9 @@ jobs:
           - test: "--config=asan //script_options_parser/legacy/test:script-options-legacy-parser-test"
             name: "script_options_parser_legacy_with_asan"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -147,7 +155,7 @@ jobs:
           OPENSSL_LIBRARY_PREFIX: "/usr/lib/x86_64-linux-gnu"
           OPENSSL_INCLUDE_PREFIX: "/usr/include/openssl"
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
           name: "${{ matrix.name }}"

@@ -4,6 +4,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   USE_BAZEL_VERSION: 8.3.1
 
@@ -13,14 +16,16 @@ jobs:
     outputs:
       mull_matrix: ${{ steps.discover.outputs.mull_matrix }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: bazel-contrib/setup-bazel@8cb04a772ab4c1eb984e9c1b493a182e96c5e425 # 0.19.0
+      - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
         with:
           bazelisk-cache: true
 
       - name: Setup Python & Poetry Environment
-        uses: exasol/python-toolbox/.github/actions/python-environment@v9
+        uses: exasol/python-toolbox/.github/actions/python-environment@8b2cd1ebe7e8ad923be55a95ec5da6f4867d1a8e # v11
         with:
           python-version: "3.10"
           poetry-version: "2.3.0"
@@ -39,9 +44,11 @@ jobs:
       matrix: ${{ fromJSON(needs.discover_mull_targets.outputs.mull_matrix) }}
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: bazel-contrib/setup-bazel@8cb04a772ab4c1eb984e9c1b493a182e96c5e425 # 0.19.0
+      - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
         with:
           bazelisk-cache: true
 
@@ -54,7 +61,7 @@ jobs:
           mull-runner-20 --version
 
       - name: Setup Python & Poetry Environment
-        uses: exasol/python-toolbox/.github/actions/python-environment@v9
+        uses: exasol/python-toolbox/.github/actions/python-environment@8b2cd1ebe7e8ad923be55a95ec5da6f4867d1a8e # v11
         with:
           python-version: "3.10"
           poetry-version: "2.3.0"
@@ -63,11 +70,13 @@ jobs:
         run: poetry install --with dev
 
       - name: Run Mull mutation tests
-        run: poetry run -- nox --sessions=mull -- --target "${{ matrix.target }}"
+        run: poetry run -- nox --sessions=mull -- --target "${MATRIX_TARGET}"
+        env:
+          MATRIX_TARGET: ${{ matrix.target }}
 
       - name: Upload Mull reports
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: mull-reports-${{ matrix.target }}
           path: .build_output/mull/

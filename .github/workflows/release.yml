@@ -20,13 +20,14 @@ jobs:
     env:
       TAG: ${{ inputs.tag || github.ref_name }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
+          persist-credentials: false
 
       - name: Set up Python & Poetry Environment
-        uses: exasol/python-toolbox/.github/actions/python-environment@v9
+        uses: exasol/python-toolbox/.github/actions/python-environment@8b2cd1ebe7e8ad923be55a95ec5da6f4867d1a8e # v11
         with:
           python-version: "3.10"
           poetry-version: "2.3.0"
