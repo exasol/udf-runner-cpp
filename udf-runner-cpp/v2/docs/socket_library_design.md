@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the public design for the v2 stream-socket library.  Its
+This document defines the public design for the v2 stream-socket library. Its
 first implementation supports Unix-domain stream sockets addressed by filesystem
 paths.  The API is deliberately shaped so that TCP and TLS can be added without
 changing code that consumes a `Socket`.
@@ -60,7 +60,7 @@ This keeps the contract usable by TLS, whose I/O does not map one-for-one to
 `readv` and `writev`.
 
 ```cpp
-namespace exasol::udf::v2 {
+namespace exasol::udf::v2::socket {
 
 enum class Shutdown { receive, send, both };
 
@@ -111,7 +111,7 @@ protected:
     Socket& operator=(Socket&&) = default;
 };
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::socket
 ```
 
 The outer span and each contained byte span are non-owning. Their memory and
@@ -177,7 +177,7 @@ and cancellation policy.
 ## Unix sockets
 
 ```cpp
-namespace exasol::udf::v2 {
+namespace exasol::udf::v2::socket {
 
 class UnixSocket final : public Socket {
 public:
@@ -217,7 +217,7 @@ public:
     void unlink_path();
 };
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::socket
 ```
 
 `UnixSocket::connect` creates a close-on-exec stream socket and connects it to
