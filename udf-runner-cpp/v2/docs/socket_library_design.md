@@ -26,9 +26,9 @@ uses explicit move-only ownership instead of shared or copyable socket state.
 
 ## Scope boundaries
 
-The following capabilities are needed by the broader networking stack like
-transport-specific or higher-level components. But are not required by the
-core `Socket` abstraction that is being focused now:
+The following capabilities are needed by the broader networking stack but are
+provided by transport-specific or higher-level components, rather than by the
+core `Socket` abstraction:
 
 - TCP, TLS, datagram sockets, abstract-namespace Unix addresses, name
   resolution, and transport-specific socket-option policy.
