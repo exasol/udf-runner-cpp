@@ -12,6 +12,9 @@ namespace exasol::udf::v2::socket
 class UnixSocket final : public Socket
 {
 public:
+    using Socket::read_some;
+    using Socket::write_some;
+
     UnixSocket() noexcept;
     ~UnixSocket() override;
 
