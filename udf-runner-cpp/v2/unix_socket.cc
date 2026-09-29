@@ -1,26 +1,25 @@
 #include <exasol/udf/v2/unix_socket.hpp>
 
 #include <sys/un.h>
+#include <sys/uio.h>
 #include <unistd.h>
 
 #include <cerrno>
 #include <cstddef>
 #include <cstring>
+#include <limits>
+#include <limits.h>
 #include <stdexcept>
 #include <string>
 #include <system_error>
 #include <utility>
+#include <vector>
 
 namespace exasol::udf::v2::socket
 {
 
 namespace
 {
-
-[[noreturn]] void not_implemented()
-{
-    throw std::logic_error("Unix socket library is not implemented yet");
-}
 
 sockaddr_un make_socket_address(const std::filesystem::path& path, socklen_t& length)
 {
@@ -67,6 +66,43 @@ void check_unix_stream_socket(const int file_descriptor)
     {
         throw std::system_error(EPROTOTYPE, std::generic_category(), "expected Unix stream socket");
     }
+}
+
+template <typename Buffer>
+std::vector<iovec> make_iovecs(const std::span<const Buffer> buffers)
+{
+    if (buffers.size() > IOV_MAX)
+    {
+        throw std::system_error(EINVAL, std::generic_category(), "too many I/O buffers");
+    }
+
+    std::size_t total_size = 0;
+    std::vector<iovec> iovecs;
+    iovecs.reserve(buffers.size());
+    for (const Buffer buffer : buffers)
+    {
+        if (buffer.size() > static_cast<std::size_t>(std::numeric_limits<ssize_t>::max()) - total_size)
+        {
+            throw std::system_error(EINVAL, std::generic_category(), "I/O buffer size is too large");
+        }
+        total_size += buffer.size();
+        iovecs.push_back({const_cast<std::byte*>(buffer.data()), buffer.size()});
+    }
+    return iovecs;
+}
+
+int shutdown_direction(const Shutdown how)
+{
+    switch (how)
+    {
+    case Shutdown::receive:
+        return SHUT_RD;
+    case Shutdown::send:
+        return SHUT_WR;
+    case Shutdown::both:
+        return SHUT_RDWR;
+    }
+    throw std::logic_error("invalid socket shutdown direction");
 }
 
 } // namespace
@@ -130,19 +166,57 @@ OwnedFileDescriptor UnixSocket::release_native_handle() noexcept
     return OwnedFileDescriptor::adopt_native_handle(released_fd);
 }
 
-void UnixSocket::shutdown(Shutdown)
+void UnixSocket::shutdown(const Shutdown how)
 {
-    not_implemented();
+    if (::shutdown(file_descriptor.native_handle(), shutdown_direction(how)) == -1)
+    {
+        throw std::system_error(errno, std::generic_category(), "shutdown Unix socket");
+    }
 }
 
-std::size_t UnixSocket::read_some(std::span<const std::span<std::byte>>)
+std::size_t UnixSocket::read_some(const std::span<const std::span<std::byte>> buffers)
 {
-    not_implemented();
+    std::vector<iovec> iovecs = make_iovecs(buffers);
+    if (iovecs.empty())
+    {
+        return 0;
+    }
+
+    ssize_t result = -1;
+    do
+    {
+        result = ::readv(file_descriptor.native_handle(), iovecs.data(), static_cast<int>(iovecs.size()));
+    } while (result == -1 && errno == EINTR);
+
+    if (result == -1)
+    {
+        throw std::system_error(errno, std::generic_category(), "read from Unix socket");
+    }
+    return static_cast<std::size_t>(result);
 }
 
-std::size_t UnixSocket::write_some(std::span<const std::span<const std::byte>>)
+std::size_t UnixSocket::write_some(const std::span<const std::span<const std::byte>> buffers)
 {
-    not_implemented();
+    std::vector<iovec> iovecs = make_iovecs(buffers);
+    if (iovecs.empty())
+    {
+        return 0;
+    }
+
+    msghdr message{};
+    message.msg_iov    = iovecs.data();
+    message.msg_iovlen = iovecs.size();
+    ssize_t result     = -1;
+    do
+    {
+        result = ::sendmsg(file_descriptor.native_handle(), &message, MSG_NOSIGNAL);
+    } while (result == -1 && errno == EINTR);
+
+    if (result == -1)
+    {
+        throw std::system_error(errno, std::generic_category(), "write to Unix socket");
+    }
+    return static_cast<std::size_t>(result);
 }
 
 UnixSocket::UnixSocket(OwnedFileDescriptor owned_fd) noexcept : file_descriptor(std::move(owned_fd))
