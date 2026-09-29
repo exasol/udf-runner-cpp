@@ -1,5 +1,7 @@
 
 load("//:variables.bzl", "VM_ENABLED_DEFINES")
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@rules_shell//shell:sh_library.bzl", "sh_library")
 
 
 
