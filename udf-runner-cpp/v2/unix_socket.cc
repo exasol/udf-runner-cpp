@@ -21,89 +21,93 @@ namespace exasol::udf::v2::socket
 namespace
 {
 
-sockaddr_un make_socket_address(const std::filesystem::path& path, socklen_t& length)
-{
-    const std::string path_string = path.string();
-    if (path_string.empty() || path_string.find('\0') != std::string::npos ||
-        path_string.size() >= sizeof(sockaddr_un::sun_path))
+    sockaddr_un make_socket_address(const std::filesystem::path& path, socklen_t& length)
     {
-        throw std::system_error(ENAMETOOLONG, std::generic_category(), "invalid Unix socket path");
-    }
-
-    sockaddr_un address{};
-    address.sun_family = AF_UNIX;
-    std::memcpy(address.sun_path, path_string.data(), path_string.size());
-    length = static_cast<socklen_t>(offsetof(sockaddr_un, sun_path) + path_string.size() + 1);
-    return address;
-}
-
-[[nodiscard]] OwnedFileDescriptor create_socket()
-{
-    const int socket_fd = ::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
-    if (socket_fd == -1)
-    {
-        throw std::system_error(errno, std::generic_category(), "create Unix socket");
-    }
-    return OwnedFileDescriptor::adopt_native_handle(socket_fd);
-}
-
-void check_unix_stream_socket(const int file_descriptor)
-{
-    int domain              = 0;
-    socklen_t domain_length = sizeof(domain);
-    if (::getsockopt(file_descriptor, SOL_SOCKET, SO_DOMAIN, &domain, &domain_length) == -1)
-    {
-        throw std::system_error(errno, std::generic_category(), "inspect socket domain");
-    }
-
-    int type              = 0;
-    socklen_t type_length = sizeof(type);
-    if (::getsockopt(file_descriptor, SOL_SOCKET, SO_TYPE, &type, &type_length) == -1)
-    {
-        throw std::system_error(errno, std::generic_category(), "inspect socket type");
-    }
-    if (domain != AF_UNIX || type != SOCK_STREAM)
-    {
-        throw std::system_error(EPROTOTYPE, std::generic_category(), "expected Unix stream socket");
-    }
-}
-
-template <typename Buffer>
-std::vector<iovec> make_iovecs(const std::span<const Buffer> buffers)
-{
-    if (buffers.size() > IOV_MAX)
-    {
-        throw std::system_error(EINVAL, std::generic_category(), "too many I/O buffers");
-    }
-
-    std::size_t total_size = 0;
-    std::vector<iovec> iovecs;
-    iovecs.reserve(buffers.size());
-    for (const Buffer buffer : buffers)
-    {
-        if (buffer.size() > static_cast<std::size_t>(std::numeric_limits<ssize_t>::max()) - total_size)
+        const std::string path_string = path.string();
+        if (path_string.empty() || path_string.find('\0') != std::string::npos ||
+            path_string.size() >= sizeof(sockaddr_un::sun_path))
         {
-            throw std::system_error(EINVAL, std::generic_category(), "I/O buffer size is too large");
+            throw std::system_error(ENAMETOOLONG, std::generic_category(),
+                                    "invalid Unix socket path");
         }
-        total_size += buffer.size();
-        iovecs.push_back({const_cast<std::byte*>(buffer.data()), buffer.size()});
-    }
-    return iovecs;
-}
 
-int shutdown_direction(const Shutdown how)
-{
-    switch (how)
-    {
-    case Shutdown::receive:
-        return SHUT_RD;
-    case Shutdown::send:
-        return SHUT_WR;
-    case Shutdown::both:
-        return SHUT_RDWR;
+        sockaddr_un address{};
+        address.sun_family = AF_UNIX;
+        std::memcpy(address.sun_path, path_string.data(), path_string.size());
+        length = static_cast<socklen_t>(offsetof(sockaddr_un, sun_path) + path_string.size() + 1);
+        return address;
     }
-    throw std::logic_error("invalid socket shutdown direction");
-}
+
+    [[nodiscard]] OwnedFileDescriptor create_socket()
+    {
+        const int socket_fd = ::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+        if (socket_fd == -1)
+        {
+            throw std::system_error(errno, std::generic_category(), "create Unix socket");
+        }
+        return OwnedFileDescriptor::adopt_native_handle(socket_fd);
+    }
+
+    void check_unix_stream_socket(const int file_descriptor)
+    {
+        int domain              = 0;
+        socklen_t domain_length = sizeof(domain);
+        if (::getsockopt(file_descriptor, SOL_SOCKET, SO_DOMAIN, &domain, &domain_length) == -1)
+        {
+            throw std::system_error(errno, std::generic_category(), "inspect socket domain");
+        }
+
+        int type              = 0;
+        socklen_t type_length = sizeof(type);
+        if (::getsockopt(file_descriptor, SOL_SOCKET, SO_TYPE, &type, &type_length) == -1)
+        {
+            throw std::system_error(errno, std::generic_category(), "inspect socket type");
+        }
+        if (domain != AF_UNIX || type != SOCK_STREAM)
+        {
+            throw std::system_error(EPROTOTYPE, std::generic_category(),
+                                    "expected Unix stream socket");
+        }
+    }
+
+    template <typename Buffer>
+    std::vector<iovec> make_iovecs(const std::span<const Buffer> buffers)
+    {
+        if (buffers.size() > IOV_MAX)
+        {
+            throw std::system_error(EINVAL, std::generic_category(), "too many I/O buffers");
+        }
+
+        std::size_t total_size = 0;
+        std::vector<iovec> iovecs;
+        iovecs.reserve(buffers.size());
+        for (const Buffer buffer : buffers)
+        {
+            if (buffer.size() >
+                static_cast<std::size_t>(std::numeric_limits<ssize_t>::max()) - total_size)
+            {
+                throw std::system_error(EINVAL, std::generic_category(),
+                                        "I/O buffer size is too large");
+            }
+            total_size += buffer.size();
+            iovecs.push_back({const_cast<std::byte*>(buffer.data()), buffer.size()});
+        }
+        return iovecs;
+    }
+
+    int shutdown_direction(const Shutdown how)
+    {
+        switch (how)
+        {
+            case Shutdown::receive:
+                return SHUT_RD;
+            case Shutdown::send:
+                return SHUT_WR;
+            case Shutdown::both:
+                return SHUT_RDWR;
+        }
+        throw std::logic_error("invalid socket shutdown direction");
+    }
 
 } // namespace
 
@@ -120,8 +124,8 @@ UnixSocket UnixSocket::connect(const std::filesystem::path& path)
     socklen_t address_length      = 0;
     const sockaddr_un address     = make_socket_address(path, address_length);
     OwnedFileDescriptor socket_fd = create_socket();
-    while (::connect(socket_fd.native_handle(), reinterpret_cast<const sockaddr*>(&address), address_length) ==
-           -1)
+    while (::connect(socket_fd.native_handle(), reinterpret_cast<const sockaddr*>(&address),
+                     address_length) == -1)
     {
         if (errno != EINTR)
         {
@@ -185,7 +189,8 @@ std::size_t UnixSocket::read_some(const std::span<const std::span<std::byte>> bu
     ssize_t result = -1;
     do
     {
-        result = ::readv(file_descriptor.native_handle(), iovecs.data(), static_cast<int>(iovecs.size()));
+        result = ::readv(file_descriptor.native_handle(), iovecs.data(),
+                         static_cast<int>(iovecs.size()));
     } while (result == -1 && errno == EINTR);
 
     if (result == -1)
@@ -236,7 +241,8 @@ UnixSocketListener UnixSocketListener::bind(const std::filesystem::path& path, c
     socklen_t address_length      = 0;
     const sockaddr_un address     = make_socket_address(path, address_length);
     OwnedFileDescriptor socket_fd = create_socket();
-    if (::bind(socket_fd.native_handle(), reinterpret_cast<const sockaddr*>(&address), address_length) == -1)
+    if (::bind(socket_fd.native_handle(), reinterpret_cast<const sockaddr*>(&address),
+               address_length) == -1)
     {
         throw std::system_error(errno, std::generic_category(), "bind Unix socket listener");
     }
@@ -306,8 +312,7 @@ void UnixSocketListener::unlink_path()
 
 UnixSocketListener::UnixSocketListener(OwnedFileDescriptor owned_fd,
                                        std::filesystem::path path) noexcept
-    : file_descriptor(std::move(owned_fd)),
-      bound_path(std::move(path))
+    : file_descriptor(std::move(owned_fd)), bound_path(std::move(path))
 {
 }
 

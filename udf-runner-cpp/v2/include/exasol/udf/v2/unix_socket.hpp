@@ -52,7 +52,7 @@ public:
     UnixSocketListener& operator=(UnixSocketListener&& other) noexcept;
 
     [[nodiscard]] static UnixSocketListener bind(const std::filesystem::path& path,
-                                                  int backlog = SOMAXCONN);
+                                                 int backlog = SOMAXCONN);
 
     [[nodiscard]] int native_handle() const noexcept;
     [[nodiscard]] bool is_open() const noexcept;
