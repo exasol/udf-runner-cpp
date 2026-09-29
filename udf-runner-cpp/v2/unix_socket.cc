@@ -36,21 +36,27 @@ UnixSocket UnixSocket::adopt_native_handle(OwnedFileDescriptor)
 
 int UnixSocket::native_handle() const noexcept
 {
-    return -1;
+    return file_descriptor.native_handle();
 }
 
 bool UnixSocket::is_open() const noexcept
 {
-    return false;
+    return file_descriptor.is_open();
 }
 
 void UnixSocket::close() noexcept
 {
+    file_descriptor.close();
 }
 
 OwnedFileDescriptor UnixSocket::release_native_handle() noexcept
 {
-    return {};
+    const int released_fd = file_descriptor.release_native_handle();
+    if (released_fd == -1)
+    {
+        return {};
+    }
+    return OwnedFileDescriptor::adopt_native_handle(released_fd);
 }
 
 void UnixSocket::shutdown(Shutdown)
@@ -87,21 +93,27 @@ UnixSocketListener UnixSocketListener::bind(const std::filesystem::path&, const 
 
 int UnixSocketListener::native_handle() const noexcept
 {
-    return -1;
+    return file_descriptor.native_handle();
 }
 
 bool UnixSocketListener::is_open() const noexcept
 {
-    return false;
+    return file_descriptor.is_open();
 }
 
 void UnixSocketListener::close() noexcept
 {
+    file_descriptor.close();
 }
 
 OwnedFileDescriptor UnixSocketListener::release_native_handle() noexcept
 {
-    return {};
+    const int released_fd = file_descriptor.release_native_handle();
+    if (released_fd == -1)
+    {
+        return {};
+    }
+    return OwnedFileDescriptor::adopt_native_handle(released_fd);
 }
 
 UnixSocket UnixSocketListener::accept()

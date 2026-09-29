@@ -1,23 +1,44 @@
 #include <exasol/udf/v2/socket.hpp>
 
 #include <array>
-#include <stdexcept>
+#include <cerrno>
+#include <system_error>
+#include <unistd.h>
+#include <utility>
 
 namespace exasol::udf::v2::socket
 {
 
 OwnedFileDescriptor::OwnedFileDescriptor() noexcept = default;
 
-OwnedFileDescriptor::~OwnedFileDescriptor() = default;
-
-OwnedFileDescriptor OwnedFileDescriptor::adopt_native_handle(const int)
+OwnedFileDescriptor::~OwnedFileDescriptor()
 {
-    throw std::logic_error("socket library is not implemented yet");
+    close();
 }
 
-OwnedFileDescriptor::OwnedFileDescriptor(OwnedFileDescriptor&& other) noexcept = default;
+OwnedFileDescriptor OwnedFileDescriptor::adopt_native_handle(const int owned_fd)
+{
+    if (owned_fd < 0)
+    {
+        throw std::system_error(EBADF, std::generic_category(), "adopt invalid file descriptor");
+    }
+    return OwnedFileDescriptor(owned_fd);
+}
 
-OwnedFileDescriptor& OwnedFileDescriptor::operator=(OwnedFileDescriptor&& other) noexcept = default;
+OwnedFileDescriptor::OwnedFileDescriptor(OwnedFileDescriptor&& other) noexcept
+    : file_descriptor(std::exchange(other.file_descriptor, -1))
+{
+}
+
+OwnedFileDescriptor& OwnedFileDescriptor::operator=(OwnedFileDescriptor&& other) noexcept
+{
+    if (this != &other)
+    {
+        close();
+        file_descriptor = std::exchange(other.file_descriptor, -1);
+    }
+    return *this;
+}
 
 int OwnedFileDescriptor::native_handle() const noexcept
 {
@@ -26,16 +47,21 @@ int OwnedFileDescriptor::native_handle() const noexcept
 
 bool OwnedFileDescriptor::is_open() const noexcept
 {
-    return false;
+    return file_descriptor != -1;
 }
 
 void OwnedFileDescriptor::close() noexcept
 {
+    const int closed_fd = std::exchange(file_descriptor, -1);
+    if (closed_fd != -1)
+    {
+        ::close(closed_fd);
+    }
 }
 
 int OwnedFileDescriptor::release_native_handle() noexcept
 {
-    return -1;
+    return std::exchange(file_descriptor, -1);
 }
 
 OwnedFileDescriptor::OwnedFileDescriptor(const int owned_fd) noexcept : file_descriptor(owned_fd)
