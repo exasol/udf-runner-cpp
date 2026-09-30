@@ -6,6 +6,7 @@
 namespace exasol::udf::v2
 {
 
+/// Provides connection-wide readiness and lifecycle operations for worker calls.
 class Context
 {
 public:
@@ -15,6 +16,8 @@ public:
     Context& operator=(const Context&) = delete;
     /// Returns whether any stream currently has an unread message.
     [[nodiscard]] virtual MessageStatus receive_status() const = 0;
+    /// Returns whether a not-yet-accepted inbound call is available.
+    [[nodiscard]] virtual bool is_new_inbound_call_available() const = 0;
     /// Waits for activity on any stream without consuming a message.
     [[nodiscard]] virtual MessageStatus wait_for_message(Timeout timeout = std::nullopt) = 0;
     /// Accepts the next inbound call opening.

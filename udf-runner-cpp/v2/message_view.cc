@@ -55,6 +55,10 @@ bool CallMessageView::has_close_call() const noexcept
 {
     return value_ != nullptr && value_->close_call;
 }
+bool CallMessageView::close_call() const noexcept
+{
+    return has_close_call();
+}
 
 bool ControlMessageView::has_server_capabilities() const noexcept
 {
@@ -68,6 +72,10 @@ const ServerCapabilities* ControlMessageView::server_capabilities() const noexce
 bool ControlMessageView::has_keep_alive() const noexcept
 {
     return value_ != nullptr && value_->keep_alive;
+}
+bool ControlMessageView::keep_alive() const noexcept
+{
+    return has_keep_alive();
 }
 bool ControlMessageView::has_payloads() const noexcept
 {
@@ -88,6 +96,10 @@ const ErrorInfo* ControlMessageView::error() const noexcept
 bool ControlMessageView::has_close_connection() const noexcept
 {
     return value_ != nullptr && value_->close_connection;
+}
+bool ControlMessageView::close_connection() const noexcept
+{
+    return has_close_connection();
 }
 
 } // namespace exasol::udf::v2

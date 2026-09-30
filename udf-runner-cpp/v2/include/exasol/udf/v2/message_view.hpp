@@ -87,6 +87,8 @@ public:
     [[nodiscard]] const ErrorInfo* error() const noexcept;
     /// Returns whether this message closes the call.
     [[nodiscard]] bool has_close_call() const noexcept;
+    /// Returns whether this message closes the call.
+    [[nodiscard]] bool close_call() const noexcept;
 
 private:
     const CallMessage* value_;
@@ -105,6 +107,8 @@ public:
     [[nodiscard]] const ServerCapabilities* server_capabilities() const noexcept;
     /// Returns whether a keep-alive is present.
     [[nodiscard]] bool has_keep_alive() const noexcept;
+    /// Returns whether this message is a keep-alive message.
+    [[nodiscard]] bool keep_alive() const noexcept;
     /// Returns whether payloads are present.
     [[nodiscard]] bool has_payloads() const noexcept;
     /// Returns payloads, or null when absent.
@@ -115,6 +119,8 @@ public:
     [[nodiscard]] const ErrorInfo* error() const noexcept;
     /// Returns whether connection shutdown is being started or acknowledged.
     [[nodiscard]] bool has_close_connection() const noexcept;
+    /// Returns whether this message starts or acknowledges connection shutdown.
+    [[nodiscard]] bool close_connection() const noexcept;
 
 private:
     const ControlMessage* value_;

@@ -13,16 +13,16 @@ class CallMessageBuilder
 public:
     /// Adds or replaces the call-opening metadata.
     CallMessageBuilder& open_call(std::string_view name);
-    /// Adds or replaces the named payload collection.
-    CallMessageBuilder& payloads(Payloads values);
+    /// Adds one named payload to the message.
+    CallMessageBuilder& add_payload(std::string_view name,
+                                    std::string_view value,
+                                    bool binary = false);
     /// Adds or replaces the data schema and its correlation flags.
     CallMessageBuilder& data_schema(ArrowSchema* schema,
                                     bool has_group_id = false,
                                     bool has_row_id   = false);
     /// Adds or replaces flow-control credit information.
-    CallMessageBuilder& next(std::uint32_t byte_budget,
-                             bool reset           = false,
-                             std::uint64_t row_id = 0);
+    CallMessageBuilder& next(bool reset = false, std::uint64_t row_id = 0);
     /// Adds or replaces the record batch and its group-boundary flag.
     CallMessageBuilder& record_batch(ArrowArray* array, bool is_end_of_group = false);
     /// Adds or replaces a non-terminal or terminal error description.
@@ -45,12 +45,14 @@ public:
     /// Adds or replaces the advertised protocol capabilities.
     ControlMessageBuilder& server_capabilities(std::uint32_t major,
                                                std::uint32_t minor,
-                                               Endianness endianness,
+                                               std::endian endianness,
                                                std::uint32_t number_of_supported_workers);
     /// Adds a keep-alive message.
     ControlMessageBuilder& keep_alive();
-    /// Adds or replaces the named payload collection.
-    ControlMessageBuilder& payloads(Payloads values);
+    /// Adds one named payload to the message.
+    ControlMessageBuilder& add_payload(std::string_view name,
+                                       std::string_view value,
+                                       bool binary = false);
     /// Adds or replaces a control-stream error description.
     ControlMessageBuilder& error(std::string_view code, std::string_view text);
     /// Starts or acknowledges connection shutdown.

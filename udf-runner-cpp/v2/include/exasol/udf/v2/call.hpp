@@ -17,8 +17,9 @@ public:
     [[nodiscard]] virtual MessageStatus receive_status() const = 0;
     /// Receives the next message for this call, optionally waiting up to `timeout`.
     [[nodiscard]] virtual Result<CallMessageView> receive(Timeout timeout = std::nullopt) = 0;
-    /// Sends one composite call message and transfers ownership on success.
-    [[nodiscard]] virtual Result<void> send(CallMessageBuilder message) = 0;
+    /// Sends one composite call message, waiting up to `timeout` for flow-control permission.
+    [[nodiscard]] virtual Result<void> send(CallMessageBuilder message,
+                                            Timeout timeout = std::nullopt) = 0;
 
 protected:
     Call() = default;

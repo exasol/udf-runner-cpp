@@ -2,6 +2,7 @@
 
 #include <arrow/c/abi.h>
 
+#include <bit>
 #include <chrono>
 #include <cstdint>
 #include <memory>
@@ -33,13 +34,6 @@ enum class OperationStatus
     protocol_error,
     transport_error
 };
-/// Native byte order used by data buffers outside the FlatBuffer frame.
-enum class Endianness
-{
-    little,
-    big
-};
-
 /// Machine-readable and human-readable operation error details.
 struct ErrorInfo
 {
@@ -107,10 +101,9 @@ struct OpenCall
 {
     std::string call_name;
 };
-/// Flow-control credit and resume information.
+/// Flow-control resume information; transport credit remains internal.
 struct Next
 {
-    std::uint32_t byte_budget{};
     bool reset{false};
     std::uint64_t row_id{};
 };
@@ -145,7 +138,7 @@ struct ServerCapabilities
 {
     std::uint32_t major{};
     std::uint32_t minor{};
-    Endianness endianness{Endianness::little};
+    std::endian endianness{std::endian::native};
     std::uint32_t number_of_supported_workers{};
 };
 /// Composite message exchanged on the connection control stream.
