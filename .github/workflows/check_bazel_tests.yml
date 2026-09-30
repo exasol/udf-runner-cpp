@@ -43,7 +43,9 @@ jobs:
         run: bazel build --verbose_failures --config clang-tidy //...
         working-directory: ./udf-runner-cpp/v2
       - name: Install clang-format
-        run: sudo apt-get install -y clang-format
+        run: |
+          sudo apt-get install -y clang-format-22
+          sudo ln -sf /usr/bin/clang-format-22 /usr/local/bin/clang-format
       - name: Run clang-format
         run: bazel build --verbose_failures --config clang-format //...
         working-directory: ./udf-runner-cpp/v2
