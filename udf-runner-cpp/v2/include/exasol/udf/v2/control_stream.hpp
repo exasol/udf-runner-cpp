@@ -13,10 +13,17 @@ public:
     virtual ~ControlStream();
     ControlStream(const ControlStream&)            = delete;
     ControlStream& operator=(const ControlStream&) = delete;
+    ControlStream(ControlStream&&)                 = delete;
+    ControlStream& operator=(ControlStream&&)      = delete;
     /// Returns the non-blocking readiness state for stream zero.
     [[nodiscard]] virtual MessageStatus receive_status() const = 0;
+    /// Receives the next control message without waiting.
+    [[nodiscard]] Result<ControlMessageView> receive()
+    {
+        return receive(std::nullopt);
+    }
     /// Receives the next control message, optionally waiting up to `timeout`.
-    [[nodiscard]] virtual Result<ControlMessageView> receive(Timeout timeout = std::nullopt) = 0;
+    [[nodiscard]] virtual Result<ControlMessageView> receive(Timeout timeout) = 0;
     /// Sends one connection-level message and transfers ownership on success.
     [[nodiscard]] virtual Result<void> send(ControlMessageBuilder message) = 0;
 
