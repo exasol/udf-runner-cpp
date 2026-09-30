@@ -20,22 +20,22 @@ namespace exasol::udf::v2
 /// Result of a non-consuming readiness operation.
 enum class MessageStatus
 {
-    message_available,
-    no_message,
-    timed_out,
-    cancelled,
-    peer_closed,
-    connection_error
+    MessageAvailable,
+    NoMessage,
+    TimedOut,
+    Cancelled,
+    PeerClosed,
+    ConnectionError
 };
 /// Result status of a consuming or sending operation.
 enum class OperationStatus
 {
-    ok,
-    timed_out,
-    cancelled,
-    peer_closed,
-    protocol_error,
-    transport_error
+    Ok,
+    TimedOut,
+    Cancelled,
+    PeerClosed,
+    ProtocolError,
+    TransportError
 };
 /// Machine-readable and human-readable operation error details.
 struct ErrorInfo
@@ -50,13 +50,13 @@ struct Result
 {
     // NOLINTNEXTLINE(misc-non-private-member-variables-in-classes)
     OperationStatus status{
-        OperationStatus::transport_error}; // NOLINT(misc-non-private-member-variables-in-classes)
-    std::optional<T> value;                // NOLINT(misc-non-private-member-variables-in-classes)
-    std::optional<ErrorInfo> error;        // NOLINT(misc-non-private-member-variables-in-classes)
+        OperationStatus::TransportError}; // NOLINT(misc-non-private-member-variables-in-classes)
+    std::optional<T> value;               // NOLINT(misc-non-private-member-variables-in-classes)
+    std::optional<ErrorInfo> error;       // NOLINT(misc-non-private-member-variables-in-classes)
 
     [[nodiscard]] static Result success(T result)
     {
-        return {.status = OperationStatus::ok, .value = std::move(result)};
+        return {.status = OperationStatus::Ok, .value = std::move(result)};
     }
     [[nodiscard]] static Result failure(OperationStatus result_status,
                                         const std::optional<ErrorInfo>& detail = {})
@@ -65,7 +65,7 @@ struct Result
     }
     [[nodiscard]] explicit operator bool() const noexcept
     {
-        return status == OperationStatus::ok;
+        return status == OperationStatus::Ok;
     }
 };
 
@@ -74,12 +74,12 @@ struct Result<void>
 {
     // NOLINTNEXTLINE(misc-non-private-member-variables-in-classes)
     OperationStatus status{
-        OperationStatus::transport_error}; // NOLINT(misc-non-private-member-variables-in-classes)
-    std::optional<ErrorInfo> error;        // NOLINT(misc-non-private-member-variables-in-classes)
+        OperationStatus::TransportError}; // NOLINT(misc-non-private-member-variables-in-classes)
+    std::optional<ErrorInfo> error;       // NOLINT(misc-non-private-member-variables-in-classes)
 
     [[nodiscard]] static Result success()
     {
-        return {.status = OperationStatus::ok};
+        return {.status = OperationStatus::Ok};
     }
     [[nodiscard]] static Result failure(OperationStatus result_status,
                                         const std::optional<ErrorInfo>& detail = {})
@@ -88,7 +88,7 @@ struct Result<void>
     }
     [[nodiscard]] explicit operator bool() const noexcept
     {
-        return status == OperationStatus::ok;
+        return status == OperationStatus::Ok;
     }
 };
 
