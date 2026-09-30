@@ -20,18 +20,13 @@ jobs:
 
   discover_fuzz_targets:
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        bazel: ["8.8.0", "9.2.0"]
-    env:
-      USE_BAZEL_VERSION: ${{ matrix.bazel }}
     outputs:
       fuzz_matrix: ${{ steps.discover.outputs.fuzz_matrix }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -61,6 +56,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Select Bazel version
+        run: echo "${{ matrix.bazel }}" > udf-runner-cpp/v2/.bazelversion
+
       - name: Install dependencies
         run: |
           sudo apt-get update
