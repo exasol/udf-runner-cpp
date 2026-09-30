@@ -12,7 +12,7 @@ env:
 
 jobs:
   discover_mull_targets:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     outputs:
       mull_matrix: ${{ steps.discover.outputs.mull_matrix }}
     steps:
@@ -42,7 +42,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.discover_mull_targets.outputs.mull_matrix) }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -55,10 +55,10 @@ jobs:
       - name: Install LLVM and Mull
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-20
+          sudo apt-get install -y clang-22
           curl -1sLf 'https://dl.cloudsmith.io/public/mull-project/mull-stable/setup.deb.sh' | sudo -E bash
-          sudo apt-get install -y mull-20=0.34.1
-          mull-runner-20 --version
+          sudo apt-get install -y mull-22=0.34.1
+          mull-runner-22 --version
 
       - name: Setup Python & Poetry Environment
         uses: exasol/python-toolbox/.github/actions/python-environment@8b2cd1ebe7e8ad923be55a95ec5da6f4867d1a8e # v11

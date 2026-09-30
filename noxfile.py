@@ -293,7 +293,7 @@ class _MullToolchain:
 
 
 def _get_mull_toolchain(session: nox.Session) -> _MullToolchain:
-    llvm_version = os.environ.get("MULL_LLVM_VERSION", "20")
+    llvm_version = os.environ.get("MULL_LLVM_VERSION", "22")
     bazel = os.environ.get("BAZEL", "bazel")
     compiler = os.environ.get("MULL_CXX", f"clang++-{llvm_version}")
     c_compiler = os.environ.get("MULL_CC", compiler.replace("clang++", "clang", 1))
