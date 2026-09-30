@@ -33,3 +33,4 @@ n/a
 * #51: Added agent and contributor guidance for v1/v2 development, SLC workflows, CI testing, and PR conventions
 * #56: Restructured the developer guide and synchronized agent guidance
 * Updated Poetry dependencies and added developer guide and added .gitignore
+* Updated mull checks workflows to use Ubuntu 26.04 and unified clang tool usage

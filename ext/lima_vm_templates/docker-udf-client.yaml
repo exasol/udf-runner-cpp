@@ -62,10 +62,14 @@ provision:
    set -eux -o pipefail
    export DEBIAN_FRONTEND=noninteractive
    curl -1sLf 'https://dl.cloudsmith.io/public/mull-project/mull-stable/setup.deb.sh' | bash
-   apt update && apt install -y protobuf-compiler libzmq3-dev openjdk-17-jdk build-essential git python3.12-dev python3-pip libpcre3-dev clang-tidy-20 lcov
-   apt install -y clang-20 mull-20=0.34.1
-   mull-runner-20 --version
-   test -x /usr/lib/mull-ir-frontend-20
+   apt update && apt install -y protobuf-compiler libzmq3-dev openjdk-17-jdk build-essential git python3.12-dev python3-pip libpcre3-dev lcov wget
+   bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" -- 22
+   apt install -y clang-22 clang-tidy-22 clang-format-22
+   ln -sf /usr/bin/clang-tidy-22 /usr/local/bin/clang-tidy
+   ln -sf /usr/bin/clang-format-22 /usr/local/bin/clang-format
+   apt install -y mull-22=0.34.1
+   mull-runner-22 --version
+   test -x /usr/lib/mull-ir-frontend-22
    curl -L  https://github.com/bazelbuild/bazelisk/releases/download/v1.27.0/bazelisk-linux-amd64 -o /usr/bin/bazel
    chmod +x /usr/bin/bazel
    pip install --break-system-packages numpy
