@@ -10,8 +10,6 @@ permissions:
   contents: read
 
 env:
-  USE_BAZEL_VERSION: 8.3.1
-  BAZEL_PACKAGE_VERSION: 8.3.1
   PROTOBUF_BIN: protoc
   PROTOBUF_LIBRARY_PREFIX: /usr/lib/x86_64-linux-gnu
   PROTOBUF_INCLUDE_PREFIX: /usr/include
@@ -20,6 +18,12 @@ env:
 jobs:
   v2:
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        bazel: ["8.8.0", "9.2.0"]
+    env:
+      USE_BAZEL_VERSION: ${{ matrix.bazel }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -83,6 +87,12 @@ jobs:
 
   build:
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        bazel: ["8.8.0", "9.2.0"]
+    env:
+      USE_BAZEL_VERSION: ${{ matrix.bazel }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -93,17 +103,18 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y curl libprotobuf-dev libzmq3-dev protobuf-compiler valgrind
-      - name: Install bazel
-        run: |
-          BAZEL_PACKAGE_FILE="bazel_$BAZEL_PACKAGE_VERSION-linux-x86_64.deb"
-          BAZEL_PACKAGE_URL="https://github.com/bazelbuild/bazel/releases/download/$BAZEL_PACKAGE_VERSION/$BAZEL_PACKAGE_FILE"
-          curl -L --output /tmp/"$BAZEL_PACKAGE_FILE" "$BAZEL_PACKAGE_URL"
-          sudo apt install -y "/tmp/$BAZEL_PACKAGE_FILE"
-          rm "/tmp/$BAZEL_PACKAGE_FILE"
+          sudo apt-get install -y build-essential curl libprotobuf-dev libzmq3-dev protobuf-compiler valgrind
+      - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
+        with:
+          bazelisk-cache: true
       - name: Build
         run: |
-          bazel build --lockfile_mode=off --config no-tty -c dbg --config fast-binary --verbose_failures //:udf_runner_cpp_v1_gen //:udf_runner_cpp_v1_static_gen
+          bazel build --lockfile_mode=off --config no-tty -c dbg --verbose_failures \
+            --action_env=PROTOBUF_BIN \
+            //:all \
+            //benchmark_container:all \
+            //streaming_container:all \
+            //test_container:all
         working-directory: ./udf-runner-cpp/v1
 
   tests:
@@ -111,6 +122,7 @@ jobs:
     strategy:
      fail-fast: false
      matrix:
+        bazel: ["8.8.0", "9.2.0"]
         include:
           - test: "//exaudflib/test:exaudflib-test"
             name: "exaudflib"
@@ -130,6 +142,8 @@ jobs:
             name: "script_options_parser_ctpg_with_asan"
           - test: "--config=asan //script_options_parser/legacy/test:script-options-legacy-parser-test"
             name: "script_options_parser_legacy_with_asan"
+    env:
+      USE_BAZEL_VERSION: ${{ matrix.bazel }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -139,17 +153,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y curl libprotobuf-dev libzmq3-dev protobuf-compiler valgrind
       - name: Install bazel
-        run: | 
-          BAZEL_PACKAGE_FILE="bazel_$BAZEL_PACKAGE_VERSION-linux-x86_64.deb"
-          BAZEL_PACKAGE_URL="https://github.com/bazelbuild/bazel/releases/download/$BAZEL_PACKAGE_VERSION/$BAZEL_PACKAGE_FILE"
-          curl -L --output /tmp/"$BAZEL_PACKAGE_FILE" "$BAZEL_PACKAGE_URL"
-          sudo apt install -y "/tmp/$BAZEL_PACKAGE_FILE"
-          rm "/tmp/$BAZEL_PACKAGE_FILE"
-        env:
-          BAZEL_PACKAGE_VERSION: "8.3.1"
+        uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
+        with:
+          bazelisk-cache: true
       - name: Run tests
         run: |
-          bazel test ${{ matrix.test }}
+          bazel test --action_env=PROTOBUF_BIN \
+            ${{ matrix.test }}
         working-directory: ./udf-runner-cpp/v1/base
         env:
           OPENSSL_LIBRARY_PREFIX: "/usr/lib/x86_64-linux-gnu"
@@ -158,5 +168,5 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
-          name: "${{ matrix.name }}"
+          name: "${{ matrix.name }}-bazel-${{ matrix.bazel }}"
           path: /home/runner/.cache/bazel/_bazel_runner/*/execroot/_main/bazel-out/k8-dbg/testlogs/**/test.log

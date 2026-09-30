@@ -11,6 +11,8 @@ def _zmq_local_repository_impl(repository_ctx):
         fail("Environment Variable ZMQ_INCLUDE_PREFIX not found")
     print("zmq include prefix in environment specified; %s"%include_prefix)
     build_file_content = """
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
 cc_library(
     name = "zmq",
     srcs = glob(["zmq/lib/**/libzmq.so"]),
