@@ -8,7 +8,7 @@
 #include <cstddef>
 #include <cstring>
 #include <limits>
-#include <limits.h>
+#include <climits>
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -99,11 +99,11 @@ namespace
     {
         switch (how)
         {
-            case Shutdown::receive:
+            case Shutdown::Receive:
                 return SHUT_RD;
-            case Shutdown::send:
+            case Shutdown::Send:
                 return SHUT_WR;
-            case Shutdown::both:
+            case Shutdown::Both:
                 return SHUT_RDWR;
         }
         throw std::logic_error("invalid socket shutdown direction");

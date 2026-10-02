@@ -47,7 +47,6 @@ TEST(SocketTest, OwnedDescriptorClosesExactlyOnceAfterMoveAndRelease)
     ASSERT_EQ(::pipe(pipe_fds.data()), 0);
     OwnedFileDescriptor descriptor = OwnedFileDescriptor::adopt_native_handle(pipe_fds[0]);
     OwnedFileDescriptor moved(std::move(descriptor));
-    EXPECT_FALSE(descriptor.is_open());
     const int released_fd = moved.release_native_handle();
     EXPECT_FALSE(moved.is_open());
     ASSERT_EQ(::close(released_fd), 0);

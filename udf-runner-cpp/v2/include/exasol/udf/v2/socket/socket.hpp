@@ -8,9 +8,9 @@ namespace exasol::udf::v2::socket
 
 enum class Shutdown
 {
-    receive,
-    send,
-    both,
+    Receive,
+    Send,
+    Both,
 };
 
 class OwnedFileDescriptor
