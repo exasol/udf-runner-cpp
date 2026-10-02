@@ -20,12 +20,12 @@ Readiness operations report status without consuming a message:
 
 ```text
 MessageStatus =
-    message_available
-  | no_message
-  | timed_out
-  | cancelled
-  | peer_closed
-  | connection_error
+    MessageAvailable
+  | NoMessage
+  | TimedOut
+  | Cancelled
+  | PeerClosed
+  | ConnectionError
 ```
 
 Consuming operations return either a value or a terminal result:
@@ -33,11 +33,11 @@ Consuming operations return either a value or a terminal result:
 ```text
 OperationStatus =
     ok
-  | timed_out
-  | cancelled
-  | peer_closed
-  | protocol_error
-  | transport_error
+  | TimedOut
+  | Cancelled
+  | PeerClosed
+  | ProtocolError
+  | TransportError
 ```
 
 The conceptual generic result type is:
@@ -113,7 +113,7 @@ Call {
 `Call::receive_status()` is non-blocking, observes only this call's stream, and never consumes a message.
 
 `Call::receive(timeout)` waits only for this call's stream. An omitted timeout means wait indefinitely. It returns the
-next complete call message, returns `timed_out` when the timeout expires, and returns a terminal result for
+next complete call message, returns `TimedOut` when the timeout expires, and returns a terminal result for
 cancellation, peer closure, or connection failure.
 
 The first successful `Call::receive()` returns the opening `CallMessageView`, including its `open_call` field and any
@@ -128,7 +128,7 @@ If a control message or another call's message arrives while `Call::receive()` i
 to its own stream and the call receive continues waiting. It does not return unrelated traffic.
 
 `Call::send()` waits for the context to grant permission for the next data batch when required by flow control. An
-absent timeout waits indefinitely, a zero timeout does not block, and an expired timeout returns `timed_out` without
+absent timeout waits indefinitely, a zero timeout does not block, and an expired timeout returns `TimedOut` without
 consuming the builder or its Arrow ownership. The background thread owns the authoritative credit and any internal
 batch splitting; the worker-facing send operation submits one logical batch.
 
