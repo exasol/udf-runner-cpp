@@ -17,6 +17,7 @@ namespace
 {
 
 using exasol::udf::v2::socket::OwnedFileDescriptor;
+using exasol::udf::v2::socket::Shutdown;
 using exasol::udf::v2::socket::UnixSocket;
 using exasol::udf::v2::socket::UnixSocketListener;
 
@@ -55,6 +56,28 @@ TEST(SocketTest, OwnedDescriptorClosesExactlyOnceAfterMoveAndRelease)
     ASSERT_EQ(::close(pipe_fds[1]), 0);
 }
 
+TEST(SocketTest, RejectsInvalidDescriptorAdoption)
+{
+    expect_system_error([] { static_cast<void>(OwnedFileDescriptor::adopt_native_handle(-1)); },
+                        std::errc::bad_file_descriptor);
+}
+
+TEST(SocketTest, MoveAssignmentClosesReplacedDescriptor)
+{
+    std::array<int, 2> first_pipe{};
+    std::array<int, 2> second_pipe{};
+    ASSERT_EQ(::pipe(first_pipe.data()), 0);
+    ASSERT_EQ(::pipe(second_pipe.data()), 0);
+    OwnedFileDescriptor source      = OwnedFileDescriptor::adopt_native_handle(first_pipe[0]);
+    OwnedFileDescriptor destination = OwnedFileDescriptor::adopt_native_handle(second_pipe[0]);
+    destination                     = std::move(source);
+    EXPECT_EQ(::close(second_pipe[0]), -1);
+    EXPECT_EQ(errno, EBADF);
+    ASSERT_EQ(::close(destination.release_native_handle()), 0);
+    ASSERT_EQ(::close(first_pipe[1]), 0);
+    ASSERT_EQ(::close(second_pipe[1]), 0);
+}
+
 TEST(SocketTest, ListenerConnectsAcceptsAndRequiresExplicitCleanup)
 {
     const std::filesystem::path path = unique_socket_path();
@@ -82,6 +105,18 @@ TEST(SocketTest, ListenerDoesNotOverwriteExistingPath)
     UnixSocketListener listener      = UnixSocketListener::bind(path);
     expect_system_error([&] { static_cast<void>(UnixSocketListener::bind(path)); },
                         std::errc::address_in_use);
+    listener.close();
+    listener.unlink_path();
+    std::filesystem::remove(path.parent_path());
+}
+
+TEST(SocketTest, ValidatesPathsAndRequiresClosureBeforeUnlinking)
+{
+    expect_system_error([] { static_cast<void>(UnixSocketListener::bind({})); },
+                        std::errc::filename_too_long);
+    const std::filesystem::path path = unique_socket_path();
+    UnixSocketListener listener      = UnixSocketListener::bind(path);
+    EXPECT_THROW(listener.unlink_path(), std::logic_error);
     listener.close();
     listener.unlink_path();
     std::filesystem::remove(path.parent_path());
@@ -119,6 +154,22 @@ TEST(SocketTest, NonblockingReadReportsWouldBlock)
     expect_system_error([&] { static_cast<void>(reader.read_some(buffer)); },
                         std::errc::resource_unavailable_try_again);
     ASSERT_EQ(::close(sockets[1]), 0);
+}
+
+TEST(SocketTest, SupportsShutdownAndDescriptorRelease)
+{
+    std::array<int, 2> sockets{};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
+    UnixSocket writer =
+        UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[0]));
+    UnixSocket reader =
+        UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[1]));
+    writer.shutdown(Shutdown::Send);
+    std::array<std::byte, 1> buffer{};
+    EXPECT_EQ(reader.read_some(buffer), 0);
+    OwnedFileDescriptor released = reader.release_native_handle();
+    EXPECT_FALSE(reader.is_open());
+    EXPECT_TRUE(released.is_open());
 }
 
 } // namespace
