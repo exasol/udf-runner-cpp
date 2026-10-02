@@ -1,4 +1,4 @@
-#include <exasol/udf/v2/unix_socket.hpp>
+#include <exasol/udf/v2/socket/unix_socket.hpp>
 
 #include <sys/socket.h>
 

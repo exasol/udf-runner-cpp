@@ -358,12 +358,12 @@ cc_library(
 cc_library(
     name = "socket",
     srcs = [
-        "socket.cc",
-        "unix_socket.cc",
+        "include/exasol/udf/v2/socket/socket.cc",
+        "include/exasol/udf/v2/socket/unix_socket.cc",
     ],
     hdrs = [
-        "include/exasol/udf/v2/socket.hpp",
-        "include/exasol/udf/v2/unix_socket.hpp",
+        "include/exasol/udf/v2/socket/socket.hpp",
+        "include/exasol/udf/v2/socket/unix_socket.hpp",
     ],
     includes = ["include"],
     copts = ["-std=c++23"],
@@ -372,7 +372,7 @@ cc_library(
 
 cc_test(
     name = "socket_test",
-    srcs = ["socket_test.cc"],
+    srcs = ["include/exasol/udf/v2/socket/socket_test.cc"],
     copts = ["-std=c++23"],
     deps = [
         ":socket",
@@ -383,7 +383,7 @@ cc_test(
 
 cc_fuzz_test(
     name = "socket_fuzz_test",
-    srcs = ["socket_fuzz_test.cc"],
+    srcs = ["include/exasol/udf/v2/socket/socket_fuzz_test.cc"],
     copts = ["-std=c++23"],
     deps = [":socket"],
     tags = ["fuzz-test"],

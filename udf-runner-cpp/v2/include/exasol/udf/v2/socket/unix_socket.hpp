@@ -4,7 +4,7 @@
 
 #include <filesystem>
 
-#include <exasol/udf/v2/socket.hpp>
+#include <exasol/udf/v2/socket/socket.hpp>
 
 namespace exasol::udf::v2::socket
 {

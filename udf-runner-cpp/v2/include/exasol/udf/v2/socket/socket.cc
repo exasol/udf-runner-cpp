@@ -1,4 +1,4 @@
-#include <exasol/udf/v2/socket.hpp>
+#include <exasol/udf/v2/socket/socket.hpp>
 
 #include <array>
 #include <cerrno>
