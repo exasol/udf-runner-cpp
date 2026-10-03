@@ -14,8 +14,8 @@ If no Docker daemon is available on the host, use the repository’s Lima
 instance:
 
 ```bash
-limactl start ./ext/lima_vm_templates/docker-udf-client.yaml
-export DOCKER_HOST="$(limactl list docker-udf-client \
+limactl start ./ext/lima_vm_templates/udf-runner-cpp-dev.yaml
+export DOCKER_HOST="$(limactl list udf-runner-cpp-dev \
   --format 'unix://{{.Dir}}/sock/docker.sock')"
 ```
 
