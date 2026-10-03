@@ -62,7 +62,7 @@ This keeps the contract usable by TLS, whose I/O does not map one-for-one to
 ```cpp
 namespace exasol::udf::v2::socket {
 
-enum class Shutdown { receive, send, both };
+enum class Shutdown { Receive, Send, Both };
 
 class OwnedFileDescriptor {
 public:
