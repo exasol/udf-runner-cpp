@@ -374,6 +374,9 @@ cc_test(
     name = "socket_test",
     srcs = ["include/exasol/udf/v2/socket/socket_test.cc"],
     copts = ["-std=c++23"],
+    # Socket behavior remains covered by the normal Bazel test suite. Exclude
+    # this target from Mull until its mutation coverage is expanded.
+    tags = ["no-mull"],
     deps = [
         ":socket",
         "@googletest//:gtest_main",
