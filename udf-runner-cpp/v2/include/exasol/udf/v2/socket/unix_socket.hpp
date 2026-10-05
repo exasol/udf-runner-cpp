@@ -58,7 +58,7 @@ public:
     [[nodiscard]] bool is_open() const noexcept;
     void close() noexcept;
     [[nodiscard]] OwnedFileDescriptor release_native_handle() noexcept;
-    [[nodiscard]] UnixSocket accept();
+    [[nodiscard]] UnixSocket accept() const;
     void unlink_path() const;
 
 private:

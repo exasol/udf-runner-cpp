@@ -25,7 +25,8 @@ using exasol::udf::v2::socket::UnixSocketListener;
 std::filesystem::path unique_socket_path()
 {
     const std::string template_path =
-        (std::filesystem::temp_directory_path() / "udf-runner-cpp-socket-XXXXXX").string();
+        (std::filesystem::temp_directory_path() / "udf-runner-cpp-socket-XXXXXX")
+            .string(); // NOSONAR S5443: mkdtemp atomically creates a private directory.
     std::vector<char> directory_template(template_path.begin(), template_path.end());
     directory_template.push_back('\0');
     char* directory = ::mkdtemp(directory_template.data());

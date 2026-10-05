@@ -304,7 +304,7 @@ OwnedFileDescriptor UnixSocketListener::release_native_handle() noexcept
     return OwnedFileDescriptor::adopt_native_handle(released_fd);
 }
 
-UnixSocket UnixSocketListener::accept()
+UnixSocket UnixSocketListener::accept() const
 {
     int accepted_fd = -1;
     do
