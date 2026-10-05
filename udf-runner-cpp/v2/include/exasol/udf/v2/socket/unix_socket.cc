@@ -105,8 +105,8 @@ namespace
             }
             total_size += std::size(buffer);
             // POSIX declares iovec::iov_base as void* even for sendmsg(), which does not mutate it.
-            iovecs.push_back(  // NOSONAR: Required by the POSIX sendmsg() interface.
-                {const_cast<std::byte*>(std::data(buffer)), std::size(buffer)});
+            iovecs.push_back(
+                {const_cast<std::byte*>(std::data(buffer)), std::size(buffer)}); // NOSONAR
         }
         return iovecs;
     }
