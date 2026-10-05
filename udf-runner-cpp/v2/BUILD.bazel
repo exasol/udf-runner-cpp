@@ -358,8 +358,8 @@ cc_library(
 cc_library(
     name = "socket",
     srcs = [
-        "socket.cc",
-        "unix_socket.cc",
+        "socket/socket.cc",
+        "socket/unix_socket.cc",
     ],
     hdrs = [
         "include/exasol/udf/v2/socket/socket.hpp",
@@ -372,7 +372,7 @@ cc_library(
 
 cc_test(
     name = "socket_test",
-    srcs = ["socket_test.cc"],
+    srcs = ["socket/socket_test.cc"],
     copts = ["-std=c++23"],
     # Socket behavior remains covered by the normal Bazel test suite. Exclude
     # this target from Mull until its mutation coverage is expanded.
@@ -386,7 +386,7 @@ cc_test(
 
 cc_fuzz_test(
     name = "socket_fuzz_test",
-    srcs = ["socket_fuzz_test.cc"],
+    srcs = ["socket/socket_fuzz_test.cc"],
     copts = ["-std=c++23"],
     deps = [":socket"],
     tags = ["fuzz-test"],
