@@ -4,11 +4,13 @@
 #include <sys/uio.h>
 #include <unistd.h>
 
+#include <bit>
 #include <cerrno>
 #include <cstddef>
 #include <cstring>
-#include <limits>
 #include <climits>
+#include <iterator>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -21,10 +23,22 @@ namespace exasol::udf::v2::socket
 namespace
 {
 
+    class InvalidShutdownDirection final : public std::logic_error
+    {
+    public:
+        using std::logic_error::logic_error;
+    };
+
+    class ListenerStillOpen final : public std::logic_error
+    {
+    public:
+        using std::logic_error::logic_error;
+    };
+
     sockaddr_un make_socket_address(const std::filesystem::path& path, socklen_t& length)
     {
         const std::string path_string = path.string();
-        if (path_string.empty() || path_string.find('\0') != std::string::npos ||
+        if (path_string.empty() || path_string.contains('\0') ||
             path_string.size() >= sizeof(sockaddr_un::sun_path))
         {
             throw std::system_error(ENAMETOOLONG, std::generic_category(),
@@ -50,16 +64,16 @@ namespace
 
     void check_unix_stream_socket(const int file_descriptor)
     {
-        int domain              = 0;
-        socklen_t domain_length = sizeof(domain);
-        if (::getsockopt(file_descriptor, SOL_SOCKET, SO_DOMAIN, &domain, &domain_length) == -1)
+        int domain = 0;
+        if (socklen_t domain_length = sizeof(domain);
+            ::getsockopt(file_descriptor, SOL_SOCKET, SO_DOMAIN, &domain, &domain_length) == -1)
         {
             throw std::system_error(errno, std::generic_category(), "inspect socket domain");
         }
 
-        int type              = 0;
-        socklen_t type_length = sizeof(type);
-        if (::getsockopt(file_descriptor, SOL_SOCKET, SO_TYPE, &type, &type_length) == -1)
+        int type = 0;
+        if (socklen_t type_length = sizeof(type);
+            ::getsockopt(file_descriptor, SOL_SOCKET, SO_TYPE, &type, &type_length) == -1)
         {
             throw std::system_error(errno, std::generic_category(), "inspect socket type");
         }
@@ -83,37 +97,48 @@ namespace
         iovecs.reserve(buffers.size());
         for (const Buffer buffer : buffers)
         {
-            if (buffer.size() >
+            if (std::size(buffer) >
                 static_cast<std::size_t>(std::numeric_limits<ssize_t>::max()) - total_size)
             {
                 throw std::system_error(EINVAL, std::generic_category(),
                                         "I/O buffer size is too large");
             }
-            total_size += buffer.size();
-            iovecs.push_back({const_cast<std::byte*>(buffer.data()), buffer.size()});
+            total_size += std::size(buffer);
+            // POSIX declares iovec::iov_base as void* even for sendmsg(), which does not mutate it.
+            iovecs.push_back(  // NOSONAR: Required by the POSIX sendmsg() interface.
+                {const_cast<std::byte*>(std::data(buffer)), std::size(buffer)});
         }
         return iovecs;
     }
 
     int shutdown_direction(const Shutdown how)
     {
+        using enum Shutdown;
         switch (how)
         {
-            case Shutdown::Receive:
+            case Receive:
                 return SHUT_RD;
-            case Shutdown::Send:
+            case Send:
                 return SHUT_WR;
-            case Shutdown::Both:
+            case Both:
                 return SHUT_RDWR;
         }
-        throw std::logic_error("invalid socket shutdown direction");
+        throw InvalidShutdownDirection("invalid socket shutdown direction");
+    }
+
+    [[nodiscard]] const sockaddr* as_socket_address(const sockaddr_un& address) noexcept
+    {
+        return std::bit_cast<const sockaddr*>(&address);
     }
 
 } // namespace
 
 UnixSocket::UnixSocket() noexcept = default;
 
-UnixSocket::~UnixSocket() = default;
+UnixSocket::~UnixSocket()
+{
+    close();
+}
 
 UnixSocket::UnixSocket(UnixSocket&& other) noexcept = default;
 
@@ -124,8 +149,7 @@ UnixSocket UnixSocket::connect(const std::filesystem::path& path)
     socklen_t address_length      = 0;
     const sockaddr_un address     = make_socket_address(path, address_length);
     OwnedFileDescriptor socket_fd = create_socket();
-    while (::connect(socket_fd.native_handle(), reinterpret_cast<const sockaddr*>(&address),
-                     address_length) == -1)
+    while (::connect(socket_fd.native_handle(), as_socket_address(address), address_length) == -1)
     {
         if (errno != EINTR)
         {
@@ -230,7 +254,10 @@ UnixSocket::UnixSocket(OwnedFileDescriptor owned_fd) noexcept : file_descriptor(
 
 UnixSocketListener::UnixSocketListener() noexcept = default;
 
-UnixSocketListener::~UnixSocketListener() = default;
+UnixSocketListener::~UnixSocketListener()
+{
+    close();
+}
 
 UnixSocketListener::UnixSocketListener(UnixSocketListener&& other) noexcept = default;
 
@@ -241,8 +268,7 @@ UnixSocketListener UnixSocketListener::bind(const std::filesystem::path& path, c
     socklen_t address_length      = 0;
     const sockaddr_un address     = make_socket_address(path, address_length);
     OwnedFileDescriptor socket_fd = create_socket();
-    if (::bind(socket_fd.native_handle(), reinterpret_cast<const sockaddr*>(&address),
-               address_length) == -1)
+    if (::bind(socket_fd.native_handle(), as_socket_address(address), address_length) == -1)
     {
         throw std::system_error(errno, std::generic_category(), "bind Unix socket listener");
     }
@@ -293,11 +319,11 @@ UnixSocket UnixSocketListener::accept()
     return UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(accepted_fd));
 }
 
-void UnixSocketListener::unlink_path()
+void UnixSocketListener::unlink_path() const
 {
     if (is_open())
     {
-        throw std::logic_error("close Unix socket listener before unlinking its path");
+        throw ListenerStillOpen("close Unix socket listener before unlinking its path");
     }
     if (bound_path.empty())
     {
@@ -307,7 +333,6 @@ void UnixSocketListener::unlink_path()
     {
         throw std::system_error(errno, std::generic_category(), "unlink Unix socket path");
     }
-    bound_path.clear();
 }
 
 UnixSocketListener::UnixSocketListener(OwnedFileDescriptor owned_fd,

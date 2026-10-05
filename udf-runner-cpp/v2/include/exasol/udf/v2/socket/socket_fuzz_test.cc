@@ -23,13 +23,13 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, const std::size_
     auto reader = exasol::udf::v2::socket::UnixSocket::adopt_native_handle(
         exasol::udf::v2::socket::OwnedFileDescriptor::adopt_native_handle(descriptors[1]));
     const std::span bytes(reinterpret_cast<const std::byte*>(data), size);
-    const std::array buffers{bytes.first(size / 2), bytes.subspan(size / 2)};
-    if (writer.write_some(buffers) != size)
+    if (const std::array buffers{bytes.first(size / 2), bytes.subspan(size / 2)};
+        writer.write_some(buffers) != size)
     {
         return 0;
     }
-    std::array<std::byte, 4096> received{};
-    if (reader.read_some(std::span(received).first(size)) != size)
+    if (std::array<std::byte, 4096> received{};
+        reader.read_some(std::span(received).first(size)) != size)
     {
         __builtin_trap();
     }

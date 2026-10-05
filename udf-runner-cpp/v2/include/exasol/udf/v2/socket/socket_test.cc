@@ -10,6 +10,7 @@
 #include <string>
 #include <system_error>
 #include <utility>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -23,9 +24,16 @@ using exasol::udf::v2::socket::UnixSocketListener;
 
 std::filesystem::path unique_socket_path()
 {
-    std::array<char, 64> directory_template{"/tmp/udf-runner-cpp-socket-XXXXXX"};
+    const std::string template_path =
+        (std::filesystem::temp_directory_path() / "udf-runner-cpp-socket-XXXXXX").string();
+    std::vector<char> directory_template(template_path.begin(), template_path.end());
+    directory_template.push_back('\0');
     char* directory = ::mkdtemp(directory_template.data());
-    EXPECT_NE(directory, nullptr);
+    if (directory == nullptr)
+    {
+        ADD_FAILURE() << "mkdtemp failed";
+        return {};
+    }
     return std::filesystem::path(directory) / "socket";
 }
 
@@ -103,7 +111,7 @@ TEST(SocketTest, ListenerDoesNotOverwriteExistingPath)
 {
     const std::filesystem::path path = unique_socket_path();
     UnixSocketListener listener      = UnixSocketListener::bind(path);
-    expect_system_error([&] { static_cast<void>(UnixSocketListener::bind(path)); },
+    expect_system_error([path] { static_cast<void>(UnixSocketListener::bind(path)); },
                         std::errc::address_in_use);
     listener.close();
     listener.unlink_path();
@@ -151,7 +159,7 @@ TEST(SocketTest, NonblockingReadReportsWouldBlock)
         UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[0]));
     ASSERT_NE(::fcntl(reader.native_handle(), F_SETFL, O_NONBLOCK), -1);
     std::array<std::byte, 1> buffer{};
-    expect_system_error([&] { static_cast<void>(reader.read_some(buffer)); },
+    expect_system_error([&reader, &buffer] { static_cast<void>(reader.read_some(buffer)); },
                         std::errc::resource_unavailable_try_again);
     ASSERT_EQ(::close(sockets[1]), 0);
 }

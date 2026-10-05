@@ -59,7 +59,7 @@ public:
     void close() noexcept;
     [[nodiscard]] OwnedFileDescriptor release_native_handle() noexcept;
     [[nodiscard]] UnixSocket accept();
-    void unlink_path();
+    void unlink_path() const;
 
 private:
     UnixSocketListener(OwnedFileDescriptor owned_fd, std::filesystem::path path) noexcept;
