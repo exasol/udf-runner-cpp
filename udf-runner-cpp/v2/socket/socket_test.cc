@@ -6,6 +6,9 @@
 
 #include <array>
 #include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <string>
 #include <system_error>
@@ -24,9 +27,16 @@ using exasol::udf::v2::socket::UnixSocketListener;
 
 std::filesystem::path unique_socket_path()
 {
+    constexpr std::size_t maximum_temporary_root_length = 64;
+    const char* temporary_root                          = P_tmpdir;
+    if (const char* configured_temporary_root = std::getenv("TMPDIR");
+        configured_temporary_root != nullptr &&
+        std::strlen(configured_temporary_root) <= maximum_temporary_root_length)
+    {
+        temporary_root = configured_temporary_root;
+    }
     const std::string template_path =
-        (std::filesystem::temp_directory_path() / "udf-runner-cpp-socket-XXXXXX")
-            .string(); // NOSONAR S5443: mkdtemp atomically creates a private directory.
+        (std::filesystem::path(temporary_root) / "udf-runner-cpp-socket-XXXXXX").string();
     std::vector<char> directory_template(template_path.begin(), template_path.end());
     directory_template.push_back('\0');
     char* directory = ::mkdtemp(directory_template.data());
