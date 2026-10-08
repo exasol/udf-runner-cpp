@@ -1,4 +1,5 @@
-#include <exasol/udf/v2/message_view.hpp>
+#include <exasol/udf/v2/message_view/call_message_view.hpp>
+#include <exasol/udf/v2/message_view/control_message_view.hpp>
 
 namespace exasol::udf::v2
 {

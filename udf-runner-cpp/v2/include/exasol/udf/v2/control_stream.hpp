@@ -1,7 +1,7 @@
 #pragma once
 
-#include <exasol/udf/v2/message_builder.hpp>
-#include <exasol/udf/v2/message_view.hpp>
+#include <exasol/udf/v2/message_builder/control_message_builder.hpp>
+#include <exasol/udf/v2/message_view/control_message_view.hpp>
 
 namespace exasol::udf::v2
 {
