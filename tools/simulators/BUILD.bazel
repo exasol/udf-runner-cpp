@@ -1,0 +1,70 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "simulator",
+    srcs = ["common/simulator.cc"],
+    hdrs = ["common/simulator.hpp"],
+    copts = ["-std=c++23"],
+    deps = [
+        "@simulator_json//:nlohmann_json",
+        "@simulator_v2_sources//:socket",
+        "@simulator_v2_sources//:udf_protocol",
+    ],
+)
+
+cc_binary(
+    name = "client",
+    srcs = ["client/main.cc"],
+    copts = ["-std=c++23"],
+    linkstatic = True,
+    deps = [":simulator"],
+)
+
+cc_binary(
+    name = "udf_runner",
+    srcs = ["udf-runner/main.cc"],
+    copts = ["-std=c++23"],
+    linkstatic = True,
+    deps = [":simulator"],
+)
+
+sh_test(
+    name = "default_exchange_test",
+    srcs = ["tests/exchange.sh"],
+    args = ["$(location :udf_runner)", "$(location :client)"],
+    data = [":udf_runner", ":client"],
+)
+
+sh_test(
+    name = "scalar_exchange_test",
+    srcs = ["tests/exchange.sh"],
+    args = [
+        "$(location :udf_runner)",
+        "$(location :client)",
+        "$(location tests/runner_scalar.json)",
+        "$(location tests/client_scalar.json)",
+    ],
+    data = [
+        ":udf_runner",
+        ":client",
+        "tests/runner_scalar.json",
+        "tests/client_scalar.json",
+    ],
+)
+
+cc_binary(
+    name = "malformed_peer",
+    srcs = ["tests/malformed_peer.cc"],
+    copts = ["-std=c++23"],
+    deps = ["@simulator_v2_sources//:udf_protocol"],
+)
+
+sh_test(
+    name = "malformed_exchange_test",
+    srcs = ["tests/malformed.sh"],
+    args = ["$(location :udf_runner)", "$(location :malformed_peer)"],
+    data = [":udf_runner", ":malformed_peer"],
+)

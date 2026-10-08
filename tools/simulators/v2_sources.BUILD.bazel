@@ -1,0 +1,91 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+# Build only the v2 sources needed by these simulators, without loading the
+# v2 module's fuzz-test targets or changing its BUILD/MODULE files.
+FLATBUFFERS_PUBLIC_HEADERS = [
+    "allocator.h",
+    "array.h",
+    "base.h",
+    "buffer.h",
+    "buffer_ref.h",
+    "code_generator.h",
+    "code_generators.h",
+    "default_allocator.h",
+    "detached_buffer.h",
+    "file_manager.h",
+    "flatbuffer_builder.h",
+    "flatbuffers.h",
+    "flex_flat_util.h",
+    "flexbuffers.h",
+    "grpc.h",
+    "hash.h",
+    "idl.h",
+    "minireflect.h",
+    "reflection.h",
+    "reflection_generated.h",
+    "registry.h",
+    "stl_emulation.h",
+    "string.h",
+    "struct.h",
+    "table.h",
+    "util.h",
+    "vector.h",
+    "vector_downward.h",
+    "verifier.h",
+]
+
+genrule(
+    name = "private_flatbuffers_headers",
+    srcs = ["@flatbuffers//:public_headers"],
+    outs = [
+        "private_flatbuffers/exasol/udf/v2/third_party/flatbuffers/" + header
+        for header in FLATBUFFERS_PUBLIC_HEADERS
+    ],
+    tools = ["private_flatbuffers_headers.sh"],
+    cmd = "bash $(location private_flatbuffers_headers.sh) " +
+          "$(location private_flatbuffers/exasol/udf/v2/third_party/flatbuffers/allocator.h) " +
+          "$(SRCS)",
+)
+
+cc_library(
+    name = "private_flatbuffers_runtime",
+    hdrs = [":private_flatbuffers_headers"],
+    includes = ["private_flatbuffers"],
+)
+
+genrule(
+    name = "udf_protocol_generated",
+    srcs = ["udf_protocol.fbs"],
+    outs = ["udf_protocol_generated.h"],
+    tools = ["@flatbuffers//:flatc"],
+    cmd = "$(location @flatbuffers//:flatc) --cpp -o $(@D) $(location udf_protocol.fbs) && " +
+          "sed -i " +
+          "-e 's#flatbuffers/#exasol/udf/v2/third_party/flatbuffers/#g' " +
+          "-e 's/FLATBUFFERS_/EXASOL_UDF_V2_FLATBUFFERS_/g' " +
+          "$(@D)/udf_protocol_generated.h",
+)
+
+cc_library(
+    name = "udf_protocol",
+    srcs = ["udf_protocol.cc"],
+    hdrs = ["udf_protocol.hpp", ":udf_protocol_generated"],
+    copts = ["-std=c++23"],
+    deps = [":private_flatbuffers_runtime"],
+)
+
+cc_library(
+    name = "socket",
+    srcs = [
+        "socket/socket.cc",
+        "socket/unix_socket.cc",
+    ],
+    hdrs = [
+        "include/exasol/udf/v2/socket/socket.hpp",
+        "include/exasol/udf/v2/socket/unix_socket.hpp",
+    ],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    target_compatible_with = ["@platforms//os:linux"],
+)

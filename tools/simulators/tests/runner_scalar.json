@@ -1,0 +1,22 @@
+[
+  {"action":"send","kind":"capabilities","stream_id":0},
+  {"action":"expect","kind":"open","call_name":"Run","stream_id":1,"rows":2,"columns":[
+    {"name":"row_id","type":"uint64","nullable":false,"values":[1,2]},
+    {"name":"number","type":"int32","nullable":true,"values":[-7,null]},
+    {"name":"floating","type":"float64","nullable":true,"values":[1.5,null]},
+    {"name":"flag","type":"bool","nullable":true,"values":[true,null]},
+    {"name":"text","type":"utf8","nullable":true,"values":["hello",""]},
+    {"name":"bytes","type":"binary","nullable":true,"values":["AP8=",null]}
+  ]},
+  {"action":"send","kind":"schema","stream_id":1,"has_row_id":true,"columns":[
+    {"name":"row_id","type":"uint64","nullable":false,"values":[1,2]},
+    {"name":"number","type":"int32","nullable":true,"values":[-7,null]},
+    {"name":"floating","type":"float64","nullable":true,"values":[1.5,null]},
+    {"name":"flag","type":"bool","nullable":true,"values":[true,null]},
+    {"name":"text","type":"utf8","nullable":true,"values":["hello",""]},
+    {"name":"bytes","type":"binary","nullable":true,"values":["AP8=",null]}
+  ]},
+  {"action":"expect","kind":"close_call","stream_id":1},
+  {"action":"expect","kind":"close_connection","stream_id":0},
+  {"action":"send","kind":"close_connection","stream_id":0}
+]
