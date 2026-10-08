@@ -1,4 +1,4 @@
-#include <exasol/udf/v2/socket/unix_socket.hpp>
+#include <exasol/udf/v2/socket/unix_socket_listener.hpp>
 
 #include <fcntl.h>
 #include <sys/socket.h>
@@ -8,12 +8,9 @@
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include <filesystem>
-#include <string>
 #include <system_error>
 #include <utility>
-#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -27,19 +24,8 @@ using exasol::udf::v2::socket::UnixSocketListener;
 
 std::filesystem::path unique_socket_path()
 {
-    constexpr std::size_t maximum_temporary_root_length = 64;
-    const char* temporary_root                          = P_tmpdir;
-    if (const char* configured_temporary_root = std::getenv("TMPDIR");
-        configured_temporary_root != nullptr &&
-        std::strlen(configured_temporary_root) <= maximum_temporary_root_length)
-    {
-        temporary_root = configured_temporary_root;
-    }
-    const std::string template_path =
-        (std::filesystem::path(temporary_root) / "udf-runner-cpp-socket-XXXXXX").string();
-    std::vector<char> directory_template(template_path.begin(), template_path.end());
-    directory_template.push_back('\0');
-    char* directory = ::mkdtemp(directory_template.data());
+    char directory_template[] = P_tmpdir "/udf-runner-cpp-socket-XXXXXX";
+    char* directory           = ::mkdtemp(directory_template);
     if (directory == nullptr)
     {
         ADD_FAILURE() << "mkdtemp failed";
