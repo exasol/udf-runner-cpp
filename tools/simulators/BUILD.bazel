@@ -55,6 +55,38 @@ sh_test(
     ],
 )
 
+sh_test(
+    name = "echo_exchange_test",
+    srcs = ["tests/exchange.sh"],
+    args = [
+        "$(location :udf_runner)",
+        "$(location :client)",
+        "--echo",
+        "$(location tests/client_echo.json)",
+    ],
+    data = [
+        ":udf_runner",
+        ":client",
+        "tests/client_echo.json",
+    ],
+)
+
+sh_test(
+    name = "echo_standalone_schema_test",
+    srcs = ["tests/exchange.sh"],
+    args = [
+        "$(location :udf_runner)",
+        "$(location :client)",
+        "--echo",
+        "$(location tests/client_echo_schema.json)",
+    ],
+    data = [
+        ":udf_runner",
+        ":client",
+        "tests/client_echo_schema.json",
+    ],
+)
+
 cc_binary(
     name = "malformed_peer",
     srcs = ["tests/malformed_peer.cc"],

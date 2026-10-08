@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <deque>
 #include <fstream>
 #include <limits>
 #include <map>
@@ -540,6 +541,8 @@ public:
             received_schemas_.insert(stream_id);
             event["schema"] = true;
             received_has_group_[stream_id] = control->data_schema()->has_group_id();
+            event["has_group_id"] = control->data_schema()->has_group_id();
+            event["has_row_id"] = control->data_schema()->has_row_id();
         }
         if (metadata != nullptr)
         {
@@ -573,12 +576,27 @@ public:
             if (!event.contains("kind")) event["kind"] = "batch";
         }
         else event["is_end_of_group"] = false;
+        if (event.value("schema", false) && !event.contains("columns"))
+        {
+            Json columns = Json::array();
+            for (const auto& field : received_fields_.at(stream_id))
+                columns.push_back({{"name", field.name}, {"type", field.type},
+                                   {"nullable", field.nullable}, {"values", Json::array()}});
+            event["columns"] = std::move(columns);
+        }
         if (!event.contains("kind")) fail("frame has no supported content");
         validate(stream_id, event.at("kind").get<std::string>(), false);
         if (control != nullptr && control->next() != nullptr)
             received_budgets_[stream_id] = control->next()->byte_budget();
         event["stream_id"] = stream_id;
         return event;
+    }
+
+    bool can_send_batch(std::uint64_t stream_id) const
+    {
+        if (!first_sent_.contains(stream_id)) return true;
+        const auto budget = received_budgets_.find(stream_id);
+        return budget != received_budgets_.end() && budget->second != 0;
     }
 
 private:
@@ -762,7 +780,8 @@ private:
 void check_expected(const Json& step, const Json& event)
 {
     for (auto key : {"kind", "stream_id", "call_name", "rows", "payloads", "byte_budget",
-                     "reset", "row_id", "schema", "is_end_of_group", "error", "error_code"})
+                     "reset", "row_id", "schema", "has_group_id", "has_row_id",
+                     "is_end_of_group", "error", "error_code"})
     {
         if (step.contains(key) && (!event.contains(key) || step.at(key) != event.at(key)))
             fail(std::string("unexpected ") + key + ": " + event.dump());
@@ -897,6 +916,68 @@ void run(Role role, const std::filesystem::path& socket_path, const Json& steps,
         listener.close();
         listener.unlink_path();
     }
+}
+
+void run_echo(const std::filesystem::path& socket_path, int timeout_seconds)
+{
+    auto listener = transport::UnixSocketListener::bind(socket_path);
+    try
+    {
+        Session session(listener.accept(), Role::Runner, timeout_seconds);
+        session.send({{"kind", "capabilities"}, {"stream_id", 0},
+                      {"payloads", {{"high_level_name", "exasol.udf"},
+                                    {"high_level_version", "2.0-dev"}}}});
+        std::map<std::uint64_t, std::deque<Json>> pending;
+        bool finished = false;
+        while (!finished)
+        {
+            const Json event = session.receive();
+            const auto stream_id = event.at("stream_id").get<std::uint64_t>();
+            const auto kind = event.at("kind").get<std::string>();
+            if (kind == "close_connection")
+            {
+                for (const auto& [id, batches] : pending)
+                    if (!batches.empty()) fail("connection closed with unreturned echo data");
+                session.send({{"kind", "close_connection"}, {"stream_id", 0}});
+                finished = true;
+                continue;
+            }
+            if (kind == "open" && event.at("call_name") != "Run")
+                fail("echo mode supports only Run calls");
+            if (kind == "close_call")
+            {
+                if (!pending[stream_id].empty()) fail("call closed with unreturned echo data");
+                pending.erase(stream_id);
+                continue;
+            }
+            if (event.contains("rows"))
+                session.send({{"kind", "next"}, {"stream_id", stream_id},
+                              {"byte_budget", static_cast<std::uint32_t>(max_batch)}});
+            if (event.value("schema", false))
+                session.send({{"kind", "schema"}, {"stream_id", stream_id},
+                              {"columns", event.at("columns")}, {"batch", false},
+                              {"has_group_id", event.at("has_group_id")},
+                              {"has_row_id", event.at("has_row_id")}});
+            if (event.contains("rows"))
+                pending[stream_id].push_back({{"kind", "batch"}, {"stream_id", stream_id},
+                                              {"columns", event.at("columns")},
+                                              {"is_end_of_group", event.at("is_end_of_group")}});
+            auto& batches = pending[stream_id];
+            while (!batches.empty() && session.can_send_batch(stream_id))
+            {
+                session.send(batches.front());
+                batches.pop_front();
+            }
+        }
+    }
+    catch (...)
+    {
+        listener.close();
+        listener.unlink_path();
+        throw;
+    }
+    listener.close();
+    listener.unlink_path();
 }
 
 } // namespace exasol::udf::simulator

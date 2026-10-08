@@ -48,6 +48,12 @@ With no scenario file, the two commands run a two-batch `Run` exchange,
 including `Next` flow control and orderly shutdown. Example scalar-type
 scenarios are in `tools/simulators/tests`. The runner binds its socket path
 and removes it after its run; it refuses to replace an existing file there.
+Pass `--echo` instead of a scenario path to the runner to mirror every received
+`Run` schema and batch back to the client, preserving column values, nulls, and
+end-of-group markers. The echo runner grants input budget with `Next` and waits
+for output budget before returning batches after the first. For example, start
+`tools/simulators/bazel-bin/udf_runner /tmp/udf-v2-simulator.sock --echo`, then
+use a client scenario such as `tools/simulators/tests/client_echo.json`.
 The minimal wire implementation limits frames to 16 MiB, individual buffers
 to 64 MiB, batches to 128 MiB, and batches to one million rows; larger inputs
 are reported as protocol errors.
