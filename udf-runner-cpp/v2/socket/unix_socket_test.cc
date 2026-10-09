@@ -40,8 +40,8 @@ class UnixSocketPathTest : public testing::Test
 protected:
     void SetUp() override
     {
-        char directory_template[] = P_tmpdir "/udf-runner-cpp-socket-XXXXXX";
-        char* directory           = ::mkdtemp(directory_template);
+        auto directory_template = std::to_array(P_tmpdir "/udf-runner-cpp-socket-XXXXXX");
+        char* directory         = ::mkdtemp(directory_template.data());
         ASSERT_NE(directory, nullptr);
         temporary_directory = directory;
     }
