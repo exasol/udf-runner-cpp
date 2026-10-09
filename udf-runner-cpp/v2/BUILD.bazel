@@ -233,7 +233,8 @@ cc_library(
         "call.cc",
         "context.cc",
         "control_stream.cc",
-        "message_builder.cc",
+        "call_message_builder.cc",
+        "control_message_builder.cc",
         "message_view.cc",
     ],
     hdrs = [

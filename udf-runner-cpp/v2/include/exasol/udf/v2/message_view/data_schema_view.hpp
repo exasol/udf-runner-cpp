@@ -2,6 +2,9 @@
 
 #include <exasol/udf/v2/types.hpp>
 
+#include <functional>
+#include <optional>
+
 namespace exasol::udf::v2
 {
 
@@ -9,27 +12,28 @@ namespace exasol::udf::v2
 class DataSchemaView
 {
 public:
-    explicit DataSchemaView(const DataSchema* value = nullptr) : value_(value)
+    DataSchemaView() = default;
+    explicit DataSchemaView(const DataSchema& value) : value_(value)
     {
     }
     /// Returns the received Arrow schema pointer, or null when absent.
     [[nodiscard]] ArrowSchema* schema() const noexcept
     {
-        return value_ == nullptr ? nullptr : value_->schema;
+        return value_ ? value_->get().schema : nullptr;
     }
     /// Returns whether the schema reserves a group-id field.
     [[nodiscard]] bool has_group_id() const noexcept
     {
-        return value_ != nullptr && value_->has_group_id;
+        return value_ && value_->get().has_group_id;
     }
     /// Returns whether the schema reserves a row-id field.
     [[nodiscard]] bool has_row_id() const noexcept
     {
-        return value_ != nullptr && value_->has_row_id;
+        return value_ && value_->get().has_row_id;
     }
 
 private:
-    const DataSchema* value_;
+    std::optional<std::reference_wrapper<const DataSchema>> value_;
 };
 
 } // namespace exasol::udf::v2

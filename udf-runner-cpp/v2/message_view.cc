@@ -6,55 +6,65 @@ namespace exasol::udf::v2
 
 bool CallMessageView::has_open_call() const noexcept
 {
-    return value_ != nullptr && value_->open_call.has_value();
+    return value_ && value_->get().open_call.has_value();
 }
-const OpenCall* CallMessageView::open_call() const noexcept
+std::optional<std::reference_wrapper<const OpenCall>> CallMessageView::open_call() const noexcept
 {
-    return value_ == nullptr || !value_->open_call ? nullptr : &*value_->open_call;
+    return value_ && value_->get().open_call
+               ? std::optional<std::reference_wrapper<const OpenCall>>{*value_->get().open_call}
+               : std::nullopt;
 }
 bool CallMessageView::has_payloads() const noexcept
 {
-    return value_ != nullptr && value_->payloads.has_value();
+    return value_ && value_->get().payloads.has_value();
 }
-const Payloads* CallMessageView::payloads() const noexcept
+std::optional<std::reference_wrapper<const Payloads>> CallMessageView::payloads() const noexcept
 {
-    return value_ == nullptr || !value_->payloads ? nullptr : &*value_->payloads;
+    return value_ && value_->get().payloads
+               ? std::optional<std::reference_wrapper<const Payloads>>{*value_->get().payloads}
+               : std::nullopt;
 }
 bool CallMessageView::has_data_schema() const noexcept
 {
-    return value_ != nullptr && value_->data_schema.has_value();
+    return value_ && value_->get().data_schema.has_value();
 }
 DataSchemaView CallMessageView::data_schema() const noexcept
 {
-    return DataSchemaView(value_ == nullptr ? nullptr : &*value_->data_schema);
+    return value_ && value_->get().data_schema ? DataSchemaView(*value_->get().data_schema)
+                                               : DataSchemaView{};
 }
 bool CallMessageView::has_next() const noexcept
 {
-    return value_ != nullptr && value_->next.has_value();
+    return value_ && value_->get().next.has_value();
 }
-const Next* CallMessageView::next() const noexcept
+std::optional<std::reference_wrapper<const Next>> CallMessageView::next() const noexcept
 {
-    return value_ == nullptr || !value_->next ? nullptr : &*value_->next;
+    return value_ && value_->get().next
+               ? std::optional<std::reference_wrapper<const Next>>{*value_->get().next}
+               : std::nullopt;
 }
 bool CallMessageView::has_record_batch() const noexcept
 {
-    return value_ != nullptr && value_->record_batch.has_value();
+    return value_ && value_->get().record_batch.has_value();
 }
 RecordBatchView CallMessageView::record_batch() const noexcept
 {
-    return RecordBatchView(value_ == nullptr ? nullptr : &*value_->record_batch);
+    return value_ && value_->get().record_batch ? RecordBatchView(*value_->get().record_batch)
+                                                : RecordBatchView{};
 }
 bool CallMessageView::has_error() const noexcept
 {
-    return value_ != nullptr && value_->error.has_value();
+    return value_ && value_->get().error.has_value();
 }
-const ErrorInfo* CallMessageView::error() const noexcept
+std::optional<std::reference_wrapper<const ErrorInfo>> CallMessageView::error() const noexcept
 {
-    return value_ == nullptr || !value_->error ? nullptr : &*value_->error;
+    return value_ && value_->get().error
+               ? std::optional<std::reference_wrapper<const ErrorInfo>>{*value_->get().error}
+               : std::nullopt;
 }
 bool CallMessageView::has_close_call() const noexcept
 {
-    return value_ != nullptr && value_->close_call;
+    return value_ && value_->get().close_call;
 }
 bool CallMessageView::close_call() const noexcept
 {
@@ -63,16 +73,20 @@ bool CallMessageView::close_call() const noexcept
 
 bool ControlMessageView::has_server_capabilities() const noexcept
 {
-    return value_ != nullptr && value_->server_capabilities.has_value();
+    return value_ && value_->get().server_capabilities.has_value();
 }
-const ServerCapabilities* ControlMessageView::server_capabilities() const noexcept
+std::optional<std::reference_wrapper<const ServerCapabilities>>
+ControlMessageView::server_capabilities() const noexcept
 {
-    return value_ == nullptr || !value_->server_capabilities ? nullptr
-                                                             : &*value_->server_capabilities;
+    return value_ && value_->get().server_capabilities
+               ? std::optional<
+                     std::reference_wrapper<const ServerCapabilities>>{*value_->get()
+                                                                            .server_capabilities}
+               : std::nullopt;
 }
 bool ControlMessageView::has_keep_alive() const noexcept
 {
-    return value_ != nullptr && value_->keep_alive;
+    return value_ && value_->get().keep_alive;
 }
 bool ControlMessageView::keep_alive() const noexcept
 {
@@ -80,23 +94,27 @@ bool ControlMessageView::keep_alive() const noexcept
 }
 bool ControlMessageView::has_payloads() const noexcept
 {
-    return value_ != nullptr && value_->payloads.has_value();
+    return value_ && value_->get().payloads.has_value();
 }
-const Payloads* ControlMessageView::payloads() const noexcept
+std::optional<std::reference_wrapper<const Payloads>> ControlMessageView::payloads() const noexcept
 {
-    return value_ == nullptr || !value_->payloads ? nullptr : &*value_->payloads;
+    return value_ && value_->get().payloads
+               ? std::optional<std::reference_wrapper<const Payloads>>{*value_->get().payloads}
+               : std::nullopt;
 }
 bool ControlMessageView::has_error() const noexcept
 {
-    return value_ != nullptr && value_->error.has_value();
+    return value_ && value_->get().error.has_value();
 }
-const ErrorInfo* ControlMessageView::error() const noexcept
+std::optional<std::reference_wrapper<const ErrorInfo>> ControlMessageView::error() const noexcept
 {
-    return value_ == nullptr || !value_->error ? nullptr : &*value_->error;
+    return value_ && value_->get().error
+               ? std::optional<std::reference_wrapper<const ErrorInfo>>{*value_->get().error}
+               : std::nullopt;
 }
 bool ControlMessageView::has_close_connection() const noexcept
 {
-    return value_ != nullptr && value_->close_connection;
+    return value_ && value_->get().close_connection;
 }
 bool ControlMessageView::close_connection() const noexcept
 {

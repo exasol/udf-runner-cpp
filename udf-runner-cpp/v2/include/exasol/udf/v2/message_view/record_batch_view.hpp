@@ -2,6 +2,9 @@
 
 #include <exasol/udf/v2/types.hpp>
 
+#include <functional>
+#include <optional>
+
 namespace exasol::udf::v2
 {
 
@@ -9,22 +12,23 @@ namespace exasol::udf::v2
 class RecordBatchView
 {
 public:
-    explicit RecordBatchView(const RecordBatch* value = nullptr) : value_(value)
+    RecordBatchView() = default;
+    explicit RecordBatchView(const RecordBatch& value) : value_(value)
     {
     }
     /// Returns the received Arrow array pointer, or null when absent.
     [[nodiscard]] ArrowArray* array() const noexcept
     {
-        return value_ == nullptr ? nullptr : value_->array;
+        return value_ ? value_->get().array : nullptr;
     }
     /// Returns whether the final group in this batch ends here.
     [[nodiscard]] bool is_end_of_group() const noexcept
     {
-        return value_ != nullptr && value_->is_end_of_group;
+        return value_ && value_->get().is_end_of_group;
     }
 
 private:
-    const RecordBatch* value_;
+    std::optional<std::reference_wrapper<const RecordBatch>> value_;
 };
 
 } // namespace exasol::udf::v2
