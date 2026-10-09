@@ -9,7 +9,6 @@
 #include <cstddef>
 #include <cstring>
 #include <climits>
-#include <iterator>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -97,16 +96,15 @@ namespace
         iovecs.reserve(buffers.size());
         for (const Buffer buffer : buffers)
         {
-            if (std::size(buffer) >
+            if (buffer.size() >
                 static_cast<std::size_t>(std::numeric_limits<ssize_t>::max()) - total_size)
             {
                 throw std::system_error(EINVAL, std::generic_category(),
                                         "I/O buffer size is too large");
             }
-            total_size += std::size(buffer);
+            total_size += buffer.size();
             // POSIX declares iovec::iov_base as void* even for sendmsg(), which does not mutate it.
-            iovecs.push_back(
-                {const_cast<std::byte*>(std::data(buffer)), std::size(buffer)}); // NOSONAR
+            iovecs.push_back({const_cast<std::byte*>(buffer.data()), buffer.size()}); // NOSONAR
         }
         return iovecs;
     }

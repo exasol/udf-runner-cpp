@@ -401,6 +401,7 @@ cc_test(
 cc_fuzz_test(
     name = "socket_fuzz_test",
     srcs = ["socket/socket_fuzz_test.cc"],
+    corpus = glob(["fuzz/corpus/socket/**"]),
     copts = ["-std=c++23"],
     deps = [":socket"],
     tags = ["fuzz-test"],
