@@ -227,6 +227,34 @@ cc_library(
     deps = ["@v2_json_schema_validator//:json_schema_validator"],
 )
 
+cc_library(
+    name = "interface",
+    srcs = [
+        "call.cc",
+        "context.cc",
+        "control_stream.cc",
+        "call_message_builder.cc",
+        "control_message_builder.cc",
+        "message_view.cc",
+    ],
+    hdrs = [
+        "include/exasol/udf/v2/call.hpp",
+        "include/exasol/udf/v2/context.hpp",
+        "include/exasol/udf/v2/control_stream.hpp",
+        "include/exasol/udf/v2/interface.hpp",
+        "include/exasol/udf/v2/message_builder/call_message_builder.hpp",
+        "include/exasol/udf/v2/message_builder/control_message_builder.hpp",
+        "include/exasol/udf/v2/message_view/call_message_view.hpp",
+        "include/exasol/udf/v2/message_view/control_message_view.hpp",
+        "include/exasol/udf/v2/message_view/data_schema_view.hpp",
+        "include/exasol/udf/v2/message_view/record_batch_view.hpp",
+        "include/exasol/udf/v2/types.hpp",
+    ],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    deps = [":arrow_core"],
+)
+
 cc_test(
     name = "json_schema_validation_test",
     srcs = ["json_schema_validation_test.cc"],

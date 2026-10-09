@@ -174,7 +174,7 @@ shared atomic byte allowance plus a generation used for timed waiting; it is not
 
 1. Run synchronous worker-side dispatch before inspecting the grant.
 2. If this is not the first record batch in the direction and the grant is zero, wait for a positive grant, the optional
-   send deadline, or terminal state. A timeout returns `timed_out` without consuming the builder or its Arrow
+   send deadline, or terminal state. A timeout returns `TimedOut` without consuming the builder or its Arrow
    ownership. The first batch does not wait for `Next` credit.
 3. Measure the whole unsplit batch's Arrow buffer bytes and consume that amount from the worker grant. A positive grant
    admits the current batch even if this one submission overshoots it.
@@ -542,8 +542,8 @@ The terminal operation statuses distinguish at least:
 
 ```text
 closed
-transport_error
-protocol_error
+TransportError
+ProtocolError
 ```
 
 Timeout remains a normal non-terminal receive result. It is not converted into a context exception.
