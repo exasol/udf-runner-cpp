@@ -386,6 +386,18 @@ cc_test(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
+cc_test(
+    name = "unix_socket_test",
+    srcs = ["socket/unix_socket_test.cc"],
+    copts = ["-std=c++23"],
+    tags = ["no-mull"],
+    deps = [
+        ":socket",
+        "@googletest//:gtest_main",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
 cc_fuzz_test(
     name = "socket_fuzz_test",
     srcs = ["socket/socket_fuzz_test.cc"],
