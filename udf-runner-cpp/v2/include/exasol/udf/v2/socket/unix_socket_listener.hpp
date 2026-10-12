@@ -9,6 +9,7 @@
 namespace exasol::udf::v2::socket
 {
 
+/** Owns a Unix-domain stream listener. */
 class UnixSocketListener
 {
 public:
@@ -20,14 +21,36 @@ public:
     UnixSocketListener(UnixSocketListener&& other) noexcept;
     UnixSocketListener& operator=(UnixSocketListener&& other) noexcept;
 
+    /** Creates a listener at @p path and starts listening for connections.
+     *
+     * @param path Filesystem path for the Unix socket.
+     * @param backlog Maximum number of pending connections.
+     * @throws std::system_error if socket creation, binding, or listening fails.
+     * @throws std::invalid_argument if @p path is not a valid Unix socket path.
+     */
     [[nodiscard]] static UnixSocketListener bind(const std::filesystem::path& path,
                                                  int backlog = SOMAXCONN);
 
+    /** Returns the native listener descriptor, or -1 when closed. */
     [[nodiscard]] int native_handle() const noexcept;
+
+    /** Returns whether the listener owns an open native descriptor. */
     [[nodiscard]] bool is_open() const noexcept;
+
+    /** Closes the listener without removing its filesystem path. */
     void close() noexcept;
+
+    /** Releases the native descriptor without closing it. */
     [[nodiscard]] OwnedFileDescriptor release_native_handle() noexcept;
+
+    /** Accepts one connection from the listener. */
     [[nodiscard]] UnixSocket accept() const;
+
+    /** Removes the listener's filesystem path after it has been closed.
+     *
+     * @throws std::logic_error if the listener is still open.
+     * @throws std::system_error if removing the path fails.
+     */
     void unlink_path() const;
 
 private:

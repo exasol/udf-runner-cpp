@@ -7,6 +7,7 @@
 namespace exasol::udf::v2::socket
 {
 
+/** Owns one connected Unix-domain stream socket. */
 class UnixSocket final : public Socket
 {
 public:
@@ -21,7 +22,17 @@ public:
     UnixSocket(UnixSocket&& other) noexcept;
     UnixSocket& operator=(UnixSocket&& other) noexcept;
 
+    /** Connects to a Unix-domain socket at @p path.
+     *
+     * @throws std::system_error if socket creation or connection fails.
+     * @throws std::invalid_argument if @p path is not a valid Unix socket path.
+     */
     [[nodiscard]] static UnixSocket connect(const std::filesystem::path& path);
+
+    /** Takes ownership of an open Unix stream socket descriptor.
+     *
+     * @throws std::system_error if @p owned_fd is closed or is not a Unix stream socket.
+     */
     [[nodiscard]] static UnixSocket adopt_native_handle(OwnedFileDescriptor owned_fd);
 
     [[nodiscard]] int native_handle() const noexcept override;
