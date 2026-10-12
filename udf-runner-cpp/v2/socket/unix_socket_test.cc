@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <stdexcept>
 #include <system_error>
 #include <utility>
 
@@ -112,8 +113,7 @@ TEST_F(UnixSocketPathTest, BindReportsAddressError)
 
 TEST_F(UnixSocketPathTest, ValidatesPathsAndRequiresClosureBeforeUnlinking)
 {
-    expect_system_error([] { static_cast<void>(UnixSocketListener::bind({})); },
-                        std::errc::filename_too_long);
+    EXPECT_THROW(static_cast<void>(UnixSocketListener::bind({})), std::invalid_argument);
     UnixSocketListener listener = UnixSocketListener::bind(get_socket_path());
     EXPECT_THROW(listener.unlink_path(), std::logic_error);
     listener.close();
