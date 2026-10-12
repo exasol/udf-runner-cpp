@@ -20,9 +20,10 @@ TEST(SocketTest, OwnedDescriptorClosesExactlyOnceAfterMoveAndRelease)
     ASSERT_EQ(::pipe(pipe_fds.data()), 0);
     OwnedFileDescriptor descriptor = OwnedFileDescriptor::adopt_native_handle(pipe_fds[0]);
     OwnedFileDescriptor moved(std::move(descriptor));
-    EXPECT_EQ(descriptor.release_native_handle(),
-              -1); // NOLINT(bugprone-use-after-move,clang-analyzer-cplusplus.Move):
-                   // Verifies the moved-from state.
+    // NOLINTBEGIN(bugprone-use-after-move, clang-analyzer-cplusplus.Move): Inspecting the
+    // specified moved-from state is intentional.
+    EXPECT_EQ(descriptor.release_native_handle(), -1);
+    // NOLINTEND(bugprone-use-after-move, clang-analyzer-cplusplus.Move)
     const int released_fd = moved.release_native_handle();
     EXPECT_FALSE(moved.is_open());
     ASSERT_EQ(::close(released_fd), 0);
@@ -46,9 +47,10 @@ TEST(SocketTest, MoveAssignmentClosesReplacedDescriptor)
     OwnedFileDescriptor source      = OwnedFileDescriptor::adopt_native_handle(first_pipe[0]);
     OwnedFileDescriptor destination = OwnedFileDescriptor::adopt_native_handle(second_pipe[0]);
     destination                     = std::move(source);
-    EXPECT_EQ(source.release_native_handle(),
-              -1); // NOLINT(bugprone-use-after-move,clang-analyzer-cplusplus.Move):
-                   // Verifies the moved-from state.
+    // NOLINTBEGIN(bugprone-use-after-move, clang-analyzer-cplusplus.Move): Inspecting the
+    // specified moved-from state is intentional.
+    EXPECT_EQ(source.release_native_handle(), -1);
+    // NOLINTEND(bugprone-use-after-move, clang-analyzer-cplusplus.Move)
     EXPECT_EQ(destination.native_handle(), first_pipe[0]);
     EXPECT_EQ(::close(second_pipe[0]), -1);
     EXPECT_EQ(errno, EBADF);

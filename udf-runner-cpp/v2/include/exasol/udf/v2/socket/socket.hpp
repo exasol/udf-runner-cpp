@@ -30,10 +30,10 @@ public:
     [[nodiscard]] virtual int native_handle() const noexcept = 0;
 
     /** Returns whether the socket owns an open native descriptor. */
-    [[nodiscard]] virtual bool is_open() const noexcept      = 0;
+    [[nodiscard]] virtual bool is_open() const noexcept = 0;
 
     /** Closes the socket. This operation is idempotent. */
-    virtual void close() noexcept                                              = 0;
+    virtual void close() noexcept = 0;
 
     /** Releases the native descriptor without closing it. */
     [[nodiscard]] virtual OwnedFileDescriptor release_native_handle() noexcept = 0;
@@ -42,14 +42,14 @@ public:
      *
      * @throws std::system_error if the operating-system shutdown fails.
      */
-    virtual void shutdown(Shutdown how)                                        = 0;
+    virtual void shutdown(Shutdown how) = 0;
 
     /** Reads up to the capacity described by the buffers.
      *
      * A successful call may read fewer bytes than requested. A return value of
      * zero indicates end-of-file.
      */
-    virtual std::size_t read_some(std::span<const std::span<std::byte>> buffers)        = 0;
+    virtual std::size_t read_some(std::span<const std::span<std::byte>> buffers) = 0;
 
     /** Writes up to the size described by the buffers.
      *
