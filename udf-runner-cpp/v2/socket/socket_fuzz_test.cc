@@ -33,8 +33,19 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, const std::size_
     const std::span bytes(reinterpret_cast<const std::byte*>(data), size);
     const std::size_t written =
         writer.write_some(std::array{bytes.first(size / 2), bytes.subspan(size / 2)});
-    if (std::array<std::byte, 4096> received{};
-        reader.read_some(std::span(received).first(written)) != written)
+    std::array<std::byte, 4096> received{};
+    std::size_t total_read = 0;
+    while (total_read < written)
+    {
+        const std::size_t read =
+            reader.read_some(std::span(received).subspan(total_read, written - total_read));
+        if (read == 0)
+        {
+            __builtin_trap();
+        }
+        total_read += read;
+    }
+    if (total_read != written)
     {
         __builtin_trap();
     }

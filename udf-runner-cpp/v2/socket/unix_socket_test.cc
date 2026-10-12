@@ -40,6 +40,7 @@ class UnixSocketPathTest : public testing::Test
 protected:
     void SetUp() override
     {
+        // Each test gets an isolated directory so socket paths cannot collide.
         auto directory_template = std::to_array(P_tmpdir "/udf-runner-cpp-socket-XXXXXX");
         char* directory         = ::mkdtemp(directory_template.data());
         ASSERT_NE(directory, nullptr);
@@ -48,6 +49,7 @@ protected:
 
     void TearDown() override
     {
+        // The listener owns the socket descriptor, while the test owns its path.
         std::error_code error;
         std::filesystem::remove_all(temporary_directory, error);
         EXPECT_FALSE(error) << error.message();
@@ -67,6 +69,7 @@ TEST_F(UnixSocketPathTest, ListenerConnectsAcceptsAndRequiresExplicitCleanup)
     const std::filesystem::path path = get_socket_path();
     UnixSocketListener listener      = UnixSocketListener::bind(path);
     ASSERT_TRUE(std::filesystem::exists(path));
+    // Connecting and accepting through the path verifies both listener endpoints.
     UnixSocket client = UnixSocket::connect(path);
     UnixSocket server = listener.accept();
 
@@ -78,8 +81,16 @@ TEST_F(UnixSocketPathTest, ListenerConnectsAcceptsAndRequiresExplicitCleanup)
 
     listener.close();
     EXPECT_TRUE(std::filesystem::exists(path));
+    // Closing does not unlink the filesystem entry; that requires an explicit call.
     listener.unlink_path();
     EXPECT_FALSE(std::filesystem::exists(path));
+}
+
+TEST_F(UnixSocketPathTest, ConnectReportsAddressError)
+{
+    const std::filesystem::path path = get_socket_path().parent_path() / "missing" / "socket";
+    expect_system_error([path] { static_cast<void>(UnixSocket::connect(path)); },
+                        std::errc::no_such_file_or_directory);
 }
 
 TEST_F(UnixSocketPathTest, ListenerDoesNotOverwriteExistingPath)
@@ -90,6 +101,13 @@ TEST_F(UnixSocketPathTest, ListenerDoesNotOverwriteExistingPath)
                         std::errc::address_in_use);
     listener.close();
     listener.unlink_path();
+}
+
+TEST_F(UnixSocketPathTest, BindReportsAddressError)
+{
+    const std::filesystem::path path = get_socket_path().parent_path() / "missing" / "socket";
+    expect_system_error([path] { static_cast<void>(UnixSocketListener::bind(path)); },
+                        std::errc::no_such_file_or_directory);
 }
 
 TEST_F(UnixSocketPathTest, ValidatesPathsAndRequiresClosureBeforeUnlinking)
@@ -106,12 +124,14 @@ TEST(UnixSocketTest, SupportsScatterGatherIoAndPeerEof)
 {
     std::array<int, 2> sockets{};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
+    // Wrap both ends so descriptor ownership is transferred to UnixSocket.
     UnixSocket writer =
         UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[0]));
     UnixSocket reader =
         UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[1]));
     const std::array<std::byte, 2> first{std::byte{'a'}, std::byte{'b'}};
     const std::array<std::byte, 2> second{std::byte{'c'}, std::byte{'d'}};
+    // Send two buffers in one operation and verify that the peer sees them contiguously.
     const std::array<std::span<const std::byte>, 2> buffers{first, second};
     ASSERT_EQ(writer.write_some(buffers), 4);
     std::array<std::byte, 4> received{};
@@ -120,15 +140,18 @@ TEST(UnixSocketTest, SupportsScatterGatherIoAndPeerEof)
                                                   std::byte{'d'}}));
     writer.close();
     std::array<std::byte, 1> eof_buffer{};
+    // Closing the writer must make the reader observe peer EOF.
     EXPECT_EQ(reader.read_some(eof_buffer), 0);
 }
 
-TEST(UnixSocketTest, NonblockingReadReportsWouldBlockWhenPeerHasNotWrittenData)
+// A nonblocking read reports EAGAIN when no data is available.
+TEST(UnixSocketTest, NonblockingReadWouldBlock)
 {
     std::array<int, 2> sockets{};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
     UnixSocket reader =
         UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[0]));
+    // With no data and O_NONBLOCK enabled, read_some must fail without waiting.
     ASSERT_NE(::fcntl(reader.native_handle(), F_SETFL, O_NONBLOCK), -1);
     std::array<std::byte, 1> buffer{};
     expect_system_error([&reader, &buffer] { static_cast<void>(reader.read_some(buffer)); },
@@ -144,10 +167,12 @@ TEST(UnixSocketTest, SupportsShutdownAndDescriptorRelease)
         UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[0]));
     UnixSocket reader =
         UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[1]));
+    // Shutting down only the send direction should produce EOF on the peer.
     writer.shutdown(Shutdown::Send);
     std::array<std::byte, 1> buffer{};
     EXPECT_EQ(reader.read_some(buffer), 0);
     OwnedFileDescriptor released = reader.release_native_handle();
+    // Releasing transfers the descriptor out without closing it.
     EXPECT_FALSE(reader.is_open());
     EXPECT_TRUE(released.is_open());
 }

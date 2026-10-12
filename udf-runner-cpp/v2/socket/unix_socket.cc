@@ -40,8 +40,7 @@ namespace
         if (path_string.empty() || path_string.contains('\0') ||
             path_string.size() >= sizeof(sockaddr_un::sun_path))
         {
-            throw std::system_error(ENAMETOOLONG, std::generic_category(),
-                                    "invalid Unix socket path");
+            throw std::invalid_argument("invalid Unix socket path: " + path_string);
         }
 
         sockaddr_un address{};
@@ -151,7 +150,9 @@ UnixSocket UnixSocket::connect(const std::filesystem::path& path)
     {
         if (errno != EINTR)
         {
-            throw std::system_error(errno, std::generic_category(), "connect Unix socket");
+            const int error = errno;
+            throw std::system_error(error, std::generic_category(),
+                                    "connect Unix socket '" + path.string() + "'");
         }
     }
     return UnixSocket(std::move(socket_fd));
@@ -268,7 +269,9 @@ UnixSocketListener UnixSocketListener::bind(const std::filesystem::path& path, c
     OwnedFileDescriptor socket_fd = create_socket();
     if (::bind(socket_fd.native_handle(), as_socket_address(address), address_length) == -1)
     {
-        throw std::system_error(errno, std::generic_category(), "bind Unix socket listener");
+        const int error = errno;
+        throw std::system_error(error, std::generic_category(),
+                                "bind Unix socket listener '" + path.string() + "'");
     }
     if (::listen(socket_fd.native_handle(), backlog) == -1)
     {
