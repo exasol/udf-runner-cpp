@@ -50,7 +50,7 @@ protected:
 
     void TearDown() override
     {
-        // The listener owns the socket descriptor, while the test owns its path.
+        // The listener owns its path; the test removes its private directory.
         std::error_code error;
         std::filesystem::remove_all(temporary_directory, error);
         EXPECT_FALSE(error) << error.message();
@@ -65,7 +65,7 @@ private:
     std::filesystem::path temporary_directory;
 };
 
-TEST_F(UnixSocketPathTest, ListenerConnectsAcceptsAndRequiresExplicitCleanup)
+TEST_F(UnixSocketPathTest, ListenerConnectsAcceptsAndCleansUpPath)
 {
     const std::filesystem::path path = get_socket_path();
     UnixSocketListener listener      = UnixSocketListener::bind(path);
@@ -81,9 +81,6 @@ TEST_F(UnixSocketPathTest, ListenerConnectsAcceptsAndRequiresExplicitCleanup)
     EXPECT_EQ(received, sent);
 
     listener.close();
-    EXPECT_TRUE(std::filesystem::exists(path));
-    // Closing does not unlink the filesystem entry; that requires an explicit call.
-    listener.unlink_path();
     EXPECT_FALSE(std::filesystem::exists(path));
 }
 
@@ -101,7 +98,7 @@ TEST_F(UnixSocketPathTest, ListenerDoesNotOverwriteExistingPath)
     expect_system_error([path] { static_cast<void>(UnixSocketListener::bind(path)); },
                         std::errc::address_in_use);
     listener.close();
-    listener.unlink_path();
+    EXPECT_FALSE(std::filesystem::exists(path));
 }
 
 TEST_F(UnixSocketPathTest, BindReportsAddressError)
@@ -111,13 +108,41 @@ TEST_F(UnixSocketPathTest, BindReportsAddressError)
                         std::errc::no_such_file_or_directory);
 }
 
-TEST_F(UnixSocketPathTest, ValidatesPathsAndRequiresClosureBeforeUnlinking)
+TEST_F(UnixSocketPathTest, ValidatesPathsAndCleansUpOnDestruction)
 {
     EXPECT_THROW(static_cast<void>(UnixSocketListener::bind({})), std::invalid_argument);
-    UnixSocketListener listener = UnixSocketListener::bind(get_socket_path());
-    EXPECT_THROW(listener.unlink_path(), std::logic_error);
-    listener.close();
-    listener.unlink_path();
+    const std::filesystem::path path = get_socket_path();
+    {
+        UnixSocketListener listener = UnixSocketListener::bind(path);
+        EXPECT_TRUE(std::filesystem::exists(path));
+    }
+    EXPECT_FALSE(std::filesystem::exists(path));
+}
+
+TEST_F(UnixSocketPathTest, ReleasingDescriptorCleansUpPath)
+{
+    const std::filesystem::path path = get_socket_path();
+    UnixSocketListener listener      = UnixSocketListener::bind(path);
+
+    OwnedFileDescriptor released = listener.release_native_handle();
+
+    EXPECT_TRUE(released.is_open());
+    EXPECT_FALSE(std::filesystem::exists(path));
+}
+
+TEST_F(UnixSocketPathTest, MoveAssignmentCleansUpReplacedPath)
+{
+    const std::filesystem::path first_path  = get_socket_path();
+    const std::filesystem::path second_path = first_path.parent_path() / "second_socket";
+    UnixSocketListener source               = UnixSocketListener::bind(first_path);
+    UnixSocketListener destination          = UnixSocketListener::bind(second_path);
+
+    destination = std::move(source);
+
+    EXPECT_TRUE(std::filesystem::exists(first_path));
+    EXPECT_FALSE(std::filesystem::exists(second_path));
+    destination.close();
+    EXPECT_FALSE(std::filesystem::exists(first_path));
 }
 
 TEST(UnixSocketTest, SupportsScatterGatherIoAndPeerEof)

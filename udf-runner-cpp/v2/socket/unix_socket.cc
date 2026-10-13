@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstring>
 #include <climits>
+#include <iterator>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -23,12 +24,6 @@ namespace
 {
 
     class InvalidShutdownDirection final : public std::logic_error
-    {
-    public:
-        using std::logic_error::logic_error;
-    };
-
-    class ListenerStillOpen final : public std::logic_error
     {
     public:
         using std::logic_error::logic_error;
@@ -127,6 +122,40 @@ namespace
     {
         return std::bit_cast<const sockaddr*>(&address);
     }
+
+    void unlink_socket_path(std::filesystem::path& path) noexcept
+    {
+        std::filesystem::path path_to_unlink = std::exchange(path, {});
+        if (!path_to_unlink.empty())
+        {
+            static_cast<void>(::unlink(path_to_unlink.c_str()));
+        }
+    }
+
+    class SocketPathCleanup final
+    {
+    public:
+        explicit SocketPathCleanup(std::filesystem::path& path) noexcept : path(path)
+        {
+        }
+
+        ~SocketPathCleanup()
+        {
+            if (cleanup)
+            {
+                unlink_socket_path(path);
+            }
+        }
+
+        void dont_clean() noexcept
+        {
+            cleanup = false;
+        }
+
+    private:
+        std::filesystem::path& path;
+        bool cleanup = true;
+    };
 
 } // namespace
 
@@ -255,29 +284,47 @@ UnixSocketListener::UnixSocketListener() noexcept = default;
 
 UnixSocketListener::~UnixSocketListener()
 {
-    close();
+    this->close();
 }
 
-UnixSocketListener::UnixSocketListener(UnixSocketListener&& other) noexcept = default;
+UnixSocketListener::UnixSocketListener(UnixSocketListener&& other) noexcept
+    : file_descriptor(std::move(other.file_descriptor)),
+      bound_path(std::exchange(other.bound_path, {}))
+{
+}
 
-UnixSocketListener& UnixSocketListener::operator=(UnixSocketListener&& other) noexcept = default;
+UnixSocketListener& UnixSocketListener::operator=(UnixSocketListener&& other) noexcept
+{
+    if (this != &other)
+    {
+        this->close();
+        this->file_descriptor = std::move(other.file_descriptor);
+        this->bound_path      = std::exchange(other.bound_path, {});
+    }
+    return *this;
+}
 
 UnixSocketListener UnixSocketListener::bind(const std::filesystem::path& path, const int backlog)
 {
     socklen_t address_length      = 0;
     const sockaddr_un address     = make_socket_address(path, address_length);
     OwnedFileDescriptor socket_fd = create_socket();
+    std::filesystem::path bound_path(path);
     if (::bind(socket_fd.native_handle(), as_socket_address(address), address_length) == -1)
     {
         const int error = errno;
         throw std::system_error(error, std::generic_category(),
                                 "bind Unix socket listener '" + path.string() + "'");
     }
+
+    SocketPathCleanup cleanup_path(bound_path);
     if (::listen(socket_fd.native_handle(), backlog) == -1)
     {
         throw std::system_error(errno, std::generic_category(), "listen on Unix socket");
     }
-    return UnixSocketListener(std::move(socket_fd), path);
+    UnixSocketListener listener(std::move(socket_fd), std::move(bound_path));
+    cleanup_path.dont_clean();
+    return listener;
 }
 
 int UnixSocketListener::native_handle() const noexcept
@@ -292,12 +339,14 @@ bool UnixSocketListener::is_open() const noexcept
 
 void UnixSocketListener::close() noexcept
 {
-    file_descriptor.close();
+    this->file_descriptor.close();
+    this->unlink_path();
 }
 
 OwnedFileDescriptor UnixSocketListener::release_native_handle() noexcept
 {
-    const int released_fd = file_descriptor.release_native_handle();
+    const int released_fd = this->file_descriptor.release_native_handle();
+    this->unlink_path();
     if (released_fd == -1)
     {
         return {};
@@ -320,20 +369,9 @@ UnixSocket UnixSocketListener::accept() const
     return UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(accepted_fd));
 }
 
-void UnixSocketListener::unlink_path() const
+void UnixSocketListener::unlink_path() noexcept
 {
-    if (is_open())
-    {
-        throw ListenerStillOpen("close Unix socket listener before unlinking its path");
-    }
-    if (bound_path.empty())
-    {
-        return;
-    }
-    if (::unlink(bound_path.c_str()) == -1)
-    {
-        throw std::system_error(errno, std::generic_category(), "unlink Unix socket path");
-    }
+    unlink_socket_path(this->bound_path);
 }
 
 UnixSocketListener::UnixSocketListener(OwnedFileDescriptor owned_fd,

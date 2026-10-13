@@ -37,24 +37,18 @@ public:
     /** Returns whether the listener owns an open native descriptor. */
     [[nodiscard]] bool is_open() const noexcept;
 
-    /** Closes the listener without removing its filesystem path. */
+    /** Closes the listener and removes its filesystem path. */
     void close() noexcept;
 
-    /** Releases the native descriptor without closing it. */
+    /** Releases the native descriptor and removes the listener's filesystem path. */
     [[nodiscard]] OwnedFileDescriptor release_native_handle() noexcept;
 
     /** Accepts one connection from the listener. */
     [[nodiscard]] UnixSocket accept() const;
 
-    /** Removes the listener's filesystem path after it has been closed.
-     *
-     * @throws std::logic_error if the listener is still open.
-     * @throws std::system_error if removing the path fails.
-     */
-    void unlink_path() const;
-
 private:
     UnixSocketListener(OwnedFileDescriptor owned_fd, std::filesystem::path path) noexcept;
+    void unlink_path() noexcept;
 
     OwnedFileDescriptor file_descriptor;
     std::filesystem::path bound_path;
