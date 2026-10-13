@@ -1,6 +1,7 @@
 #pragma once
 
 // Compatibility umbrella for the public v2 worker-facing interface.
+#include <exasol/udf/v2/content_types.hpp>
 #include <exasol/udf/v2/context.hpp>
 #include <exasol/udf/v2/message_builder/call_message_builder.hpp>
 #include <exasol/udf/v2/message_builder/control_message_builder.hpp>

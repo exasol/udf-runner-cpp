@@ -2,7 +2,7 @@
 
 #include <exasol/udf/v2/message_view/data_schema_view.hpp>
 #include <exasol/udf/v2/message_view/record_batch_view.hpp>
-#include <exasol/udf/v2/types.hpp>
+#include <exasol/udf/v2/content_types.hpp>
 
 #include <functional>
 #include <optional>

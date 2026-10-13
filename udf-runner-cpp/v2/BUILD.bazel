@@ -240,6 +240,7 @@ cc_library(
     hdrs = [
         "include/exasol/udf/v2/call.hpp",
         "include/exasol/udf/v2/context.hpp",
+        "include/exasol/udf/v2/content_types.hpp",
         "include/exasol/udf/v2/control_stream.hpp",
         "include/exasol/udf/v2/interface.hpp",
         "include/exasol/udf/v2/message_builder/call_message_builder.hpp",
