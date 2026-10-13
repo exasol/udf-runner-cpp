@@ -41,10 +41,10 @@ struct ErrorInfo
 template <typename T>
 struct Result
 {
-    OperationStatus status{
-        OperationStatus::TransportError}; // NOLINT(misc-non-private-member-variables-in-classes)
-    std::optional<T> value;               // NOLINT(misc-non-private-member-variables-in-classes)
-    std::optional<ErrorInfo> error;       // NOLINT(misc-non-private-member-variables-in-classes)
+    // NOLINTNEXTLINE(misc-non-private-member-variables-in-classes)
+    OperationStatus status{OperationStatus::TransportError};
+    std::optional<T> value;         // NOLINT(misc-non-private-member-variables-in-classes)
+    std::optional<ErrorInfo> error; // NOLINT(misc-non-private-member-variables-in-classes)
 
     [[nodiscard]] static Result success(T result)
     {
@@ -64,9 +64,9 @@ struct Result
 template <>
 struct Result<void>
 {
-    OperationStatus status{
-        OperationStatus::TransportError}; // NOLINT(misc-non-private-member-variables-in-classes)
-    std::optional<ErrorInfo> error;       // NOLINT(misc-non-private-member-variables-in-classes)
+    // NOLINTNEXTLINE(misc-non-private-member-variables-in-classes)
+    OperationStatus status{OperationStatus::TransportError};
+    std::optional<ErrorInfo> error; // NOLINT(misc-non-private-member-variables-in-classes)
 
     [[nodiscard]] static Result success()
     {
