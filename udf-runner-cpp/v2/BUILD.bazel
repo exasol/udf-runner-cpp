@@ -258,7 +258,6 @@ cc_library(
     ],
     includes = [
         "include",
-        ".",
     ],
     copts = ["-std=c++23"],
     deps = [
