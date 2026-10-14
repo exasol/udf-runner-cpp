@@ -32,7 +32,7 @@ Consuming operations return either a value or a terminal result:
 
 ```text
 OperationStatus =
-    ok
+    Ok
   | TimedOut
   | Cancelled
   | PeerClosed
@@ -50,7 +50,7 @@ Result<T> {
 }
 ```
 
-`Result<void>` represents an operation that has no value on success. A successful result has `status == ok` and a
+`Result<void>` represents an operation that has no value on success. A successful result has `status == Ok` and a
 value where applicable. A failed result has no value and may include an error code and message.
 
 All timeout parameters use the conceptual type `optional<Duration>`. An absent timeout waits indefinitely; a zero
