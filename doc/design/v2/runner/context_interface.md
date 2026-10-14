@@ -296,16 +296,16 @@ where their transport implementation is deferred.
 `DataSchemaView` exposes the Arrow schema and its correlation flags. `RecordBatchView` exposes the Arrow array and
 `is_end_of_group`.
 
-### Received Next view
+### Received Next value
 
 ```text
-NextView {
+Next {
     reset() -> bool
     row_id() -> uint64
 }
 ```
 
-`NextView` does not expose `byte_budget`. The background thread consumes the received wire-level byte budget for
+`Next` does not expose `byte_budget`. The background thread consumes the received wire-level byte budget for
 authoritative flow control before the message is delivered to the worker. The outbound
 `CallMessageBuilder.next(byte_budget, reset, row_id)` operation remains available because the worker may grant credit
 to its peer.
