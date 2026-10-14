@@ -3,6 +3,8 @@
 #include <exasol/udf/v2/call.hpp>
 #include <exasol/udf/v2/control_stream.hpp>
 
+#include <memory>
+
 namespace exasol::udf::v2
 {
 
