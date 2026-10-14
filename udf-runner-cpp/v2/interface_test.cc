@@ -125,6 +125,7 @@ void builders_and_views_cover_present_and_absent_fields()
     CallMessageBuilder call;
     call.open_call("nested")
         .add_payload("request", "{}")
+        .add_payload("second_request", "value", true)
         .data_schema(ArrowSchemaPtr(&schema), true, true)
         .next(1024, true, 42)
         .record_batch(ArrowArrayPtr(&array), true)
@@ -171,6 +172,7 @@ void builders_and_views_cover_present_and_absent_fields()
     control.server_capabilities(2, 1, std::endian::little, 4)
         .keep_alive()
         .add_payload("control", "value")
+        .add_payload("second_control", "value", true)
         .error("E_CONTROL", "control failure")
         .close_connection();
     assert(control.message().server_capabilities.has_value());
@@ -238,6 +240,12 @@ void arrow_owners_release_exactly_once()
         ArrowArrayPtr owner(&released_array);
         assert(owner.get() == &released_array);
     }
+    {
+        ArrowSchemaPtr empty_schema;
+        ArrowArrayPtr empty_array;
+        assert(empty_schema.get() == nullptr);
+        assert(empty_array.get() == nullptr);
+    }
 }
 
 void convenience_methods_delegate_to_virtual_operations()
@@ -271,6 +279,12 @@ void result_and_timeout_types_are_usable()
     const ErrorInfo original("code", "message");
     assert(ErrorInfo(original).code() == "code");
     assert(ErrorInfo(original).message() == "message");
+
+    const auto failed = Result<int>::failure(OperationStatus::ProtocolError, original);
+    assert(!failed);
+    assert(failed.error.has_value());
+    assert(Result<void>::success());
+    assert(!Result<void>::failure(OperationStatus::TimedOut));
 }
 
 } // namespace exasol::udf::v2

@@ -365,6 +365,70 @@ TEST(UdfProtocolTest, RejectsEmptyAndInvalidFrames)
     EXPECT_FALSE(exasol::udf::protocol::DecodedFrame::decode(invalid).has_value());
 }
 
+TEST(UdfProtocolTest, ViewsHandleMissingOptionalFlatbufferFields)
+{
+    exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder call_builder;
+    const auto open_call       = exasol::udf::protocol::CreateOpenCall(call_builder);
+    const auto error           = exasol::udf::protocol::CreateError(call_builder);
+    const auto control_message = exasol::udf::protocol::CreateControlMessage(
+        call_builder, 0, 0, 0, error, exasol::udf::protocol::ControlMessageValue_OpenCall,
+        open_call.Union());
+    const auto frame = exasol::udf::protocol::CreateFrame(call_builder, 0, control_message);
+    call_builder.Finish(frame);
+    const std::vector<std::uint8_t> encoded_call(
+        call_builder.GetBufferPointer(), call_builder.GetBufferPointer() + call_builder.GetSize());
+    auto decoded_call = exasol::udf::protocol::DecodedFrame::decode(encoded_call);
+    ASSERT_TRUE(decoded_call.has_value());
+    const auto call_frame =
+        std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded_call.value()));
+    const exasol::udf::v2::CallMessageView call_view(call_frame);
+    EXPECT_TRUE(call_view.has_open_call());
+    EXPECT_TRUE(call_view.open_call()->get().call_name.empty());
+    ASSERT_TRUE(call_view.error());
+    EXPECT_TRUE(call_view.error()->get().code().empty());
+    EXPECT_TRUE(call_view.error()->get().message().empty());
+
+    exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder capabilities_builder;
+    const auto capabilities = exasol::udf::protocol::CreateServerCapabilities(capabilities_builder);
+    const auto capabilities_control = exasol::udf::protocol::CreateControlMessage(
+        capabilities_builder, 0, 0, 0, 0,
+        exasol::udf::protocol::ControlMessageValue_ServerCapabilities, capabilities.Union());
+    const auto capabilities_frame =
+        exasol::udf::protocol::CreateFrame(capabilities_builder, 0, capabilities_control);
+    capabilities_builder.Finish(capabilities_frame);
+    const std::vector<std::uint8_t> encoded_capabilities(
+        capabilities_builder.GetBufferPointer(),
+        capabilities_builder.GetBufferPointer() + capabilities_builder.GetSize());
+    auto decoded_capabilities = exasol::udf::protocol::DecodedFrame::decode(encoded_capabilities);
+    ASSERT_TRUE(decoded_capabilities.has_value());
+    const auto capabilities_decoded_frame = std::make_shared<exasol::udf::protocol::DecodedFrame>(
+        std::move(decoded_capabilities.value()));
+    const exasol::udf::v2::ControlMessageView capabilities_view(capabilities_decoded_frame);
+    ASSERT_TRUE(capabilities_view.server_capabilities());
+    EXPECT_EQ(capabilities_view.server_capabilities()->get().major, 0);
+    EXPECT_EQ(capabilities_view.server_capabilities()->get().minor, 0);
+    ASSERT_TRUE(capabilities_view.flatbuffer_server_capabilities());
+    EXPECT_EQ(capabilities_view.flatbuffer_server_capabilities()->get().supported_version(),
+              nullptr);
+
+    exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder close_builder;
+    const auto close_control = exasol::udf::protocol::CreateCloseControlMessage(close_builder);
+    const auto close_message = exasol::udf::protocol::CreateControlMessage(
+        close_builder, 0, 0, 0, 0, exasol::udf::protocol::ControlMessageValue_CloseControlMessage,
+        close_control.Union());
+    const auto close_frame = exasol::udf::protocol::CreateFrame(close_builder, 0, close_message);
+    close_builder.Finish(close_frame);
+    const std::vector<std::uint8_t> encoded_close(
+        close_builder.GetBufferPointer(),
+        close_builder.GetBufferPointer() + close_builder.GetSize());
+    auto decoded_close = exasol::udf::protocol::DecodedFrame::decode(encoded_close);
+    ASSERT_TRUE(decoded_close.has_value());
+    const auto close_decoded_frame =
+        std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded_close.value()));
+    EXPECT_FALSE(exasol::udf::v2::CallMessageView(close_decoded_frame).close_call());
+    EXPECT_FALSE(exasol::udf::v2::ControlMessageView(close_decoded_frame).close_connection());
+}
+
 TEST(UdfProtocolTest, FrameBackedControlViewDecodesCapabilitiesAndKeepAlive)
 {
     exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder builder;
