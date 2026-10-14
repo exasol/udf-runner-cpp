@@ -117,6 +117,7 @@ cc_test(
     copts = ["-std=c++23"],
     tags = ["no-mull"],
     deps = [
+        ":interface",
         ":udf_protocol",
         "@googletest//:gtest_main",
     ],

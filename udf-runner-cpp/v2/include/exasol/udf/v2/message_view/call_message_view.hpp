@@ -23,12 +23,11 @@ public:
     [[nodiscard]] bool has_open_call() const noexcept;
     /// Returns call-opening metadata, or an empty optional when absent.
     [[nodiscard]] std::optional<std::reference_wrapper<const OpenCall>> open_call() const noexcept;
-    /// Returns whether payloads are present.
+    /// Returns whether wire-level payloads are present.
     [[nodiscard]] bool has_payloads() const noexcept;
-    /// Returns payloads, or an empty optional when absent.
-    [[nodiscard]] std::optional<std::reference_wrapper<const Payloads>> payloads() const noexcept;
-    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Payloads>>
-    flatbuffer_payloads() const noexcept;
+    /// Returns the wire-level FlatBuffer payload table, or an empty optional when absent.
+    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Payloads>> payloads()
+        const noexcept;
     /// Returns whether a data schema is present.
     [[nodiscard]] bool has_data_schema() const noexcept;
     /// Returns the data-schema view.
@@ -53,7 +52,7 @@ public:
     explicit CallMessageView(std::shared_ptr<const protocol::DecodedFrame> frame);
 
 private:
-    std::optional<std::reference_wrapper<const CallMessage>> call_message_;
+    std::optional<CallMessage> call_message_;
     std::shared_ptr<const protocol::DecodedFrame> decoded_frame_;
 };
 

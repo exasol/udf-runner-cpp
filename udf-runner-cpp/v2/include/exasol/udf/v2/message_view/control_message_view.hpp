@@ -28,12 +28,11 @@ public:
     /// Returns the wire-level FlatBuffer keep-alive object, or null when absent.
     [[nodiscard]] std::optional<std::reference_wrapper<const protocol::KeepAlive>> keep_alive()
         const noexcept;
-    /// Returns whether payloads are present.
+    /// Returns whether wire-level payloads are present.
     [[nodiscard]] bool has_payloads() const noexcept;
-    /// Returns payloads, or an empty optional when absent.
-    [[nodiscard]] std::optional<std::reference_wrapper<const Payloads>> payloads() const noexcept;
-    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Payloads>>
-    flatbuffer_payloads() const noexcept;
+    /// Returns the wire-level FlatBuffer payload table, or an empty optional when absent.
+    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Payloads>> payloads()
+        const noexcept;
     /// Returns whether an error is present.
     [[nodiscard]] bool has_error() const noexcept;
     /// Returns the error, or an empty optional when absent.
@@ -46,7 +45,7 @@ public:
     explicit ControlMessageView(std::shared_ptr<const protocol::DecodedFrame> frame);
 
 private:
-    std::optional<std::reference_wrapper<const ControlMessage>> control_message_;
+    std::optional<ControlMessage> control_message_;
     std::shared_ptr<const protocol::DecodedFrame> decoded_frame_;
 };
 
