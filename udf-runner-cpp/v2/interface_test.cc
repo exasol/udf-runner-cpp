@@ -269,9 +269,8 @@ void result_and_timeout_types_are_usable()
     static_assert(Timeout{std::chrono::milliseconds(1)}.has_value());
 
     const ErrorInfo original("code", "message");
-    const ErrorInfo copy(original);
-    assert(copy.code() == "code");
-    assert(copy.message() == "message");
+    assert(ErrorInfo(original).code() == "code");
+    assert(ErrorInfo(original).message() == "message");
 }
 
 } // namespace exasol::udf::v2
