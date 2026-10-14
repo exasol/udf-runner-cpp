@@ -331,6 +331,40 @@ TEST(UdfProtocolTest, FrameBackedViewsExposeFlatbufferFields)
     EXPECT_FALSE(control_view.flatbuffer_server_capabilities());
 }
 
+TEST(UdfProtocolTest, EmptyAndDataOnlyFramesProduceEmptyViews)
+{
+    const exasol::udf::v2::CallMessageView empty_call_view(
+        std::shared_ptr<const exasol::udf::protocol::DecodedFrame>{});
+    const exasol::udf::v2::ControlMessageView empty_control_view(
+        std::shared_ptr<const exasol::udf::protocol::DecodedFrame>{});
+    EXPECT_FALSE(empty_call_view.has_open_call());
+    EXPECT_FALSE(empty_control_view.has_server_capabilities());
+
+    exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder builder;
+    const auto batch = exasol::udf::protocol::CreateDataRecordBatchMetadata(builder);
+    const auto frame = exasol::udf::protocol::CreateFrame(builder, 1, 0, batch);
+    builder.Finish(frame);
+    const std::vector<std::uint8_t> encoded(builder.GetBufferPointer(),
+                                            builder.GetBufferPointer() + builder.GetSize());
+    auto decoded = exasol::udf::protocol::DecodedFrame::decode(encoded);
+    ASSERT_TRUE(decoded.has_value());
+    const auto decoded_frame =
+        std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded.value()));
+    const exasol::udf::v2::CallMessageView call_view(decoded_frame);
+    const exasol::udf::v2::ControlMessageView control_view(decoded_frame);
+    EXPECT_FALSE(call_view.has_open_call());
+    EXPECT_FALSE(control_view.has_server_capabilities());
+    EXPECT_FALSE(control_view.has_payloads());
+    EXPECT_FALSE(control_view.payloads());
+}
+
+TEST(UdfProtocolTest, RejectsEmptyAndInvalidFrames)
+{
+    EXPECT_FALSE(exasol::udf::protocol::DecodedFrame::decode({}).has_value());
+    const std::vector<std::uint8_t> invalid{0, 1, 2, 3};
+    EXPECT_FALSE(exasol::udf::protocol::DecodedFrame::decode(invalid).has_value());
+}
+
 TEST(UdfProtocolTest, FrameBackedControlViewDecodesCapabilitiesAndKeepAlive)
 {
     exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder builder;

@@ -156,10 +156,13 @@ void builders_and_views_cover_present_and_absent_fields()
     assert(!empty_call_view.payloads());
     assert(!empty_call_view.has_data_schema());
     assert(empty_call_view.data_schema().schema() == nullptr);
+    assert(!empty_call_view.data_schema().has_group_id());
+    assert(!empty_call_view.data_schema().has_row_id());
     assert(!empty_call_view.has_next());
     assert(!empty_call_view.next());
     assert(!empty_call_view.has_record_batch());
     assert(empty_call_view.record_batch().array() == nullptr);
+    assert(!empty_call_view.record_batch().is_end_of_group());
     assert(!empty_call_view.has_error());
     assert(!empty_call_view.error());
     assert(!empty_call_view.close_call());
@@ -229,6 +232,12 @@ void arrow_owners_release_exactly_once()
     ArrowArrayOwner replacement_array(&second_array);
     assigned_array = std::move(replacement_array);
     assert(assigned_array.get() == &second_array);
+
+    ArrowArray released_array{};
+    {
+        ArrowArrayOwner owner(&released_array);
+        assert(owner.get() == &released_array);
+    }
 }
 
 void convenience_methods_delegate_to_virtual_operations()
@@ -258,6 +267,11 @@ void result_and_timeout_types_are_usable()
     assert(result && result.value == 23);
     assert(Result<void>::failure(OperationStatus::TimedOut).status == OperationStatus::TimedOut);
     static_assert(Timeout{std::chrono::milliseconds(1)}.has_value());
+
+    const ErrorInfo original("code", "message");
+    const ErrorInfo copy(original);
+    assert(copy.code() == "code");
+    assert(copy.message() == "message");
 }
 
 } // namespace exasol::udf::v2
