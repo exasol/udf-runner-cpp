@@ -6,9 +6,11 @@
 
 #include <array>
 #include <cerrno>
+#include <climits>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <span>
 #include <stdexcept>
 #include <system_error>
 #include <utility>
@@ -42,7 +44,7 @@ protected:
     void SetUp() override
     {
         // Each test gets an isolated directory so socket paths cannot collide.
-        auto directory_template = std::to_array(P_tmpdir "/udf-runner-cpp-socket-XXXXXX");
+        auto directory_template = std::to_array(P_tmpdir "/udf-runner-cpp-socket-XXXXXX"); // NOSONAR
         char* directory         = ::mkdtemp(directory_template.data()); // NOSONAR
         ASSERT_NE(directory, nullptr);
         temporary_directory = directory;
@@ -133,6 +135,29 @@ TEST_F(UnixSocketPathTest, BindReportsAddressError)
     const std::filesystem::path path = get_socket_path().parent_path() / "missing" / "socket";
     expect_system_error([path] { static_cast<void>(UnixSocketListener::bind(path)); },
                         std::errc::no_such_file_or_directory);
+}
+
+TEST_F(UnixSocketPathTest, DefaultListenerCanBeInspectedAndReleased)
+{
+    UnixSocketListener listener;
+    EXPECT_FALSE(listener.is_open());
+    EXPECT_EQ(listener.native_handle(), -1);
+    EXPECT_FALSE(listener.release_native_handle().is_open());
+}
+
+TEST_F(UnixSocketPathTest, AcceptOnClosedListenerReportsError)
+{
+    UnixSocketListener listener;
+    expect_system_error([&listener] { static_cast<void>(listener.accept()); },
+                        std::errc::bad_file_descriptor);
+}
+
+TEST_F(UnixSocketPathTest, SelfMoveAssignmentDoesNothing)
+{
+    UnixSocketListener listener = UnixSocketListener::bind(get_socket_path());
+    listener = std::move(listener);
+    EXPECT_TRUE(listener.is_open());
+    EXPECT_TRUE(std::filesystem::exists(get_socket_path()));
 }
 
 TEST_F(UnixSocketPathTest, RejectsEmptyPath)
@@ -257,6 +282,83 @@ TEST(UnixSocketTest, ReleasesDescriptor)
     // Releasing transfers the descriptor out without closing it.
     EXPECT_FALSE(socket.is_open());
     EXPECT_TRUE(released.is_open());
+}
+
+TEST(UnixSocketTest, SupportsMoveConstructionAndAssignment)
+{
+    std::array<int, 2> sockets{};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
+    UnixSocket source =
+        UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[0]));
+    UnixSocket moved(std::move(source));
+    EXPECT_FALSE(source.is_open());
+    EXPECT_TRUE(moved.is_open());
+
+    UnixSocket destination =
+        UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[1]));
+    destination = std::move(moved);
+    EXPECT_FALSE(moved.is_open());
+    EXPECT_TRUE(destination.is_open());
+}
+
+TEST(UnixSocketTest, RejectsClosedDescriptor)
+{
+    EXPECT_THROW(static_cast<void>(UnixSocket::adopt_native_handle({})), std::system_error);
+}
+
+TEST(UnixSocketTest, RejectsNonUnixSocketDescriptor)
+{
+    const int descriptor = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    ASSERT_NE(descriptor, -1);
+    OwnedFileDescriptor owned = OwnedFileDescriptor::adopt_native_handle(descriptor);
+    EXPECT_THROW(static_cast<void>(UnixSocket::adopt_native_handle(std::move(owned))),
+                 std::system_error);
+}
+
+TEST(UnixSocketTest, HandlesEmptyIoBuffers)
+{
+    std::array<int, 2> sockets{};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
+    UnixSocket socket =
+        UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[0]));
+    const std::span<const std::span<std::byte>> empty_read{};
+    const std::span<const std::span<const std::byte>> empty_write{};
+    EXPECT_EQ(socket.read_some(empty_read), 0U);
+    EXPECT_EQ(socket.write_some(empty_write), 0U);
+    ASSERT_EQ(::close(sockets[1]), 0);
+}
+
+TEST(UnixSocketTest, RejectsTooManyIoBuffers)
+{
+    std::array<int, 2> sockets{};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
+    UnixSocket socket =
+        UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[0]));
+    std::array<std::byte, 1> byte{};
+    std::array<std::span<std::byte>, IOV_MAX + 1> buffers{};
+    buffers.fill(byte);
+    EXPECT_THROW(static_cast<void>(socket.read_some(buffers)), std::system_error);
+    ASSERT_EQ(::close(sockets[1]), 0);
+}
+
+TEST(UnixSocketTest, HandlesAllShutdownDirectionsAndInvalidDirection)
+{
+    std::array<int, 2> sockets{};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
+    UnixSocket socket =
+        UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[0]));
+    EXPECT_NO_THROW(socket.shutdown(Shutdown::Receive));
+    EXPECT_NO_THROW(socket.shutdown(Shutdown::Send));
+    EXPECT_NO_THROW(socket.shutdown(Shutdown::Both));
+    EXPECT_THROW(socket.shutdown(static_cast<Shutdown>(-1)), std::logic_error);
+    ASSERT_EQ(::close(sockets[1]), 0);
+}
+
+TEST(UnixSocketTest, ReportsShutdownAndReleaseOnClosedSocket)
+{
+    UnixSocket socket;
+    EXPECT_THROW(socket.shutdown(Shutdown::Both), std::system_error);
+    EXPECT_FALSE(socket.release_native_handle().is_open());
 }
 
 } // namespace

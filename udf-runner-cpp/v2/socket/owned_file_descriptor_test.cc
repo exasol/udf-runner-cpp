@@ -38,6 +38,13 @@ TEST(OwnedFileDescriptorTest, RejectsInvalidDescriptorAdoption)
                  std::invalid_argument);
 }
 
+TEST(OwnedFileDescriptorTest, DefaultDescriptorIsClosed)
+{
+    const OwnedFileDescriptor descriptor;
+    EXPECT_FALSE(descriptor.is_open());
+    EXPECT_EQ(descriptor.native_handle(), -1);
+}
+
 TEST(OwnedFileDescriptorTest, MoveAssignmentClosesReplacedDescriptor)
 {
     std::array<int, 2> first_pipe{};
