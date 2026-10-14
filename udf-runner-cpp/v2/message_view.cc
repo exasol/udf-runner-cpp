@@ -30,10 +30,12 @@ std::optional<std::reference_wrapper<const Payloads>> CallMessageView::payloads(
     }
     return std::cref(call_message_.value().get().payloads.value());
 }
-const protocol::Payloads* CallMessageView::flatbuffer_payloads() const noexcept
+std::optional<std::reference_wrapper<const protocol::Payloads>>
+CallMessageView::flatbuffer_payloads() const noexcept
 {
-    const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
-    return control != nullptr ? control->payloads() : nullptr;
+    const auto* control  = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
+    const auto* payloads = control != nullptr ? control->payloads() : nullptr;
+    return payloads != nullptr ? std::optional{std::cref(*payloads)} : std::nullopt;
 }
 bool CallMessageView::has_data_schema() const noexcept
 {
@@ -83,10 +85,12 @@ std::optional<std::reference_wrapper<const ErrorInfo>> CallMessageView::error() 
     }
     return std::cref(call_message_.value().get().error.value());
 }
-const protocol::Error* CallMessageView::flatbuffer_error() const noexcept
+std::optional<std::reference_wrapper<const protocol::Error>> CallMessageView::flatbuffer_error()
+    const noexcept
 {
     const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
-    return control != nullptr ? control->error() : nullptr;
+    const auto* error   = control != nullptr ? control->error() : nullptr;
+    return error != nullptr ? std::optional{std::cref(*error)} : std::nullopt;
 }
 
 CallMessageView::CallMessageView(std::shared_ptr<const protocol::DecodedFrame> frame)
@@ -114,16 +118,20 @@ ControlMessageView::server_capabilities() const noexcept
     }
     return std::cref(control_message_.value().get().server_capabilities.value());
 }
-const protocol::ServerCapabilities* ControlMessageView::flatbuffer_server_capabilities()
+std::optional<std::reference_wrapper<const protocol::ServerCapabilities>>
+ControlMessageView::flatbuffer_server_capabilities() const noexcept
+{
+    const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
+    const auto* capabilities =
+        control != nullptr ? control->value_as_ServerCapabilities() : nullptr;
+    return capabilities != nullptr ? std::optional{std::cref(*capabilities)} : std::nullopt;
+}
+std::optional<std::reference_wrapper<const protocol::KeepAlive>> ControlMessageView::keep_alive()
     const noexcept
 {
-    const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
-    return control != nullptr ? control->value_as_ServerCapabilities() : nullptr;
-}
-const protocol::KeepAlive* ControlMessageView::keep_alive() const noexcept
-{
-    const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
-    return control != nullptr ? control->value_as_KeepAlive() : nullptr;
+    const auto* control    = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
+    const auto* keep_alive = control != nullptr ? control->value_as_KeepAlive() : nullptr;
+    return keep_alive != nullptr ? std::optional{std::cref(*keep_alive)} : std::nullopt;
 }
 bool ControlMessageView::has_payloads() const noexcept
 {
@@ -137,10 +145,12 @@ std::optional<std::reference_wrapper<const Payloads>> ControlMessageView::payloa
     }
     return std::cref(control_message_.value().get().payloads.value());
 }
-const protocol::Payloads* ControlMessageView::flatbuffer_payloads() const noexcept
+std::optional<std::reference_wrapper<const protocol::Payloads>>
+ControlMessageView::flatbuffer_payloads() const noexcept
 {
-    const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
-    return control != nullptr ? control->payloads() : nullptr;
+    const auto* control  = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
+    const auto* payloads = control != nullptr ? control->payloads() : nullptr;
+    return payloads != nullptr ? std::optional{std::cref(*payloads)} : std::nullopt;
 }
 bool ControlMessageView::has_error() const noexcept
 {
@@ -154,10 +164,12 @@ std::optional<std::reference_wrapper<const ErrorInfo>> ControlMessageView::error
     }
     return std::cref(control_message_.value().get().error.value());
 }
-const protocol::Error* ControlMessageView::flatbuffer_error() const noexcept
+std::optional<std::reference_wrapper<const protocol::Error>> ControlMessageView::flatbuffer_error()
+    const noexcept
 {
     const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
-    return control != nullptr ? control->error() : nullptr;
+    const auto* error   = control != nullptr ? control->error() : nullptr;
+    return error != nullptr ? std::optional{std::cref(*error)} : std::nullopt;
 }
 
 ControlMessageView::ControlMessageView(std::shared_ptr<const protocol::DecodedFrame> frame)

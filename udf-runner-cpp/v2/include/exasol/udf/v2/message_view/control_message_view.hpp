@@ -23,20 +23,23 @@ public:
     [[nodiscard]]
     std::optional<std::reference_wrapper<const ServerCapabilities>> server_capabilities()
         const noexcept;
-    [[nodiscard]] const protocol::ServerCapabilities* flatbuffer_server_capabilities()
-        const noexcept;
+    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::ServerCapabilities>>
+    flatbuffer_server_capabilities() const noexcept;
     /// Returns the wire-level FlatBuffer keep-alive object, or null when absent.
-    [[nodiscard]] const protocol::KeepAlive* keep_alive() const noexcept;
+    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::KeepAlive>> keep_alive()
+        const noexcept;
     /// Returns whether payloads are present.
     [[nodiscard]] bool has_payloads() const noexcept;
     /// Returns payloads, or an empty optional when absent.
     [[nodiscard]] std::optional<std::reference_wrapper<const Payloads>> payloads() const noexcept;
-    [[nodiscard]] const protocol::Payloads* flatbuffer_payloads() const noexcept;
+    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Payloads>>
+    flatbuffer_payloads() const noexcept;
     /// Returns whether an error is present.
     [[nodiscard]] bool has_error() const noexcept;
     /// Returns the error, or an empty optional when absent.
     [[nodiscard]] std::optional<std::reference_wrapper<const ErrorInfo>> error() const noexcept;
-    [[nodiscard]] const protocol::Error* flatbuffer_error() const noexcept;
+    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Error>> flatbuffer_error()
+        const noexcept;
     /// Returns whether this message starts or acknowledges connection shutdown.
     [[nodiscard]] bool close_connection() const noexcept;
 
