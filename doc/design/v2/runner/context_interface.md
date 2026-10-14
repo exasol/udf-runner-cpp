@@ -271,7 +271,7 @@ The control builder cannot construct `OpenCall`, `CloseCall`, `Next`, `DataSchem
 ```text
 CallMessageView {
     has_open_call() -> bool
-    open_call() -> const OpenCall*
+    open_call() -> std::optional<std::reference_wrapper<const OpenCall>>
     has_payloads() -> bool
     payloads() -> std::optional<std::reference_wrapper<const protocol::Payloads>>
     has_data_schema() -> bool
@@ -286,11 +286,12 @@ CallMessageView {
 }
 ```
 
-`CallMessageView` and `ControlMessageView` are the primary specialized message views. Their nested protocol metadata
-accessors return generated FlatBuffer table pointers, except for `NextView`, which intentionally hides the internal
-transport byte budget. `DataSchemaView` and `RecordBatchView` remain explicit Arrow C Data Interface adapters because
-the wire metadata must be converted to Arrow schema/array ownership for the worker. The interface defines these
-adapters even where their transport implementation is deferred.
+`CallMessageView` and `ControlMessageView` expose three distinct layers of accessors. High-level accessors return
+worker-facing `OpenCall`, `Next`, and `ErrorInfo` values through optional reference wrappers. The
+`server_capabilities()` and `payloads()` accessors return optional references to generated FlatBuffer `protocol`
+tables. The `DataSchemaView` and `RecordBatchView` accessors are Arrow C Data Interface adapters because the wire
+metadata must be converted to Arrow schema/array ownership for the worker. The interface defines these adapters even
+where their transport implementation is deferred.
 
 `DataSchemaView` exposes the Arrow schema and its correlation flags. `RecordBatchView` exposes the Arrow array and
 `is_end_of_group`.
@@ -314,7 +315,7 @@ to its peer.
 ```text
 ControlMessageView {
     has_server_capabilities() -> bool
-    server_capabilities() -> const ServerCapabilities*
+    server_capabilities() -> std::optional<std::reference_wrapper<const protocol::ServerCapabilities>>
     has_keep_alive() -> bool
     has_payloads() -> bool
     payloads() -> std::optional<std::reference_wrapper<const protocol::Payloads>>

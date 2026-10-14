@@ -17,12 +17,8 @@ public:
     ControlMessageView() = default;
     /// Returns whether server capabilities are present.
     [[nodiscard]] bool has_server_capabilities() const noexcept;
-    /// Returns server capabilities, or an empty optional when absent.
-    [[nodiscard]]
-    std::optional<std::reference_wrapper<const ServerCapabilities>> server_capabilities()
-        const noexcept;
     [[nodiscard]] std::optional<std::reference_wrapper<const protocol::ServerCapabilities>>
-    flatbuffer_server_capabilities() const noexcept;
+    server_capabilities() const noexcept;
     /// Returns whether a wire-level FlatBuffer keep-alive object is present.
     [[nodiscard]] bool has_keep_alive() const noexcept;
     /// Returns whether wire-level payloads are present.
@@ -34,8 +30,6 @@ public:
     [[nodiscard]] bool has_error() const noexcept;
     /// Returns the error, or an empty optional when absent.
     [[nodiscard]] std::optional<std::reference_wrapper<const ErrorInfo>> error() const noexcept;
-    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Error>> flatbuffer_error()
-        const noexcept;
     /// Returns whether this message starts or acknowledges connection shutdown.
     [[nodiscard]] bool has_close_connection() const noexcept;
 

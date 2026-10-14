@@ -212,7 +212,7 @@ TEST(UdfProtocolTest, DecodedFrameOwnsBufferForGeneratedViews)
         std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded.value()));
     const exasol::udf::v2::ControlMessageView control_view(decoded_frame);
     EXPECT_TRUE(control_view.has_server_capabilities());
-    EXPECT_EQ(control_view.server_capabilities()->get().major, 2);
+    EXPECT_EQ(control_view.server_capabilities()->get().supported_version()->major(), 2);
     ASSERT_TRUE(control_view.payloads());
     EXPECT_EQ(control_view.payloads()->get().payloads()->Get(0)->name()->str(), "name");
     EXPECT_TRUE(control_view.has_error());
@@ -319,16 +319,11 @@ TEST(UdfProtocolTest, FrameBackedViewsExposeFlatbufferFields)
     EXPECT_TRUE(call_view.has_next());
     EXPECT_TRUE(call_view.next()->get().reset);
     EXPECT_EQ(call_view.next()->get().row_id, 42);
-    ASSERT_TRUE(call_view.flatbuffer_error());
-    EXPECT_EQ(call_view.flatbuffer_error()->get().message()->str(), "example failure");
-
     const exasol::udf::v2::ControlMessageView control_view(decoded_frame);
     EXPECT_TRUE(control_view.has_payloads());
     EXPECT_EQ(control_view.payloads()->get().payloads()->Get(0)->name()->str(), "name");
-    ASSERT_TRUE(control_view.flatbuffer_error());
-    EXPECT_EQ(control_view.flatbuffer_error()->get().code()->str(), "example_error");
     EXPECT_FALSE(control_view.has_keep_alive());
-    EXPECT_FALSE(control_view.flatbuffer_server_capabilities());
+    EXPECT_FALSE(control_view.server_capabilities());
 }
 
 TEST(UdfProtocolTest, EmptyAndDataOnlyFramesProduceEmptyViews)
@@ -405,11 +400,7 @@ TEST(UdfProtocolTest, ViewsHandleMissingOptionalFlatbufferFields)
         std::move(decoded_capabilities.value()));
     const exasol::udf::v2::ControlMessageView capabilities_view(capabilities_decoded_frame);
     ASSERT_TRUE(capabilities_view.server_capabilities());
-    EXPECT_EQ(capabilities_view.server_capabilities()->get().major, 0);
-    EXPECT_EQ(capabilities_view.server_capabilities()->get().minor, 0);
-    ASSERT_TRUE(capabilities_view.flatbuffer_server_capabilities());
-    EXPECT_EQ(capabilities_view.flatbuffer_server_capabilities()->get().supported_version(),
-              nullptr);
+    EXPECT_EQ(capabilities_view.server_capabilities()->get().supported_version(), nullptr);
 
     exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder close_builder;
     const auto close_control = exasol::udf::protocol::CreateCloseControlMessage(close_builder);
@@ -450,11 +441,11 @@ TEST(UdfProtocolTest, FrameBackedControlViewDecodesCapabilitiesAndKeepAlive)
     const exasol::udf::v2::ControlMessageView view(decoded_frame);
 
     EXPECT_TRUE(view.has_server_capabilities());
-    EXPECT_EQ(view.server_capabilities()->get().major, 2);
-    EXPECT_EQ(view.server_capabilities()->get().minor, 2);
-    EXPECT_EQ(view.server_capabilities()->get().number_of_supported_workers, 8);
-    ASSERT_TRUE(view.flatbuffer_server_capabilities());
-    EXPECT_EQ(view.flatbuffer_server_capabilities()->get().endianness(),
+    EXPECT_EQ(view.server_capabilities()->get().supported_version()->major(), 2);
+    EXPECT_EQ(view.server_capabilities()->get().supported_version()->minor(), 2);
+    EXPECT_EQ(view.server_capabilities()->get().number_of_supported_workers(), 8);
+    ASSERT_TRUE(view.server_capabilities());
+    EXPECT_EQ(view.server_capabilities()->get().endianness(),
               exasol::udf::protocol::Endianness_Big);
 
     exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder keep_alive_builder;

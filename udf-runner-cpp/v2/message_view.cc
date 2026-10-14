@@ -155,14 +155,6 @@ std::optional<std::reference_wrapper<const ErrorInfo>> CallMessageView::error() 
     }
     return std::cref(*call_message_->error);
 }
-std::optional<std::reference_wrapper<const protocol::Error>> CallMessageView::flatbuffer_error()
-    const noexcept
-{
-    const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
-    const auto* error   = control != nullptr ? control->error() : nullptr;
-    return error != nullptr ? std::optional{std::cref(*error)} : std::nullopt;
-}
-
 CallMessageView::CallMessageView(std::shared_ptr<const protocol::DecodedFrame> frame)
     : call_message_(decode_call_message(frame.get())), decoded_frame_(std::move(frame))
 {
@@ -177,17 +169,8 @@ bool ControlMessageView::has_server_capabilities() const noexcept
 {
     return control_message_.has_value() && control_message_->server_capabilities.has_value();
 }
-std::optional<std::reference_wrapper<const ServerCapabilities>>
-ControlMessageView::server_capabilities() const noexcept
-{
-    if (!control_message_.has_value() || !control_message_->server_capabilities.has_value())
-    {
-        return std::nullopt;
-    }
-    return std::cref(*control_message_->server_capabilities);
-}
 std::optional<std::reference_wrapper<const protocol::ServerCapabilities>>
-ControlMessageView::flatbuffer_server_capabilities() const noexcept
+ControlMessageView::server_capabilities() const noexcept
 {
     const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
     const auto* capabilities =
@@ -223,14 +206,6 @@ std::optional<std::reference_wrapper<const ErrorInfo>> ControlMessageView::error
     }
     return std::cref(*control_message_->error);
 }
-std::optional<std::reference_wrapper<const protocol::Error>> ControlMessageView::flatbuffer_error()
-    const noexcept
-{
-    const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
-    const auto* error   = control != nullptr ? control->error() : nullptr;
-    return error != nullptr ? std::optional{std::cref(*error)} : std::nullopt;
-}
-
 ControlMessageView::ControlMessageView(std::shared_ptr<const protocol::DecodedFrame> frame)
     : control_message_(decode_control_message(frame.get())), decoded_frame_(std::move(frame))
 {

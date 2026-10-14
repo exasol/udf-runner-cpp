@@ -42,8 +42,6 @@ public:
     [[nodiscard]] bool has_error() const noexcept;
     /// Returns the error, or an empty optional when absent.
     [[nodiscard]] std::optional<std::reference_wrapper<const ErrorInfo>> error() const noexcept;
-    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Error>> flatbuffer_error()
-        const noexcept;
     /// Returns whether this message closes the call.
     [[nodiscard]] bool has_close_call() const noexcept;
 
