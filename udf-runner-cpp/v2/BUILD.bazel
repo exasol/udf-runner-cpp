@@ -123,6 +123,13 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "interface_test",
+    srcs = ["interface_test.cc"],
+    copts = ["-std=c++23"],
+    deps = [":interface"],
+)
+
 cc_binary(
     name = "udf_protocol_shared",
     copts = ["-std=c++23"],
