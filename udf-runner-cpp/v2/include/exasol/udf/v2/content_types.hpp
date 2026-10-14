@@ -54,6 +54,13 @@ struct RecordBatch
 /// Composite message exchanged on a call stream.
 struct CallMessage
 {
+    CallMessage()                                  = default;
+    CallMessage(const CallMessage&)                = default;
+    CallMessage(CallMessage&&) noexcept            = default;
+    CallMessage& operator=(const CallMessage&)     = delete;
+    CallMessage& operator=(CallMessage&&) noexcept = delete;
+    ~CallMessage()                                 = default;
+
     std::optional<OpenCall> open_call;       // NOLINT(misc-non-private-member-variables-in-classes)
     std::optional<Payloads> payloads;        // NOLINT(misc-non-private-member-variables-in-classes)
     std::optional<DataSchema> data_schema;   // NOLINT(misc-non-private-member-variables-in-classes)
@@ -77,6 +84,13 @@ struct ServerCapabilities
 /// Composite message exchanged on the connection control stream.
 struct ControlMessage
 {
+    ControlMessage()                                     = default;
+    ControlMessage(const ControlMessage&)                = default;
+    ControlMessage(ControlMessage&&) noexcept            = default;
+    ControlMessage& operator=(const ControlMessage&)     = delete;
+    ControlMessage& operator=(ControlMessage&&) noexcept = delete;
+    ~ControlMessage()                                    = default;
+
     std::optional<ServerCapabilities>
         server_capabilities;          // NOLINT(misc-non-private-member-variables-in-classes)
     bool keep_alive{false};           // NOLINT(misc-non-private-member-variables-in-classes)

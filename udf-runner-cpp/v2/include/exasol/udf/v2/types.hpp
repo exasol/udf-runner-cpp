@@ -38,6 +38,11 @@ public:
         : code_(std::move(code)), message_(std::move(message))
     {
     }
+    ErrorInfo(const ErrorInfo&)            = default;
+    ErrorInfo(ErrorInfo&&) noexcept        = default;
+    ErrorInfo& operator=(const ErrorInfo&) = delete;
+    ErrorInfo& operator=(ErrorInfo&&)      = delete;
+    ~ErrorInfo()                           = default;
 
     [[nodiscard]] const std::string& code() const noexcept
     {
@@ -50,8 +55,8 @@ public:
     }
 
 private:
-    const std::string code_;
-    const std::string message_;
+    std::string code_;
+    std::string message_;
 };
 
 /// Status, optional value, and optional error returned by an operation.
@@ -70,7 +75,7 @@ struct Result
     [[nodiscard]] static Result failure(OperationStatus result_status,
                                         const std::optional<ErrorInfo>& detail = {})
     {
-        return {.status = result_status, .error = detail};
+        return {result_status, {}, detail};
     }
     [[nodiscard]] explicit operator bool() const noexcept
     {
@@ -92,7 +97,7 @@ struct Result<void>
     [[nodiscard]] static Result failure(OperationStatus result_status,
                                         const std::optional<ErrorInfo>& detail = {})
     {
-        return {.status = result_status, .error = detail};
+        return {result_status, detail};
     }
     [[nodiscard]] explicit operator bool() const noexcept
     {

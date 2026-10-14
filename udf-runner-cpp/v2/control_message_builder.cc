@@ -31,7 +31,7 @@ ControlMessageBuilder& ControlMessageBuilder::add_payload(std::string_view name,
     {
         message_.payloads.emplace();
     }
-    message_.payloads.value().push_back(Payload{std::string(name), std::string(value), binary});
+    message_.payloads.value().emplace_back(std::string(name), std::string(value), binary);
     return *this;
 }
 

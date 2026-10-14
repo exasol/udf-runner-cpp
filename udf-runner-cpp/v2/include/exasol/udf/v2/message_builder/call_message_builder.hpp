@@ -11,6 +11,13 @@ namespace exasol::udf::v2
 class CallMessageBuilder
 {
 public:
+    CallMessageBuilder()                                         = default;
+    CallMessageBuilder(const CallMessageBuilder&)                = default;
+    CallMessageBuilder(CallMessageBuilder&&) noexcept            = default;
+    CallMessageBuilder& operator=(const CallMessageBuilder&)     = delete;
+    CallMessageBuilder& operator=(CallMessageBuilder&&) noexcept = delete;
+    ~CallMessageBuilder()                                        = default;
+
     /// Adds or replaces the call-opening metadata.
     CallMessageBuilder& open_call(std::string_view name);
     /// Adds one named payload to the message.
