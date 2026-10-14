@@ -17,9 +17,8 @@ namespace
             return message;
         }
 
-        const auto* frame   = &decoded_frame->frame();
-        const auto* control = frame->control_message();
-        if (control != nullptr)
+        const auto* frame = &decoded_frame->frame();
+        if (const auto* control = frame->control_message(); control != nullptr)
         {
             if (const auto* open_call = control->value_as_OpenCall(); open_call != nullptr)
             {
