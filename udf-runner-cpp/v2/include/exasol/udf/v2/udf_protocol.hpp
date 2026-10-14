@@ -12,7 +12,7 @@
 // namespace only while parsing the generated header, so the global
 // ::flatbuffers namespace is never part of this library's API or ABI.
 #define flatbuffers exasol::udf::v2::third_party::flatbuffers
-#include <udf_protocol_generated.h>
+#include "udf_protocol_generated.h"
 #undef flatbuffers
 
 namespace exasol::udf::protocol
