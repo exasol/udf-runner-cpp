@@ -43,8 +43,6 @@ public:
     /// Returns the error, or an empty optional when absent.
     [[nodiscard]] std::optional<std::reference_wrapper<const ErrorInfo>> error() const noexcept;
     /// Returns whether this message closes the call.
-    [[nodiscard]] bool has_close_call() const noexcept;
-    /// Returns whether this message closes the call.
     [[nodiscard]] bool close_call() const noexcept;
 
 private:

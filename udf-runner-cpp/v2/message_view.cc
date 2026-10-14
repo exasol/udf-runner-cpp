@@ -76,13 +76,9 @@ std::optional<std::reference_wrapper<const ErrorInfo>> CallMessageView::error() 
     }
     return std::cref(call_message_.value().get().error.value());
 }
-bool CallMessageView::has_close_call() const noexcept
-{
-    return call_message_.has_value() && call_message_.value().get().close_call;
-}
 bool CallMessageView::close_call() const noexcept
 {
-    return has_close_call();
+    return call_message_.has_value() && call_message_.value().get().close_call;
 }
 
 bool ControlMessageView::has_server_capabilities() const noexcept
@@ -100,13 +96,9 @@ ControlMessageView::server_capabilities() const noexcept
     }
     return std::cref(control_message_.value().get().server_capabilities.value());
 }
-bool ControlMessageView::has_keep_alive() const noexcept
-{
-    return control_message_.has_value() && control_message_.value().get().keep_alive;
-}
 bool ControlMessageView::keep_alive() const noexcept
 {
-    return has_keep_alive();
+    return control_message_.has_value() && control_message_.value().get().keep_alive;
 }
 bool ControlMessageView::has_payloads() const noexcept
 {
@@ -132,13 +124,9 @@ std::optional<std::reference_wrapper<const ErrorInfo>> ControlMessageView::error
     }
     return std::cref(control_message_.value().get().error.value());
 }
-bool ControlMessageView::has_close_connection() const noexcept
-{
-    return control_message_.has_value() && control_message_.value().get().close_connection;
-}
 bool ControlMessageView::close_connection() const noexcept
 {
-    return has_close_connection();
+    return control_message_.has_value() && control_message_.value().get().close_connection;
 }
 
 } // namespace exasol::udf::v2

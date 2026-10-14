@@ -22,8 +22,6 @@ public:
     [[nodiscard]]
     std::optional<std::reference_wrapper<const ServerCapabilities>> server_capabilities()
         const noexcept;
-    /// Returns whether a keep-alive is present.
-    [[nodiscard]] bool has_keep_alive() const noexcept;
     /// Returns whether this message is a keep-alive message.
     [[nodiscard]] bool keep_alive() const noexcept;
     /// Returns whether payloads are present.
@@ -34,8 +32,6 @@ public:
     [[nodiscard]] bool has_error() const noexcept;
     /// Returns the error, or an empty optional when absent.
     [[nodiscard]] std::optional<std::reference_wrapper<const ErrorInfo>> error() const noexcept;
-    /// Returns whether connection shutdown is being started or acknowledged.
-    [[nodiscard]] bool has_close_connection() const noexcept;
     /// Returns whether this message starts or acknowledges connection shutdown.
     [[nodiscard]] bool close_connection() const noexcept;
 
