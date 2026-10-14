@@ -31,10 +31,27 @@ enum class OperationStatus
 };
 
 /// Machine-readable and human-readable operation error details.
-struct ErrorInfo
+class ErrorInfo
 {
-    std::string code;    // NOLINT(misc-non-private-member-variables-in-classes)
-    std::string message; // NOLINT(misc-non-private-member-variables-in-classes)
+public:
+    ErrorInfo(std::string code, std::string message)
+        : code_(std::move(code)), message_(std::move(message))
+    {
+    }
+
+    [[nodiscard]] const std::string& code() const noexcept
+    {
+        return code_;
+    }
+
+    [[nodiscard]] const std::string& message() const noexcept
+    {
+        return message_;
+    }
+
+private:
+    const std::string code_;
+    const std::string message_;
 };
 
 /// Status, optional value, and optional error returned by an operation.

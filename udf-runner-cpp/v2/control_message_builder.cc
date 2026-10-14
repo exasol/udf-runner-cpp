@@ -37,7 +37,7 @@ ControlMessageBuilder& ControlMessageBuilder::add_payload(std::string_view name,
 
 ControlMessageBuilder& ControlMessageBuilder::error(std::string_view code, std::string_view text)
 {
-    message_.error = ErrorInfo{std::string(code), std::string(text)};
+    message_.error.emplace(std::string(code), std::string(text));
     return *this;
 }
 

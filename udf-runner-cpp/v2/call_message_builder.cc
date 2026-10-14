@@ -46,7 +46,7 @@ CallMessageBuilder& CallMessageBuilder::record_batch(ArrowArray* array, bool is_
 
 CallMessageBuilder& CallMessageBuilder::error(std::string_view code, std::string_view text)
 {
-    message_.error = ErrorInfo{std::string(code), std::string(text)};
+    message_.error.emplace(std::string(code), std::string(text));
     return *this;
 }
 
