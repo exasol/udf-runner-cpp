@@ -28,8 +28,10 @@ public:
     CallMessageBuilder& data_schema(ArrowSchema* schema,
                                     bool has_group_id = false,
                                     bool has_row_id   = false);
-    /// Adds or replaces flow-control credit information.
-    CallMessageBuilder& next(bool reset = false, std::uint64_t row_id = 0);
+    /// Adds or replaces flow-control information and grants byte credit to the peer.
+    CallMessageBuilder& next(std::uint32_t byte_budget,
+                             bool reset           = false,
+                             std::uint64_t row_id = 0);
     /// Adds or replaces the record batch and its group-boundary flag.
     CallMessageBuilder& record_batch(ArrowArray* array, bool is_end_of_group = false);
     /// Adds or replaces a non-terminal or terminal error description.

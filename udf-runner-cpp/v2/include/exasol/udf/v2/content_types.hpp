@@ -29,11 +29,19 @@ struct OpenCall
     std::string call_name; // NOLINT(misc-non-private-member-variables-in-classes)
 };
 
-/// Flow-control resume information; transport credit remains internal.
+/// Flow-control information exposed by received messages.
 struct Next
 {
     bool reset{false};      // NOLINT(misc-non-private-member-variables-in-classes)
     std::uint64_t row_id{}; // NOLINT(misc-non-private-member-variables-in-classes)
+};
+
+/// Flow-control information supplied when sending a message.
+struct OutboundNext
+{
+    std::uint32_t byte_budget{}; // NOLINT(misc-non-private-member-variables-in-classes)
+    bool reset{false};           // NOLINT(misc-non-private-member-variables-in-classes)
+    std::uint64_t row_id{};      // NOLINT(misc-non-private-member-variables-in-classes)
 };
 
 /// Arrow schema and correlation-field metadata for one data direction.
@@ -61,10 +69,12 @@ struct CallMessage
     CallMessage& operator=(CallMessage&&) noexcept = delete;
     ~CallMessage()                                 = default;
 
-    std::optional<OpenCall> open_call;       // NOLINT(misc-non-private-member-variables-in-classes)
-    std::optional<Payloads> payloads;        // NOLINT(misc-non-private-member-variables-in-classes)
-    std::optional<DataSchema> data_schema;   // NOLINT(misc-non-private-member-variables-in-classes)
-    std::optional<Next> next;                // NOLINT(misc-non-private-member-variables-in-classes)
+    std::optional<OpenCall> open_call;     // NOLINT(misc-non-private-member-variables-in-classes)
+    std::optional<Payloads> payloads;      // NOLINT(misc-non-private-member-variables-in-classes)
+    std::optional<DataSchema> data_schema; // NOLINT(misc-non-private-member-variables-in-classes)
+    std::optional<Next> next;              // NOLINT(misc-non-private-member-variables-in-classes)
+    std::optional<OutboundNext>
+        outbound_next;                       // NOLINT(misc-non-private-member-variables-in-classes)
     std::optional<RecordBatch> record_batch; // NOLINT(misc-non-private-member-variables-in-classes)
     std::optional<ErrorInfo> error;          // NOLINT(misc-non-private-member-variables-in-classes)
     bool close_call{false};                  // NOLINT(misc-non-private-member-variables-in-classes)

@@ -111,7 +111,7 @@ void builders_and_views_cover_present_and_absent_fields()
     call.open_call("nested")
         .add_payload("request", "{}")
         .data_schema(&schema, true, true)
-        .next(true, 42)
+        .next(1024, true, 42)
         .record_batch(&array, true)
         .error("E_TEST", "failure")
         .close_call();
@@ -119,7 +119,8 @@ void builders_and_views_cover_present_and_absent_fields()
     assert(call.message().open_call.has_value());
     assert(call.message().payloads.has_value());
     assert(call.message().data_schema.has_value());
-    assert(call.message().next.has_value());
+    assert(call.message().outbound_next.has_value());
+    assert(call.message().outbound_next.value().byte_budget == 1024);
     assert(call.message().record_batch.has_value());
     assert(call.message().error.has_value());
     assert(call.message().close_call);

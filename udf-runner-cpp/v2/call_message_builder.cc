@@ -32,9 +32,11 @@ CallMessageBuilder& CallMessageBuilder::data_schema(ArrowSchema* schema,
     return *this;
 }
 
-CallMessageBuilder& CallMessageBuilder::next(bool reset, std::uint64_t row)
+CallMessageBuilder& CallMessageBuilder::next(std::uint32_t byte_budget,
+                                             bool reset,
+                                             std::uint64_t row)
 {
-    message_.next = Next{reset, row};
+    message_.outbound_next = OutboundNext{byte_budget, reset, row};
     return *this;
 }
 
