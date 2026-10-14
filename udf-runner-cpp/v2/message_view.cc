@@ -120,9 +120,10 @@ const protocol::ServerCapabilities* ControlMessageView::flatbuffer_server_capabi
     const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
     return control != nullptr ? control->value_as_ServerCapabilities() : nullptr;
 }
-bool ControlMessageView::keep_alive() const noexcept
+const protocol::KeepAlive* ControlMessageView::keep_alive() const noexcept
 {
-    return control_message_.has_value() && control_message_.value().get().keep_alive;
+    const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
+    return control != nullptr ? control->value_as_KeepAlive() : nullptr;
 }
 bool ControlMessageView::has_payloads() const noexcept
 {

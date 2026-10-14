@@ -25,8 +25,8 @@ public:
         const noexcept;
     [[nodiscard]] const protocol::ServerCapabilities* flatbuffer_server_capabilities()
         const noexcept;
-    /// Returns whether this message is a keep-alive message.
-    [[nodiscard]] bool keep_alive() const noexcept;
+    /// Returns the wire-level FlatBuffer keep-alive object, or null when absent.
+    [[nodiscard]] const protocol::KeepAlive* keep_alive() const noexcept;
     /// Returns whether payloads are present.
     [[nodiscard]] bool has_payloads() const noexcept;
     /// Returns payloads, or an empty optional when absent.
