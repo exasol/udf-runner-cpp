@@ -68,7 +68,7 @@ enum class Shutdown { Receive, Send, Both };
 class OwnedFileDescriptor {
 public:
     OwnedFileDescriptor() noexcept;
-    ~OwnedFileDescriptor();
+    ~OwnedFileDescriptor() noexcept;
 
     // Takes ownership of a valid raw file descriptor.
     [[nodiscard]] static OwnedFileDescriptor adopt_native_handle(int owned_fd);
@@ -200,7 +200,7 @@ public:
 class UnixSocketListener {
 public:
     UnixSocketListener() noexcept;
-    ~UnixSocketListener();
+    ~UnixSocketListener() noexcept;
 
     UnixSocketListener(const UnixSocketListener&) = delete;
     UnixSocketListener& operator=(const UnixSocketListener&) = delete;

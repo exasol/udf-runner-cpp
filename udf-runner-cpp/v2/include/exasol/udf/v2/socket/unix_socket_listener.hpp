@@ -14,7 +14,7 @@ class UnixSocketListener
 {
 public:
     UnixSocketListener() noexcept;
-    ~UnixSocketListener();
+    ~UnixSocketListener() noexcept;
 
     UnixSocketListener(const UnixSocketListener&)            = delete;
     UnixSocketListener& operator=(const UnixSocketListener&) = delete;
@@ -43,8 +43,11 @@ public:
     /** Releases the native descriptor and removes the listener's filesystem path. */
     [[nodiscard]] OwnedFileDescriptor release_native_handle() noexcept;
 
-    /** Accepts one connection from the listener. */
-    [[nodiscard]] UnixSocket accept() const;
+    /** Accepts one connection from the listener.
+     *
+     * @param flags Zero or a bitwise combination of SOCK_NONBLOCK and SOCK_CLOEXEC.
+     */
+    [[nodiscard]] UnixSocket accept(int flags = SOCK_CLOEXEC) const;
 
 private:
     UnixSocketListener(OwnedFileDescriptor owned_fd, std::filesystem::path path) noexcept;

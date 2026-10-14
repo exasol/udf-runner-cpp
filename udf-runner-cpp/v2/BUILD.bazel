@@ -358,14 +358,18 @@ cc_library(
 cc_library(
     name = "socket",
     srcs = [
+        "socket/owned_file_descriptor.cc",
         "socket/socket.cc",
         "socket/unix_socket.cc",
+        "socket/unix_socket_detail.cc",
+        "socket/unix_socket_listener.cc",
     ],
     hdrs = [
         "include/exasol/udf/v2/socket/owned_file_descriptor.hpp",
         "include/exasol/udf/v2/socket/socket.hpp",
         "include/exasol/udf/v2/socket/unix_socket.hpp",
         "include/exasol/udf/v2/socket/unix_socket_listener.hpp",
+        "socket/unix_socket_detail.hpp",
     ],
     includes = ["include"],
     copts = ["-std=c++23"],
@@ -373,11 +377,10 @@ cc_library(
 )
 
 cc_test(
-    name = "socket_test",
-    srcs = ["socket/socket_test.cc"],
+    name = "owned_file_descriptor_test",
+    srcs = ["socket/owned_file_descriptor_test.cc"],
     copts = ["-std=c++23"],
-    # Socket behavior remains covered by the normal Bazel test suite. Exclude
-    # this target from Mull until its mutation coverage is expanded.
+    # Exclude this target from Mull until its mutation coverage is expanded.
     tags = ["no-mull"],
     deps = [
         ":socket",

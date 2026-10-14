@@ -14,7 +14,7 @@ namespace
 
 using exasol::udf::v2::socket::OwnedFileDescriptor;
 
-TEST(SocketTest, OwnedDescriptorClosesExactlyOnceAfterMoveAndRelease)
+TEST(OwnedFileDescriptorTest, ClosesExactlyOnceAfterMoveAndRelease)
 {
     std::array<int, 2> pipe_fds{};
     ASSERT_EQ(::pipe(pipe_fds.data()), 0);
@@ -32,13 +32,13 @@ TEST(SocketTest, OwnedDescriptorClosesExactlyOnceAfterMoveAndRelease)
     ASSERT_EQ(::close(pipe_fds[1]), 0);
 }
 
-TEST(SocketTest, RejectsInvalidDescriptorAdoption)
+TEST(OwnedFileDescriptorTest, RejectsInvalidDescriptorAdoption)
 {
     EXPECT_THROW(static_cast<void>(OwnedFileDescriptor::adopt_native_handle(-1)),
                  std::invalid_argument);
 }
 
-TEST(SocketTest, MoveAssignmentClosesReplacedDescriptor)
+TEST(OwnedFileDescriptorTest, MoveAssignmentClosesReplacedDescriptor)
 {
     std::array<int, 2> first_pipe{};
     std::array<int, 2> second_pipe{};

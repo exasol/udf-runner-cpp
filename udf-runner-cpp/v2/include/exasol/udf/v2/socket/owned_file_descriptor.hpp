@@ -11,7 +11,7 @@ public:
     OwnedFileDescriptor() noexcept;
 
     /** Closes the owned descriptor, if any. */
-    ~OwnedFileDescriptor();
+    ~OwnedFileDescriptor() noexcept;
 
     /** Takes ownership of an open native file descriptor.
      *

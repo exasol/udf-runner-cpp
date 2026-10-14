@@ -84,6 +84,29 @@ TEST_F(UnixSocketPathTest, ListenerConnectsAcceptsAndCleansUpPath)
     EXPECT_FALSE(std::filesystem::exists(path));
 }
 
+TEST_F(UnixSocketPathTest, AcceptUsesCallerProvidedFlags)
+{
+    UnixSocketListener listener = UnixSocketListener::bind(get_socket_path());
+
+    UnixSocket blocking_client = UnixSocket::connect(get_socket_path());
+    UnixSocket blocking_server = listener.accept(0);
+    const int blocking_status_flags = ::fcntl(blocking_server.native_handle(), F_GETFL);
+    const int blocking_descriptor_flags = ::fcntl(blocking_server.native_handle(), F_GETFD);
+    ASSERT_NE(blocking_status_flags, -1);
+    ASSERT_NE(blocking_descriptor_flags, -1);
+    EXPECT_EQ(blocking_status_flags & O_NONBLOCK, 0);
+    EXPECT_EQ(blocking_descriptor_flags & FD_CLOEXEC, 0);
+
+    UnixSocket nonblocking_client = UnixSocket::connect(get_socket_path());
+    UnixSocket nonblocking_server = listener.accept(SOCK_NONBLOCK | SOCK_CLOEXEC);
+    const int nonblocking_status_flags = ::fcntl(nonblocking_server.native_handle(), F_GETFL);
+    const int nonblocking_descriptor_flags = ::fcntl(nonblocking_server.native_handle(), F_GETFD);
+    ASSERT_NE(nonblocking_status_flags, -1);
+    ASSERT_NE(nonblocking_descriptor_flags, -1);
+    EXPECT_NE(nonblocking_status_flags & O_NONBLOCK, 0);
+    EXPECT_NE(nonblocking_descriptor_flags & FD_CLOEXEC, 0);
+}
+
 TEST_F(UnixSocketPathTest, ConnectReportsAddressError)
 {
     const std::filesystem::path path = get_socket_path().parent_path() / "missing" / "socket";
@@ -108,9 +131,13 @@ TEST_F(UnixSocketPathTest, BindReportsAddressError)
                         std::errc::no_such_file_or_directory);
 }
 
-TEST_F(UnixSocketPathTest, ValidatesPathsAndCleansUpOnDestruction)
+TEST_F(UnixSocketPathTest, RejectsEmptyPath)
 {
     EXPECT_THROW(static_cast<void>(UnixSocketListener::bind({})), std::invalid_argument);
+}
+
+TEST_F(UnixSocketPathTest, DestructionCleansUpPath)
+{
     const std::filesystem::path path = get_socket_path();
     {
         UnixSocketListener listener = UnixSocketListener::bind(path);
@@ -145,7 +172,7 @@ TEST_F(UnixSocketPathTest, MoveAssignmentCleansUpReplacedPath)
     EXPECT_FALSE(std::filesystem::exists(first_path));
 }
 
-TEST(UnixSocketTest, SupportsScatterGatherIoAndPeerEof)
+TEST(UnixSocketTest, SupportsScatterGatherIo)
 {
     std::array<int, 2> sockets{};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
@@ -163,28 +190,9 @@ TEST(UnixSocketTest, SupportsScatterGatherIoAndPeerEof)
     ASSERT_EQ(reader.read_some(received), 4);
     EXPECT_EQ(received, (std::array<std::byte, 4>{std::byte{'a'}, std::byte{'b'}, std::byte{'c'},
                                                   std::byte{'d'}}));
-    writer.close();
-    std::array<std::byte, 1> eof_buffer{};
-    // Closing the writer must make the reader observe peer EOF.
-    EXPECT_EQ(reader.read_some(eof_buffer), 0);
 }
 
-// A nonblocking read reports EAGAIN when no data is available.
-TEST(UnixSocketTest, NonblockingReadWouldBlock)
-{
-    std::array<int, 2> sockets{};
-    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
-    UnixSocket reader =
-        UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[0]));
-    // With no data and O_NONBLOCK enabled, read_some must fail without waiting.
-    ASSERT_NE(::fcntl(reader.native_handle(), F_SETFL, O_NONBLOCK), -1);
-    std::array<std::byte, 1> buffer{};
-    expect_system_error([&reader, &buffer] { static_cast<void>(reader.read_some(buffer)); },
-                        std::errc::resource_unavailable_try_again);
-    ASSERT_EQ(::close(sockets[1]), 0);
-}
-
-TEST(UnixSocketTest, SupportsShutdownAndDescriptorRelease)
+TEST(UnixSocketTest, ReadReturnsZeroAtPeerEof)
 {
     std::array<int, 2> sockets{};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
@@ -192,13 +200,58 @@ TEST(UnixSocketTest, SupportsShutdownAndDescriptorRelease)
         UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[0]));
     UnixSocket reader =
         UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[1]));
-    // Shutting down only the send direction should produce EOF on the peer.
-    writer.shutdown(Shutdown::Send);
+    writer.close();
+    std::array<std::byte, 1> eof_buffer{};
+    // Closing the writer must make the reader observe peer EOF.
+    EXPECT_EQ(reader.read_some(eof_buffer), 0);
+}
+
+// A nonblocking read maps EAGAIN to resource_unavailable_try_again.
+TEST(UnixSocketTest, HandlesNonblockingRead)
+{
+    std::array<int, 2> sockets{};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
+    UnixSocket reader =
+        UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[0]));
+    // Enable nonblocking mode so read_some returns immediately when no data is available.
+    ASSERT_NE(::fcntl(reader.native_handle(), F_SETFL, O_NONBLOCK), -1);
     std::array<std::byte, 1> buffer{};
-    EXPECT_EQ(reader.read_some(buffer), 0);
-    OwnedFileDescriptor released = reader.release_native_handle();
+    expect_system_error([&reader, &buffer] { static_cast<void>(reader.read_some(buffer)); },
+                        std::errc::resource_unavailable_try_again);
+    ASSERT_EQ(::close(sockets[1]), 0);
+}
+
+TEST(UnixSocketTest, SendShutdownDisablesOnlyWrites)
+{
+    std::array<int, 2> sockets{};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
+    UnixSocket writer =
+        UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[0]));
+    UnixSocket reader =
+        UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[1]));
+    writer.shutdown(Shutdown::Send);
+
+    const std::array<std::byte, 1> data{std::byte{'x'}};
+    expect_system_error([&writer, &data] { static_cast<void>(writer.write_some(data)); },
+                        std::errc::broken_pipe);
+
+    ASSERT_EQ(reader.write_some(data), data.size());
+    std::array<std::byte, 1> received{};
+    ASSERT_EQ(writer.read_some(received), received.size());
+    EXPECT_EQ(received, data);
+}
+
+TEST(UnixSocketTest, ReleasesDescriptor)
+{
+    std::array<int, 2> sockets{};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
+    UnixSocket socket =
+        UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[0]));
+    OwnedFileDescriptor peer = OwnedFileDescriptor::adopt_native_handle(sockets[1]);
+
+    OwnedFileDescriptor released = socket.release_native_handle();
     // Releasing transfers the descriptor out without closing it.
-    EXPECT_FALSE(reader.is_open());
+    EXPECT_FALSE(socket.is_open());
     EXPECT_TRUE(released.is_open());
 }
 
