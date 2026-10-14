@@ -273,15 +273,15 @@ CallMessageView {
     has_open_call() -> bool
     open_call() -> const OpenCall*
     has_payloads() -> bool
-    payloads() -> const Payloads*
+    payloads() -> std::optional<std::reference_wrapper<const protocol::Payloads>>
     has_data_schema() -> bool
     data_schema() -> DataSchemaView
     has_next() -> bool
-    next() -> NextView
+    next() -> std::optional<std::reference_wrapper<const Next>>
     has_record_batch() -> bool
     record_batch() -> RecordBatchView
     has_error() -> bool
-    error() -> const Error*
+    error() -> std::optional<std::reference_wrapper<const ErrorInfo>>
     has_close_call() -> bool
 }
 ```
@@ -317,9 +317,9 @@ ControlMessageView {
     server_capabilities() -> const ServerCapabilities*
     has_keep_alive() -> bool
     has_payloads() -> bool
-    payloads() -> const Payloads*
+    payloads() -> std::optional<std::reference_wrapper<const protocol::Payloads>>
     has_error() -> bool
-    error() -> const Error*
+    error() -> std::optional<std::reference_wrapper<const ErrorInfo>>
     has_close_connection() -> bool
 }
 ```
