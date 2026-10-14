@@ -13,8 +13,7 @@ bool verify_frame_buffer(const void* data, std::size_t size)
 }
 
 DecodedFrame::DecodedFrame(std::vector<std::uint8_t> buffer)
-    : buffer_(std::make_shared<const std::vector<std::uint8_t>>(std::move(buffer))),
-      frame_(GetFrame(buffer_->data()))
+    : buffer_(std::make_shared<const std::vector<std::uint8_t>>(std::move(buffer)))
 {
 }
 

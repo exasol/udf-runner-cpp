@@ -32,14 +32,13 @@ public:
 
     [[nodiscard]] const Frame& frame() const noexcept
     {
-        return *frame_;
+        return *GetFrame(buffer_->data());
     }
 
 private:
     explicit DecodedFrame(std::vector<std::uint8_t> buffer);
 
     std::shared_ptr<const std::vector<std::uint8_t>> buffer_;
-    const Frame* frame_;
 };
 
 } // namespace exasol::udf::protocol
