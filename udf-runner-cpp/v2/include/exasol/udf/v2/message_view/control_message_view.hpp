@@ -4,6 +4,7 @@
 #include <exasol/udf/v2/udf_protocol.hpp>
 
 #include <functional>
+#include <memory>
 #include <optional>
 
 namespace exasol::udf::v2
@@ -14,9 +15,6 @@ class ControlMessageView
 {
 public:
     ControlMessageView() = default;
-    explicit ControlMessageView(const ControlMessage& value) : control_message_(value)
-    {
-    }
     /// Returns whether server capabilities are present.
     [[nodiscard]] bool has_server_capabilities() const noexcept;
     /// Returns server capabilities, or an empty optional when absent.

@@ -6,6 +6,7 @@
 #include <exasol/udf/v2/udf_protocol.hpp>
 
 #include <functional>
+#include <memory>
 #include <optional>
 
 namespace exasol::udf::v2
@@ -16,9 +17,6 @@ class CallMessageView
 {
 public:
     CallMessageView() = default;
-    explicit CallMessageView(const CallMessage& value) : call_message_(value)
-    {
-    }
     /// Returns whether call-opening metadata is present.
     [[nodiscard]] bool has_open_call() const noexcept;
     /// Returns call-opening metadata, or an empty optional when absent.
