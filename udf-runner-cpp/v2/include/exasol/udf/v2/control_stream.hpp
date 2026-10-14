@@ -25,7 +25,8 @@ public:
     /// Receives the next control message, optionally waiting up to `timeout`.
     [[nodiscard]] virtual Result<ControlMessageView> receive(Timeout timeout) = 0;
     /// Sends one connection-level message and transfers ownership on success.
-    [[nodiscard]] virtual Result<void> send(const ControlMessageBuilder& message) = 0;
+    // The by-value parameter is intentional: successful implementations consume the builder.
+    [[nodiscard]] virtual Result<void> send(ControlMessageBuilder message) = 0; // NOSONAR
 
 protected:
     ControlStream() = default;

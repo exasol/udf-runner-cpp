@@ -66,7 +66,7 @@ public:
         return Result<ControlMessageView>::success(ControlMessageView{});
     }
 
-    [[nodiscard]] Result<void> send(const ControlMessageBuilder& message) override
+    [[nodiscard]] Result<void> send(ControlMessageBuilder message) override
     {
         (void)message;
         return Result<void>::success();
