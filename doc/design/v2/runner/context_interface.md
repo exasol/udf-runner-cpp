@@ -283,7 +283,6 @@ CallMessageView {
     has_error() -> bool
     error() -> const Error*
     has_close_call() -> bool
-    close_call() -> const CloseCall*
 }
 ```
 
@@ -317,13 +316,11 @@ ControlMessageView {
     has_server_capabilities() -> bool
     server_capabilities() -> const ServerCapabilities*
     has_keep_alive() -> bool
-    keep_alive() -> const KeepAlive*
     has_payloads() -> bool
     payloads() -> const Payloads*
     has_error() -> bool
     error() -> const Error*
     has_close_connection() -> bool
-    close_connection() -> const CloseConnection*
 }
 ```
 

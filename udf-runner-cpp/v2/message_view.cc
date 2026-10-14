@@ -168,7 +168,7 @@ CallMessageView::CallMessageView(std::shared_ptr<const protocol::DecodedFrame> f
 {
 }
 
-bool CallMessageView::close_call() const noexcept
+bool CallMessageView::has_close_call() const noexcept
 {
     return call_message_.has_value() && call_message_->close_call;
 }
@@ -194,12 +194,9 @@ ControlMessageView::flatbuffer_server_capabilities() const noexcept
         control != nullptr ? control->value_as_ServerCapabilities() : nullptr;
     return capabilities != nullptr ? std::optional{std::cref(*capabilities)} : std::nullopt;
 }
-std::optional<std::reference_wrapper<const protocol::KeepAlive>> ControlMessageView::keep_alive()
-    const noexcept
+bool ControlMessageView::has_keep_alive() const noexcept
 {
-    const auto* control    = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
-    const auto* keep_alive = control != nullptr ? control->value_as_KeepAlive() : nullptr;
-    return keep_alive != nullptr ? std::optional{std::cref(*keep_alive)} : std::nullopt;
+    return control_message_.has_value() && control_message_->keep_alive;
 }
 bool ControlMessageView::has_payloads() const noexcept
 {
@@ -239,7 +236,7 @@ ControlMessageView::ControlMessageView(std::shared_ptr<const protocol::DecodedFr
 {
 }
 
-bool ControlMessageView::close_connection() const noexcept
+bool ControlMessageView::has_close_connection() const noexcept
 {
     return control_message_.has_value() && control_message_->close_connection;
 }

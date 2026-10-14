@@ -45,7 +45,7 @@ public:
     [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Error>> flatbuffer_error()
         const noexcept;
     /// Returns whether this message closes the call.
-    [[nodiscard]] bool close_call() const noexcept;
+    [[nodiscard]] bool has_close_call() const noexcept;
 
     explicit CallMessageView(std::shared_ptr<const protocol::DecodedFrame> frame);
 

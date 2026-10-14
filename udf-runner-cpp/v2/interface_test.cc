@@ -166,7 +166,7 @@ void builders_and_views_cover_present_and_absent_fields()
     assert(!empty_call_view.record_batch().is_end_of_group());
     assert(!empty_call_view.has_error());
     assert(!empty_call_view.error());
-    assert(!empty_call_view.close_call());
+    assert(!empty_call_view.has_close_call());
 
     ControlMessageBuilder control;
     control.server_capabilities(2, 1, std::endian::little, 4)
@@ -187,7 +187,8 @@ void builders_and_views_cover_present_and_absent_fields()
     assert(!empty_control_view.payloads());
     assert(!empty_control_view.has_error());
     assert(!empty_control_view.error());
-    assert(!empty_control_view.close_connection());
+    assert(!empty_control_view.has_keep_alive());
+    assert(!empty_control_view.has_close_connection());
 
     const auto taken_control = std::move(control).take();
     assert(taken_control.keep_alive);

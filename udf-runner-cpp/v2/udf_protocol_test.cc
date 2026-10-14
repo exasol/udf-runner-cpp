@@ -278,8 +278,8 @@ TEST(UdfProtocolTest, FrameBackedCallViewPopulatesHighLevelFields)
     ASSERT_TRUE(decoded_close.has_value());
     const auto decoded_close_frame =
         std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded_close.value()));
-    EXPECT_TRUE(exasol::udf::v2::CallMessageView(decoded_close_frame).close_call());
-    EXPECT_TRUE(exasol::udf::v2::ControlMessageView(decoded_close_frame).close_connection());
+    EXPECT_TRUE(exasol::udf::v2::CallMessageView(decoded_close_frame).has_close_call());
+    EXPECT_TRUE(exasol::udf::v2::ControlMessageView(decoded_close_frame).has_close_connection());
 }
 
 TEST(UdfProtocolTest, FrameBackedViewsExposeFlatbufferFields)
@@ -327,7 +327,7 @@ TEST(UdfProtocolTest, FrameBackedViewsExposeFlatbufferFields)
     EXPECT_EQ(control_view.payloads()->get().payloads()->Get(0)->name()->str(), "name");
     ASSERT_TRUE(control_view.flatbuffer_error());
     EXPECT_EQ(control_view.flatbuffer_error()->get().code()->str(), "example_error");
-    EXPECT_FALSE(control_view.keep_alive());
+    EXPECT_FALSE(control_view.has_keep_alive());
     EXPECT_FALSE(control_view.flatbuffer_server_capabilities());
 }
 
@@ -425,8 +425,8 @@ TEST(UdfProtocolTest, ViewsHandleMissingOptionalFlatbufferFields)
     ASSERT_TRUE(decoded_close.has_value());
     const auto close_decoded_frame =
         std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded_close.value()));
-    EXPECT_FALSE(exasol::udf::v2::CallMessageView(close_decoded_frame).close_call());
-    EXPECT_FALSE(exasol::udf::v2::ControlMessageView(close_decoded_frame).close_connection());
+    EXPECT_FALSE(exasol::udf::v2::CallMessageView(close_decoded_frame).has_close_call());
+    EXPECT_FALSE(exasol::udf::v2::ControlMessageView(close_decoded_frame).has_close_connection());
 }
 
 TEST(UdfProtocolTest, FrameBackedControlViewDecodesCapabilitiesAndKeepAlive)
@@ -473,5 +473,5 @@ TEST(UdfProtocolTest, FrameBackedControlViewDecodesCapabilitiesAndKeepAlive)
     const auto keep_alive_view = std::make_shared<exasol::udf::protocol::DecodedFrame>(
         std::move(decoded_keep_alive.value()));
     const exasol::udf::v2::ControlMessageView keep_alive_control_view(keep_alive_view);
-    ASSERT_TRUE(keep_alive_control_view.keep_alive());
+    ASSERT_TRUE(keep_alive_control_view.has_keep_alive());
 }
