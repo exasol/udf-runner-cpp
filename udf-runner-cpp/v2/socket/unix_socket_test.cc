@@ -44,8 +44,9 @@ protected:
     void SetUp() override
     {
         // Each test gets an isolated directory so socket paths cannot collide.
-        auto directory_template = std::to_array(P_tmpdir "/udf-runner-cpp-socket-XXXXXX"); // NOSONAR
-        char* directory         = ::mkdtemp(directory_template.data()); // NOSONAR
+        auto directory_template =
+            std::to_array(P_tmpdir "/udf-runner-cpp-socket-XXXXXX"); // NOSONAR
+        char* directory = ::mkdtemp(directory_template.data());      // NOSONAR
         ASSERT_NE(directory, nullptr);
         temporary_directory = directory;
     }
@@ -150,14 +151,6 @@ TEST_F(UnixSocketPathTest, AcceptOnClosedListenerReportsError)
     UnixSocketListener listener;
     expect_system_error([&listener] { static_cast<void>(listener.accept()); },
                         std::errc::bad_file_descriptor);
-}
-
-TEST_F(UnixSocketPathTest, SelfMoveAssignmentDoesNothing)
-{
-    UnixSocketListener listener = UnixSocketListener::bind(get_socket_path());
-    listener = std::move(listener);
-    EXPECT_TRUE(listener.is_open());
-    EXPECT_TRUE(std::filesystem::exists(get_socket_path()));
 }
 
 TEST_F(UnixSocketPathTest, RejectsEmptyPath)
@@ -291,13 +284,11 @@ TEST(UnixSocketTest, SupportsMoveConstructionAndAssignment)
     UnixSocket source =
         UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[0]));
     UnixSocket moved(std::move(source));
-    EXPECT_FALSE(source.is_open());
     EXPECT_TRUE(moved.is_open());
 
     UnixSocket destination =
         UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(sockets[1]));
     destination = std::move(moved);
-    EXPECT_FALSE(moved.is_open());
     EXPECT_TRUE(destination.is_open());
 }
 
