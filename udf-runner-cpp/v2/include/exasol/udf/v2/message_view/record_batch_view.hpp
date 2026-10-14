@@ -8,7 +8,7 @@
 namespace exasol::udf::v2
 {
 
-/// Non-owning view of a received Arrow record batch.
+/// Non-owning view of a usable received Arrow record batch.
 class RecordBatchView
 {
 public:
@@ -16,7 +16,7 @@ public:
     explicit RecordBatchView(const RecordBatch& value) : record_batch_(value)
     {
     }
-    /// Returns the received Arrow array pointer, or null when absent.
+    /// Returns the received Arrow array pointer, or null when no usable array is available.
     [[nodiscard]] ArrowArray* array() const
     {
         if (!record_batch_.has_value())

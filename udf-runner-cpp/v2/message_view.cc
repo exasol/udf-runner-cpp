@@ -29,11 +29,6 @@ namespace
             {
                 message.next = Next{next->reset(), next->row_id()};
             }
-            if (const auto* data_schema = control->data_schema(); data_schema != nullptr)
-            {
-                message.data_schema =
-                    DataSchema{nullptr, data_schema->has_group_id(), data_schema->has_row_id()};
-            }
             if (const auto* error = control->error(); error != nullptr)
             {
                 message.error.emplace(error->code() != nullptr ? error->code()->str() : "",
@@ -43,10 +38,6 @@ namespace
             {
                 message.close_call = close->close_call() != nullptr;
             }
-        }
-        if (const auto* batch = frame->data_record_batch_metadata(); batch != nullptr)
-        {
-            message.record_batch = RecordBatch{nullptr, batch->is_end_of_group()};
         }
         return message;
     }

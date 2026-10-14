@@ -246,6 +246,21 @@ TEST(UdfProtocolTest, FrameBackedCallViewPopulatesHighLevelFields)
     EXPECT_TRUE(call_view.has_error());
     EXPECT_EQ(call_view.error()->get().code(), "example_error");
 
+    exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder batch_builder;
+    const auto batch       = exasol::udf::protocol::CreateDataRecordBatchMetadata(batch_builder);
+    const auto batch_frame = exasol::udf::protocol::CreateFrame(batch_builder, 7, 0, batch);
+    batch_builder.Finish(batch_frame);
+    const std::vector<std::uint8_t> encoded_batch(
+        batch_builder.GetBufferPointer(),
+        batch_builder.GetBufferPointer() + batch_builder.GetSize());
+    auto decoded_batch = exasol::udf::protocol::DecodedFrame::decode(encoded_batch);
+    ASSERT_TRUE(decoded_batch.has_value());
+    const auto decoded_batch_frame =
+        std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded_batch.value()));
+    const exasol::udf::v2::CallMessageView batch_view(decoded_batch_frame);
+    EXPECT_FALSE(batch_view.has_record_batch());
+    EXPECT_EQ(batch_view.record_batch().array(), nullptr);
+
     exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder close_builder;
     const auto close_call       = exasol::udf::protocol::CreateCloseCall(close_builder);
     const auto close_connection = exasol::udf::protocol::CreateCloseConnection(close_builder);

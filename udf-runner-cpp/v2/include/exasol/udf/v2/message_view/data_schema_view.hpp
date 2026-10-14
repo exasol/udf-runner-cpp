@@ -8,7 +8,7 @@
 namespace exasol::udf::v2
 {
 
-/// Non-owning view of a received Arrow data schema and its correlation flags.
+/// Non-owning view of a usable received Arrow data schema and its correlation flags.
 class DataSchemaView
 {
 public:
@@ -16,7 +16,7 @@ public:
     explicit DataSchemaView(const DataSchema& value) : data_schema_(value)
     {
     }
-    /// Returns the received Arrow schema pointer, or null when absent.
+    /// Returns the received Arrow schema pointer, or null when no usable schema is available.
     [[nodiscard]] ArrowSchema* schema() const
     {
         if (!data_schema_.has_value())
