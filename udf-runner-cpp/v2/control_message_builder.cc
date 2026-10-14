@@ -27,11 +27,11 @@ ControlMessageBuilder& ControlMessageBuilder::add_payload(std::string_view name,
                                                           std::string_view value,
                                                           bool binary)
 {
-    if (!message_.payloads)
+    if (!message_.payloads.has_value())
     {
         message_.payloads.emplace();
     }
-    message_.payloads->push_back(Payload{std::string(name), std::string(value), binary});
+    message_.payloads.value().push_back(Payload{std::string(name), std::string(value), binary});
     return *this;
 }
 

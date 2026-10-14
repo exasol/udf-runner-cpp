@@ -13,7 +13,7 @@ class ControlMessageView
 {
 public:
     ControlMessageView() = default;
-    explicit ControlMessageView(const ControlMessage& value) : value_(value)
+    explicit ControlMessageView(const ControlMessage& value) : control_message_(value)
     {
     }
     /// Returns whether server capabilities are present.
@@ -40,7 +40,7 @@ public:
     [[nodiscard]] bool close_connection() const noexcept;
 
 private:
-    std::optional<std::reference_wrapper<const ControlMessage>> value_;
+    std::optional<std::reference_wrapper<const ControlMessage>> control_message_;
 };
 
 } // namespace exasol::udf::v2

@@ -15,7 +15,7 @@ class CallMessageView
 {
 public:
     CallMessageView() = default;
-    explicit CallMessageView(const CallMessage& value) : value_(value)
+    explicit CallMessageView(const CallMessage& value) : call_message_(value)
     {
     }
     /// Returns whether call-opening metadata is present.
@@ -48,7 +48,7 @@ public:
     [[nodiscard]] bool close_call() const noexcept;
 
 private:
-    std::optional<std::reference_wrapper<const CallMessage>> value_;
+    std::optional<std::reference_wrapper<const CallMessage>> call_message_;
 };
 
 } // namespace exasol::udf::v2

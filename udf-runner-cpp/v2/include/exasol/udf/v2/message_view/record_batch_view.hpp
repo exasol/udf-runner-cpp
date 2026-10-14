@@ -13,22 +13,22 @@ class RecordBatchView
 {
 public:
     RecordBatchView() = default;
-    explicit RecordBatchView(const RecordBatch& value) : value_(value)
+    explicit RecordBatchView(const RecordBatch& value) : record_batch_(value)
     {
     }
     /// Returns the received Arrow array pointer, or null when absent.
     [[nodiscard]] ArrowArray* array() const noexcept
     {
-        return value_ ? value_->get().array : nullptr;
+        return record_batch_.has_value() ? record_batch_.value().get().array : nullptr;
     }
     /// Returns whether the final group in this batch ends here.
     [[nodiscard]] bool is_end_of_group() const noexcept
     {
-        return value_ && value_->get().is_end_of_group;
+        return record_batch_.has_value() && record_batch_.value().get().is_end_of_group;
     }
 
 private:
-    std::optional<std::reference_wrapper<const RecordBatch>> value_;
+    std::optional<std::reference_wrapper<const RecordBatch>> record_batch_;
 };
 
 } // namespace exasol::udf::v2
