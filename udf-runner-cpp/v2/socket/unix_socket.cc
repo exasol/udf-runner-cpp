@@ -51,25 +51,26 @@ namespace
     template <typename Buffer>
     std::vector<iovec> make_iovecs(const std::span<const Buffer> buffers)
     {
-        if (buffers.size() > IOV_MAX)
+        if (std::size(buffers) > IOV_MAX)
         {
             throw std::system_error(EINVAL, std::generic_category(), "too many I/O buffers");
         }
 
         std::size_t total_size = 0;
         std::vector<iovec> iovecs;
-        iovecs.reserve(buffers.size());
-        for (const Buffer buffer : buffers)
+        iovecs.reserve(std::size(buffers));
+        for (const Buffer buffer : std::span<const Buffer>(buffers))
         {
-            if (buffer.size() >
+            if (std::size(buffer) >
                 static_cast<std::size_t>(std::numeric_limits<ssize_t>::max()) - total_size)
             {
                 throw std::system_error(EINVAL, std::generic_category(),
                                         "I/O buffer size is too large");
             }
-            total_size += buffer.size();
+            total_size += std::size(buffer);
             // POSIX declares iovec::iov_base as void* even for sendmsg(), which does not mutate it.
-            iovecs.push_back({const_cast<std::byte*>(buffer.data()), buffer.size()}); // NOSONAR
+            iovecs.push_back(
+                {const_cast<std::byte*>(std::data(buffer)), std::size(buffer)}); // NOSONAR
         }
         return iovecs;
     }

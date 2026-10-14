@@ -22,7 +22,7 @@ TEST(OwnedFileDescriptorTest, ClosesExactlyOnceAfterMoveAndRelease)
     OwnedFileDescriptor moved(std::move(descriptor));
     // NOLINTBEGIN(bugprone-use-after-move, clang-analyzer-cplusplus.Move): Inspecting the
     // specified moved-from state is intentional.
-    EXPECT_EQ(descriptor.release_native_handle(), -1);
+    EXPECT_EQ(descriptor.release_native_handle(), -1); // NOSONAR
     // NOLINTEND(bugprone-use-after-move, clang-analyzer-cplusplus.Move)
     const int released_fd = moved.release_native_handle();
     EXPECT_FALSE(moved.is_open());
@@ -49,7 +49,7 @@ TEST(OwnedFileDescriptorTest, MoveAssignmentClosesReplacedDescriptor)
     destination                     = std::move(source);
     // NOLINTBEGIN(bugprone-use-after-move, clang-analyzer-cplusplus.Move): Inspecting the
     // specified moved-from state is intentional.
-    EXPECT_EQ(source.release_native_handle(), -1);
+    EXPECT_EQ(source.release_native_handle(), -1); // NOSONAR
     // NOLINTEND(bugprone-use-after-move, clang-analyzer-cplusplus.Move)
     EXPECT_EQ(destination.native_handle(), first_pipe[0]);
     EXPECT_EQ(::close(second_pipe[0]), -1);

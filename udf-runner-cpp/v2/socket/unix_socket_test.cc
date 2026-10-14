@@ -43,7 +43,7 @@ protected:
     {
         // Each test gets an isolated directory so socket paths cannot collide.
         auto directory_template = std::to_array(P_tmpdir "/udf-runner-cpp-socket-XXXXXX");
-        char* directory         = ::mkdtemp(directory_template.data());
+        char* directory         = ::mkdtemp(directory_template.data()); // NOSONAR
         ASSERT_NE(directory, nullptr);
         temporary_directory = directory;
     }
