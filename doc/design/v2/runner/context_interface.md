@@ -138,7 +138,7 @@ The worker-facing data-schema value is:
 
 ```text
 DataSchema {
-    ArrowSchema schema
+    ArrowSchemaPtr schema
     bool has_group_id
     bool has_row_id
 }
@@ -150,7 +150,7 @@ The worker-facing record-batch value is:
 
 ```text
 RecordBatch {
-    ArrowArray array
+    ArrowArrayPtr array
     bool is_end_of_group
 }
 ```
@@ -225,7 +225,7 @@ ControlMessage {
 ```
 
 The control stream supports capabilities, keepalive, connection-level payloads, errors, and connection close. It must
-not expose `OpenCall`, `CloseCall`, `Next`, `ArrowSchema`, or `ArrowArray` objects.
+not expose `OpenCall`, `CloseCall`, `Next`, `ArrowSchemaPtr`, or `ArrowArrayPtr` objects.
 
 An error without `close_connection` is a non-terminal diagnostic. `CloseConnection` starts or acknowledges connection
 shutdown and may be combined with an error or other permitted connection-level fields.
@@ -241,9 +241,9 @@ and prevents connection-only fields from being sent on a call stream.
 CallMessageBuilder {
     open_call(call_name) -> CallMessageBuilder&
     payloads(payloads) -> CallMessageBuilder&
-    data_schema(ArrowSchema*, has_group_id, has_row_id) -> CallMessageBuilder&
+    data_schema(ArrowSchemaPtr schema, has_group_id, has_row_id) -> CallMessageBuilder&
     next(byte_budget, reset, row_id) -> CallMessageBuilder&
-    record_batch(ArrowArray*, is_end_of_group) -> CallMessageBuilder&
+    record_batch(ArrowArrayPtr array, is_end_of_group) -> CallMessageBuilder&
     error(code, message) -> CallMessageBuilder&
     close_call() -> CallMessageBuilder&
 }
@@ -290,7 +290,8 @@ CallMessageView {
 `CallMessageView` and `ControlMessageView` are the primary specialized message views. Their nested protocol metadata
 accessors return generated FlatBuffer table pointers, except for `NextView`, which intentionally hides the internal
 transport byte budget. `DataSchemaView` and `RecordBatchView` remain explicit Arrow C Data Interface adapters because
-the wire metadata must be converted to Arrow schema/array ownership for the worker.
+the wire metadata must be converted to Arrow schema/array ownership for the worker. The interface defines these
+adapters even where their transport implementation is deferred.
 
 `DataSchemaView` exposes the Arrow schema and its correlation flags. `RecordBatchView` exposes the Arrow array and
 `is_end_of_group`.
@@ -334,8 +335,9 @@ Each top-level specialized view retains a verified, immutable storage lease for 
 FlatBuffer accessors point into that storage and remain valid until the top-level view is destroyed. Receiving another
 message does not invalidate an existing view. Malformed FlatBuffer data produces an error rather than a view.
 
-The view also retains the Arrow schema and array ownership leases required by its fields. Arrow release callbacks are
-invoked exactly once.
+Where a view exposes Arrow data, it retains the Arrow schema and array ownership leases required by its fields. Arrow
+release callbacks are invoked exactly once. A frame that contains only wire-level data metadata must not claim to
+provide a usable Arrow object until the corresponding adapter has populated the owned pointer.
 
 ### Builder and view implementation contract
 
@@ -355,8 +357,12 @@ If validation, finalization, or transport acceptance fails before ownership tran
 
 Data schemas and record batches are transferred through the Arrow C Data Interface, not as serialized FlatBuffer
 objects. The conceptual `data_schema` field contains the interface-level `DataSchema` value, whose `schema` field is
-an `ArrowSchema`. The conceptual `record_batch` field contains the interface-level `RecordBatch` value, whose
-`array` field is an `ArrowArray`.
+an `ArrowSchemaPtr`. The conceptual `record_batch` field contains the interface-level `RecordBatch` value, whose
+`array` field is an `ArrowArrayPtr`.
+
+`ArrowSchemaPtr` and `ArrowArrayPtr` are move-only `std::unique_ptr` aliases with custom deleters. Their deleters call
+the Arrow C Data Interface `release` callback, when present; they never apply C++ `delete` to an Arrow object. This
+makes ownership explicit while preserving the C Data Interface as the worker-facing type.
 
 `DataSchema.schema` describes one direction of a call's data stream. It is sent once per direction, before or together
 with that direction's first `RecordBatch`. A later `RecordBatch` uses the previously announced schema and flags and
@@ -385,11 +391,13 @@ transport-specific buffer handling remain hidden.
 
 Ownership follows the Arrow release contract:
 
-- received `DataSchema.schema` and `RecordBatch.array` objects become owned by the caller;
+- received `DataSchema.schema` and `RecordBatch.array` objects become owned by the caller once the receive-side Arrow
+  adapters are implemented;
 - the caller releases each received Arrow object exactly once;
-- sent objects remain caller-owned until the context accepts the send;
-- after successful acceptance, release responsibility transfers to the context;
-- a failed send before acceptance leaves ownership with the caller;
+- sent `ArrowSchemaPtr` and `ArrowArrayPtr` objects remain owned by the builder/caller until the context accepts the
+  send;
+- after successful acceptance, the context takes the unique pointers and therefore the release responsibility;
+- a failed send before acceptance leaves the unique pointers with the builder/caller;
 - no object may be released more than once.
 
 ## Dispatch and consumption rules
@@ -537,8 +545,8 @@ The design is complete when it is clear that:
 - call fields can be combined or sent separately;
 - errors can be sent alone;
 - close messages can carry other permitted fields;
-- record batches use an Arrow `ArrowArray` plus `is_end_of_group` metadata;
-- data schemas use `ArrowSchema` and preserve `has_group_id` and `has_row_id`;
+- record batches use an `ArrowArrayPtr` plus `is_end_of_group` metadata;
+- data schemas use an `ArrowSchemaPtr` and preserve `has_group_id` and `has_row_id`;
 - Arrow ownership and release responsibility are explicit;
 - cancellation, closure, timeout, and failure behavior is defined;
 - one worker thread owns each context and concurrent operations on that context are outside the contract;
