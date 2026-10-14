@@ -23,7 +23,7 @@ public:
         {
             return nullptr;
         }
-        return data_schema_.value().get().schema;
+        return data_schema_.value().get().schema.get();
     }
     /// Returns whether the schema reserves a group-id field.
     [[nodiscard]] bool has_group_id() const

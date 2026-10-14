@@ -24,11 +24,11 @@ CallMessageBuilder& CallMessageBuilder::add_payload(std::string_view name,
     return *this;
 }
 
-CallMessageBuilder& CallMessageBuilder::data_schema(ArrowSchema* schema,
+CallMessageBuilder& CallMessageBuilder::data_schema(ArrowSchemaOwner schema,
                                                     bool has_group_id,
                                                     bool has_row_id)
 {
-    message_.data_schema = DataSchema{schema, has_group_id, has_row_id};
+    message_.data_schema = DataSchema{std::move(schema), has_group_id, has_row_id};
     return *this;
 }
 
@@ -40,9 +40,9 @@ CallMessageBuilder& CallMessageBuilder::next(std::uint32_t byte_budget,
     return *this;
 }
 
-CallMessageBuilder& CallMessageBuilder::record_batch(ArrowArray* array, bool is_end_of_group)
+CallMessageBuilder& CallMessageBuilder::record_batch(ArrowArrayOwner array, bool is_end_of_group)
 {
-    message_.record_batch = RecordBatch{array, is_end_of_group};
+    message_.record_batch = RecordBatch{std::move(array), is_end_of_group};
     return *this;
 }
 

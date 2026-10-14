@@ -23,6 +23,104 @@ struct Payload
 };
 using Payloads = std::vector<Payload>;
 
+/// Move-only owner for one Arrow C Data Interface schema.
+class ArrowSchemaOwner
+{
+public:
+    ArrowSchemaOwner() = default;
+    explicit ArrowSchemaOwner(ArrowSchema* schema) noexcept : schema_(schema)
+    {
+    }
+    ArrowSchemaOwner(const ArrowSchemaOwner&)            = delete;
+    ArrowSchemaOwner& operator=(const ArrowSchemaOwner&) = delete;
+    ArrowSchemaOwner(ArrowSchemaOwner&& other) noexcept : schema_(other.release())
+    {
+    }
+    ArrowSchemaOwner& operator=(ArrowSchemaOwner&& other) noexcept
+    {
+        if (this != &other)
+        {
+            reset();
+            schema_ = other.release();
+        }
+        return *this;
+    }
+    ~ArrowSchemaOwner()
+    {
+        reset();
+    }
+
+    [[nodiscard]] ArrowSchema* get() const noexcept
+    {
+        return schema_;
+    }
+    [[nodiscard]] ArrowSchema* release() noexcept
+    {
+        return std::exchange(schema_, nullptr);
+    }
+
+private:
+    void reset() noexcept
+    {
+        if (schema_ != nullptr && schema_->release != nullptr)
+        {
+            schema_->release(schema_);
+        }
+        schema_ = nullptr;
+    }
+
+    ArrowSchema* schema_{};
+};
+
+/// Move-only owner for one Arrow C Data Interface array.
+class ArrowArrayOwner
+{
+public:
+    ArrowArrayOwner() = default;
+    explicit ArrowArrayOwner(ArrowArray* array) noexcept : array_(array)
+    {
+    }
+    ArrowArrayOwner(const ArrowArrayOwner&)            = delete;
+    ArrowArrayOwner& operator=(const ArrowArrayOwner&) = delete;
+    ArrowArrayOwner(ArrowArrayOwner&& other) noexcept : array_(other.release())
+    {
+    }
+    ArrowArrayOwner& operator=(ArrowArrayOwner&& other) noexcept
+    {
+        if (this != &other)
+        {
+            reset();
+            array_ = other.release();
+        }
+        return *this;
+    }
+    ~ArrowArrayOwner()
+    {
+        reset();
+    }
+
+    [[nodiscard]] ArrowArray* get() const noexcept
+    {
+        return array_;
+    }
+    [[nodiscard]] ArrowArray* release() noexcept
+    {
+        return std::exchange(array_, nullptr);
+    }
+
+private:
+    void reset() noexcept
+    {
+        if (array_ != nullptr && array_->release != nullptr)
+        {
+            array_->release(array_);
+        }
+        array_ = nullptr;
+    }
+
+    ArrowArray* array_{};
+};
+
 /// Metadata identifying a newly opened call.
 struct OpenCall
 {
@@ -47,7 +145,7 @@ struct OutboundNext
 /// Arrow schema and correlation-field metadata for one data direction.
 struct DataSchema
 {
-    ArrowSchema* schema{};    // NOLINT(misc-non-private-member-variables-in-classes)
+    ArrowSchemaOwner schema;  // NOLINT(misc-non-private-member-variables-in-classes)
     bool has_group_id{false}; // NOLINT(misc-non-private-member-variables-in-classes)
     bool has_row_id{false};   // NOLINT(misc-non-private-member-variables-in-classes)
 };
@@ -55,7 +153,7 @@ struct DataSchema
 /// Arrow record batch and its group-boundary marker.
 struct RecordBatch
 {
-    ArrowArray* array{};         // NOLINT(misc-non-private-member-variables-in-classes)
+    ArrowArrayOwner array;       // NOLINT(misc-non-private-member-variables-in-classes)
     bool is_end_of_group{false}; // NOLINT(misc-non-private-member-variables-in-classes)
 };
 
@@ -63,7 +161,7 @@ struct RecordBatch
 struct CallMessage
 {
     CallMessage()                                  = default;
-    CallMessage(const CallMessage&)                = default;
+    CallMessage(const CallMessage&)                = delete;
     CallMessage(CallMessage&&) noexcept            = default;
     CallMessage& operator=(const CallMessage&)     = delete;
     CallMessage& operator=(CallMessage&&) noexcept = delete;

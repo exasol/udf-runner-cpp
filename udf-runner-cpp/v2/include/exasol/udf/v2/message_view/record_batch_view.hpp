@@ -23,7 +23,7 @@ public:
         {
             return nullptr;
         }
-        return record_batch_.value().get().array;
+        return record_batch_.value().get().array.get();
     }
     /// Returns whether the final group in this batch ends here.
     [[nodiscard]] bool is_end_of_group() const

@@ -3,9 +3,24 @@
 #include <cassert>
 #include <chrono>
 #include <memory>
+#include <utility>
 
 namespace exasol::udf::v2
 {
+
+void count_schema_release(ArrowSchema* schema)
+{
+    auto* count = static_cast<int*>(schema->private_data);
+    ++*count;
+    schema->release = nullptr;
+}
+
+void count_array_release(ArrowArray* array)
+{
+    auto* count = static_cast<int*>(array->private_data);
+    ++*count;
+    array->release = nullptr;
+}
 
 class TestCall final : public Call
 {
@@ -110,18 +125,20 @@ void builders_and_views_cover_present_and_absent_fields()
     CallMessageBuilder call;
     call.open_call("nested")
         .add_payload("request", "{}")
-        .data_schema(&schema, true, true)
+        .data_schema(ArrowSchemaOwner(&schema), true, true)
         .next(1024, true, 42)
-        .record_batch(&array, true)
+        .record_batch(ArrowArrayOwner(&array), true)
         .error("E_TEST", "failure")
         .close_call();
 
     assert(call.message().open_call.has_value());
     assert(call.message().payloads.has_value());
     assert(call.message().data_schema.has_value());
+    assert(call.message().data_schema.value().schema.get() == &schema);
     assert(call.message().outbound_next.has_value());
     assert(call.message().outbound_next.value().byte_budget == 1024);
     assert(call.message().record_batch.has_value());
+    assert(call.message().record_batch.value().array.get() == &array);
     assert(call.message().error.has_value());
     assert(call.message().close_call);
 
@@ -161,6 +178,33 @@ void builders_and_views_cover_present_and_absent_fields()
     assert(!empty_control_view.close_connection());
 }
 
+void arrow_owners_release_exactly_once()
+{
+    int schema_releases = 0;
+    ArrowSchema schema{};
+    schema.private_data = &schema_releases;
+    schema.release      = count_schema_release;
+    {
+        ArrowSchemaOwner owner(&schema);
+        ArrowSchemaOwner moved(std::move(owner));
+        assert(moved.get() == &schema);
+    }
+    assert(schema_releases == 1);
+
+    int array_releases = 0;
+    ArrowArray array{};
+    array.private_data = &array_releases;
+    array.release      = count_array_release;
+    {
+        ArrowArrayOwner owner(&array);
+        ArrowArray* transferred = owner.release();
+        assert(owner.get() == nullptr);
+        assert(transferred == &array);
+        transferred->release(transferred);
+    }
+    assert(array_releases == 1);
+}
+
 void convenience_methods_delegate_to_virtual_operations()
 {
     TestCall call;
@@ -196,6 +240,7 @@ int main() noexcept // NOLINT(bugprone-exception-escape)
 {
     using namespace exasol::udf::v2;
     builders_and_views_cover_present_and_absent_fields();
+    arrow_owners_release_exactly_once();
     convenience_methods_delegate_to_virtual_operations();
     result_and_timeout_types_are_usable();
 }
