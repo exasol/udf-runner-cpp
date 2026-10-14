@@ -139,6 +139,13 @@ void builders_and_views_cover_present_and_absent_fields()
     assert(call.message().outbound_next.value().byte_budget == 1024);
     assert(call.message().record_batch.has_value());
     assert(call.message().record_batch.value().array.get() == &array);
+    const DataSchemaView data_schema_view(call.message().data_schema.value());
+    assert(data_schema_view.schema() == &schema);
+    assert(data_schema_view.has_group_id());
+    assert(data_schema_view.has_row_id());
+    const RecordBatchView record_batch_view(call.message().record_batch.value());
+    assert(record_batch_view.array() == &array);
+    assert(record_batch_view.is_end_of_group());
     assert(call.message().error.has_value());
     assert(call.message().close_call);
 
@@ -176,6 +183,11 @@ void builders_and_views_cover_present_and_absent_fields()
     assert(!empty_control_view.has_error());
     assert(!empty_control_view.error());
     assert(!empty_control_view.close_connection());
+
+    const auto taken_control = std::move(control).take();
+    assert(taken_control.keep_alive);
+    const auto taken_call = std::move(call).take();
+    assert(taken_call.close_call);
 }
 
 void arrow_owners_release_exactly_once()
@@ -191,6 +203,13 @@ void arrow_owners_release_exactly_once()
     }
     assert(schema_releases == 1);
 
+    ArrowSchema first_schema{};
+    ArrowSchema second_schema{};
+    ArrowSchemaOwner assigned_schema(&first_schema);
+    ArrowSchemaOwner replacement_schema(&second_schema);
+    assigned_schema = std::move(replacement_schema);
+    assert(assigned_schema.get() == &second_schema);
+
     int array_releases = 0;
     ArrowArray array{};
     array.private_data = &array_releases;
@@ -203,6 +222,13 @@ void arrow_owners_release_exactly_once()
         transferred->release(transferred);
     }
     assert(array_releases == 1);
+
+    ArrowArray first_array{};
+    ArrowArray second_array{};
+    ArrowArrayOwner assigned_array(&first_array);
+    ArrowArrayOwner replacement_array(&second_array);
+    assigned_array = std::move(replacement_array);
+    assert(assigned_array.get() == &second_array);
 }
 
 void convenience_methods_delegate_to_virtual_operations()
