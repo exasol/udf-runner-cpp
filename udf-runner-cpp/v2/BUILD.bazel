@@ -86,8 +86,12 @@ genrule(
 cc_library(
     name = "udf_protocol",
     srcs = ["udf_protocol.cc"],
-    hdrs = ["udf_protocol.hpp", ":udf_protocol_generated"],
+    hdrs = [
+        "include/exasol/udf/v2/udf_protocol.hpp",
+        ":udf_protocol_generated",
+    ],
     copts = ["-std=c++23"],
+    includes = ["."],
     # Do not depend on the ordinary runtime headers: the generated protocol
     # header must resolve all runtime includes through the isolated copy.
     deps = [":private_flatbuffers_runtime"],
@@ -250,10 +254,17 @@ cc_library(
         "include/exasol/udf/v2/message_view/data_schema_view.hpp",
         "include/exasol/udf/v2/message_view/record_batch_view.hpp",
         "include/exasol/udf/v2/types.hpp",
+        "include/exasol/udf/v2/udf_protocol.hpp",
     ],
-    includes = ["include"],
+    includes = [
+        "include",
+        ".",
+    ],
     copts = ["-std=c++23"],
-    deps = [":arrow_core"],
+    deps = [
+        ":arrow_core",
+        ":udf_protocol",
+    ],
 )
 
 cc_test(

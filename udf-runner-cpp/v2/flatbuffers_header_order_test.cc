@@ -1,6 +1,6 @@
 #include <flatbuffers/flatbuffers.h>
 
-#include "udf_protocol.hpp"
+#include <exasol/udf/v2/udf_protocol.hpp>
 
 void ordinary_flatbuffers_first()
 {

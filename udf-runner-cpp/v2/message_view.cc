@@ -1,6 +1,8 @@
 #include <exasol/udf/v2/message_view/call_message_view.hpp>
 #include <exasol/udf/v2/message_view/control_message_view.hpp>
 
+#include <utility>
+
 namespace exasol::udf::v2
 {
 
@@ -27,6 +29,11 @@ std::optional<std::reference_wrapper<const Payloads>> CallMessageView::payloads(
         return std::nullopt;
     }
     return std::cref(call_message_.value().get().payloads.value());
+}
+const protocol::Payloads* CallMessageView::flatbuffer_payloads() const noexcept
+{
+    const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
+    return control != nullptr ? control->payloads() : nullptr;
 }
 bool CallMessageView::has_data_schema() const noexcept
 {
@@ -76,6 +83,17 @@ std::optional<std::reference_wrapper<const ErrorInfo>> CallMessageView::error() 
     }
     return std::cref(call_message_.value().get().error.value());
 }
+const protocol::Error* CallMessageView::flatbuffer_error() const noexcept
+{
+    const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
+    return control != nullptr ? control->error() : nullptr;
+}
+
+CallMessageView::CallMessageView(std::shared_ptr<const protocol::DecodedFrame> frame)
+    : decoded_frame_(std::move(frame))
+{
+}
+
 bool CallMessageView::close_call() const noexcept
 {
     return call_message_.has_value() && call_message_.value().get().close_call;
@@ -96,6 +114,12 @@ ControlMessageView::server_capabilities() const noexcept
     }
     return std::cref(control_message_.value().get().server_capabilities.value());
 }
+const protocol::ServerCapabilities* ControlMessageView::flatbuffer_server_capabilities()
+    const noexcept
+{
+    const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
+    return control != nullptr ? control->value_as_ServerCapabilities() : nullptr;
+}
 bool ControlMessageView::keep_alive() const noexcept
 {
     return control_message_.has_value() && control_message_.value().get().keep_alive;
@@ -112,6 +136,11 @@ std::optional<std::reference_wrapper<const Payloads>> ControlMessageView::payloa
     }
     return std::cref(control_message_.value().get().payloads.value());
 }
+const protocol::Payloads* ControlMessageView::flatbuffer_payloads() const noexcept
+{
+    const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
+    return control != nullptr ? control->payloads() : nullptr;
+}
 bool ControlMessageView::has_error() const noexcept
 {
     return control_message_.has_value() && control_message_.value().get().error.has_value();
@@ -124,6 +153,17 @@ std::optional<std::reference_wrapper<const ErrorInfo>> ControlMessageView::error
     }
     return std::cref(control_message_.value().get().error.value());
 }
+const protocol::Error* ControlMessageView::flatbuffer_error() const noexcept
+{
+    const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
+    return control != nullptr ? control->error() : nullptr;
+}
+
+ControlMessageView::ControlMessageView(std::shared_ptr<const protocol::DecodedFrame> frame)
+    : decoded_frame_(std::move(frame))
+{
+}
+
 bool ControlMessageView::close_connection() const noexcept
 {
     return control_message_.has_value() && control_message_.value().get().close_connection;

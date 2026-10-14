@@ -1,4 +1,4 @@
-#include "udf_protocol.hpp"
+#include <exasol/udf/v2/udf_protocol.hpp>
 
 #include <cassert>
 #include <cstdint>
@@ -165,4 +165,43 @@ TEST(UdfProtocolTest, EncodesProtocolFrames)
         assert(decoded_close->close_connection() != nullptr);
         assert(decoded->control_message()->error()->message()->str() == "example failure");
     }
+}
+
+TEST(UdfProtocolTest, DecodedFrameOwnsBufferForGeneratedViews)
+{
+    exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder builder;
+    const auto version      = exasol::udf::protocol::CreateVersion(builder, 2, 0);
+    const auto capabilities = exasol::udf::protocol::CreateServerCapabilities(
+        builder, version, exasol::udf::protocol::Endianness_Little, 4);
+    const auto error_code    = builder.CreateString("example_error");
+    const auto error_message = builder.CreateString("example failure");
+    const auto error = exasol::udf::protocol::CreateError(builder, error_code, error_message);
+    const auto payload_name  = builder.CreateString("name");
+    const auto payload_value = builder.CreateString("value");
+    const auto payload_data  = exasol::udf::protocol::CreateStringPayload(builder, payload_value);
+    const auto payload       = exasol::udf::protocol::CreatePayload(
+        builder, payload_name, exasol::udf::protocol::PayloadValue_StringPayload,
+        payload_data.Union());
+    const auto payloads = exasol::udf::protocol::CreatePayloads(
+        builder, builder.CreateVector(std::vector<exasol::udf::v2::third_party::flatbuffers::Offset<
+                                          exasol::udf::protocol::Payload>>{payload}));
+    const auto control_message = exasol::udf::protocol::CreateControlMessage(
+        builder, payloads, 0, 0, error,
+        exasol::udf::protocol::ControlMessageValue_ServerCapabilities, capabilities.Union());
+    const auto frame = exasol::udf::protocol::CreateFrame(builder, 0, control_message);
+    builder.Finish(frame);
+
+    const std::vector<std::uint8_t> encoded(builder.GetBufferPointer(),
+                                            builder.GetBufferPointer() + builder.GetSize());
+    const auto decoded = exasol::udf::protocol::DecodedFrame::decode(encoded);
+    ASSERT_TRUE(decoded.has_value());
+
+    const auto* control = decoded->frame().control_message();
+    ASSERT_NE(control, nullptr);
+    ASSERT_NE(control->value_as_ServerCapabilities(), nullptr);
+    EXPECT_EQ(control->value_as_ServerCapabilities()->supported_version()->major(), 2);
+    ASSERT_NE(control->payloads(), nullptr);
+    EXPECT_EQ(control->payloads()->payloads()->Get(0)->name()->str(), "name");
+    ASSERT_NE(control->error(), nullptr);
+    EXPECT_EQ(control->error()->message()->str(), "example failure");
 }
