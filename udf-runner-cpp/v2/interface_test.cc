@@ -125,9 +125,9 @@ void builders_and_views_cover_present_and_absent_fields()
     CallMessageBuilder call;
     call.open_call("nested")
         .add_payload("request", "{}")
-        .data_schema(ArrowSchemaOwner(&schema), true, true)
+        .data_schema(ArrowSchemaPtr(&schema), true, true)
         .next(1024, true, 42)
-        .record_batch(ArrowArrayOwner(&array), true)
+        .record_batch(ArrowArrayPtr(&array), true)
         .error("E_TEST", "failure")
         .close_call();
 
@@ -200,16 +200,16 @@ void arrow_owners_release_exactly_once()
     schema.private_data = &schema_releases;
     schema.release      = count_schema_release;
     {
-        ArrowSchemaOwner owner(&schema);
-        ArrowSchemaOwner moved(std::move(owner));
+        ArrowSchemaPtr owner(&schema);
+        ArrowSchemaPtr moved(std::move(owner));
         assert(moved.get() == &schema);
     }
     assert(schema_releases == 1);
 
     ArrowSchema first_schema{};
     ArrowSchema second_schema{};
-    ArrowSchemaOwner assigned_schema(&first_schema);
-    ArrowSchemaOwner replacement_schema(&second_schema);
+    ArrowSchemaPtr assigned_schema(&first_schema);
+    ArrowSchemaPtr replacement_schema(&second_schema);
     assigned_schema = std::move(replacement_schema);
     assert(assigned_schema.get() == &second_schema);
 
@@ -218,7 +218,7 @@ void arrow_owners_release_exactly_once()
     array.private_data = &array_releases;
     array.release      = count_array_release;
     {
-        ArrowArrayOwner owner(&array);
+        ArrowArrayPtr owner(&array);
         ArrowArray* transferred = owner.release();
         assert(owner.get() == nullptr);
         assert(transferred == &array);
@@ -228,14 +228,14 @@ void arrow_owners_release_exactly_once()
 
     ArrowArray first_array{};
     ArrowArray second_array{};
-    ArrowArrayOwner assigned_array(&first_array);
-    ArrowArrayOwner replacement_array(&second_array);
+    ArrowArrayPtr assigned_array(&first_array);
+    ArrowArrayPtr replacement_array(&second_array);
     assigned_array = std::move(replacement_array);
     assert(assigned_array.get() == &second_array);
 
     ArrowArray released_array{};
     {
-        ArrowArrayOwner owner(&released_array);
+        ArrowArrayPtr owner(&released_array);
         assert(owner.get() == &released_array);
     }
 }
