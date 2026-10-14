@@ -17,14 +17,22 @@ public:
     {
     }
     /// Returns the received Arrow array pointer, or null when absent.
-    [[nodiscard]] ArrowArray* array() const noexcept
+    [[nodiscard]] ArrowArray* array() const
     {
-        return record_batch_.has_value() ? record_batch_->get().array : nullptr;
+        if (!record_batch_.has_value())
+        {
+            return nullptr;
+        }
+        return record_batch_.value().get().array;
     }
     /// Returns whether the final group in this batch ends here.
-    [[nodiscard]] bool is_end_of_group() const noexcept
+    [[nodiscard]] bool is_end_of_group() const
     {
-        return record_batch_.has_value() && record_batch_->get().is_end_of_group;
+        if (!record_batch_.has_value())
+        {
+            return false;
+        }
+        return record_batch_.value().get().is_end_of_group;
     }
 
 private:
