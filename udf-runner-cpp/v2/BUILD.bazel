@@ -91,7 +91,6 @@ cc_library(
         ":udf_protocol_generated",
     ],
     copts = ["-std=c++23"],
-    includes = ["."],
     # Do not depend on the ordinary runtime headers: the generated protocol
     # header must resolve all runtime includes through the isolated copy.
     deps = [":private_flatbuffers_runtime"],
@@ -124,7 +123,6 @@ cc_test(
 
 cc_binary(
     name = "udf_protocol_shared",
-    srcs = ["udf_protocol.cc"],
     copts = ["-std=c++23"],
     linkshared = 1,
     deps = [":udf_protocol"],
