@@ -19,17 +19,17 @@ public:
     /// Returns the received Arrow schema pointer, or null when absent.
     [[nodiscard]] ArrowSchema* schema() const noexcept
     {
-        return data_schema_.has_value() ? data_schema_.value().get().schema : nullptr;
+        return data_schema_.has_value() ? data_schema_->get().schema : nullptr;
     }
     /// Returns whether the schema reserves a group-id field.
     [[nodiscard]] bool has_group_id() const noexcept
     {
-        return data_schema_.has_value() && data_schema_.value().get().has_group_id;
+        return data_schema_.has_value() && data_schema_->get().has_group_id;
     }
     /// Returns whether the schema reserves a row-id field.
     [[nodiscard]] bool has_row_id() const noexcept
     {
-        return data_schema_.has_value() && data_schema_.value().get().has_row_id;
+        return data_schema_.has_value() && data_schema_->get().has_row_id;
     }
 
 private:

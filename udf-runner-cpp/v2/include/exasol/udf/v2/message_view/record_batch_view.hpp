@@ -19,12 +19,12 @@ public:
     /// Returns the received Arrow array pointer, or null when absent.
     [[nodiscard]] ArrowArray* array() const noexcept
     {
-        return record_batch_.has_value() ? record_batch_.value().get().array : nullptr;
+        return record_batch_.has_value() ? record_batch_->get().array : nullptr;
     }
     /// Returns whether the final group in this batch ends here.
     [[nodiscard]] bool is_end_of_group() const noexcept
     {
-        return record_batch_.has_value() && record_batch_.value().get().is_end_of_group;
+        return record_batch_.has_value() && record_batch_->get().is_end_of_group;
     }
 
 private:
