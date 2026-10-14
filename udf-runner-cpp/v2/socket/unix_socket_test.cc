@@ -88,23 +88,27 @@ TEST_F(UnixSocketPathTest, AcceptUsesCallerProvidedFlags)
 {
     UnixSocketListener listener = UnixSocketListener::bind(get_socket_path());
 
-    UnixSocket blocking_client = UnixSocket::connect(get_socket_path());
-    UnixSocket blocking_server = listener.accept(0);
-    const int blocking_status_flags = ::fcntl(blocking_server.native_handle(), F_GETFL);
+    UnixSocket blocking_client          = UnixSocket::connect(get_socket_path());
+    UnixSocket blocking_server          = listener.accept(0);
+    const int blocking_status_flags     = ::fcntl(blocking_server.native_handle(), F_GETFL);
     const int blocking_descriptor_flags = ::fcntl(blocking_server.native_handle(), F_GETFD);
     ASSERT_NE(blocking_status_flags, -1);
     ASSERT_NE(blocking_descriptor_flags, -1);
-    EXPECT_EQ(blocking_status_flags & O_NONBLOCK, 0);
-    EXPECT_EQ(blocking_descriptor_flags & FD_CLOEXEC, 0);
+    const auto blocking_status     = static_cast<unsigned int>(blocking_status_flags);
+    const auto blocking_descriptor = static_cast<unsigned int>(blocking_descriptor_flags);
+    EXPECT_EQ(blocking_status & static_cast<unsigned int>(O_NONBLOCK), 0U);
+    EXPECT_EQ(blocking_descriptor & static_cast<unsigned int>(FD_CLOEXEC), 0U);
 
-    UnixSocket nonblocking_client = UnixSocket::connect(get_socket_path());
-    UnixSocket nonblocking_server = listener.accept(SOCK_NONBLOCK | SOCK_CLOEXEC);
-    const int nonblocking_status_flags = ::fcntl(nonblocking_server.native_handle(), F_GETFL);
+    UnixSocket nonblocking_client          = UnixSocket::connect(get_socket_path());
+    UnixSocket nonblocking_server          = listener.accept(SOCK_NONBLOCK | SOCK_CLOEXEC);
+    const int nonblocking_status_flags     = ::fcntl(nonblocking_server.native_handle(), F_GETFL);
     const int nonblocking_descriptor_flags = ::fcntl(nonblocking_server.native_handle(), F_GETFD);
     ASSERT_NE(nonblocking_status_flags, -1);
     ASSERT_NE(nonblocking_descriptor_flags, -1);
-    EXPECT_NE(nonblocking_status_flags & O_NONBLOCK, 0);
-    EXPECT_NE(nonblocking_descriptor_flags & FD_CLOEXEC, 0);
+    const auto nonblocking_status     = static_cast<unsigned int>(nonblocking_status_flags);
+    const auto nonblocking_descriptor = static_cast<unsigned int>(nonblocking_descriptor_flags);
+    EXPECT_NE(nonblocking_status & static_cast<unsigned int>(O_NONBLOCK), 0U);
+    EXPECT_NE(nonblocking_descriptor & static_cast<unsigned int>(FD_CLOEXEC), 0U);
 }
 
 TEST_F(UnixSocketPathTest, ConnectReportsAddressError)
