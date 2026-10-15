@@ -10,9 +10,9 @@
 #include <type_traits>
 #include <vector>
 
+#include <exasol/udf/v2/linux_waitable_queue.hpp>
 #include <exasol/udf/v2/mpmc_queue.hpp>
 #include <exasol/udf/v2/spsc_queue.hpp>
-#include <exasol/udf/v2/linux_waitable_queue.hpp>
 
 namespace
 {
@@ -117,7 +117,7 @@ void produce_operation(Queue& queue,
                 batch[item] = make_value(producer, sequence++);
             }
             const std::size_t enqueued =
-                queue.enqueue_batch(batch.begin(), batch.begin() + batch_size);
+                queue.enqueue_batch(std::span<const Value>(batch).first(batch_size));
             produced.insert(produced.end(), batch.begin(), batch.begin() + enqueued);
         }
         else

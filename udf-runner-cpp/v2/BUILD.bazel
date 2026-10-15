@@ -467,12 +467,12 @@ cc_test(
 
 cc_library(
     name = "waitable_queue",
+    srcs = ["waitable_queue.cc"],
     hdrs = ["include/exasol/udf/v2/waitable_queue.hpp"],
     includes = ["include"],
     copts = ["-std=c++23"],
     deps = [
         ":event_fd",
-        ":moodycamel_queues",
     ],
     target_compatible_with = ["@platforms//os:linux"],
 )
@@ -484,6 +484,7 @@ cc_library(
     copts = ["-std=c++23"],
     deps = [
         ":event_fd_factory",
+        ":moodycamel_queues",
         ":waitable_queue",
     ],
     target_compatible_with = ["@platforms//os:linux"],

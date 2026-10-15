@@ -61,7 +61,7 @@ TEST(LinuxWaitableQueueTest, MpmcBatchAndEmptyBatchOperations)
 {
     auto queue = exasol::udf::v2::make_waitable_mpmc_queue<int>();
     const std::vector batch{8, 9};
-    EXPECT_EQ(queue.enqueue_batch(batch.begin(), batch.end()), batch.size());
+    EXPECT_EQ(queue.enqueue_batch(batch), batch.size());
     EXPECT_EQ(queue.drain_notifications(), 1);
 
     int value = 0;
@@ -72,15 +72,18 @@ TEST(LinuxWaitableQueueTest, MpmcBatchAndEmptyBatchOperations)
     }
 
     const std::array<int, 0> empty_batch{};
-    EXPECT_EQ(queue.enqueue_batch(empty_batch.begin(), empty_batch.end()), 0);
+    EXPECT_EQ(queue.enqueue_batch(empty_batch), 0);
     EXPECT_EQ(queue.drain_notifications(), 0);
 }
 
-TEST(LinuxWaitableQueueTest, MpmcProvidesQueueAccess)
+TEST(LinuxWaitableQueueTest, MpmcSupportsTypedOperations)
 {
-    auto queue              = exasol::udf::v2::make_waitable_mpmc_queue<int>();
-    const auto& const_queue = queue;
-    EXPECT_EQ(&const_queue.queue(), &queue.queue());
+    auto queue = exasol::udf::v2::make_waitable_mpmc_queue<int>();
+    ASSERT_TRUE(queue.enqueue(10));
+    EXPECT_EQ(queue.drain_notifications(), 1);
+    int value = 0;
+    ASSERT_TRUE(queue.try_dequeue(value));
+    EXPECT_EQ(value, 10);
 }
 
 TEST(LinuxWaitableQueueTest, MpmcSupportsMoves)

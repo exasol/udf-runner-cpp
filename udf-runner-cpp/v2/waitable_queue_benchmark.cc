@@ -13,8 +13,8 @@
 #include <thread>
 #include <vector>
 
-#include <exasol/udf/v2/spsc_queue.hpp>
 #include <exasol/udf/v2/linux_waitable_queue.hpp>
+#include <exasol/udf/v2/spsc_queue.hpp>
 
 namespace
 {
@@ -177,7 +177,7 @@ void bm_waitable_spsc_batch(benchmark::State& state)
     for (const auto iteration : state)
     {
         benchmark::DoNotOptimize(&iteration);
-        benchmark::DoNotOptimize(queue.enqueue_batch(batch.begin(), batch.end()));
+        benchmark::DoNotOptimize(queue.enqueue_batch(batch));
         benchmark::DoNotOptimize(queue.drain_notifications());
         int value = 0;
         for (std::size_t i = 0; i < batch_size; ++i)

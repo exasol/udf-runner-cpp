@@ -40,7 +40,7 @@ protected:
         ::close(epoll_fd_storage);
     }
 
-    bool add_to_epoll(int fd, std::uint32_t events) const
+    [[nodiscard]] bool add_to_epoll(int fd, std::uint32_t events) const
     {
         epoll_event event{};
         event.events  = events;
@@ -104,7 +104,7 @@ TEST_F(SpscEpollTest, SupportsQueueOperationsAndBatches)
     EXPECT_EQ(value, 42);
 
     const std::vector batch{1, 2, 3};
-    EXPECT_EQ(queue().enqueue_batch(batch.begin(), batch.end()), batch.size());
+    EXPECT_EQ(queue().enqueue_batch(batch), batch.size());
     EXPECT_EQ(queue().drain_notifications(), 1);
     for (int expected : batch)
     {
@@ -114,11 +114,8 @@ TEST_F(SpscEpollTest, SupportsQueueOperationsAndBatches)
     EXPECT_FALSE(queue().try_dequeue(value));
 
     const std::array<int, 0> empty_batch{};
-    EXPECT_EQ(queue().enqueue_batch(empty_batch.begin(), empty_batch.end()), 0);
+    EXPECT_EQ(queue().enqueue_batch(empty_batch), 0);
     EXPECT_EQ(queue().drain_notifications(), 0);
-
-    const auto& const_queue = queue();
-    EXPECT_EQ(&const_queue.queue(), &queue().queue());
 }
 
 TEST_F(SpscEpollTest, SupportsMoves)

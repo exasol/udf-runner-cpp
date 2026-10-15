@@ -1,10 +1,10 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
-#include <iterator>
 #include <memory>
+#include <span>
 #include <stdexcept>
-#include <system_error>
 #include <utility>
 
 #include <exasol/udf/v2/event_fd.hpp>
@@ -12,150 +12,118 @@
 namespace exasol::udf::v2
 {
 
-template <typename Queue>
+template <typename T>
+class WaitableQueue;
+
+class WaitableQueueNotifier
+{
+public:
+    explicit WaitableQueueNotifier(std::unique_ptr<EventFd> event_fd);
+    ~WaitableQueueNotifier() noexcept;
+
+    WaitableQueueNotifier(const WaitableQueueNotifier&)            = delete;
+    WaitableQueueNotifier& operator=(const WaitableQueueNotifier&) = delete;
+    WaitableQueueNotifier(WaitableQueueNotifier&&) noexcept;
+    WaitableQueueNotifier& operator=(WaitableQueueNotifier&&) noexcept;
+
+    [[nodiscard]] int native_handle() const noexcept;
+    std::uint64_t drain_notifications();
+
+private:
+    void notify();
+
+    template <typename T>
+    friend class WaitableQueue;
+
+    std::unique_ptr<EventFd> notification_fd;
+};
+
+template <typename T>
+class QueueInterface
+{
+public:
+    QueueInterface()          = default;
+    virtual ~QueueInterface() = default;
+
+    QueueInterface(const QueueInterface&)            = delete;
+    QueueInterface& operator=(const QueueInterface&) = delete;
+    QueueInterface(QueueInterface&&)                 = default;
+    QueueInterface& operator=(QueueInterface&&)      = default;
+
+    virtual bool enqueue(const T& value)                         = 0;
+    virtual bool enqueue(T&& value)                              = 0;
+    virtual std::size_t enqueue_batch(std::span<const T> values) = 0;
+    virtual bool try_dequeue(T& value)                           = 0;
+};
+
+template <typename T>
 class WaitableQueue
 {
 public:
-    using queue_type = Queue;
-
-    WaitableQueue(Queue queue, std::unique_ptr<EventFd> event_fd)
-        : queue_storage(std::move(queue)), notification_fd(std::move(event_fd))
+    WaitableQueue(std::unique_ptr<QueueInterface<T>> queue, std::unique_ptr<EventFd> event_fd)
+        : queue_storage(std::move(queue)), notifier(std::move(event_fd))
     {
-        if (notification_fd == nullptr)
+        if (queue_storage == nullptr)
         {
-            throw std::invalid_argument("eventfd implementation must not be null");
+            throw std::invalid_argument("queue implementation must not be null");
         }
     }
 
-    ~WaitableQueue() noexcept
-    {
-        notification_fd.reset();
-    }
-    WaitableQueue(const WaitableQueue&)            = delete;
-    WaitableQueue& operator=(const WaitableQueue&) = delete;
+    ~WaitableQueue() noexcept = default;
 
-    WaitableQueue(WaitableQueue&& other) noexcept
-        : queue_storage(std::move(other.queue_storage)),
-          notification_fd(std::move(other.notification_fd))
-    {
-    }
-
-    WaitableQueue& operator=(WaitableQueue&& other) noexcept
-    {
-        if (this != &other)
-        {
-            queue_storage   = std::move(other.queue_storage);
-            notification_fd = std::move(other.notification_fd);
-        }
-        return *this;
-    }
+    WaitableQueue(const WaitableQueue&)                = delete;
+    WaitableQueue& operator=(const WaitableQueue&)     = delete;
+    WaitableQueue(WaitableQueue&&) noexcept            = default;
+    WaitableQueue& operator=(WaitableQueue&&) noexcept = default;
 
     [[nodiscard]] int native_handle() const noexcept
     {
-        return notification_fd == nullptr ? -1 : notification_fd->native_handle();
+        return notifier.native_handle();
     }
 
-    template <typename T>
-    [[nodiscard]] bool enqueue(T&& value)
+    [[nodiscard]] bool enqueue(const T& value)
     {
-        if (!queue_storage.enqueue(std::forward<T>(value)))
+        if (!queue_storage->enqueue(value))
         {
             return false;
         }
-        notify();
+        notifier.notify();
         return true;
     }
 
-    template <typename InputIt>
-    std::size_t enqueue_batch(InputIt first, InputIt last)
+    [[nodiscard]] bool enqueue(T&& value)
     {
-        std::size_t enqueued = 0;
-        for (; first != last; ++first)
+        if (!queue_storage->enqueue(std::move(value)))
         {
-            if (!queue_storage.enqueue(*first))
-            {
-                break;
-            }
-            ++enqueued;
+            return false;
         }
+        notifier.notify();
+        return true;
+    }
+
+    std::size_t enqueue_batch(std::span<const T> values)
+    {
+        const std::size_t enqueued = queue_storage->enqueue_batch(values);
         if (enqueued != 0)
         {
-            notify();
+            notifier.notify();
         }
         return enqueued;
     }
 
-    template <typename Output>
-    [[nodiscard]] bool try_dequeue(Output& value)
+    [[nodiscard]] bool try_dequeue(T& value)
     {
-        return queue_storage.try_dequeue(value);
+        return queue_storage->try_dequeue(value);
     }
 
-    // Drains all eventfd notifications and returns their accumulated count.
-    // Callers should then dequeue until the queue is empty and recheck it
-    // before going back to epoll_wait().
     std::uint64_t drain_notifications()
     {
-        std::uint64_t total = 0;
-        for (;;)
-        {
-            try
-            {
-                total += notification_fd->read_notification();
-            }
-            catch (const std::system_error& error)
-            {
-                if (error.code() == std::errc::interrupted)
-                {
-                    continue;
-                }
-                if (error.code() == std::errc::resource_unavailable_try_again)
-                {
-                    return total;
-                }
-                throw;
-            }
-        }
-    }
-
-    Queue& queue() noexcept
-    {
-        return queue_storage;
-    }
-    const Queue& queue() const noexcept
-    {
-        return queue_storage;
+        return notifier.drain_notifications();
     }
 
 private:
-    void notify()
-    {
-        for (;;)
-        {
-            try
-            {
-                notification_fd->write_notification();
-                return;
-            }
-            catch (const std::system_error& error)
-            {
-                if (error.code() == std::errc::interrupted)
-                {
-                    continue;
-                }
-                // A saturated eventfd is already readable. The queue item remains
-                // available, so no additional notification is needed.
-                if (error.code() == std::errc::resource_unavailable_try_again)
-                {
-                    return;
-                }
-                throw;
-            }
-        }
-    }
-
-    Queue queue_storage;
-    std::unique_ptr<EventFd> notification_fd;
+    std::unique_ptr<QueueInterface<T>> queue_storage;
+    WaitableQueueNotifier notifier;
 };
 
 } // namespace exasol::udf::v2
