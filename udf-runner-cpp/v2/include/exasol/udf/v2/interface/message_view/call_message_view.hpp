@@ -12,7 +12,12 @@
 namespace exasol::udf::v2
 {
 
-/// Non-owning view of one received composite call message.
+/// View of one received composite call message.
+///
+/// FlatBuffer-backed accessors borrow data from the decoded frame and remain
+/// valid while the view is alive. Arrow data is owned by the call view until
+/// transferred into a DataSchemaView or RecordBatchView. Those specialized
+/// views retain ownership until take_schema() or take_array() is called.
 class CallMessageView
 {
 public:

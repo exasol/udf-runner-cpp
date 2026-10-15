@@ -240,7 +240,7 @@ and prevents connection-only fields from being sent on a call stream.
 ```text
 CallMessageBuilder {
     open_call(call_name) -> CallMessageBuilder&
-    payloads(payloads) -> CallMessageBuilder&
+    add_payload(name, value, binary = false) -> CallMessageBuilder&
     data_schema(ArrowSchemaPtr schema, has_group_id, has_row_id) -> CallMessageBuilder&
     next(byte_budget, reset, row_id) -> CallMessageBuilder&
     record_batch(ArrowArrayPtr array, is_end_of_group) -> CallMessageBuilder&
@@ -249,8 +249,9 @@ CallMessageBuilder {
 }
 ```
 
-The call builder constructs exactly one composite call message. It owns FlatBuffer offsets and tracks Arrow ownership
-until the context accepts the send. `open_call()` is valid only when the builder is passed to `Context::open_call()`.
+The call builder describes one composite call message. Repeated `add_payload()` calls append payloads in order. After
+`data_schema()` or `record_batch()`, the builder owns the supplied Arrow objects. Passing the builder to
+`Context::open_call()` or `Call::send()` transfers it to that operation, and the builder must not be reused.
 
 ### Control message builder
 
@@ -258,13 +259,14 @@ until the context accepts the send. `open_call()` is valid only when the builder
 ControlMessageBuilder {
     server_capabilities(major, minor) -> ControlMessageBuilder&
     keep_alive() -> ControlMessageBuilder&
-    payloads(payloads) -> ControlMessageBuilder&
+    add_payload(name, value, binary = false) -> ControlMessageBuilder&
     error(code, message) -> ControlMessageBuilder&
     close_connection() -> ControlMessageBuilder&
 }
 ```
 
-The control builder cannot construct `OpenCall`, `CloseCall`, `Next`, `DataSchema`, or record-batch fields.
+The control builder cannot construct `OpenCall`, `CloseCall`, `Next`, `DataSchema`, or record-batch fields. Passing it
+to `ControlStream::send()` transfers it to that operation, and the builder must not be reused.
 
 ### Call message view
 
