@@ -216,7 +216,7 @@ TEST(UdfProtocolTest, DecodedFrameOwnsBufferForGeneratedViews)
     ASSERT_TRUE(control_view.payloads());
     EXPECT_EQ(control_view.payloads()->get().payloads()->Get(0)->name()->str(), "name");
     EXPECT_TRUE(control_view.has_error());
-    EXPECT_EQ(control_view.error()->get().message(), "example failure");
+    EXPECT_EQ(control_view.error()->get().message()->str(), "example failure");
 }
 
 TEST(UdfProtocolTest, FrameBackedCallViewPopulatesHighLevelFields)
@@ -242,9 +242,9 @@ TEST(UdfProtocolTest, FrameBackedCallViewPopulatesHighLevelFields)
         std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded.value()));
     const exasol::udf::v2::CallMessageView call_view(decoded_frame);
     EXPECT_TRUE(call_view.has_open_call());
-    EXPECT_EQ(call_view.open_call()->get().call_name, "example");
+    EXPECT_EQ(call_view.open_call()->get().call_name()->str(), "example");
     EXPECT_TRUE(call_view.has_error());
-    EXPECT_EQ(call_view.error()->get().code(), "example_error");
+    EXPECT_EQ(call_view.error()->get().code()->str(), "example_error");
 
     exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder batch_builder;
     const auto batch       = exasol::udf::protocol::CreateDataRecordBatchMetadata(batch_builder);
@@ -378,10 +378,10 @@ TEST(UdfProtocolTest, ViewsHandleMissingOptionalFlatbufferFields)
         std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded_call.value()));
     const exasol::udf::v2::CallMessageView call_view(call_frame);
     EXPECT_TRUE(call_view.has_open_call());
-    EXPECT_TRUE(call_view.open_call()->get().call_name.empty());
+    EXPECT_EQ(call_view.open_call()->get().call_name(), nullptr);
     ASSERT_TRUE(call_view.error());
-    EXPECT_TRUE(call_view.error()->get().code().empty());
-    EXPECT_TRUE(call_view.error()->get().message().empty());
+    EXPECT_EQ(call_view.error()->get().code(), nullptr);
+    EXPECT_EQ(call_view.error()->get().message(), nullptr);
 
     exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder capabilities_builder;
     const auto capabilities = exasol::udf::protocol::CreateServerCapabilities(capabilities_builder);
