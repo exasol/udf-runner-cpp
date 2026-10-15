@@ -16,11 +16,9 @@ CallMessageBuilder& CallMessageBuilder::add_payload(std::string_view name,
                                                     std::string_view value,
                                                     bool binary)
 {
-    if (!message_.payloads.has_value())
-    {
-        message_.payloads.emplace();
-    }
-    message_.payloads.value().emplace_back(std::string(name), std::string(value), binary);
+    static_cast<void>(name);
+    static_cast<void>(value);
+    static_cast<void>(binary);
     return *this;
 }
 

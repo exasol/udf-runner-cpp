@@ -9,19 +9,9 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <vector>
 
 namespace exasol::udf::v2
 {
-
-/// Named string or binary payload.
-struct Payload
-{
-    std::string name;   // NOLINT(misc-non-private-member-variables-in-classes)
-    std::string value;  // NOLINT(misc-non-private-member-variables-in-classes)
-    bool binary{false}; // NOLINT(misc-non-private-member-variables-in-classes)
-};
-using Payloads = std::vector<Payload>;
 
 /// Deleter for Arrow C Data Interface objects.
 template <typename T>
@@ -86,7 +76,6 @@ struct CallMessage
     ~CallMessage()                                 = default;
 
     std::optional<OpenCall> open_call;     // NOLINT(misc-non-private-member-variables-in-classes)
-    std::optional<Payloads> payloads;      // NOLINT(misc-non-private-member-variables-in-classes)
     std::optional<DataSchema> data_schema; // NOLINT(misc-non-private-member-variables-in-classes)
     std::optional<Next> next;              // NOLINT(misc-non-private-member-variables-in-classes)
     std::optional<OutboundNext>
@@ -118,11 +107,10 @@ struct ControlMessage
     ~ControlMessage()                                    = default;
 
     std::optional<ServerCapabilities>
-        server_capabilities;          // NOLINT(misc-non-private-member-variables-in-classes)
-    bool keep_alive{false};           // NOLINT(misc-non-private-member-variables-in-classes)
-    std::optional<Payloads> payloads; // NOLINT(misc-non-private-member-variables-in-classes)
-    std::optional<ErrorInfo> error;   // NOLINT(misc-non-private-member-variables-in-classes)
-    bool close_connection{false};     // NOLINT(misc-non-private-member-variables-in-classes)
+        server_capabilities;        // NOLINT(misc-non-private-member-variables-in-classes)
+    bool keep_alive{false};         // NOLINT(misc-non-private-member-variables-in-classes)
+    std::optional<ErrorInfo> error; // NOLINT(misc-non-private-member-variables-in-classes)
+    bool close_connection{false};   // NOLINT(misc-non-private-member-variables-in-classes)
 };
 
 } // namespace exasol::udf::v2

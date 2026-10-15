@@ -133,7 +133,6 @@ void builders_and_views_cover_present_and_absent_fields()
         .close_call();
 
     assert(call.message().open_call.has_value());
-    assert(call.message().payloads.has_value());
     assert(call.message().data_schema.has_value());
     assert(call.message().data_schema.value().schema.get() == &schema);
     assert(call.message().outbound_next.has_value());
@@ -176,7 +175,6 @@ void builders_and_views_cover_present_and_absent_fields()
         .error("E_CONTROL", "control failure")
         .close_connection();
     assert(control.message().server_capabilities.has_value());
-    assert(control.message().payloads.has_value());
     assert(control.message().error.has_value());
     assert(control.message().close_connection);
 

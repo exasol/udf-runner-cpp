@@ -358,9 +358,11 @@ object.
 
 ### Builder and view implementation contract
 
-Each `CallMessageBuilder` and `ControlMessageBuilder` owns one `flatbuffers::FlatBufferBuilder` and produces exactly
-one composite `StreamMessage`. Generated FlatBuffer offsets must be created from that builder and must not escape
-before the builder is finalized. A builder cannot be reused after finalization.
+The builders define the worker-facing message construction interface. The transport implementation creates one
+`flatbuffers::FlatBufferBuilder` for the accepted message and produces exactly one composite `StreamMessage`.
+Generated FlatBuffer offsets must be created from that implementation-owned builder and must not escape before the
+builder is finalized. The interface does not prescribe when serialization occurs. A builder submitted for sending must
+not be reused after ownership has been accepted by the context.
 
 The receive path verifies the complete frame with `flatbuffers::Verifier` before obtaining the generated `Frame` and
 `StreamMessage` accessors. The resulting specialized view retains a shared immutable storage lease containing the
