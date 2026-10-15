@@ -106,13 +106,15 @@ bool CallMessageView::has_data_schema() const noexcept
 {
     return call_message_.has_value() && call_message_->data_schema.has_value();
 }
-DataSchemaView CallMessageView::data_schema() const noexcept
+DataSchemaView CallMessageView::data_schema() noexcept
 {
     if (!call_message_.has_value() || !call_message_->data_schema.has_value())
     {
         return DataSchemaView{};
     }
-    return DataSchemaView(*call_message_->data_schema);
+    DataSchemaView view(std::move(*call_message_->data_schema));
+    call_message_->data_schema.reset();
+    return view;
 }
 bool CallMessageView::has_next() const noexcept
 {
@@ -130,13 +132,15 @@ bool CallMessageView::has_record_batch() const noexcept
 {
     return call_message_.has_value() && call_message_->record_batch.has_value();
 }
-RecordBatchView CallMessageView::record_batch() const noexcept
+RecordBatchView CallMessageView::record_batch() noexcept
 {
     if (!call_message_.has_value() || !call_message_->record_batch.has_value())
     {
         return RecordBatchView{};
     }
-    return RecordBatchView(*call_message_->record_batch);
+    RecordBatchView view(std::move(*call_message_->record_batch));
+    call_message_->record_batch.reset();
+    return view;
 }
 bool CallMessageView::has_error() const noexcept
 {

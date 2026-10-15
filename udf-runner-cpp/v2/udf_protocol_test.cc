@@ -257,9 +257,9 @@ TEST(UdfProtocolTest, FrameBackedCallViewPopulatesHighLevelFields)
     ASSERT_TRUE(decoded_batch.has_value());
     const auto decoded_batch_frame =
         std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded_batch.value()));
-    const exasol::udf::v2::CallMessageView batch_view(decoded_batch_frame);
+    exasol::udf::v2::CallMessageView batch_view(decoded_batch_frame);
     EXPECT_FALSE(batch_view.has_record_batch());
-    EXPECT_EQ(batch_view.record_batch().array(), nullptr);
+    EXPECT_EQ(batch_view.record_batch().take_array(), nullptr);
 
     exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder close_builder;
     const auto close_call       = exasol::udf::protocol::CreateCloseCall(close_builder);

@@ -5,6 +5,9 @@
 #include <memory>
 #include <utility>
 
+#include <arrow/api.h>
+#include <arrow/c/bridge.h>
+
 namespace exasol::udf::v2
 {
 
@@ -139,29 +142,30 @@ void builders_and_views_cover_present_and_absent_fields()
     assert(call.message().outbound_next.value().byte_budget == 1024);
     assert(call.message().record_batch.has_value());
     assert(call.message().record_batch.value().array.get() == &array);
-    const DataSchemaView data_schema_view(call.message().data_schema.value());
-    assert(data_schema_view.schema() == &schema);
+    auto taken_call = std::move(call).take();
+    DataSchemaView data_schema_view(std::move(taken_call.data_schema.value()));
     assert(data_schema_view.has_group_id());
     assert(data_schema_view.has_row_id());
-    const RecordBatchView record_batch_view(call.message().record_batch.value());
-    assert(record_batch_view.array() == &array);
+    assert(std::move(data_schema_view).take_schema().get() == &schema);
+    RecordBatchView record_batch_view(std::move(taken_call.record_batch.value()));
     assert(record_batch_view.is_end_of_group());
-    assert(call.message().error.has_value());
-    assert(call.message().close_call);
+    assert(std::move(record_batch_view).take_array().get() == &array);
+    assert(taken_call.error.has_value());
+    assert(taken_call.close_call);
 
-    const CallMessageView empty_call_view;
+    CallMessageView empty_call_view;
     assert(!empty_call_view.has_open_call());
     assert(!empty_call_view.open_call());
     assert(!empty_call_view.has_payloads());
     assert(!empty_call_view.payloads());
     assert(!empty_call_view.has_data_schema());
-    assert(empty_call_view.data_schema().schema() == nullptr);
+    assert(std::move(empty_call_view.data_schema()).take_schema() == nullptr);
     assert(!empty_call_view.data_schema().has_group_id());
     assert(!empty_call_view.data_schema().has_row_id());
     assert(!empty_call_view.has_next());
     assert(!empty_call_view.next());
     assert(!empty_call_view.has_record_batch());
-    assert(empty_call_view.record_batch().array() == nullptr);
+    assert(std::move(empty_call_view.record_batch()).take_array() == nullptr);
     assert(!empty_call_view.record_batch().is_end_of_group());
     assert(!empty_call_view.has_error());
     assert(!empty_call_view.error());
@@ -190,7 +194,6 @@ void builders_and_views_cover_present_and_absent_fields()
 
     const auto taken_control = std::move(control).take();
     assert(taken_control.keep_alive);
-    const auto taken_call = std::move(call).take();
     assert(taken_call.close_call);
 }
 
@@ -204,6 +207,18 @@ void arrow_owners_release_exactly_once()
         ArrowSchemaPtr owner(&schema);
         ArrowSchemaPtr moved(std::move(owner));
         assert(moved.get() == &schema);
+    }
+    assert(schema_releases == 1);
+
+    schema_releases     = 0;
+    schema.release      = count_schema_release;
+    schema.private_data = &schema_releases;
+    {
+        DataSchemaView view(DataSchema{ArrowSchemaPtr(&schema), true, true});
+        assert(view.has_group_id());
+        assert(view.has_row_id());
+        ArrowSchemaPtr transferred = std::move(view).take_schema();
+        assert(transferred.get() == &schema);
     }
     assert(schema_releases == 1);
 
@@ -227,6 +242,17 @@ void arrow_owners_release_exactly_once()
     }
     assert(array_releases == 1);
 
+    array_releases     = 0;
+    array.release      = count_array_release;
+    array.private_data = &array_releases;
+    {
+        RecordBatchView view(RecordBatch{ArrowArrayPtr(&array), true});
+        assert(view.is_end_of_group());
+        ArrowArrayPtr transferred = std::move(view).take_array();
+        assert(transferred.get() == &array);
+    }
+    assert(array_releases == 1);
+
     ArrowArray first_array{};
     ArrowArray second_array{};
     ArrowArrayPtr assigned_array(&first_array);
@@ -245,6 +271,54 @@ void arrow_owners_release_exactly_once()
         assert(empty_schema.get() == nullptr);
         assert(empty_array.get() == nullptr);
     }
+}
+
+void arrow_c_data_round_trip_through_interface()
+{
+    arrow::Int64Builder id_builder;
+    assert(id_builder.Append(7).ok());
+    assert(id_builder.Append(11).ok());
+
+    std::shared_ptr<arrow::Array> ids;
+    assert(id_builder.Finish(&ids).ok());
+    const auto schema = arrow::schema({arrow::field("id", arrow::int64())});
+    const auto source = arrow::RecordBatch::Make(schema, 2, {ids});
+
+    ArrowSchema received_schema{};
+    ArrowArray received_array{};
+    assert(arrow::ExportRecordBatch(*source, &received_array, &received_schema).ok());
+
+    DataSchemaView schema_view(DataSchema{ArrowSchemaPtr(&received_schema), false, false});
+    RecordBatchView batch_view(RecordBatch{ArrowArrayPtr(&received_array), true});
+    auto schema_owner = std::move(schema_view).take_schema();
+    auto array_owner  = std::move(batch_view).take_array();
+    assert(schema_owner != nullptr);
+    assert(array_owner != nullptr);
+
+    auto imported = arrow::ImportRecordBatch(array_owner.get(), schema_owner.get());
+    assert(imported.ok());
+    assert(imported.ValueOrDie()->num_rows() == 2);
+    const auto imported_ids =
+        std::static_pointer_cast<arrow::Int64Array>(imported.ValueOrDie()->column(0));
+    assert(imported_ids->Value(0) == 7);
+    assert(imported_ids->Value(1) == 11);
+
+    ArrowSchema sent_schema{};
+    ArrowArray sent_array{};
+    assert(arrow::ExportRecordBatch(*imported.ValueOrDie(), &sent_array, &sent_schema).ok());
+    {
+        CallMessageBuilder outgoing;
+        outgoing.data_schema(ArrowSchemaPtr(&sent_schema), false, false)
+            .record_batch(ArrowArrayPtr(&sent_array), true);
+        const auto sent = std::move(outgoing).take();
+        assert(sent.data_schema.has_value());
+        assert(sent.data_schema->schema.get() == &sent_schema);
+        assert(sent.record_batch.has_value());
+        assert(sent.record_batch->array.get() == &sent_array);
+        assert(sent.record_batch->is_end_of_group);
+    }
+    assert(sent_schema.release == nullptr);
+    assert(sent_array.release == nullptr);
 }
 
 void convenience_methods_delegate_to_virtual_operations()
@@ -293,6 +367,7 @@ int main() noexcept // NOLINT(bugprone-exception-escape)
     using namespace exasol::udf::v2;
     builders_and_views_cover_present_and_absent_fields();
     arrow_owners_release_exactly_once();
+    arrow_c_data_round_trip_through_interface();
     convenience_methods_delegate_to_virtual_operations();
     result_and_timeout_types_are_usable();
 }

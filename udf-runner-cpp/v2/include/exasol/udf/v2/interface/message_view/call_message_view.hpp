@@ -30,7 +30,7 @@ public:
     /// Returns whether a data schema is present.
     [[nodiscard]] bool has_data_schema() const noexcept;
     /// Returns the data-schema view.
-    [[nodiscard]] DataSchemaView data_schema() const noexcept;
+    [[nodiscard]] DataSchemaView data_schema() noexcept;
     /// Returns whether flow-control information is present.
     [[nodiscard]] bool has_next() const noexcept;
     /// Returns flow-control information, or an empty optional when absent.
@@ -38,7 +38,7 @@ public:
     /// Returns whether a record batch is present.
     [[nodiscard]] bool has_record_batch() const noexcept;
     /// Returns the record-batch view.
-    [[nodiscard]] RecordBatchView record_batch() const noexcept;
+    [[nodiscard]] RecordBatchView record_batch() noexcept;
     /// Returns whether an error is present.
     [[nodiscard]] bool has_error() const noexcept;
     /// Returns the wire-level FlatBuffer error table, or an empty optional when absent.
