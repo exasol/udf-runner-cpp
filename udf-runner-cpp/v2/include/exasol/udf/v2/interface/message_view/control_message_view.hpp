@@ -28,8 +28,9 @@ public:
         const noexcept;
     /// Returns whether an error is present.
     [[nodiscard]] bool has_error() const noexcept;
-    /// Returns the error, or an empty optional when absent.
-    [[nodiscard]] std::optional<std::reference_wrapper<const ErrorInfo>> error() const noexcept;
+    /// Returns the wire-level FlatBuffer error table, or an empty optional when absent.
+    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Error>> error()
+        const noexcept;
     /// Returns whether this message starts or acknowledges connection shutdown.
     [[nodiscard]] bool has_close_connection() const noexcept;
 

@@ -271,7 +271,7 @@ The control builder cannot construct `OpenCall`, `CloseCall`, `Next`, `DataSchem
 ```text
 CallMessageView {
     has_open_call() -> bool
-    open_call() -> std::optional<std::reference_wrapper<const OpenCall>>
+    open_call() -> std::optional<std::reference_wrapper<const protocol::OpenCall>>
     has_payloads() -> bool
     payloads() -> std::optional<std::reference_wrapper<const protocol::Payloads>>
     has_data_schema() -> bool
@@ -281,15 +281,15 @@ CallMessageView {
     has_record_batch() -> bool
     record_batch() -> RecordBatchView
     has_error() -> bool
-    error() -> std::optional<std::reference_wrapper<const ErrorInfo>>
+    error() -> std::optional<std::reference_wrapper<const protocol::Error>>
     has_close_call() -> bool
 }
 ```
 
-`CallMessageView` and `ControlMessageView` expose three distinct layers of accessors. High-level accessors return
-worker-facing `OpenCall`, `Next`, and `ErrorInfo` values through optional reference wrappers. The
-`server_capabilities()` and `payloads()` accessors return optional references to generated FlatBuffer `protocol`
-tables. The `DataSchemaView` and `RecordBatchView` accessors are Arrow C Data Interface adapters because the wire
+`CallMessageView` and `ControlMessageView` expose three distinct layers of accessors. The `open_call()`,
+`server_capabilities()`, `payloads()`, and `error()` accessors return optional references to generated FlatBuffer
+`protocol` tables. The `Next` accessor returns a worker-facing value because the interface intentionally hides the
+wire-level byte budget. The `DataSchemaView` and `RecordBatchView` accessors are Arrow C Data Interface adapters because the wire
 metadata must be converted to Arrow schema/array ownership for the worker. Their `take_schema()` and
 `take_array()` operations explicitly move that ownership out of the view; they are not borrowed raw-pointer
 accessors.
@@ -337,7 +337,7 @@ ControlMessageView {
     has_payloads() -> bool
     payloads() -> std::optional<std::reference_wrapper<const protocol::Payloads>>
     has_error() -> bool
-    error() -> std::optional<std::reference_wrapper<const ErrorInfo>>
+    error() -> std::optional<std::reference_wrapper<const protocol::Error>>
     has_close_connection() -> bool
 }
 ```

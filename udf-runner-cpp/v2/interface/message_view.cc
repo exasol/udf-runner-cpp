@@ -20,11 +20,6 @@ namespace
         const auto* frame = &decoded_frame->frame();
         if (const auto* control = frame->control_message(); control != nullptr)
         {
-            if (const auto* open_call = control->value_as_OpenCall(); open_call != nullptr)
-            {
-                message.open_call = OpenCall{
-                    open_call->call_name() != nullptr ? open_call->call_name()->str() : ""};
-            }
             if (const auto* next = control->next(); next != nullptr)
             {
                 message.next = Next{next->reset(), next->row_id()};
@@ -84,15 +79,15 @@ namespace
 
 bool CallMessageView::has_open_call() const noexcept
 {
-    return call_message_.has_value() && call_message_->open_call.has_value();
+    const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
+    return control != nullptr && control->value_as_OpenCall() != nullptr;
 }
-std::optional<std::reference_wrapper<const OpenCall>> CallMessageView::open_call() const noexcept
+std::optional<std::reference_wrapper<const protocol::OpenCall>> CallMessageView::open_call()
+    const noexcept
 {
-    if (!call_message_.has_value() || !call_message_->open_call.has_value())
-    {
-        return std::nullopt;
-    }
-    return std::cref(*call_message_->open_call);
+    const auto* control   = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
+    const auto* open_call = control != nullptr ? control->value_as_OpenCall() : nullptr;
+    return open_call != nullptr ? std::optional{std::cref(*open_call)} : std::nullopt;
 }
 bool CallMessageView::has_payloads() const noexcept
 {
@@ -145,15 +140,14 @@ RecordBatchView CallMessageView::record_batch() const noexcept
 }
 bool CallMessageView::has_error() const noexcept
 {
-    return call_message_.has_value() && call_message_->error.has_value();
+    const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
+    return control != nullptr && control->error() != nullptr;
 }
-std::optional<std::reference_wrapper<const ErrorInfo>> CallMessageView::error() const noexcept
+std::optional<std::reference_wrapper<const protocol::Error>> CallMessageView::error() const noexcept
 {
-    if (!call_message_.has_value() || !call_message_->error.has_value())
-    {
-        return std::nullopt;
-    }
-    return std::cref(*call_message_->error);
+    const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
+    const auto* error   = control != nullptr ? control->error() : nullptr;
+    return error != nullptr ? std::optional{std::cref(*error)} : std::nullopt;
 }
 CallMessageView::CallMessageView(std::shared_ptr<const protocol::DecodedFrame> frame)
     : call_message_(decode_call_message(frame.get())), decoded_frame_(std::move(frame))
@@ -196,15 +190,15 @@ std::optional<std::reference_wrapper<const protocol::Payloads>> ControlMessageVi
 }
 bool ControlMessageView::has_error() const noexcept
 {
-    return control_message_.has_value() && control_message_->error.has_value();
+    const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
+    return control != nullptr && control->error() != nullptr;
 }
-std::optional<std::reference_wrapper<const ErrorInfo>> ControlMessageView::error() const noexcept
+std::optional<std::reference_wrapper<const protocol::Error>> ControlMessageView::error()
+    const noexcept
 {
-    if (!control_message_.has_value() || !control_message_->error.has_value())
-    {
-        return std::nullopt;
-    }
-    return std::cref(*control_message_->error);
+    const auto* control = decoded_frame_ ? decoded_frame_->frame().control_message() : nullptr;
+    const auto* error   = control != nullptr ? control->error() : nullptr;
+    return error != nullptr ? std::optional{std::cref(*error)} : std::nullopt;
 }
 ControlMessageView::ControlMessageView(std::shared_ptr<const protocol::DecodedFrame> frame)
     : control_message_(decode_control_message(frame.get())), decoded_frame_(std::move(frame))

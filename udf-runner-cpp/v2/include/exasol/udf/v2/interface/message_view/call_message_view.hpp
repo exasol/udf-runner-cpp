@@ -19,8 +19,9 @@ public:
     CallMessageView() = default;
     /// Returns whether call-opening metadata is present.
     [[nodiscard]] bool has_open_call() const noexcept;
-    /// Returns call-opening metadata, or an empty optional when absent.
-    [[nodiscard]] std::optional<std::reference_wrapper<const OpenCall>> open_call() const noexcept;
+    /// Returns the wire-level FlatBuffer call-opening table, or an empty optional when absent.
+    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::OpenCall>> open_call()
+        const noexcept;
     /// Returns whether wire-level payloads are present.
     [[nodiscard]] bool has_payloads() const noexcept;
     /// Returns the wire-level FlatBuffer payload table, or an empty optional when absent.
@@ -40,8 +41,9 @@ public:
     [[nodiscard]] RecordBatchView record_batch() const noexcept;
     /// Returns whether an error is present.
     [[nodiscard]] bool has_error() const noexcept;
-    /// Returns the error, or an empty optional when absent.
-    [[nodiscard]] std::optional<std::reference_wrapper<const ErrorInfo>> error() const noexcept;
+    /// Returns the wire-level FlatBuffer error table, or an empty optional when absent.
+    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Error>> error()
+        const noexcept;
     /// Returns whether this message closes the call.
     [[nodiscard]] bool has_close_call() const noexcept;
 
