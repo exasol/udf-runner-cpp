@@ -108,6 +108,30 @@ cc_test(
 )
 
 cc_test(
+    name = "mull_template_test",
+    srcs = [
+        "mull_template_example/template_test.cc",
+        "mull_template_example/template_transform.hpp",
+    ],
+    copts = ["-std=c++23"],
+    deps = ["@googletest//:gtest_main"],
+)
+
+cc_test(
+    name = "mull_template_queue_like_test",
+    srcs = [
+        "mull_template_example/queue_like.hpp",
+        "mull_template_example/queue_like_test.cc",
+    ],
+    copts = ["-std=c++23"],
+    # This is an intentional negative control for Mull's unreliable support
+    # for inline class-template instantiations. Keep it out of the normal
+    # mutation score while retaining it as an explicit diagnostic target.
+    tags = ["no-mull"],
+    deps = ["@googletest//:gtest_main"],
+)
+
+cc_test(
     name = "udf_protocol_test",
     srcs = ["udf_protocol_test.cc"],
     copts = ["-std=c++23"],
@@ -474,6 +498,10 @@ cc_test(
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
+    # The implementation is a header-only class template. Keep its normal
+    # tests in Bazel coverage; Mull's template instantiation support is not
+    # reliable even when the linker preserves Mull metadata.
+    tags = ["no-mull"],
     target_compatible_with = ["@platforms//os:linux"],
 )
 

@@ -362,18 +362,32 @@ def _build_mull_targets(
     generated_config: Path,
     run_env: dict[str, str],
 ) -> Path:
+    v2_source_root = ROOT / "udf-runner-cpp" / "v2"
+    mull_source_copts = [
+        f"--per_file_copt={source.name}@-fpass-plugin={toolchain.frontend}"
+        for source in sorted(v2_source_root.rglob("*"))
+        if source.is_file()
+        and source.suffix in {".c", ".cc", ".cpp", ".cxx"}
+        and "third_party" not in source.parts
+    ]
     bazel_args = [
         "build",
         "--compilation_mode=dbg",
         "--copt=-O0",
         "--copt=-g",
         "--copt=-grecord-command-line",
-        f"--copt=-fpass-plugin={toolchain.frontend}",
+        # GNU gold drops Mull's .mull_mutants metadata while linking. Mull
+        # cannot discover mutations from the final executable in that case.
+        "--linkopt=-fuse-ld=bfd",
         f"--action_env=MULL_CONFIG={generated_config}",
         "--per_file_copt=.*\\.c$@-std=gnu11",
         f"--repo_env=CC={toolchain.c_compiler}",
         f"--repo_env=CXX={toolchain.compiler}",
         "--verbose_failures",
+        # Match local source basenames rather than all C++ actions. This
+        # avoids instrumenting external GoogleTest/GoogleMock sources while
+        # still instrumenting included header-only templates.
+        *mull_source_copts,
         *targets,
     ]
     if build_jobs := os.environ.get("MULL_BAZEL_BUILD_JOBS"):

@@ -143,3 +143,10 @@ that only exercise third-party dependencies. Keep those tests in normal Bazel
 test coverage and exclude them from Mull with the `no-mull` tag. Production
 implementation units with Mull-compatible non-template code should have a
 dedicated test target that remains in the mutation matrix.
+
+The Mull Bazel build uses `ld.bfd` because the default GNU gold linker can
+discard Mull's `.mull_mutants` metadata while producing the final executable.
+This linker fix is necessary for ordinary Mull-compatible code, but it does
+not make inline class-template instantiations reliable. The
+`mull_template_example` targets provide a small positive function-template
+control and a queue-shaped negative control for diagnosing that distinction.
