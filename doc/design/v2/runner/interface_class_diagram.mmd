@@ -98,14 +98,6 @@ namespace exasol_udf_v2 {
     class DataSchema
     class RecordBatch
     class ErrorInfo
-    class Result_T_["Result<T>"]
-    class Result_void_["Result<void>"]
-    class MessageStatus
-    class OperationStatus
-    class Timeout
-    class ArrowSchemaPtr
-    class ArrowArrayPtr
-    class ArrowCDataDeleter
 }
 
 namespace exasol_udf_protocol {
@@ -125,32 +117,13 @@ namespace exasol_udf_protocol {
     }
 }
 
-class ArrowRecordBatchImport {
-    <<public utility>>
-    +import_record_batch(ArrowArrayPtr, ArrowSchemaPtr) arrow::Result~shared_ptr~arrow::RecordBatch~~
-}
-class ArrowRecordBatch {
-    <<Apache Arrow C++ type>>
-}
-
 Context --> Call : accepts/opens
 Context --> ControlStream : returns stream zero
 Context --> CallMessageBuilder : opens outbound call
-Context --> Result_T_
-Context --> MessageStatus
-Context --> Timeout
 Call --> CallMessageBuilder : sends
 Call --> CallMessageView : receives
-Call --> Result_T_
-Call --> Result_void_
-Call --> MessageStatus
-Call --> Timeout
 ControlStream --> ControlMessageBuilder : sends
 ControlStream --> ControlMessageView : receives
-ControlStream --> Result_T_
-ControlStream --> Result_void_
-ControlStream --> MessageStatus
-ControlStream --> Timeout
 CallMessageBuilder *-- CallMessage : owns
 ControlMessageBuilder *-- ControlMessage : owns
 CallMessage *-- OpenCall : optional
@@ -164,14 +137,6 @@ ControlMessage *-- ServerCapabilities : optional
 ControlMessage *-- Payloads : optional
 ControlMessage *-- ErrorInfo : optional
 Payloads *-- Payload : contains
-DataSchema *-- ArrowSchemaPtr : owns
-RecordBatch *-- ArrowArrayPtr : owns
-ArrowSchemaPtr --> ArrowCDataDeleter
-ArrowArrayPtr --> ArrowCDataDeleter
-Result_T_ --> OperationStatus
-Result_T_ --> ErrorInfo : optional error
-Result_void_ --> OperationStatus
-Result_void_ --> ErrorInfo : optional error
 CallMessageView *-- CallMessage : decoded snapshot
 ControlMessageView *-- ControlMessage : decoded snapshot
 CallMessageView o-- DecodedFrame : shared lifetime
@@ -185,8 +150,4 @@ ControlMessageView --> WirePayloads : direct wire view
 ControlMessageView --> WireServerCapabilities : direct wire view
 DecodedFrame --> Frame : exposes generated view
 DecodedFrame *-- "owned bytes" Frame : backs generated objects
-DataSchemaView --> ArrowSchemaPtr : take_schema()
-RecordBatchView --> ArrowArrayPtr : take_array()
-ArrowRecordBatchImport --> ArrowArrayPtr : consumes
-ArrowRecordBatchImport --> ArrowSchemaPtr : consumes
-ArrowRecordBatchImport --> ArrowRecordBatch : returns
+note for RecordBatchView "Public free function: import_record_batch(ArrowArrayPtr, ArrowSchemaPtr) returns arrow::Result<shared_ptr<arrow::RecordBatch>>"
