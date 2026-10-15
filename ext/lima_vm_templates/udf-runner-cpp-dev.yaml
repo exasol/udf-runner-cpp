@@ -24,7 +24,7 @@
 minimumLimaVersion: 1.1.0
 
 base:
-- template://_images/ubuntu-24.04
+- template://_images/ubuntu-26.04
 - template://_default/mounts
 
 # containerd is managed by Docker, not by Lima, so the values are set to false here.
@@ -62,7 +62,9 @@ provision:
    set -eux -o pipefail
    export DEBIAN_FRONTEND=noninteractive
    curl -1sLf 'https://dl.cloudsmith.io/public/mull-project/mull-stable/setup.deb.sh' | bash
-   apt update && apt install -y protobuf-compiler libzmq3-dev openjdk-17-jdk build-essential git python3.12-dev python3-pip libpcre3-dev lcov wget
+   apt update && apt install -y software-properties-common
+   add-apt-repository -y ppa:deadsnakes/ppa
+   apt update && apt install -y protobuf-compiler libzmq3-dev openjdk-17-jdk build-essential git python3.13 python3.13-dev python3.13-venv python3-pip libpcre2-dev lcov wget
    bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" -- 22
    apt install -y clang-22 clang-tidy-22 clang-format-22
    ln -sf /usr/bin/clang-tidy-22 /usr/local/bin/clang-tidy
@@ -76,7 +78,7 @@ provision:
    curl -L -o swig-2.0.4.tar.gz https://exasol-script-languages-dependencies.s3.eu-central-1.amazonaws.com/swig-2.0.4.tar.gz && tar zxf swig-2.0.4.tar.gz && (cd swig-2.0.4 && ./configure --prefix=/usr && make && make install) && rm -rf swig-2.0.4 swig-2.0.4.tar.gz
    poetry_home=/opt/poetry
    if [ ! -x "$poetry_home/bin/poetry" ]; then
-     curl -sSL https://install.python-poetry.org | POETRY_HOME="$poetry_home" python3 - --version 2.3.0
+     curl -sSL https://install.python-poetry.org | POETRY_HOME="$poetry_home" python3.13 - --version 2.3.0
    fi
    ln -sfn "$poetry_home/bin/poetry" /usr/local/bin/poetry
    /usr/local/bin/poetry --version
@@ -115,7 +117,7 @@ message: |
   ------
 env:
    PYTHON3_PREFIX: /usr
-   PYTHON3_VERSION: python3.12
+   PYTHON3_VERSION: python3.13
    ZMQ_LIBRARY_PREFIX: /usr/lib/x86_64-linux-gnu/
    ZMQ_INCLUDE_PREFIX: /usr/include
    PROTOBUF_LIBRARY_PREFIX: /usr/lib/x86_64-linux-gnu
