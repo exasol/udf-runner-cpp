@@ -86,7 +86,7 @@ alias(
 
 Mutation testing for the functional v2 C++ tests uses [Mull](https://mull-project.com/)
 with the pinned Mull 0.34.1 release and matching LLVM 22 toolchain. The
-`docker-udf-client` Lima template provisions these tools automatically; on
+`udf-runner-cpp-dev` Lima template provisions these tools automatically; on
 other environments install the LLVM 22 compiler and `mull-22`, then verify
 that `mull-runner-22` and `/usr/lib/mull-ir-frontend-22` are available.
 

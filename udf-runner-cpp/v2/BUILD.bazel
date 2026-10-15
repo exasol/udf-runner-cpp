@@ -356,6 +356,62 @@ cc_library(
 )
 
 cc_library(
+    name = "socket",
+    srcs = [
+        "socket/owned_file_descriptor.cc",
+        "socket/socket.cc",
+        "socket/unix_socket.cc",
+        "socket/unix_socket_detail.cc",
+        "socket/unix_socket_listener.cc",
+    ],
+    hdrs = [
+        "include/exasol/udf/v2/socket/owned_file_descriptor.hpp",
+        "include/exasol/udf/v2/socket/socket.hpp",
+        "include/exasol/udf/v2/socket/unix_socket.hpp",
+        "include/exasol/udf/v2/socket/unix_socket_listener.hpp",
+        "socket/unix_socket_detail.hpp",
+    ],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_test(
+    name = "owned_file_descriptor_test",
+    srcs = ["socket/owned_file_descriptor_test.cc"],
+    copts = ["-std=c++23"],
+    # Exclude this target from Mull until its mutation coverage is expanded.
+    tags = ["no-mull"],
+    deps = [
+        ":socket",
+        "@googletest//:gtest_main",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_test(
+    name = "unix_socket_test",
+    srcs = ["socket/unix_socket_test.cc"],
+    copts = ["-std=c++23"],
+    tags = ["no-mull"],
+    deps = [
+        ":socket",
+        "@googletest//:gtest_main",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_fuzz_test(
+    name = "socket_fuzz_test",
+    srcs = ["socket/socket_fuzz_test.cc"],
+    corpus = glob(["fuzz/corpus/socket/**"]),
+    copts = ["-std=c++23"],
+    deps = [":socket"],
+    tags = ["fuzz-test"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
     name = "linux_event_fd",
     srcs = ["linux_event_fd.cc"],
     hdrs = ["include/exasol/udf/v2/linux_event_fd.hpp"],

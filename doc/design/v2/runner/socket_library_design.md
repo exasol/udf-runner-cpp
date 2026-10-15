@@ -34,9 +34,8 @@ core `Socket` abstraction:
   resolution, and transport-specific socket-option policy.
 - Timeouts, polling loops, and protocol framing.
 
-The socket abstraction does not provide implicit unlinking of a filesystem path
-before bind or during destruction, or thread safety
-for concurrent mutation of an individual socket object.
+The socket abstraction does not provide implicit unlinking before bind or
+thread safety for concurrent mutation of an individual socket object.
 
 The library is Linux/POSIX-specific. This follows the v2 library's existing use
 of Linux readiness descriptors.
@@ -47,8 +46,10 @@ Public types belong to `exasol::udf::v2::socket`. The implementation should prov
 small public header surface, for example:
 
 ```
-include/exasol/udf/v2/socket.hpp
-include/exasol/udf/v2/unix_socket.hpp
+include/exasol/udf/v2/socket/owned_file_descriptor.hpp
+include/exasol/udf/v2/socket/socket.hpp
+include/exasol/udf/v2/socket/unix_socket.hpp
+include/exasol/udf/v2/socket/unix_socket_listener.hpp
 ```
 
 The core header must not expose a TLS implementation or a TCP address type.
@@ -62,12 +63,12 @@ This keeps the contract usable by TLS, whose I/O does not map one-for-one to
 ```cpp
 namespace exasol::udf::v2::socket {
 
-enum class Shutdown { receive, send, both };
+enum class Shutdown { Receive, Send, Both };
 
 class OwnedFileDescriptor {
 public:
     OwnedFileDescriptor() noexcept;
-    ~OwnedFileDescriptor();
+    ~OwnedFileDescriptor() noexcept;
 
     // Takes ownership of a valid raw file descriptor.
     [[nodiscard]] static OwnedFileDescriptor adopt_native_handle(int owned_fd);
@@ -199,7 +200,7 @@ public:
 class UnixSocketListener {
 public:
     UnixSocketListener() noexcept;
-    ~UnixSocketListener();
+    ~UnixSocketListener() noexcept;
 
     UnixSocketListener(const UnixSocketListener&) = delete;
     UnixSocketListener& operator=(const UnixSocketListener&) = delete;
@@ -214,7 +215,6 @@ public:
     void close() noexcept;
     [[nodiscard]] OwnedFileDescriptor release_native_handle() noexcept;
     [[nodiscard]] UnixSocket accept();
-    void unlink_path();
 };
 
 } // namespace exasol::udf::v2::socket
@@ -246,10 +246,12 @@ socket. `accept()` accepts exactly one connection and returns it as an owning,
 close-on-exec `UnixSocket`. In nonblocking mode it throws `std::system_error`
 for would-block, just like stream I/O.
 
-The listener retains the path supplied at bind only to support `unlink_path()`.
-That operation is explicit and must be called only after closing the listener
-and only when the caller knows it still owns the pathname. Destruction and
-`close()` close the descriptor but never unlink the pathname.
+The listener owns the path after a successful bind. `close()` and destruction
+close the descriptor and then remove the path with best-effort cleanup. If
+`bind()` succeeds but `listen()` fails, an internal scope guard removes the
+newly created path before the exception leaves `bind()`. Releasing the native
+descriptor also removes the path, leaving the released listener reachable only
+through that descriptor.
 
 ## Future TCP and TLS
 
