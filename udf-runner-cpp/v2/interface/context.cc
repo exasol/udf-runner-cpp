@@ -1,4 +1,4 @@
-#include <exasol/udf/v2/context.hpp>
+#include <exasol/udf/v2/interface/context.hpp>
 
 namespace exasol::udf::v2
 {

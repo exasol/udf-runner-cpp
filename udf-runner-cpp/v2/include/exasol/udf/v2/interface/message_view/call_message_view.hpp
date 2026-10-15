@@ -1,8 +1,8 @@
 #pragma once
 
-#include <exasol/udf/v2/message_view/data_schema_view.hpp>
-#include <exasol/udf/v2/message_view/record_batch_view.hpp>
-#include <exasol/udf/v2/content_types.hpp>
+#include <exasol/udf/v2/interface/message_view/data_schema_view.hpp>
+#include <exasol/udf/v2/interface/message_view/record_batch_view.hpp>
+#include <exasol/udf/v2/interface/content_types.hpp>
 #include <exasol/udf/v2/udf_protocol.hpp>
 
 #include <functional>

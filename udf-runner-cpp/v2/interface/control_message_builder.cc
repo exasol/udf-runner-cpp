@@ -1,4 +1,4 @@
-#include <exasol/udf/v2/message_builder/control_message_builder.hpp>
+#include <exasol/udf/v2/interface/message_builder/control_message_builder.hpp>
 
 #include <string>
 #include <utility>

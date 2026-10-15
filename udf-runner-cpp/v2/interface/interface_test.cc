@@ -1,4 +1,4 @@
-#include <exasol/udf/v2/interface.hpp>
+#include <exasol/udf/v2/interface/interface.hpp>
 
 #include <cassert>
 #include <chrono>

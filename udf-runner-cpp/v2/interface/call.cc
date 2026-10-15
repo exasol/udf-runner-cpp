@@ -1,4 +1,4 @@
-#include <exasol/udf/v2/call.hpp>
+#include <exasol/udf/v2/interface/call.hpp>
 namespace exasol::udf::v2
 {
 Call::~Call() = default;
