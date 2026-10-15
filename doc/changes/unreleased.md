@@ -11,6 +11,7 @@ n/a
  - #70: Added the v2 UDF protocol design and validation artifacts
  - #61: Added stacktrace-aware exceptions and assertions to v2
  - #54: Added v2 socket-library interface design
+ - #75: Added the v2 Unix-domain stream socket library
  - #32: Added clang tidy to v2
  - #36: Added developer guide for clang-tidy and clang-format
  - #38: Added Sonar Qube Public

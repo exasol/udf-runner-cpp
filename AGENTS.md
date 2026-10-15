@@ -81,12 +81,12 @@ unreleased changelog, so update it before the PR is merged.
 ## Tool availability and Lima
 
 - When a required development tool is unavailable on the host, use the
-  repository's `docker-udf-client` Lima VM instead of installing a host-wide
+  repository's `udf-runner-cpp-dev` Lima VM instead of installing a host-wide
   package.
 - Start the VM with
-  `limactl start ./ext/lima_vm_templates/docker-udf-client.yaml` and run
-  commands in it with `limactl shell docker-udf-client <command>`.
+  `limactl start ./ext/lima_vm_templates/udf-runner-cpp-dev.yaml` and run
+  commands in it with `limactl shell udf-runner-cpp-dev <command>`.
 - If a required tool is missing in the VM, install it there and add its package
   to the provisioning list in
-  [`ext/lima_vm_templates/docker-udf-client.yaml`](ext/lima_vm_templates/docker-udf-client.yaml)
+  [`ext/lima_vm_templates/udf-runner-cpp-dev.yaml`](ext/lima_vm_templates/udf-runner-cpp-dev.yaml)
   so future VMs provide it automatically.
