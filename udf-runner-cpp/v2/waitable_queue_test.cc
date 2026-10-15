@@ -15,7 +15,7 @@
 namespace
 {
 
-class MockQueueAdapter final : public exasol::udf::v2::QueueInterface<int>
+class MockQueueAdapter final : public exasol::udf::v2::QueueInterface
 {
 public:
     explicit MockQueueAdapter(std::size_t capacity = std::numeric_limits<std::size_t>::max())
@@ -23,42 +23,47 @@ public:
     {
     }
 
-    bool enqueue(const int& value) override
+    bool enqueue_copy(const void* value) override
     {
         if (values.size() == capacity)
         {
             return false;
         }
-        values.push_back(value);
+        values.push_back(*static_cast<const int*>(value));
         return true;
     }
 
-    bool enqueue(int&& value) override
+    bool enqueue_move(void* value) override
     {
-        return enqueue(value);
+        if (values.size() == capacity)
+        {
+            return false;
+        }
+        values.push_back(*static_cast<int*>(value));
+        return true;
     }
 
-    std::size_t enqueue_batch(std::span<const int> batch) override
+    std::size_t enqueue_batch(const void* batch, std::size_t count) override
     {
-        std::size_t enqueued = 0;
-        for (const int value : batch)
+        std::size_t enqueued          = 0;
+        const auto* values_to_enqueue = static_cast<const int*>(batch);
+        for (; enqueued < count; ++enqueued)
         {
-            if (!enqueue(value))
+            if (!enqueue_copy(&values_to_enqueue[enqueued]))
             {
                 break;
             }
-            ++enqueued;
         }
         return enqueued;
     }
 
-    bool try_dequeue(int& value) override
+    bool try_dequeue(void* value) override
     {
         if (values.empty())
         {
             return false;
         }
-        value = values.front();
+        *static_cast<int*>(value) = values.front();
         values.pop_front();
         return true;
     }
@@ -85,7 +90,78 @@ public:
     MOCK_METHOD(void, write_notification, (), (override));
 };
 
-using WaitableQueue = exasol::udf::v2::WaitableQueue<int>;
+struct MoveOnlyValue
+{
+    explicit MoveOnlyValue(const int value) : value(value)
+    {
+    }
+
+    MoveOnlyValue(const MoveOnlyValue&)            = delete;
+    MoveOnlyValue& operator=(const MoveOnlyValue&) = delete;
+
+    MoveOnlyValue(MoveOnlyValue&& other) noexcept : value(std::exchange(other.value, -1))
+    {
+    }
+
+    MoveOnlyValue& operator=(MoveOnlyValue&& other) noexcept
+    {
+        value = std::exchange(other.value, -1);
+        return *this;
+    }
+
+    ~MoveOnlyValue() = default;
+
+    [[nodiscard]] int get() const noexcept
+    {
+        return value;
+    }
+
+private:
+    int value;
+};
+
+class MoveOnlyQueueAdapter final : public exasol::udf::v2::QueueInterface
+{
+public:
+    bool enqueue_copy(const void* value) override
+    {
+        values.emplace_back(static_cast<const MoveOnlyValue*>(value)->get());
+        return true;
+    }
+
+    bool enqueue_move(void* value) override
+    {
+        values.push_back(std::move(*static_cast<MoveOnlyValue*>(value)));
+        return true;
+    }
+
+    std::size_t enqueue_batch(const void* values_to_enqueue, const std::size_t count) override
+    {
+        const auto* typed_values = static_cast<const MoveOnlyValue*>(values_to_enqueue);
+        for (std::size_t index = 0; index < count; ++index)
+        {
+            values.emplace_back(typed_values[index].get());
+        }
+        return count;
+    }
+
+    bool try_dequeue(void* value) override
+    {
+        if (values.empty())
+        {
+            return false;
+        }
+        *static_cast<MoveOnlyValue*>(value) = std::move(values.front());
+        values.pop_front();
+        return true;
+    }
+
+private:
+    std::deque<MoveOnlyValue> values;
+};
+
+using WaitableQueue     = exasol::udf::v2::WaitableQueue<int>;
+using WaitableQueueCore = exasol::udf::v2::WaitableQueueCore;
 using testing::Return;
 using testing::StrictMock;
 using testing::Throw;
@@ -123,6 +199,45 @@ TEST(WaitableQueueTest, EnqueuesDequeuesAndDrainsNotifications)
     ASSERT_TRUE(queue.try_dequeue(value));
     EXPECT_EQ(value, 1);
     EXPECT_FALSE(queue.try_dequeue(value));
+}
+
+TEST(WaitableQueueCoreTest, ForwardsOpaqueValuesSynchronously)
+{
+    auto event_fd = std::make_unique<StrictMock<MockEventFd>>();
+    EXPECT_CALL(*event_fd, write_notification()).WillOnce(Return());
+
+    auto queue = WaitableQueueCore(make_queue(), std::move(event_fd));
+    int input  = 11;
+    ASSERT_TRUE(queue.enqueue_copy(&input));
+
+    int output = 0;
+    ASSERT_TRUE(queue.try_dequeue(&output));
+    EXPECT_EQ(output, input);
+}
+
+TEST(WaitableQueueCoreTest, RejectsNullElementPointers)
+{
+    auto event_fd = std::make_unique<StrictMock<MockEventFd>>();
+    auto queue    = WaitableQueueCore(make_queue(), std::move(event_fd));
+
+    EXPECT_THROW(static_cast<void>(queue.enqueue_copy(nullptr)), std::invalid_argument);
+    EXPECT_THROW(static_cast<void>(queue.enqueue_move(nullptr)), std::invalid_argument);
+    EXPECT_THROW(static_cast<void>(queue.enqueue_batch(nullptr, 1)), std::invalid_argument);
+    EXPECT_THROW(static_cast<void>(queue.try_dequeue(nullptr)), std::invalid_argument);
+}
+
+TEST(WaitableQueueTest, MovesNonTrivialValuesBeforeReturning)
+{
+    auto event_fd = std::make_unique<StrictMock<MockEventFd>>();
+    EXPECT_CALL(*event_fd, write_notification()).WillOnce(Return());
+
+    auto queue = exasol::udf::v2::WaitableQueue<MoveOnlyValue>(
+        std::make_unique<MoveOnlyQueueAdapter>(), std::move(event_fd));
+    MoveOnlyValue input{17};
+    ASSERT_TRUE(queue.enqueue(std::move(input)));
+    MoveOnlyValue output{0};
+    ASSERT_TRUE(queue.try_dequeue(output));
+    EXPECT_EQ(output.get(), 17);
 }
 
 TEST(WaitableQueueTest, EnqueuesBatches)
@@ -241,7 +356,7 @@ TEST(WaitableQueueTest, RejectsNullEventFd)
 TEST(WaitableQueueTest, RejectsNullQueue)
 {
     auto event_fd   = std::make_unique<StrictMock<MockEventFd>>();
-    auto null_queue = std::unique_ptr<exasol::udf::v2::QueueInterface<int>>{};
+    auto null_queue = std::unique_ptr<exasol::udf::v2::QueueInterface>{};
     EXPECT_THROW(
         { auto queue = WaitableQueue(std::move(null_queue), std::move(event_fd)); },
         std::invalid_argument);

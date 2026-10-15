@@ -1,7 +1,6 @@
 #pragma once
 
 #include <memory>
-#include <span>
 #include <utility>
 
 #include <exasol/udf/v2/event_fd_factory.hpp>
@@ -13,40 +12,40 @@ namespace exasol::udf::v2
 {
 
 template <typename T>
-class SpscQueueAdapter final : public QueueInterface<T>
+class SpscQueueAdapter final : public QueueInterface
 {
 public:
     explicit SpscQueueAdapter(SpscQueue<T> queue) : queue(std::move(queue))
     {
     }
 
-    bool enqueue(const T& value) override
+    bool enqueue_copy(const void* value) override
     {
-        return queue.enqueue(value);
+        return queue.enqueue(*static_cast<const T*>(value));
     }
 
-    bool enqueue(T&& value) override
+    bool enqueue_move(void* value) override
     {
-        return queue.enqueue(std::move(value));
+        return queue.enqueue(std::move(*static_cast<T*>(value)));
     }
 
-    std::size_t enqueue_batch(std::span<const T> values) override
+    std::size_t enqueue_batch(const void* values, std::size_t count) override
     {
-        std::size_t enqueued = 0;
-        for (const T& value : values)
+        std::size_t enqueued     = 0;
+        const auto* typed_values = static_cast<const T*>(values);
+        for (; enqueued < count; ++enqueued)
         {
-            if (!queue.enqueue(value))
+            if (!queue.enqueue(typed_values[enqueued]))
             {
                 break;
             }
-            ++enqueued;
         }
         return enqueued;
     }
 
-    bool try_dequeue(T& value) override
+    bool try_dequeue(void* value) override
     {
-        return queue.try_dequeue(value);
+        return queue.try_dequeue(*static_cast<T*>(value));
     }
 
 private:
@@ -54,40 +53,40 @@ private:
 };
 
 template <typename T>
-class MpmcQueueAdapter final : public QueueInterface<T>
+class MpmcQueueAdapter final : public QueueInterface
 {
 public:
     explicit MpmcQueueAdapter(MpmcQueue<T> queue) : queue(std::move(queue))
     {
     }
 
-    bool enqueue(const T& value) override
+    bool enqueue_copy(const void* value) override
     {
-        return queue.enqueue(value);
+        return queue.enqueue(*static_cast<const T*>(value));
     }
 
-    bool enqueue(T&& value) override
+    bool enqueue_move(void* value) override
     {
-        return queue.enqueue(std::move(value));
+        return queue.enqueue(std::move(*static_cast<T*>(value)));
     }
 
-    std::size_t enqueue_batch(std::span<const T> values) override
+    std::size_t enqueue_batch(const void* values, std::size_t count) override
     {
-        std::size_t enqueued = 0;
-        for (const T& value : values)
+        std::size_t enqueued     = 0;
+        const auto* typed_values = static_cast<const T*>(values);
+        for (; enqueued < count; ++enqueued)
         {
-            if (!queue.enqueue(value))
+            if (!queue.enqueue(typed_values[enqueued]))
             {
                 break;
             }
-            ++enqueued;
         }
         return enqueued;
     }
 
-    bool try_dequeue(T& value) override
+    bool try_dequeue(void* value) override
     {
-        return queue.try_dequeue(value);
+        return queue.try_dequeue(*static_cast<T*>(value));
     }
 
 private:

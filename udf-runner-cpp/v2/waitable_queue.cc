@@ -5,6 +5,83 @@
 namespace exasol::udf::v2
 {
 
+WaitableQueueCore::WaitableQueueCore(std::unique_ptr<QueueInterface> queue,
+                                     std::unique_ptr<EventFd> event_fd)
+    : queue_storage(std::move(queue)), notifier(std::move(event_fd))
+{
+    if (queue_storage == nullptr)
+    {
+        throw std::invalid_argument("queue implementation must not be null");
+    }
+}
+
+WaitableQueueCore::~WaitableQueueCore() noexcept = default;
+
+WaitableQueueCore::WaitableQueueCore(WaitableQueueCore&&) noexcept = default;
+
+WaitableQueueCore& WaitableQueueCore::operator=(WaitableQueueCore&&) noexcept = default;
+
+int WaitableQueueCore::native_handle() const noexcept
+{
+    return notifier.native_handle();
+}
+
+bool WaitableQueueCore::enqueue_copy(const void* value)
+{
+    if (value == nullptr)
+    {
+        throw std::invalid_argument("queue value must not be null");
+    }
+    if (!queue_storage->enqueue_copy(value))
+    {
+        return false;
+    }
+    notifier.notify();
+    return true;
+}
+
+bool WaitableQueueCore::enqueue_move(void* value)
+{
+    if (value == nullptr)
+    {
+        throw std::invalid_argument("queue value must not be null");
+    }
+    if (!queue_storage->enqueue_move(value))
+    {
+        return false;
+    }
+    notifier.notify();
+    return true;
+}
+
+std::size_t WaitableQueueCore::enqueue_batch(const void* values, const std::size_t count)
+{
+    if (count != 0 && values == nullptr)
+    {
+        throw std::invalid_argument("queue batch must not be null");
+    }
+    const std::size_t enqueued = queue_storage->enqueue_batch(values, count);
+    if (enqueued != 0)
+    {
+        notifier.notify();
+    }
+    return enqueued;
+}
+
+bool WaitableQueueCore::try_dequeue(void* value)
+{
+    if (value == nullptr)
+    {
+        throw std::invalid_argument("queue output must not be null");
+    }
+    return queue_storage->try_dequeue(value);
+}
+
+std::uint64_t WaitableQueueCore::drain_notifications()
+{
+    return notifier.drain_notifications();
+}
+
 WaitableQueueNotifier::WaitableQueueNotifier(std::unique_ptr<EventFd> event_fd)
     : notification_fd(std::move(event_fd))
 {

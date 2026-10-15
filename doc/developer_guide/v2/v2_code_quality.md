@@ -142,7 +142,10 @@ Mutation testing is not reliable for C++ template implementations or tests
 that only exercise third-party dependencies. Keep those tests in normal Bazel
 test coverage and exclude them from Mull with the `no-mull` tag. Production
 implementation units with Mull-compatible non-template code should have a
-dedicated test target that remains in the mutation matrix.
+dedicated test target that remains in the mutation matrix. The waitable queue
+keeps its notification and forwarding logic in the non-template
+`WaitableQueueCore`; the typed `WaitableQueue<T>` and Linux queue adapters are
+thin template wrappers around that core.
 
 The Mull Bazel build uses `ld.bfd` because the default GNU gold linker can
 discard Mull's `.mull_mutants` metadata while producing the final executable.

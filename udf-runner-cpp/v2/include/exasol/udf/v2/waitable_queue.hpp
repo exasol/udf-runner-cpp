@@ -12,9 +12,6 @@
 namespace exasol::udf::v2
 {
 
-template <typename T>
-class WaitableQueue;
-
 class WaitableQueueNotifier
 {
 public:
@@ -30,15 +27,13 @@ public:
     std::uint64_t drain_notifications();
 
 private:
-    void notify();
+    friend class WaitableQueueCore;
 
-    template <typename T>
-    friend class WaitableQueue;
+    void notify();
 
     std::unique_ptr<EventFd> notification_fd;
 };
 
-template <typename T>
 class QueueInterface
 {
 public:
@@ -50,23 +45,45 @@ public:
     QueueInterface(QueueInterface&&)                 = default;
     QueueInterface& operator=(QueueInterface&&)      = default;
 
-    virtual bool enqueue(const T& value)                         = 0;
-    virtual bool enqueue(T&& value)                              = 0;
-    virtual std::size_t enqueue_batch(std::span<const T> values) = 0;
-    virtual bool try_dequeue(T& value)                           = 0;
+    // Pointers are borrowed for the duration of the synchronous call only.
+    // Implementations must copy or move values into their queue and must not
+    // retain any pointer after returning.
+    virtual bool enqueue_copy(const void* value)                             = 0;
+    virtual bool enqueue_move(void* value)                                   = 0;
+    virtual std::size_t enqueue_batch(const void* values, std::size_t count) = 0;
+    virtual bool try_dequeue(void* value)                                    = 0;
+};
+
+class WaitableQueueCore
+{
+public:
+    WaitableQueueCore(std::unique_ptr<QueueInterface> queue, std::unique_ptr<EventFd> event_fd);
+    ~WaitableQueueCore() noexcept;
+
+    WaitableQueueCore(const WaitableQueueCore&)            = delete;
+    WaitableQueueCore& operator=(const WaitableQueueCore&) = delete;
+    WaitableQueueCore(WaitableQueueCore&&) noexcept;
+    WaitableQueueCore& operator=(WaitableQueueCore&&) noexcept;
+
+    [[nodiscard]] int native_handle() const noexcept;
+    [[nodiscard]] bool enqueue_copy(const void* value);
+    [[nodiscard]] bool enqueue_move(void* value);
+    std::size_t enqueue_batch(const void* values, std::size_t count);
+    [[nodiscard]] bool try_dequeue(void* value);
+    std::uint64_t drain_notifications();
+
+private:
+    std::unique_ptr<QueueInterface> queue_storage;
+    WaitableQueueNotifier notifier;
 };
 
 template <typename T>
 class WaitableQueue
 {
 public:
-    WaitableQueue(std::unique_ptr<QueueInterface<T>> queue, std::unique_ptr<EventFd> event_fd)
-        : queue_storage(std::move(queue)), notifier(std::move(event_fd))
+    WaitableQueue(std::unique_ptr<QueueInterface> queue, std::unique_ptr<EventFd> event_fd)
+        : core(std::move(queue), std::move(event_fd))
     {
-        if (queue_storage == nullptr)
-        {
-            throw std::invalid_argument("queue implementation must not be null");
-        }
     }
 
     ~WaitableQueue() noexcept = default;
@@ -78,52 +95,36 @@ public:
 
     [[nodiscard]] int native_handle() const noexcept
     {
-        return notifier.native_handle();
+        return core.native_handle();
     }
 
     [[nodiscard]] bool enqueue(const T& value)
     {
-        if (!queue_storage->enqueue(value))
-        {
-            return false;
-        }
-        notifier.notify();
-        return true;
+        return core.enqueue_copy(&value);
     }
 
     [[nodiscard]] bool enqueue(T&& value)
     {
-        if (!queue_storage->enqueue(std::move(value)))
-        {
-            return false;
-        }
-        notifier.notify();
-        return true;
+        return core.enqueue_move(&value);
     }
 
     std::size_t enqueue_batch(std::span<const T> values)
     {
-        const std::size_t enqueued = queue_storage->enqueue_batch(values);
-        if (enqueued != 0)
-        {
-            notifier.notify();
-        }
-        return enqueued;
+        return core.enqueue_batch(values.data(), values.size());
     }
 
     [[nodiscard]] bool try_dequeue(T& value)
     {
-        return queue_storage->try_dequeue(value);
+        return core.try_dequeue(&value);
     }
 
     std::uint64_t drain_notifications()
     {
-        return notifier.drain_notifications();
+        return core.drain_notifications();
     }
 
 private:
-    std::unique_ptr<QueueInterface<T>> queue_storage;
-    WaitableQueueNotifier notifier;
+    WaitableQueueCore core;
 };
 
 } // namespace exasol::udf::v2

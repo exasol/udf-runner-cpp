@@ -499,10 +499,9 @@ cc_test(
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
-    # The implementation is a header-only class template. Keep its normal
-    # tests in Bazel coverage; Mull's template instantiation support is not
-    # reliable even when the linker preserves Mull metadata.
-    tags = ["no-mull"],
+    # This target exercises the non-template waitable-queue core. The typed
+    # facade is also covered here, but Mull instruments the core implementation
+    # from waitable_queue.cc.
     target_compatible_with = ["@platforms//os:linux"],
 )
 
