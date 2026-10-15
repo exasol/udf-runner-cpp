@@ -2,6 +2,9 @@
 
 #include <exasol/udf/v2/interface/call.hpp>
 #include <exasol/udf/v2/interface/control_stream.hpp>
+#include <exasol/udf/v2/interface/result.hpp>
+#include <exasol/udf/v2/interface/status.hpp>
+#include <exasol/udf/v2/interface/timeout.hpp>
 
 #include <memory>
 

@@ -1,63 +1,13 @@
 #pragma once
 
-#include <chrono>
+#include <exasol/udf/v2/interface/error_info.hpp>
+#include <exasol/udf/v2/interface/status.hpp>
+
 #include <optional>
-#include <string>
 #include <utility>
 
 namespace exasol::udf::v2
 {
-
-/// Result of a non-consuming readiness operation.
-enum class MessageStatus
-{
-    MessageAvailable,
-    NoMessage,
-    TimedOut,
-    Cancelled,
-    PeerClosed,
-    ConnectionError
-};
-
-/// Result status of a consuming or sending operation.
-enum class OperationStatus
-{
-    Ok,
-    TimedOut,
-    Cancelled,
-    PeerClosed,
-    ProtocolError,
-    TransportError
-};
-
-/// Machine-readable and human-readable operation error details.
-class ErrorInfo
-{
-public:
-    ErrorInfo(std::string code, std::string message)
-        : code_(std::move(code)), message_(std::move(message))
-    {
-    }
-    ErrorInfo(const ErrorInfo&)            = default;
-    ErrorInfo(ErrorInfo&&) noexcept        = default;
-    ErrorInfo& operator=(const ErrorInfo&) = delete;
-    ErrorInfo& operator=(ErrorInfo&&)      = delete;
-    ~ErrorInfo()                           = default;
-
-    [[nodiscard]] const std::string& code() const noexcept
-    {
-        return code_;
-    }
-
-    [[nodiscard]] const std::string& message() const noexcept
-    {
-        return message_;
-    }
-
-private:
-    std::string code_;
-    std::string message_;
-};
 
 /// Status, optional value, and optional error returned by an operation.
 template <typename T>
@@ -104,8 +54,5 @@ struct Result<void>
         return status == OperationStatus::Ok;
     }
 };
-
-/// Optional deadline duration used by receive and wait operations.
-using Timeout = std::optional<std::chrono::steady_clock::duration>;
 
 } // namespace exasol::udf::v2

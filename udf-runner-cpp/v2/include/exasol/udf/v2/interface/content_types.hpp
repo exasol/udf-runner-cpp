@@ -1,6 +1,6 @@
 #pragma once
 
-#include <exasol/udf/v2/interface/types.hpp>
+#include <exasol/udf/v2/interface/error_info.hpp>
 
 #include <arrow/c/abi.h>
 

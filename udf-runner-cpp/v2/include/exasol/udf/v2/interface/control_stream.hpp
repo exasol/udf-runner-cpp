@@ -2,6 +2,9 @@
 
 #include <exasol/udf/v2/interface/message_builder/control_message_builder.hpp>
 #include <exasol/udf/v2/interface/message_view/control_message_view.hpp>
+#include <exasol/udf/v2/interface/result.hpp>
+#include <exasol/udf/v2/interface/status.hpp>
+#include <exasol/udf/v2/interface/timeout.hpp>
 
 namespace exasol::udf::v2
 {
