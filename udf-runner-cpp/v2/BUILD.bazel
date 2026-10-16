@@ -356,6 +356,27 @@ cc_library(
 )
 
 cc_library(
+    name = "posix",
+    srcs = ["posix/posix.cc"],
+    hdrs = ["include/exasol/udf/v2/posix/posix.hpp"],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_test(
+    name = "posix_test",
+    srcs = ["posix/posix_test.cc"],
+    copts = ["-std=c++23"],
+    tags = ["no-mull"],
+    deps = [
+        ":posix",
+        "@googletest//:gtest_main",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
     name = "socket",
     srcs = [
         "socket/owned_file_descriptor.cc",
