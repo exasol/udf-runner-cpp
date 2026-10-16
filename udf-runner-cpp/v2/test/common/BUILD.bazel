@@ -1,0 +1,13 @@
+cc_library(
+    name = "test_common",
+    visibility = ["//test/interface:__pkg__"],
+    hdrs = [
+        "arrow_test_utils.hpp",
+        "test_doubles.hpp",
+    ],
+    copts = ["-std=c++23"],
+    deps = [
+        "//:arrow_core",
+        "//:interface",
+    ],
+)

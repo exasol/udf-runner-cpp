@@ -1,4 +1,4 @@
-#include "udf_protocol.hpp"
+#include <exasol/udf/v2/udf_protocol.hpp>
 
 #include <flatbuffers/flatbuffers.h>
 

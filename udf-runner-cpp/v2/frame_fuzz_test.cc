@@ -1,7 +1,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "udf_protocol.hpp"
+#include <exasol/udf/v2/udf_protocol.hpp>
 
 extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size)
 {
