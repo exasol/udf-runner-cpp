@@ -4,7 +4,7 @@
 
 #include <chrono>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 TEST(TimeoutTest, StoresOptionalDuration)
@@ -13,4 +13,4 @@ TEST(TimeoutTest, StoresOptionalDuration)
     EXPECT_FALSE(Timeout{}.has_value());
 }
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

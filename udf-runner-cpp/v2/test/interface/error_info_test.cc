@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 TEST(ErrorInfoTest, IsCopyConstructibleButNotAssignable)
@@ -12,4 +12,4 @@ TEST(ErrorInfoTest, IsCopyConstructibleButNotAssignable)
     EXPECT_EQ(ErrorInfo(original).message(), "message");
 }
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

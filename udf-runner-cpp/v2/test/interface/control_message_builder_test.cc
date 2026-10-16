@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 TEST(ControlMessageBuilderTest, AddPayloadIsNotImplemented)
@@ -30,4 +30,4 @@ TEST(ControlMessageBuilderTest, BuildsCompositeMessage)
     EXPECT_TRUE(message.keep_alive);
 }
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 TEST(ControlMessageViewTest, EmptyViewReportsNoFields)
@@ -18,4 +18,4 @@ TEST(ControlMessageViewTest, EmptyViewReportsNoFields)
     EXPECT_FALSE(view.has_close_connection());
 }
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

@@ -8,7 +8,7 @@
 
 #include <utility>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 TEST(CallMessageViewTest, EmptyViewReportsNoFields)
@@ -78,4 +78,4 @@ TEST(CallMessageViewTest, ArrowDataCanRoundTripThroughInterface)
     EXPECT_EQ(sent_array.release, nullptr);
 }
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

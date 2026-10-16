@@ -6,7 +6,7 @@
 
 #include <utility>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 TEST(RecordBatchViewTest, TransfersArrayAndReleasesItOnce)
@@ -61,4 +61,4 @@ TEST(RecordBatchViewTest, SupportsEmptyOwner)
     EXPECT_EQ(empty_array.get(), nullptr);
 }
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

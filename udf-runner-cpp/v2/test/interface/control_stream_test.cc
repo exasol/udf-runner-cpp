@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 TEST(ControlStreamTest, ConvenienceMethodsDelegateToVirtualOperations)
@@ -14,4 +14,4 @@ TEST(ControlStreamTest, ConvenienceMethodsDelegateToVirtualOperations)
     EXPECT_TRUE(control_stream.send(ControlMessageBuilder{}));
 }
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

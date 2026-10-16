@@ -5,7 +5,7 @@
 #include <optional>
 #include <utility>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 /// Owning view of a received Arrow data schema and its correlation flags.
@@ -54,4 +54,4 @@ private:
     std::optional<DataSchema> data_schema_;
 };
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

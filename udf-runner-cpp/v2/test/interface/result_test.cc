@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 TEST(ResultTest, RepresentsSuccessAndFailure)
@@ -19,4 +19,4 @@ TEST(ResultTest, RepresentsSuccessAndFailure)
     EXPECT_TRUE(Result<void>::success());
 }
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

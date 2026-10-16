@@ -3,7 +3,7 @@
 #include <string>
 #include <utility>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 /// Machine-readable and human-readable operation error details.
@@ -35,4 +35,4 @@ private:
     std::string message_;
 };
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

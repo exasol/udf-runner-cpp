@@ -4,7 +4,7 @@
 
 #include <string_view>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 /// Builds one composite message for the connection control stream.
@@ -35,4 +35,4 @@ private:
     ControlMessage message_;
 };
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

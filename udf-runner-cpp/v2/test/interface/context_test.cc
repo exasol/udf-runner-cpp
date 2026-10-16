@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 TEST(ContextTest, ConvenienceMethodsDelegateToVirtualOperations)
@@ -17,4 +17,4 @@ TEST(ContextTest, ConvenienceMethodsDelegateToVirtualOperations)
     EXPECT_NE(&context.control_stream(), nullptr);
 }
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

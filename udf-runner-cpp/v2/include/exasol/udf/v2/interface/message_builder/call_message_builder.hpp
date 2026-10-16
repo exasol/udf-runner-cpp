@@ -4,7 +4,7 @@
 
 #include <string_view>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 /// Builds one composite message for a call stream.
@@ -47,4 +47,4 @@ private:
     CallMessage message_;
 };
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

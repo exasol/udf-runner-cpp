@@ -5,7 +5,7 @@
 #include <optional>
 #include <utility>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 namespace
@@ -215,4 +215,4 @@ bool ControlMessageView::has_close_connection() const noexcept
     return control_message_.has_value() && control_message_->close_connection;
 }
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

@@ -6,7 +6,7 @@
 #include <optional>
 #include <utility>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 /// Status, optional value, and optional error returned by an operation.
@@ -55,4 +55,4 @@ struct Result<void>
     }
 };
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

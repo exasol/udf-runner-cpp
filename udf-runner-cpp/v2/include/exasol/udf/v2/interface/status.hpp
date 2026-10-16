@@ -1,6 +1,6 @@
 #pragma once
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 /// Result of a non-consuming readiness operation.
@@ -25,4 +25,4 @@ enum class OperationStatus
     TransportError
 };
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

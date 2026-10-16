@@ -10,7 +10,7 @@
 #include <optional>
 #include <string>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 /// Deleter for Arrow C Data Interface objects.
@@ -113,4 +113,4 @@ struct ControlMessage
     bool close_connection{false};   // NOLINT(misc-non-private-member-variables-in-classes)
 };
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

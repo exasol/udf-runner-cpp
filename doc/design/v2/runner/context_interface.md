@@ -11,6 +11,10 @@ The worker sees three abstractions:
 - `Call` for one logical call stream;
 - `ControlStream` for connection-level traffic on stream `0`.
 
+The C++ declarations for these abstractions and their related builders, views, content types, results, statuses, and
+timeouts reside in the `exasol::udf::v2::interface` namespace. Generated wire-format types remain in the separate
+`exasol::udf::protocol` namespace.
+
 The context consumes and dispatches transport messages internally. A worker never receives a socket, file descriptor,
 frame, or numeric stream identifier.
 

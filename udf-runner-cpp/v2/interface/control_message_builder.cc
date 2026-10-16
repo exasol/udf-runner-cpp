@@ -4,7 +4,7 @@
 #include <string>
 #include <utility>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 ControlMessageBuilder& ControlMessageBuilder::server_capabilities(
@@ -58,4 +58,4 @@ ControlMessage ControlMessageBuilder::take() &&
     return std::move(message_);
 }
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

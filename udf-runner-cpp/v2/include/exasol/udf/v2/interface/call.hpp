@@ -8,7 +8,7 @@
 
 #include <utility>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 /// Owns one logical non-zero protocol stream.
 class Call
@@ -40,4 +40,4 @@ public:
 protected:
     Call() = default;
 };
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

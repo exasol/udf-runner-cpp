@@ -6,7 +6,7 @@
 #include <exasol/udf/v2/interface/status.hpp>
 #include <exasol/udf/v2/interface/timeout.hpp>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 /// Provides access to connection-level traffic on protocol stream zero.
 class ControlStream
@@ -34,4 +34,4 @@ public:
 protected:
     ControlStream() = default;
 };
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

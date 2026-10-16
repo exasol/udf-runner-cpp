@@ -6,7 +6,7 @@
 
 #include <utility>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 TEST(DataSchemaViewTest, TransfersSchemaAndReleasesItOnce)
@@ -55,4 +55,4 @@ TEST(DataSchemaViewTest, SupportsEmptyOwner)
     EXPECT_EQ(empty_schema.get(), nullptr);
 }
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

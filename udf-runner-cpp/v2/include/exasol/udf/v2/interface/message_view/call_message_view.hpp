@@ -9,7 +9,7 @@
 #include <memory>
 #include <optional>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 /// View of one received composite call message.
@@ -59,4 +59,4 @@ private:
     std::shared_ptr<const protocol::DecodedFrame> decoded_frame_;
 };
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

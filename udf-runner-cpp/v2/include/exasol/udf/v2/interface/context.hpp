@@ -8,7 +8,7 @@
 
 #include <memory>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 /// Provides connection-wide readiness and lifecycle operations for worker calls.
@@ -44,4 +44,4 @@ protected:
     Context() = default;
 };
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

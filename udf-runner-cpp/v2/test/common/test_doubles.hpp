@@ -2,65 +2,72 @@
 
 #include <exasol/udf/v2/interface/interface.hpp>
 
+#include <memory>
+
 namespace exasol::udf::v2::test
 {
 
-class CallDouble final : public Call
+class CallDouble final : public interface::Call
 {
 public:
-    using Call::receive;
-    using Call::send;
+    using interface::Call::receive;
+    using interface::Call::send;
 
-    [[nodiscard]] MessageStatus receive_status() const override
+    [[nodiscard]] interface::MessageStatus receive_status() const override
     {
-        return MessageStatus::MessageAvailable;
+        return interface::MessageStatus::MessageAvailable;
     }
 
-    [[nodiscard]] Result<CallMessageView> receive(Timeout timeout) override
+    [[nodiscard]] interface::Result<interface::CallMessageView> receive(
+        interface::Timeout timeout) override
     {
         (void)timeout;
-        return Result<CallMessageView>::success(CallMessageView{});
+        return interface::Result<interface::CallMessageView>::success(interface::CallMessageView{});
     }
 
-    [[nodiscard]] Result<void> send(CallMessageBuilder message, Timeout timeout) override
+    [[nodiscard]] interface::Result<void> send(interface::CallMessageBuilder message,
+                                               interface::Timeout timeout) override
     {
         (void)message;
         (void)timeout;
-        return Result<void>::success();
+        return interface::Result<void>::success();
     }
 };
 
-class ControlStreamDouble final : public ControlStream
+class ControlStreamDouble final : public interface::ControlStream
 {
 public:
-    using ControlStream::receive;
+    using interface::ControlStream::receive;
 
-    [[nodiscard]] MessageStatus receive_status() const override
+    [[nodiscard]] interface::MessageStatus receive_status() const override
     {
-        return MessageStatus::NoMessage;
+        return interface::MessageStatus::NoMessage;
     }
 
-    [[nodiscard]] Result<ControlMessageView> receive(Timeout timeout) override
+    [[nodiscard]] interface::Result<interface::ControlMessageView> receive(
+        interface::Timeout timeout) override
     {
         (void)timeout;
-        return Result<ControlMessageView>::success(ControlMessageView{});
+        return interface::Result<interface::ControlMessageView>::success(
+            interface::ControlMessageView{});
     }
 
-    [[nodiscard]] Result<void> send(ControlMessageBuilder message) override // NOSONAR
+    [[nodiscard]] interface::Result<void> send(
+        interface::ControlMessageBuilder message) override // NOSONAR
     {
         (void)message;
-        return Result<void>::success();
+        return interface::Result<void>::success();
     }
 };
 
-class ContextDouble final : public Context
+class ContextDouble final : public interface::Context
 {
 public:
-    using Context::wait_for_message;
+    using interface::Context::wait_for_message;
 
-    [[nodiscard]] MessageStatus receive_status() const override
+    [[nodiscard]] interface::MessageStatus receive_status() const override
     {
-        return MessageStatus::NoMessage;
+        return interface::MessageStatus::NoMessage;
     }
 
     [[nodiscard]] bool is_new_inbound_call_available() const override
@@ -68,25 +75,27 @@ public:
         return false;
     }
 
-    [[nodiscard]] MessageStatus wait_for_message(Timeout timeout) override
+    [[nodiscard]] interface::MessageStatus wait_for_message(interface::Timeout timeout) override
     {
         (void)timeout;
-        return MessageStatus::TimedOut;
+        return interface::MessageStatus::TimedOut;
     }
 
-    [[nodiscard]] Result<std::unique_ptr<Call>> accept_call() override
+    [[nodiscard]] interface::Result<std::unique_ptr<interface::Call>> accept_call() override
     {
-        return Result<std::unique_ptr<Call>>::failure(OperationStatus::Cancelled);
+        return interface::Result<std::unique_ptr<interface::Call>>::failure(
+            interface::OperationStatus::Cancelled);
     }
 
-    [[nodiscard]] Result<std::unique_ptr<Call>> open_call(
-        CallMessageBuilder opening_message) override
+    [[nodiscard]] interface::Result<std::unique_ptr<interface::Call>> open_call(
+        interface::CallMessageBuilder opening_message) override
     {
         (void)opening_message;
-        return Result<std::unique_ptr<Call>>::failure(OperationStatus::Cancelled);
+        return interface::Result<std::unique_ptr<interface::Call>>::failure(
+            interface::OperationStatus::Cancelled);
     }
 
-    [[nodiscard]] ControlStream& control_stream() override
+    [[nodiscard]] interface::ControlStream& control_stream() override
     {
         return control_stream_;
     }

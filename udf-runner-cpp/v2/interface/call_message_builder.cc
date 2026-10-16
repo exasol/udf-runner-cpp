@@ -4,7 +4,7 @@
 #include <string>
 #include <utility>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 CallMessageBuilder& CallMessageBuilder::open_call(std::string_view name)
@@ -69,4 +69,4 @@ CallMessage CallMessageBuilder::take() &&
     return std::move(message_);
 }
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface

@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-namespace exasol::udf::v2
+namespace exasol::udf::v2::interface
 {
 
 TEST(CallTest, ConvenienceMethodsDelegateToVirtualOperations)
@@ -15,4 +15,4 @@ TEST(CallTest, ConvenienceMethodsDelegateToVirtualOperations)
     EXPECT_TRUE(call.send(CallMessageBuilder{}, Timeout{}));
 }
 
-} // namespace exasol::udf::v2
+} // namespace exasol::udf::v2::interface
