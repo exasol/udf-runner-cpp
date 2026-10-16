@@ -27,6 +27,8 @@ TEST(CallMessageViewTest, EmptyViewReportsNoFields)
     EXPECT_FALSE(view.has_record_batch());
     EXPECT_EQ(std::move(view.record_batch()).take_array(), nullptr);
     EXPECT_FALSE(view.record_batch().is_end_of_group());
+    EXPECT_FALSE(view.has_next());
+    EXPECT_FALSE(view.next());
     EXPECT_FALSE(view.has_error());
     EXPECT_FALSE(view.error());
     EXPECT_FALSE(view.has_close_call());

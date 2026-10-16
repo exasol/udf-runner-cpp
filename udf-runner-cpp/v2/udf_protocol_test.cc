@@ -334,7 +334,22 @@ TEST(UdfProtocolTest, EmptyAndDataOnlyFramesProduceEmptyViews)
     const exasol::udf::v2::interface::ControlMessageView empty_control_view(
         std::shared_ptr<const exasol::udf::protocol::DecodedFrame>{});
     EXPECT_FALSE(empty_call_view.has_open_call());
+    EXPECT_FALSE(empty_call_view.has_payloads());
+    EXPECT_FALSE(empty_call_view.payloads());
+    EXPECT_FALSE(empty_call_view.has_next());
+    EXPECT_FALSE(empty_call_view.next());
+    EXPECT_FALSE(empty_call_view.has_data_schema());
+    EXPECT_FALSE(empty_call_view.has_record_batch());
+    EXPECT_FALSE(empty_call_view.has_error());
+    EXPECT_FALSE(empty_call_view.error());
+    EXPECT_FALSE(empty_call_view.has_close_call());
     EXPECT_FALSE(empty_control_view.has_server_capabilities());
+    EXPECT_FALSE(empty_control_view.has_payloads());
+    EXPECT_FALSE(empty_control_view.payloads());
+    EXPECT_FALSE(empty_control_view.has_error());
+    EXPECT_FALSE(empty_control_view.error());
+    EXPECT_FALSE(empty_control_view.has_keep_alive());
+    EXPECT_FALSE(empty_control_view.has_close_connection());
 
     exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder builder;
     const auto batch = exasol::udf::protocol::CreateDataRecordBatchMetadata(builder);
