@@ -8,9 +8,8 @@ namespace exasol::udf::v2
 TEST(ErrorInfoTest, IsCopyConstructibleButNotAssignable)
 {
     const ErrorInfo original("code", "message");
-    ErrorInfo copy(original);
-    EXPECT_EQ(copy.code(), "code");
-    EXPECT_EQ(copy.message(), "message");
+    EXPECT_EQ(ErrorInfo(original).code(), "code");
+    EXPECT_EQ(ErrorInfo(original).message(), "message");
 }
 
 } // namespace exasol::udf::v2
