@@ -8,11 +8,11 @@ namespace exasol::udf::v2::interface
 {
 
 // LCOV_EXCL_START: capability encoding will be implemented with the protocol codec.
-[[noreturn]] ControlMessageBuilder& ControlMessageBuilder::server_capabilities(
+ControlMessageBuilder& ControlMessageBuilder::server_capabilities(
     std::uint32_t major,
     std::uint32_t minor,
     std::endian endianness,
-    std::uint32_t number_of_supported_workers)
+    std::uint32_t number_of_supported_workers) // NOSONAR
 {
     static_cast<void>(major);
     static_cast<void>(minor);
@@ -29,9 +29,9 @@ ControlMessageBuilder& ControlMessageBuilder::keep_alive()
 }
 
 // LCOV_EXCL_START: payload encoding will be implemented with the protocol codec.
-[[noreturn]] ControlMessageBuilder& ControlMessageBuilder::add_payload(std::string_view name,
-                                                                       std::string_view value,
-                                                                       bool binary)
+ControlMessageBuilder& ControlMessageBuilder::add_payload(std::string_view name,
+                                                          std::string_view value,
+                                                          bool binary) // NOSONAR
 {
     static_cast<void>(name);
     static_cast<void>(value);

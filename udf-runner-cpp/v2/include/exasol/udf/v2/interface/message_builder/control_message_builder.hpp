@@ -13,17 +13,16 @@ class ControlMessageBuilder
 {
 public:
     /// Adds or replaces the advertised protocol capabilities.
-    [[noreturn]] ControlMessageBuilder& server_capabilities(
-        std::uint32_t major,
-        std::uint32_t minor,
-        std::endian endianness,
-        std::uint32_t number_of_supported_workers);
+    ControlMessageBuilder& server_capabilities(std::uint32_t major,
+                                               std::uint32_t minor,
+                                               std::endian endianness,
+                                               std::uint32_t number_of_supported_workers);
     /// Adds a keep-alive message.
     ControlMessageBuilder& keep_alive();
     /// Adds one named payload to the message.
-    [[noreturn]] ControlMessageBuilder& add_payload(std::string_view name,
-                                                    std::string_view value,
-                                                    bool binary = false);
+    ControlMessageBuilder& add_payload(std::string_view name,
+                                       std::string_view value,
+                                       bool binary = false);
     /// Adds or replaces a control-stream error description.
     ControlMessageBuilder& error(std::string_view code, std::string_view text);
     /// Starts or acknowledges connection shutdown.

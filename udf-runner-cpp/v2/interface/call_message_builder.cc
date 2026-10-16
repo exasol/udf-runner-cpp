@@ -14,9 +14,9 @@ CallMessageBuilder& CallMessageBuilder::open_call(std::string_view name)
 }
 
 // LCOV_EXCL_START: payload encoding will be implemented with the protocol codec.
-[[noreturn]] CallMessageBuilder& CallMessageBuilder::add_payload(std::string_view name,
-                                                                 std::string_view value,
-                                                                 bool binary)
+CallMessageBuilder& CallMessageBuilder::add_payload(std::string_view name,
+                                                    std::string_view value,
+                                                    bool binary) // NOSONAR
 {
     static_cast<void>(name);
     static_cast<void>(value);
