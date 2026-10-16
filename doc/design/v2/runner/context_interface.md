@@ -261,7 +261,8 @@ The call builder describes one composite call message. Repeated `add_payload()` 
 
 ```text
 ControlMessageBuilder {
-    server_capabilities(major, minor) -> ControlMessageBuilder&
+    server_capabilities(major, minor, endianness, number_of_supported_workers)
+        -> ControlMessageBuilder&
     keep_alive() -> ControlMessageBuilder&
     add_payload(name, value, binary = false) -> ControlMessageBuilder&
     error(code, message) -> ControlMessageBuilder&
