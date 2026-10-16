@@ -13,15 +13,17 @@ CallMessageBuilder& CallMessageBuilder::open_call(std::string_view name)
     return *this;
 }
 
-CallMessageBuilder& CallMessageBuilder::add_payload(std::string_view name,
-                                                    std::string_view value,
-                                                    bool binary)
+// LCOV_EXCL_START: payload encoding will be implemented with the protocol codec.
+[[noreturn]] CallMessageBuilder& CallMessageBuilder::add_payload(std::string_view name,
+                                                                 std::string_view value,
+                                                                 bool binary)
 {
     static_cast<void>(name);
     static_cast<void>(value);
     static_cast<void>(binary);
     std::abort();
 }
+// LCOV_EXCL_STOP
 
 CallMessageBuilder& CallMessageBuilder::data_schema(ArrowSchemaPtr schema,
                                                     bool has_group_id,

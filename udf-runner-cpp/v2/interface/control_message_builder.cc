@@ -24,15 +24,17 @@ ControlMessageBuilder& ControlMessageBuilder::keep_alive()
     return *this;
 }
 
-ControlMessageBuilder& ControlMessageBuilder::add_payload(std::string_view name,
-                                                          std::string_view value,
-                                                          bool binary)
+// LCOV_EXCL_START: payload encoding will be implemented with the protocol codec.
+[[noreturn]] ControlMessageBuilder& ControlMessageBuilder::add_payload(std::string_view name,
+                                                                       std::string_view value,
+                                                                       bool binary)
 {
     static_cast<void>(name);
     static_cast<void>(value);
     static_cast<void>(binary);
     std::abort();
 }
+// LCOV_EXCL_STOP
 
 ControlMessageBuilder& ControlMessageBuilder::error(std::string_view code, std::string_view text)
 {

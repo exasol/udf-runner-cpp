@@ -19,9 +19,9 @@ public:
     /// Adds a keep-alive message.
     ControlMessageBuilder& keep_alive();
     /// Adds one named payload to the message.
-    ControlMessageBuilder& add_payload(std::string_view name,
-                                       std::string_view value,
-                                       bool binary = false);
+    [[noreturn]] ControlMessageBuilder& add_payload(std::string_view name,
+                                                    std::string_view value,
+                                                    bool binary = false);
     /// Adds or replaces a control-stream error description.
     ControlMessageBuilder& error(std::string_view code, std::string_view text);
     /// Starts or acknowledges connection shutdown.

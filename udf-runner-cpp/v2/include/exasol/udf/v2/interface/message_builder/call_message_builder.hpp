@@ -21,9 +21,9 @@ public:
     /// Adds or replaces the call-opening metadata.
     CallMessageBuilder& open_call(std::string_view name);
     /// Adds one named payload to the message.
-    CallMessageBuilder& add_payload(std::string_view name,
-                                    std::string_view value,
-                                    bool binary = false);
+    [[noreturn]] CallMessageBuilder& add_payload(std::string_view name,
+                                                 std::string_view value,
+                                                 bool binary = false);
     /// Adds or replaces the data schema and its correlation flags.
     CallMessageBuilder& data_schema(ArrowSchemaPtr schema,
                                     bool has_group_id = false,
