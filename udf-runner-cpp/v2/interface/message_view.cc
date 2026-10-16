@@ -65,17 +65,6 @@ namespace
             return message;
         }
 
-        if (const auto* capabilities = control->value_as_ServerCapabilities();
-            capabilities != nullptr)
-        {
-            const auto* version         = capabilities->supported_version();
-            message.server_capabilities = ServerCapabilities{
-                version != nullptr ? version->major() : 0,
-                version != nullptr ? version->minor() : 0,
-                capabilities->endianness() == protocol::Endianness_Big ? std::endian::big
-                                                                       : std::endian::little,
-                capabilities->number_of_supported_workers()};
-        }
         message.keep_alive = control->value_as_KeepAlive() != nullptr;
         if (const auto* error = control->error(); error != nullptr)
         {

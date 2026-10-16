@@ -4,7 +4,6 @@
 
 #include <arrow/c/abi.h>
 
-#include <bit>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -85,17 +84,6 @@ struct CallMessage
     bool close_call{false};                  // NOLINT(misc-non-private-member-variables-in-classes)
 };
 
-/// Protocol capabilities advertised by a peer.
-struct ServerCapabilities
-{
-    std::uint32_t major{}; // NOLINT(misc-non-private-member-variables-in-classes)
-    std::uint32_t minor{}; // NOLINT(misc-non-private-member-variables-in-classes)
-    std::endian endianness{
-        std::endian::native}; // NOLINT(misc-non-private-member-variables-in-classes)
-    std::uint32_t
-        number_of_supported_workers{}; // NOLINT(misc-non-private-member-variables-in-classes)
-};
-
 /// Composite message exchanged on the connection control stream.
 struct ControlMessage
 {
@@ -106,8 +94,6 @@ struct ControlMessage
     ControlMessage& operator=(ControlMessage&&) noexcept = delete;
     ~ControlMessage()                                    = default;
 
-    std::optional<ServerCapabilities>
-        server_capabilities;        // NOLINT(misc-non-private-member-variables-in-classes)
     bool keep_alive{false};         // NOLINT(misc-non-private-member-variables-in-classes)
     std::optional<ErrorInfo> error; // NOLINT(misc-non-private-member-variables-in-classes)
     bool close_connection{false};   // NOLINT(misc-non-private-member-variables-in-classes)

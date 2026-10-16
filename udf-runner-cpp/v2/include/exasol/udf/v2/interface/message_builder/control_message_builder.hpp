@@ -2,6 +2,7 @@
 
 #include <exasol/udf/v2/interface/content_types.hpp>
 
+#include <bit>
 #include <string_view>
 
 namespace exasol::udf::v2::interface
@@ -12,10 +13,11 @@ class ControlMessageBuilder
 {
 public:
     /// Adds or replaces the advertised protocol capabilities.
-    ControlMessageBuilder& server_capabilities(std::uint32_t major,
-                                               std::uint32_t minor,
-                                               std::endian endianness,
-                                               std::uint32_t number_of_supported_workers);
+    [[noreturn]] ControlMessageBuilder& server_capabilities(
+        std::uint32_t major,
+        std::uint32_t minor,
+        std::endian endianness,
+        std::uint32_t number_of_supported_workers);
     /// Adds a keep-alive message.
     ControlMessageBuilder& keep_alive();
     /// Adds one named payload to the message.

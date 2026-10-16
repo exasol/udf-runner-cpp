@@ -15,15 +15,21 @@ TEST(ControlMessageBuilderTest, AddPayloadIsNotImplemented)
         "");
 }
 
+TEST(ControlMessageBuilderTest, ServerCapabilitiesIsNotImplemented)
+{
+    EXPECT_DEATH(
+        {
+            ControlMessageBuilder builder;
+            builder.server_capabilities(2, 1, std::endian::little, 4);
+        },
+        "");
+}
+
 TEST(ControlMessageBuilderTest, BuildsCompositeMessage)
 {
     ControlMessageBuilder builder;
-    builder.server_capabilities(2, 1, std::endian::little, 4)
-        .keep_alive()
-        .error("E_CONTROL", "control failure")
-        .close_connection();
+    builder.keep_alive().error("E_CONTROL", "control failure").close_connection();
 
-    EXPECT_TRUE(builder.message().server_capabilities.has_value());
     EXPECT_TRUE(builder.message().error.has_value());
     EXPECT_TRUE(builder.message().close_connection);
     const auto message = std::move(builder).take();
