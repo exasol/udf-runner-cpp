@@ -1,0 +1,26 @@
+cc_test(
+    name = "interface_test",
+    visibility = ["//visibility:public"],
+    srcs = [
+        "call_message_builder_test.cc",
+        "call_message_view_test.cc",
+        "call_test.cc",
+        "context_test.cc",
+        "control_message_builder_test.cc",
+        "control_message_view_test.cc",
+        "control_stream_test.cc",
+        "data_schema_view_test.cc",
+        "error_info_test.cc",
+        "record_batch_view_test.cc",
+        "result_test.cc",
+        "timeout_test.cc",
+    ],
+    copts = ["-std=c++23"],
+    tags = ["no-mull"],
+    deps = [
+        "//:arrow_core",
+        "//:interface",
+        "//test/common:test_common",
+        "@googletest//:gtest_main",
+    ],
+)

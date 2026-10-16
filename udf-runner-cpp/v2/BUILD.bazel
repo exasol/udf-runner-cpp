@@ -123,12 +123,9 @@ cc_test(
     ],
 )
 
-cc_test(
+test_suite(
     name = "interface_test",
-    srcs = ["interface/interface_test.cc"],
-    copts = ["-std=c++23"],
-    tags = ["no-mull"],
-    deps = [":interface"],
+    tests = ["//test/interface:interface_test"],
 )
 
 cc_binary(
