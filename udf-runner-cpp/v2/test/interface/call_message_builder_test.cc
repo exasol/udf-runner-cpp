@@ -5,14 +5,22 @@
 namespace exasol::udf::v2
 {
 
+TEST(CallMessageBuilderTest, AddPayloadIsNotImplemented)
+{
+    EXPECT_DEATH(
+        {
+            CallMessageBuilder builder;
+            builder.add_payload("request", "{}");
+        },
+        "");
+}
+
 TEST(CallMessageBuilderTest, BuildsCompositeMessage)
 {
     ArrowSchema schema{};
     ArrowArray array{};
     CallMessageBuilder builder;
     builder.open_call("nested")
-        .add_payload("request", "{}")
-        .add_payload("second_request", "value", true)
         .data_schema(ArrowSchemaPtr(&schema), true, true)
         .next(1024, true, 42)
         .record_batch(ArrowArrayPtr(&array), true)

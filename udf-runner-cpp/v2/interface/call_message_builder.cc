@@ -1,5 +1,6 @@
 #include <exasol/udf/v2/interface/message_builder/call_message_builder.hpp>
 
+#include <cstdlib>
 #include <string>
 #include <utility>
 
@@ -19,7 +20,7 @@ CallMessageBuilder& CallMessageBuilder::add_payload(std::string_view name,
     static_cast<void>(name);
     static_cast<void>(value);
     static_cast<void>(binary);
-    return *this;
+    std::abort();
 }
 
 CallMessageBuilder& CallMessageBuilder::data_schema(ArrowSchemaPtr schema,

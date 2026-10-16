@@ -1,5 +1,6 @@
 #include <exasol/udf/v2/interface/message_builder/control_message_builder.hpp>
 
+#include <cstdlib>
 #include <string>
 #include <utility>
 
@@ -30,7 +31,7 @@ ControlMessageBuilder& ControlMessageBuilder::add_payload(std::string_view name,
     static_cast<void>(name);
     static_cast<void>(value);
     static_cast<void>(binary);
-    return *this;
+    std::abort();
 }
 
 ControlMessageBuilder& ControlMessageBuilder::error(std::string_view code, std::string_view text)

@@ -5,13 +5,21 @@
 namespace exasol::udf::v2
 {
 
+TEST(ControlMessageBuilderTest, AddPayloadIsNotImplemented)
+{
+    EXPECT_DEATH(
+        {
+            ControlMessageBuilder builder;
+            builder.add_payload("control", "value");
+        },
+        "");
+}
+
 TEST(ControlMessageBuilderTest, BuildsCompositeMessage)
 {
     ControlMessageBuilder builder;
     builder.server_capabilities(2, 1, std::endian::little, 4)
         .keep_alive()
-        .add_payload("control", "value")
-        .add_payload("second_control", "value", true)
         .error("E_CONTROL", "control failure")
         .close_connection();
 
