@@ -4,6 +4,8 @@
 
 #include "../common/arrow_test_utils.hpp"
 
+#include <utility>
+
 namespace exasol::udf::v2
 {
 
@@ -31,6 +33,26 @@ TEST(DataSchemaViewTest, SupportsMoveOnlyArrowOwner)
     ArrowSchemaPtr replacement(&second);
     owner = std::move(replacement);
     EXPECT_EQ(owner.get(), &second);
+}
+
+TEST(DataSchemaViewTest, ReleasesOwnedSchemaWhenDestroyed)
+{
+    int releases = 0;
+    ArrowSchema schema{};
+    schema.private_data = &releases;
+    schema.release      = test::count_schema_release;
+    {
+        ArrowSchemaPtr owner(&schema);
+        ArrowSchemaPtr moved(std::move(owner));
+        EXPECT_EQ(moved.get(), &schema);
+    }
+    EXPECT_EQ(releases, 1);
+}
+
+TEST(DataSchemaViewTest, SupportsEmptyOwner)
+{
+    ArrowSchemaPtr empty_schema;
+    EXPECT_EQ(empty_schema.get(), nullptr);
 }
 
 } // namespace exasol::udf::v2
