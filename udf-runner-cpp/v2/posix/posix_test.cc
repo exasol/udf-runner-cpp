@@ -72,9 +72,9 @@ TEST(PosixTest, PerformsSocketOptionsShutdownAndVectoredIo)
               0);
     EXPECT_EQ(socket_type, SOCK_STREAM);
 
-    const std::array<std::byte, 4> written{
+    std::array<std::byte, 4> written{
         {std::byte{'t'}, std::byte{'e'}, std::byte{'s'}, std::byte{'t'}}};
-    iovec write_buffer{const_cast<std::byte*>(written.data()), written.size()};
+    iovec write_buffer{written.data(), written.size()};
     msghdr message{};
     message.msg_iov    = &write_buffer;
     message.msg_iovlen = 1;
