@@ -7,8 +7,11 @@
 #include <cerrno>
 #include <cstddef>
 #include <cstring>
+#include <cstdlib>
 #include <filesystem>
+#include <stdexcept>
 #include <string>
+#include <system_error>
 
 #include <gtest/gtest.h>
 
@@ -17,30 +20,55 @@ namespace
 
 using exasol::udf::v2::posix::Posix;
 
-std::filesystem::path socket_path()
+class PosixPathTest : public testing::Test
 {
-    return std::filesystem::temp_directory_path() / "udf_runner_posix_test.sock";
-}
+protected:
+    void SetUp() override
+    {
+        auto directory_template = std::to_array(P_tmpdir "/udf-runner-cpp-posix-XXXXXX"); // NOSONAR
+        char* directory         = ::mkdtemp(directory_template.data());                   // NOSONAR
+        ASSERT_NE(directory, nullptr);
+        temporary_directory = directory;
+    }
 
-sockaddr_un make_address(const std::filesystem::path& path)
+    void TearDown() override
+    {
+        std::error_code error;
+        std::filesystem::remove_all(temporary_directory, error);
+        EXPECT_FALSE(error) << error.message();
+    }
+
+    [[nodiscard]] std::filesystem::path socket_path() const
+    {
+        return temporary_directory / "udf_runner_posix_test.sock";
+    }
+
+private:
+    std::filesystem::path temporary_directory;
+};
+
+sockaddr_un make_address(const std::filesystem::path& path, socklen_t& length)
 {
     sockaddr_un address{};
     address.sun_family            = AF_UNIX;
     const std::string path_string = path.string();
+    if (path_string.size() >= sizeof(address.sun_path))
+    {
+        throw std::invalid_argument("Unix socket path is too long");
+    }
     std::memcpy(address.sun_path, path_string.c_str(), path_string.size() + 1);
+    length = static_cast<socklen_t>(offsetof(sockaddr_un, sun_path) + path_string.size() + 1);
     return address;
 }
 
 } // namespace
 
-TEST(PosixTest, CreatesConnectsListensAndAcceptsUnixSocket)
+TEST_F(PosixPathTest, CreatesConnectsListensAndAcceptsUnixSocket)
 {
     Posix posix;
     const std::filesystem::path path = socket_path();
-    static_cast<void>(posix.unlink(path.c_str()));
-    const sockaddr_un address = make_address(path);
-    const auto address_length =
-        static_cast<socklen_t>(offsetof(sockaddr_un, sun_path) + std::strlen(address.sun_path) + 1);
+    socklen_t address_length         = 0;
+    const sockaddr_un address        = make_address(path, address_length);
 
     const int listener = posix.socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
     ASSERT_NE(listener, -1);

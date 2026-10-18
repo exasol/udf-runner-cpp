@@ -31,7 +31,7 @@ int Posix::accept4(const int sockfd, sockaddr* address, socklen_t* address_lengt
 int Posix::getsockopt(const int sockfd,
                       const int level,
                       const int option_name,
-                      void* option_value,
+                      void* option_value, // NOSONAR: required by the POSIX getsockopt interface
                       socklen_t* option_length)
 {
     return ::getsockopt(sockfd, level, option_name, option_value, option_length);

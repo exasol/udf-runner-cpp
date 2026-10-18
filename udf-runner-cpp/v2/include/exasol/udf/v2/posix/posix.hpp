@@ -26,7 +26,11 @@ public:
     virtual int listen(int sockfd, int backlog);
     virtual int accept4(int sockfd, sockaddr* address, socklen_t* address_length, int flags);
     virtual int getsockopt(
-        int sockfd, int level, int option_name, void* option_value, socklen_t* option_length);
+        int sockfd,
+        int level,
+        int option_name,
+        void* option_value, // NOSONAR: required by the POSIX getsockopt interface
+        socklen_t* option_length);
     virtual int shutdown(int sockfd, int how);
     virtual ssize_t readv(int file_descriptor, const iovec* buffers, int buffer_count);
     virtual ssize_t sendmsg(int sockfd, const msghdr* message, int flags);
