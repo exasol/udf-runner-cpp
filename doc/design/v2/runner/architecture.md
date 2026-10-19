@@ -20,10 +20,15 @@ Related diagrams:
 Dependencies point downward only. The API namespace contains only project-owned caller-facing contracts. The Internal
 namespace may use C++ standard-library types, exceptions, and third-party libraries such as Arrow C++.
 
-Third-party symbols must not leak from the Internal namespace through the API namespace. A dependency is allowed at
-the API boundary only when it is vendored into an owned project namespace or communicated through a well-known ABI.
-The current well-known ABI exception is the Arrow C Data Interface: `ArrowArray` and `ArrowSchema` may cross the
-boundary under its release and ownership contract; Arrow C++ types remain internal.
+Third-party symbols must not leak through the core worker-facing context API. A dependency is allowed at the API
+boundary only when it is vendored into an owned project namespace or communicated through a well-known ABI. The
+Arrow C Data Interface is the core boundary: `ArrowArray` and `ArrowSchema` cross it under their release and
+ownership contract.
+
+The public API also provides an explicit, opt-in Arrow conversion utility outside `Context`, `Call`, and
+`ControlStream`. That utility consumes `ArrowArrayPtr` and `ArrowSchemaPtr` and returns an Arrow C++
+`arrow::RecordBatch`. Consumers choosing that utility accept the direct Arrow C++ dependency; the core context
+interface remains independent of Arrow C++ types.
 
 ## Components
 
@@ -106,6 +111,7 @@ SocketAcceptor -> worker pool -> Worker(fd) -> ContextManager.create(fd) -> prot
                                                           Socket bytes + Arrow C data values
 ```
 
-Arrow record batches and schemas may cross the API boundary as `ArrowArray` and `ArrowSchema` under the Arrow C Data
-Interface. Arrow C++ objects remain Internal-namespace implementation details and are released according to that
-interface's ownership rules.
+Arrow record batches and schemas cross the core API boundary as `ArrowArray` and `ArrowSchema` under the Arrow C Data
+Interface. A separate public conversion utility may return an Arrow C++ `arrow::RecordBatch`; that opt-in utility is
+outside the context interface and makes the Arrow C++ dependency explicit to its caller. All C Data objects are still
+released according to the Arrow C Data Interface ownership rules.
