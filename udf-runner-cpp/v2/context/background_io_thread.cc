@@ -1,7 +1,7 @@
 #include <exasol/udf/v2/context/background_io_thread.hpp>
 
 #include <exasol/udf/v2/event_fd_factory.hpp>
-#include <exasol/udf/v2/protocol_codec.hpp>
+#include <exasol/udf/v2/context/protocol_codec.hpp>
 #include <exasol/udf/v2/socket/unix_socket.hpp>
 #include <exasol/udf/v2/udf_protocol.hpp>
 
@@ -353,7 +353,7 @@ namespace
                                          "an opening call message is required"});
             }
             const auto stream_id = next_stream_id_++;
-            auto encoded         = protocol::encode_call(stream_id, std::move(opening));
+            auto encoded         = context::protocol::encode_call(stream_id, std::move(opening));
             if (!encoded)
             {
                 return interface::Result<std::unique_ptr<interface::Call>>::failure(encoded.status,
@@ -379,7 +379,7 @@ namespace
                     interface::OperationStatus::ProtocolError,
                     interface::ErrorInfo{"open_call_after_open", "call is already open"});
             }
-            auto encoded = protocol::encode_call(stream_id, std::move(value));
+            auto encoded = context::protocol::encode_call(stream_id, std::move(value));
             if (!encoded)
             {
                 return interface::Result<void>::failure(encoded.status, encoded.error);
@@ -391,7 +391,7 @@ namespace
         [[nodiscard]] interface::Result<void> send_control(
             interface::ControlMessageBuilder message) override
         {
-            auto encoded = protocol::encode_control(std::move(message).take());
+            auto encoded = context::protocol::encode_control(std::move(message).take());
             if (!encoded)
             {
                 return interface::Result<void>::failure(encoded.status, encoded.error);

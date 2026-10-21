@@ -280,7 +280,7 @@ cc_library(
         "context/context_manager.cc",
         "context/high_level_context.cc",
         "context/background_io_thread.cc",
-        "protocol_codec.cc",
+        "context/protocol_codec.cc",
     ],
     hdrs = [
         "include/exasol/udf/v2/context/context_factory.hpp",
@@ -288,7 +288,7 @@ cc_library(
         "include/exasol/udf/v2/context/background_io_thread.hpp",
         "include/exasol/udf/v2/context/context_manager.hpp",
         "include/exasol/udf/v2/context/low_level_context.hpp",
-        "include/exasol/udf/v2/protocol_codec.hpp",
+        "include/exasol/udf/v2/context/protocol_codec.hpp",
     ],
     includes = ["include"],
     copts = ["-std=c++23"],

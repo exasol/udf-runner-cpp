@@ -13,16 +13,17 @@ TEST(HighLevelContextTest, InitializesProtocolCapabilities)
     HighLevelContext high_level(context);
 
     ASSERT_TRUE(high_level.initialize(4));
-    ASSERT_TRUE(context.last_message.has_value());
-    ASSERT_TRUE(context.last_message->server_capabilities.has_value());
-    EXPECT_EQ(context.last_message->server_capabilities->major, 2U);
-    EXPECT_EQ(context.last_message->server_capabilities->number_of_supported_workers, 4U);
-    ASSERT_TRUE(context.last_message->payloads.has_value());
-    ASSERT_EQ(context.last_message->payloads->size(), 2U);
-    EXPECT_EQ(context.last_message->payloads->at(0).name, "high_level_name");
-    EXPECT_EQ(context.last_message->payloads->at(0).value, protocol_name);
-    EXPECT_EQ(context.last_message->payloads->at(1).name, "high_level_version");
-    EXPECT_EQ(context.last_message->payloads->at(1).value, protocol_version);
+    const auto& message = context.last_control_message();
+    ASSERT_TRUE(message.has_value());
+    ASSERT_TRUE(message->server_capabilities.has_value());
+    EXPECT_EQ(message->server_capabilities->major, 2U);
+    EXPECT_EQ(message->server_capabilities->number_of_supported_workers, 4U);
+    ASSERT_TRUE(message->payloads.has_value());
+    ASSERT_EQ(message->payloads->size(), 2U);
+    EXPECT_EQ(message->payloads->at(0).name, "high_level_name");
+    EXPECT_EQ(message->payloads->at(0).value, protocol_name);
+    EXPECT_EQ(message->payloads->at(1).name, "high_level_version");
+    EXPECT_EQ(message->payloads->at(1).value, protocol_version);
 }
 
 TEST(HighLevelContextTest, OpensNamedCallWithPayloads)

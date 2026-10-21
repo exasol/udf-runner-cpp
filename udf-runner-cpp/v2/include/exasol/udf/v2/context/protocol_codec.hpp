@@ -9,7 +9,7 @@
 #include <variant>
 #include <vector>
 
-namespace exasol::udf::v2::protocol
+namespace exasol::udf::v2::context::protocol
 {
 
 struct EncodedFrame
@@ -28,4 +28,4 @@ struct DecodedFrame
                                                           interface::CallMessage message);
 [[nodiscard]] interface::Result<DecodedFrame> decode(std::span<const std::byte> frame);
 
-} // namespace exasol::udf::v2::protocol
+} // namespace exasol::udf::v2::context::protocol
