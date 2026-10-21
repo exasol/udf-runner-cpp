@@ -273,6 +273,55 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "context",
+    srcs = [
+        "context/context.cc",
+        "context/context_manager.cc",
+        "context/high_level_context.cc",
+        "context/background_io_thread.cc",
+        "protocol_codec.cc",
+    ],
+    hdrs = [
+        "include/exasol/udf/v2/context/context_factory.hpp",
+        "include/exasol/udf/v2/context/high_level_context.hpp",
+        "include/exasol/udf/v2/context/background_io_thread.hpp",
+        "include/exasol/udf/v2/context/context_manager.hpp",
+        "include/exasol/udf/v2/context/low_level_context.hpp",
+        "include/exasol/udf/v2/protocol_codec.hpp",
+    ],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":interface",
+        ":event_fd_factory",
+        ":socket",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_test(
+    name = "high_level_context_test",
+    srcs = ["high_level_context_test.cc"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":context",
+        "//test/common:test_common",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "context_factory_test",
+    srcs = ["context_factory_test.cc"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":context",
+        "@googletest//:gtest_main",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
 cc_test(
     name = "json_schema_validation_test",
     srcs = ["json_schema_validation_test.cc"],
