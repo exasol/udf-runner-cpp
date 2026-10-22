@@ -30,17 +30,50 @@ using Posix = exasol::udf::v2::posix::Posix;
 class RecordingPosix final : public Posix
 {
 public:
-    int socket_calls     = 0;
-    int connect_calls    = 0;
-    int bind_calls       = 0;
-    int listen_calls     = 0;
-    int accept4_calls    = 0;
-    int getsockopt_calls = 0;
-    int shutdown_calls   = 0;
-    int readv_calls      = 0;
-    int sendmsg_calls    = 0;
-    int unlink_calls     = 0;
-    int close_calls      = 0;
+    [[nodiscard]] int socket_call_count() const noexcept
+    {
+        return socket_calls;
+    }
+    [[nodiscard]] int connect_call_count() const noexcept
+    {
+        return connect_calls;
+    }
+    [[nodiscard]] int bind_call_count() const noexcept
+    {
+        return bind_calls;
+    }
+    [[nodiscard]] int listen_call_count() const noexcept
+    {
+        return listen_calls;
+    }
+    [[nodiscard]] int accept4_call_count() const noexcept
+    {
+        return accept4_calls;
+    }
+    [[nodiscard]] int getsockopt_call_count() const noexcept
+    {
+        return getsockopt_calls;
+    }
+    [[nodiscard]] int shutdown_call_count() const noexcept
+    {
+        return shutdown_calls;
+    }
+    [[nodiscard]] int readv_call_count() const noexcept
+    {
+        return readv_calls;
+    }
+    [[nodiscard]] int sendmsg_call_count() const noexcept
+    {
+        return sendmsg_calls;
+    }
+    [[nodiscard]] int unlink_call_count() const noexcept
+    {
+        return unlink_calls;
+    }
+    [[nodiscard]] int close_call_count() const noexcept
+    {
+        return close_calls;
+    }
 
     int socket(const int domain, const int type, const int protocol) override
     {
@@ -114,6 +147,19 @@ public:
         ++close_calls;
         return Posix::close(file_descriptor);
     }
+
+private:
+    int socket_calls     = 0;
+    int connect_calls    = 0;
+    int bind_calls       = 0;
+    int listen_calls     = 0;
+    int accept4_calls    = 0;
+    int getsockopt_calls = 0;
+    int shutdown_calls   = 0;
+    int readv_calls      = 0;
+    int sendmsg_calls    = 0;
+    int unlink_calls     = 0;
+    int close_calls      = 0;
 };
 
 void expect_system_error(const auto& function, const std::errc expected)
@@ -199,17 +245,17 @@ TEST_F(UnixSocketPathTest, RoutesAllSocketOperationsThroughInjectedPosix)
         listener.close();
     }
 
-    EXPECT_EQ(posix.socket_calls, 1);
-    EXPECT_EQ(posix.connect_calls, 1);
-    EXPECT_EQ(posix.bind_calls, 1);
-    EXPECT_EQ(posix.listen_calls, 1);
-    EXPECT_EQ(posix.accept4_calls, 1);
-    EXPECT_EQ(posix.getsockopt_calls, 2);
-    EXPECT_EQ(posix.shutdown_calls, 1);
-    EXPECT_EQ(posix.readv_calls, 1);
-    EXPECT_EQ(posix.sendmsg_calls, 1);
-    EXPECT_EQ(posix.unlink_calls, 1);
-    EXPECT_EQ(posix.close_calls, 3);
+    EXPECT_EQ(posix.socket_call_count(), 1);
+    EXPECT_EQ(posix.connect_call_count(), 1);
+    EXPECT_EQ(posix.bind_call_count(), 1);
+    EXPECT_EQ(posix.listen_call_count(), 1);
+    EXPECT_EQ(posix.accept4_call_count(), 1);
+    EXPECT_EQ(posix.getsockopt_call_count(), 2);
+    EXPECT_EQ(posix.shutdown_call_count(), 1);
+    EXPECT_EQ(posix.readv_call_count(), 1);
+    EXPECT_EQ(posix.sendmsg_call_count(), 1);
+    EXPECT_EQ(posix.unlink_call_count(), 1);
+    EXPECT_EQ(posix.close_call_count(), 3);
     EXPECT_FALSE(std::filesystem::exists(path));
 }
 
