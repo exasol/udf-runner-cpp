@@ -484,7 +484,10 @@ cc_library(
     srcs = ["linux_event_fd.cc"],
     hdrs = ["include/exasol/udf/v2/linux_event_fd.hpp"],
     includes = ["include"],
-    deps = [":event_fd"],
+    deps = [
+        ":event_fd",
+        ":posix",
+    ],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
@@ -493,7 +496,10 @@ cc_library(
     srcs = ["event_fd_factory.cc"],
     hdrs = ["include/exasol/udf/v2/event_fd_factory.hpp"],
     includes = ["include"],
-    deps = [":linux_event_fd"],
+    deps = [
+        ":linux_event_fd",
+        ":posix",
+    ],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
@@ -504,6 +510,7 @@ cc_test(
     deps = [
         ":event_fd_factory",
         ":linux_event_fd",
+        ":posix",
         "@googletest//:gtest_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],

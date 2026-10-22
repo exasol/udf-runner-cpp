@@ -7,6 +7,7 @@
 #include <cstdint>
 
 #include <exasol/udf/v2/event_fd.hpp>
+#include <exasol/udf/v2/posix/posix.hpp>
 
 namespace exasol::udf::v2
 {
@@ -15,6 +16,7 @@ class LinuxEventFd final : public EventFd
 {
 public:
     LinuxEventFd();
+    explicit LinuxEventFd(posix::Posix& posix);
     ~LinuxEventFd() override;
 
     LinuxEventFd(const LinuxEventFd&)            = delete;
@@ -28,6 +30,7 @@ public:
 
 private:
     int file_descriptor = -1;
+    posix::Posix* posix = nullptr;
 };
 
 } // namespace exasol::udf::v2
