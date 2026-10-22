@@ -245,7 +245,7 @@ TEST_F(UnixSocketPathTest, RoutesAllSocketOperationsThroughInjectedPosix)
         listener.close();
     }
 
-    EXPECT_EQ(posix.socket_call_count(), 1);
+    EXPECT_EQ(posix.socket_call_count(), 2);
     EXPECT_EQ(posix.connect_call_count(), 1);
     EXPECT_EQ(posix.bind_call_count(), 1);
     EXPECT_EQ(posix.listen_call_count(), 1);
