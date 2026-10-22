@@ -28,7 +28,9 @@ public:
         return eventfd_result;
     }
 
-    ssize_t read(int file_descriptor, void* buffer, size_t count) override
+    ssize_t read(int file_descriptor,
+                 void* buffer, // NOSONAR: required by the POSIX read interface
+                 size_t count) override
     {
         read_file_descriptor = file_descriptor;
         read_count           = count;
@@ -40,7 +42,9 @@ public:
         return read_result;
     }
 
-    ssize_t write(int file_descriptor, const void* buffer, size_t count) override
+    ssize_t write(int file_descriptor,
+                  const void* buffer, // NOSONAR: required by the POSIX write interface
+                  size_t count) override
     {
         write_file_descriptor = file_descriptor;
         write_count           = count;

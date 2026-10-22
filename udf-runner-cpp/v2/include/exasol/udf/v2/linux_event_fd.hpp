@@ -16,7 +16,7 @@ class LinuxEventFd final : public EventFd
 {
 public:
     LinuxEventFd();
-    explicit LinuxEventFd(posix::Posix& posix);
+    explicit LinuxEventFd(posix::Posix& posix_facade);
     ~LinuxEventFd() override;
 
     LinuxEventFd(const LinuxEventFd&)            = delete;

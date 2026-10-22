@@ -13,8 +13,8 @@ LinuxEventFd::LinuxEventFd() : LinuxEventFd(posix::default_posix())
 {
 }
 
-LinuxEventFd::LinuxEventFd(posix::Posix& posix)
-    : file_descriptor(posix.eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)), posix(&posix)
+LinuxEventFd::LinuxEventFd(posix::Posix& posix_facade)
+    : file_descriptor(posix_facade.eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)), posix(&posix_facade)
 {
     if (file_descriptor == -1)
     {

@@ -54,12 +54,16 @@ ssize_t Posix::readv(const int file_descriptor, const iovec* buffers, const int 
     return ::readv(file_descriptor, buffers, buffer_count);
 }
 
-ssize_t Posix::read(const int file_descriptor, void* buffer, const size_t count)
+ssize_t Posix::read(const int file_descriptor,
+                    void* buffer, // NOSONAR: required by the POSIX read interface
+                    const size_t count)
 {
     return ::read(file_descriptor, buffer, count);
 }
 
-ssize_t Posix::write(const int file_descriptor, const void* buffer, const size_t count)
+ssize_t Posix::write(const int file_descriptor,
+                     const void* buffer, // NOSONAR: required by the POSIX write interface
+                     const size_t count)
 {
     return ::write(file_descriptor, buffer, count);
 }

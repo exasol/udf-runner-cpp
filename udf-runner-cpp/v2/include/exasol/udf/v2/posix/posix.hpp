@@ -35,8 +35,12 @@ public:
         socklen_t* option_length);
     virtual int shutdown(int sockfd, int how);
     virtual ssize_t readv(int file_descriptor, const iovec* buffers, int buffer_count);
-    virtual ssize_t read(int file_descriptor, void* buffer, size_t count);
-    virtual ssize_t write(int file_descriptor, const void* buffer, size_t count);
+    virtual ssize_t read(int file_descriptor,
+                         void* buffer, // NOSONAR: required by the POSIX read interface
+                         size_t count);
+    virtual ssize_t write(int file_descriptor,
+                          const void* buffer, // NOSONAR: required by the POSIX write interface
+                          size_t count);
     virtual ssize_t sendmsg(int sockfd, const msghdr* message, int flags);
     virtual int unlink(const char* path);
     virtual int close(int file_descriptor);
