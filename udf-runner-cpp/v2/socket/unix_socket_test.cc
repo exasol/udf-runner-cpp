@@ -111,7 +111,7 @@ public:
     int getsockopt(const int sockfd,
                    const int level,
                    const int option_name,
-                   void* option_value,
+                   void* option_value, // NOSONAR: required by Posix::getsockopt interface
                    socklen_t* option_length) override
     {
         ++getsockopt_calls;
