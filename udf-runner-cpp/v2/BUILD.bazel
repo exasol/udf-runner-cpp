@@ -237,6 +237,35 @@ cc_library(
 )
 
 cc_library(
+    name = "metadata_codec",
+    srcs = ["context/metadata_codec.cc"],
+    hdrs = ["include/exasol/udf/v2/context/metadata_codec.hpp"],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":interface",
+        ":json_schema",
+    ],
+)
+
+filegroup(
+    name = "high_level_metadata_examples",
+    srcs = glob(["testdata/high_level_examples/*.json"]),
+    visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "metadata_codec_test",
+    srcs = ["metadata_codec_test.cc"],
+    data = [":high_level_metadata_examples"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":metadata_codec",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "interface",
     srcs = [
         "interface/call.cc",
