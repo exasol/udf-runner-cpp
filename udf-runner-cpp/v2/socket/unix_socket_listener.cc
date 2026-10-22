@@ -6,27 +6,26 @@
 #include <system_error>
 #include <utility>
 
-#include <unistd.h>
-
 namespace exasol::udf::v2::socket
 {
 
 namespace
 {
 
-    void unlink_socket_path(std::filesystem::path& path) noexcept
+    void unlink_socket_path(std::filesystem::path& path, posix::Posix& posix) noexcept
     {
         std::filesystem::path path_to_unlink = std::exchange(path, {});
         if (!path_to_unlink.empty())
         {
-            static_cast<void>(::unlink(path_to_unlink.c_str()));
+            static_cast<void>(posix.unlink(path_to_unlink.c_str()));
         }
     }
 
     class SocketPathCleanup final
     {
     public:
-        explicit SocketPathCleanup(std::filesystem::path& path) noexcept : path(path)
+        SocketPathCleanup(std::filesystem::path& path, posix::Posix& posix) noexcept
+            : path(path), posix(posix)
         {
         }
 
@@ -39,7 +38,7 @@ namespace
         {
             if (cleanup)
             {
-                unlink_socket_path(path);
+                unlink_socket_path(path, posix);
             }
         }
 
@@ -50,6 +49,7 @@ namespace
 
     private:
         std::filesystem::path& path;
+        posix::Posix& posix;
         bool cleanup = true;
     };
 
@@ -81,19 +81,27 @@ UnixSocketListener& UnixSocketListener::operator=(UnixSocketListener&& other) no
 
 UnixSocketListener UnixSocketListener::bind(const std::filesystem::path& path, const int backlog)
 {
+    return bind(path, posix::default_posix(), backlog);
+}
+
+UnixSocketListener UnixSocketListener::bind(const std::filesystem::path& path,
+                                            posix::Posix& posix,
+                                            const int backlog)
+{
     socklen_t address_length      = 0;
     const sockaddr_un address     = detail::make_socket_address(path, address_length);
-    OwnedFileDescriptor socket_fd = detail::create_socket();
+    OwnedFileDescriptor socket_fd = detail::create_socket(posix);
     std::filesystem::path bound_path(path);
-    if (::bind(socket_fd.native_handle(), detail::as_socket_address(address), address_length) == -1)
+    if (posix.bind(socket_fd.native_handle(), detail::as_socket_address(address), address_length) ==
+        -1)
     {
         const int error = errno;
         throw std::system_error(error, std::generic_category(),
                                 "bind Unix socket listener '" + path.string() + "'");
     }
 
-    SocketPathCleanup cleanup_path(bound_path);
-    if (::listen(socket_fd.native_handle(), backlog) == -1)
+    SocketPathCleanup cleanup_path(bound_path, posix);
+    if (posix.listen(socket_fd.native_handle(), backlog) == -1)
     {
         throw std::system_error(errno, std::generic_category(), "listen on Unix socket");
     }
@@ -134,19 +142,21 @@ UnixSocket UnixSocketListener::accept(const int flags) const
     int accepted_fd = -1;
     do
     {
-        accepted_fd = ::accept4(this->file_descriptor.native_handle(), nullptr, nullptr, flags);
+        accepted_fd = this->file_descriptor.posix_facade().accept4(
+            this->file_descriptor.native_handle(), nullptr, nullptr, flags);
     } while (accepted_fd == -1 && errno == EINTR);
 
     if (accepted_fd == -1)
     {
         throw std::system_error(errno, std::generic_category(), "accept Unix socket connection");
     }
-    return UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(accepted_fd));
+    return UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(
+        accepted_fd, this->file_descriptor.posix_facade()));
 }
 
 void UnixSocketListener::unlink_path() noexcept
 {
-    unlink_socket_path(this->bound_path);
+    unlink_socket_path(this->bound_path, this->file_descriptor.posix_facade());
 }
 
 UnixSocketListener::UnixSocketListener(OwnedFileDescriptor owned_fd,

@@ -38,4 +38,7 @@ public:
     virtual int close(int file_descriptor);
 };
 
+/** Returns the default POSIX façade used by non-injecting APIs. */
+Posix& default_posix() noexcept;
+
 } // namespace exasol::udf::v2::posix

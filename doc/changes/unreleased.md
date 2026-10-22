@@ -21,6 +21,7 @@ n/a
 ## Refactorings
 
 * #44: Extracted WaitableQueue eventfd notifications into a reusable component
+* #95: Routed all v2 socket-layer POSIX operations through the injectable POSIX façade
 
 ## Internal
 

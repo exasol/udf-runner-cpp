@@ -31,6 +31,11 @@ public:
     [[nodiscard]] static UnixSocketListener bind(const std::filesystem::path& path,
                                                  int backlog = SOMAXCONN);
 
+    /** Creates a listener using the supplied POSIX façade. */
+    [[nodiscard]] static UnixSocketListener bind(const std::filesystem::path& path,
+                                                 posix::Posix& posix,
+                                                 int backlog = SOMAXCONN);
+
     /** Returns the native listener descriptor, or -1 when closed. */
     [[nodiscard]] int native_handle() const noexcept;
 

@@ -29,6 +29,9 @@ public:
      */
     [[nodiscard]] static UnixSocket connect(const std::filesystem::path& path);
 
+    /** Connects using the supplied POSIX façade. */
+    [[nodiscard]] static UnixSocket connect(const std::filesystem::path& path, posix::Posix& posix);
+
     /** Takes ownership of an open Unix stream socket descriptor.
      *
      * @throws std::system_error if @p owned_fd is closed or is not a Unix stream socket.

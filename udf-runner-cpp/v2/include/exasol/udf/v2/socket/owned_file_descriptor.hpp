@@ -1,5 +1,7 @@
 #pragma once
 
+#include <exasol/udf/v2/posix/posix.hpp>
+
 namespace exasol::udf::v2::socket
 {
 
@@ -19,6 +21,9 @@ public:
      */
     [[nodiscard]] static OwnedFileDescriptor adopt_native_handle(int owned_fd);
 
+    /** Takes ownership of an open native file descriptor using @p posix. */
+    [[nodiscard]] static OwnedFileDescriptor adopt_native_handle(int owned_fd, posix::Posix& posix);
+
     OwnedFileDescriptor(const OwnedFileDescriptor&)            = delete;
     OwnedFileDescriptor& operator=(const OwnedFileDescriptor&) = delete;
     OwnedFileDescriptor(OwnedFileDescriptor&& other) noexcept;
@@ -37,9 +42,15 @@ public:
     [[nodiscard]] int release_native_handle() noexcept;
 
 private:
-    explicit OwnedFileDescriptor(int owned_fd) noexcept;
+    explicit OwnedFileDescriptor(int owned_fd, posix::Posix& posix) noexcept;
 
-    int file_descriptor = -1;
+    [[nodiscard]] posix::Posix& posix_facade() const noexcept;
+
+    friend class UnixSocket;
+    friend class UnixSocketListener;
+
+    int file_descriptor         = -1;
+    posix::Posix* posix_pointer = &posix::default_posix();
 };
 
 } // namespace exasol::udf::v2::socket

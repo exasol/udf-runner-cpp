@@ -62,4 +62,10 @@ int Posix::close(const int file_descriptor)
     return ::close(file_descriptor);
 }
 
+Posix& default_posix() noexcept
+{
+    static Posix instance;
+    return instance;
+}
+
 } // namespace exasol::udf::v2::posix

@@ -440,6 +440,7 @@ cc_library(
     ],
     includes = ["include"],
     copts = ["-std=c++23"],
+    deps = [":posix"],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
