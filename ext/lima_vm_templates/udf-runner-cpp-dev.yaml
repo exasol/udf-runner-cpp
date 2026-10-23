@@ -62,7 +62,7 @@ provision:
    set -eux -o pipefail
    export DEBIAN_FRONTEND=noninteractive
    curl -1sLf 'https://dl.cloudsmith.io/public/mull-project/mull-stable/setup.deb.sh' | bash
-   apt update && apt install -y protobuf-compiler libzmq3-dev openjdk-17-jdk build-essential git python3.12-dev python3-pip libpcre3-dev lcov wget
+   apt update && apt install -y protobuf-compiler libprotobuf-dev libzmq3-dev openjdk-17-jdk build-essential git python3.12-dev python3-pip libpcre3-dev lcov shellcheck valgrind wget unzip
    bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" -- 22
    apt install -y clang-22 clang-tidy-22 clang-format-22
    ln -sf /usr/bin/clang-tidy-22 /usr/local/bin/clang-tidy
@@ -70,6 +70,13 @@ provision:
    apt install -y mull-22=0.34.1
    mull-runner-22 --version
    test -x /usr/lib/mull-ir-frontend-22
+   sonar_scanner_version=8.1.0.6389
+   curl -fsSL "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${sonar_scanner_version}-linux-x64.zip" -o /tmp/sonar-scanner.zip
+   unzip -q /tmp/sonar-scanner.zip -d /opt
+   ln -sfn "/opt/sonar-scanner-${sonar_scanner_version}-linux-x64" /opt/sonar-scanner
+   ln -sfn /opt/sonar-scanner/bin/sonar-scanner /usr/local/bin/sonar-scanner
+   rm /tmp/sonar-scanner.zip
+   sonar-scanner --version
    curl -L  https://github.com/bazelbuild/bazelisk/releases/download/v1.27.0/bazelisk-linux-amd64 -o /usr/bin/bazel
    chmod +x /usr/bin/bazel
    pip install --break-system-packages numpy
@@ -121,7 +128,7 @@ env:
    PROTOBUF_LIBRARY_PREFIX: /usr/lib/x86_64-linux-gnu
    PROTOBUF_INCLUDE_PREFIX: /usr/include/
    PROTOBUF_BIN: /usr/bin/protoc
-   USE_BAZEL_VERSION: 8.4.2
+   USE_BAZEL_VERSION: 8.8.2
    JAVA_PREFIX: /usr/lib/jvm/java-17-openjdk-amd64
    EXASOL_TELEMETRY_DISABLE: yes
 mounts:
