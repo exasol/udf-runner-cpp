@@ -14,6 +14,7 @@ namespace exasol::udf::v2::context
 namespace
 {
 
+    using Json = exasol::udf::v2::third_party::nlohmann::json;
     using enum JsonDocument;
     constexpr auto connection_document = JsonDocument::ConnectionInformation;
     constexpr auto import_document     = JsonDocument::ImportSpecification;
@@ -263,6 +264,215 @@ TEST(MetadataCodecValidationTest, AcceptsMultipleIteratorsAndMaximumUnsignedValu
     ASSERT_TRUE(result);
     EXPECT_EQ(result.value->input_iter_type, IteratorType::Multiple);
     EXPECT_EQ(result.value->output_iter_type, IteratorType::Multiple);
+}
+
+TEST(MetadataCodecValidationTest, ExercisesValidationBranches)
+{
+    const auto valid_call          = Json::parse(R"({
+        "database_name":"EXASOL", "database_version":"8", "session_id":"1",
+        "statement_id":1, "node_count":1, "node_id":1, "vm_id":"1",
+        "maximal_memory_limit":"1", "script_schema":"SYS",
+        "current_user":"SYS", "current_schema":"APP", "scope_user":"U",
+        "input_iter_type":"EXACTLY_ONCE", "output_iter_type":"MULTIPLE",
+        "single_call_mode":false
+    })");
+    const auto expect_invalid_call = [](Json value) {
+        EXPECT_FALSE(MetadataCodec::validate(CallMetadata, value.dump()));
+    };
+
+    for (const auto& field :
+         {"database_name", "database_version", "session_id", "vm_id", "maximal_memory_limit",
+          "script_schema", "input_iter_type", "output_iter_type"})
+    {
+        auto missing = valid_call;
+        missing.erase(field);
+        expect_invalid_call(missing);
+        auto wrong_type   = valid_call;
+        wrong_type[field] = 1;
+        expect_invalid_call(wrong_type);
+    }
+    for (const auto& field : {"statement_id", "node_count", "node_id"})
+    {
+        auto missing = valid_call;
+        missing.erase(field);
+        expect_invalid_call(missing);
+        auto negative   = valid_call;
+        negative[field] = -1;
+        expect_invalid_call(negative);
+        auto too_large   = valid_call;
+        too_large[field] = 4294967296ULL;
+        expect_invalid_call(too_large);
+    }
+    for (const auto& field : {"current_user", "current_schema", "scope_user"})
+    {
+        auto wrong_type   = valid_call;
+        wrong_type[field] = false;
+        expect_invalid_call(wrong_type);
+    }
+    auto empty_session          = valid_call;
+    empty_session["session_id"] = "";
+    expect_invalid_call(empty_session);
+    auto non_decimal_session          = valid_call;
+    non_decimal_session["session_id"] = "1x";
+    expect_invalid_call(non_decimal_session);
+    auto invalid_iterator               = valid_call;
+    invalid_iterator["input_iter_type"] = "INVALID";
+    expect_invalid_call(invalid_iterator);
+    auto invalid_single_call_mode                = valid_call;
+    invalid_single_call_mode["single_call_mode"] = 1;
+    expect_invalid_call(invalid_single_call_mode);
+
+    const auto valid_column    = Json{{"name", "A"},
+                                      {"type", "DECIMAL"},
+                                      {"type_name", "DECIMAL"},
+                                      {"size", 1},
+                                      {"size_unit", "BYTE"},
+                                      {"precision", 1},
+                                      {"scale", 1},
+                                      {"fractional_second_precision", 1},
+                                      {"character_set", "ASCII"},
+                                      {"srid", 1}};
+    const auto column_document = [&](Json column) {
+        return Json{{"input_columns", Json::array({std::move(column)})},
+                    {"output_columns", Json::array()}};
+    };
+    const auto expect_invalid_column = [&](Json column) {
+        EXPECT_FALSE(
+            MetadataCodec::validate(ColumnMetadata, column_document(std::move(column)).dump()));
+    };
+    expect_invalid_column(Json(1));
+    for (const auto& field : {"name", "type", "type_name"})
+    {
+        auto missing = valid_column;
+        missing.erase(field);
+        expect_invalid_column(missing);
+        auto wrong_type   = valid_column;
+        wrong_type[field] = 1;
+        expect_invalid_column(wrong_type);
+    }
+    auto unknown_type    = valid_column;
+    unknown_type["type"] = "UNKNOWN";
+    expect_invalid_column(unknown_type);
+    for (const auto& field : {"size", "precision", "scale", "fractional_second_precision", "srid"})
+    {
+        auto wrong_type   = valid_column;
+        wrong_type[field] = "1";
+        expect_invalid_column(wrong_type);
+        auto negative   = valid_column;
+        negative[field] = -1;
+        expect_invalid_column(negative);
+        auto too_large   = valid_column;
+        too_large[field] = 4294967296ULL;
+        expect_invalid_column(too_large);
+    }
+    for (const auto& field : {"size_unit", "character_set"})
+    {
+        auto wrong_type   = valid_column;
+        wrong_type[field] = 1;
+        expect_invalid_column(wrong_type);
+        auto unknown   = valid_column;
+        unknown[field] = "UNKNOWN";
+        expect_invalid_column(unknown);
+    }
+    auto wrong_columns_type = Json{{"input_columns", 1}, {"output_columns", Json::array()}};
+    EXPECT_FALSE(MetadataCodec::validate(ColumnMetadata, wrong_columns_type.dump()));
+    auto missing_output = Json{{"input_columns", Json::array()}};
+    EXPECT_FALSE(MetadataCodec::validate(ColumnMetadata, missing_output.dump()));
+    for (const auto& field : {"name", "type", "type_name"})
+    {
+        auto invalid_output =
+            Json{{"input_columns", Json::array()}, {"output_columns", Json::array({valid_column})}};
+        invalid_output["output_columns"][0].erase(field);
+        EXPECT_FALSE(MetadataCodec::validate(ColumnMetadata, invalid_output.dump()));
+    }
+
+    const auto valid_connection =
+        Json{{"kind", "JDBC"}, {"address", "db"}, {"user", "u"}, {"password", "p"}};
+    for (const auto& field : {"kind", "address", "user", "password"})
+    {
+        auto missing = valid_connection;
+        missing.erase(field);
+        EXPECT_FALSE(MetadataCodec::validate(connection_document, missing.dump()));
+        auto wrong_type   = valid_connection;
+        wrong_type[field] = 1;
+        EXPECT_FALSE(MetadataCodec::validate(connection_document, wrong_type.dump()));
+    }
+
+    const auto valid_import =
+        Json{{"is_subselect", true},
+             {"connection_name", "REMOTE"},
+             {"connection_information", valid_connection},
+             {"subselect_column_specification", Json::array({valid_column})},
+             {"parameters", Json::array({Json{{"key", "k"}, {"value", "v"}}})}};
+    const auto expect_invalid_import = [](Json value) {
+        EXPECT_FALSE(MetadataCodec::validate(import_document, value.dump()));
+    };
+    auto missing_import_flag = valid_import;
+    missing_import_flag.erase("is_subselect");
+    expect_invalid_import(missing_import_flag);
+    auto wrong_import_flag            = valid_import;
+    wrong_import_flag["is_subselect"] = 1;
+    expect_invalid_import(wrong_import_flag);
+    auto invalid_import_connection                      = valid_import;
+    invalid_import_connection["connection_information"] = Json{{"kind", "JDBC"}};
+    expect_invalid_import(invalid_import_connection);
+    auto invalid_import_columns                              = valid_import;
+    invalid_import_columns["subselect_column_specification"] = 1;
+    expect_invalid_import(invalid_import_columns);
+    auto invalid_import_parameters          = valid_import;
+    invalid_import_parameters["parameters"] = Json::array({Json{{"key", "k"}}});
+    expect_invalid_import(invalid_import_parameters);
+    auto invalid_import_parameter_key          = valid_import;
+    invalid_import_parameter_key["parameters"] = Json::array({Json{{"key", 1}, {"value", "v"}}});
+    expect_invalid_import(invalid_import_parameter_key);
+    auto invalid_import_parameter_object          = valid_import;
+    invalid_import_parameter_object["parameters"] = Json::array({1});
+    expect_invalid_import(invalid_import_parameter_object);
+
+    const auto valid_export =
+        Json{{"has_truncate", true},
+             {"has_replace", false},
+             {"created_by", "UDF"},
+             {"connection_name", "REMOTE"},
+             {"connection_information", valid_connection},
+             {"source_column_names", Json::array({"A"})},
+             {"parameters", Json::array({Json{{"key", "k"}, {"value", "v"}}})}};
+    const auto expect_invalid_export = [](Json value) {
+        EXPECT_FALSE(MetadataCodec::validate(export_document, value.dump()));
+    };
+    for (const auto& field : {"has_truncate", "has_replace"})
+    {
+        auto missing = valid_export;
+        missing.erase(field);
+        expect_invalid_export(missing);
+        auto wrong_type   = valid_export;
+        wrong_type[field] = 1;
+        expect_invalid_export(wrong_type);
+    }
+    for (const auto& field : {"created_by", "connection_name"})
+    {
+        auto wrong_type   = valid_export;
+        wrong_type[field] = 1;
+        expect_invalid_export(wrong_type);
+    }
+    auto invalid_export_connection                      = valid_export;
+    invalid_export_connection["connection_information"] = Json{{"kind", "JDBC"}};
+    expect_invalid_export(invalid_export_connection);
+    auto invalid_source_columns                   = valid_export;
+    invalid_source_columns["source_column_names"] = Json::array({1});
+    expect_invalid_export(invalid_source_columns);
+    auto invalid_source_columns_type                   = valid_export;
+    invalid_source_columns_type["source_column_names"] = 1;
+    expect_invalid_export(invalid_source_columns_type);
+    auto invalid_export_parameters          = valid_export;
+    invalid_export_parameters["parameters"] = Json::array({Json{{"key", "k"}}});
+    expect_invalid_export(invalid_export_parameters);
+    auto invalid_export_parameter_key          = valid_export;
+    invalid_export_parameter_key["parameters"] = Json::array({Json{{"key", 1}, {"value", "v"}}});
+    expect_invalid_export(invalid_export_parameter_key);
+    auto invalid_export_parameter_object          = valid_export;
+    invalid_export_parameter_object["parameters"] = Json::array({1});
+    expect_invalid_export(invalid_export_parameter_object);
 }
 
 } // namespace exasol::udf::v2::context
