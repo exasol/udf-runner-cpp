@@ -125,6 +125,172 @@ namespace
             connection.at("user").get<std::string>(), connection.at("password").get<std::string>()};
     }
 
+    [[nodiscard]] bool has_string(const Json& value, const std::string_view name)
+    {
+        return value.contains(name) && value.at(name).is_string();
+    }
+
+    [[nodiscard]] bool has_boolean(const Json& value, const std::string_view name)
+    {
+        return value.contains(name) && value.at(name).is_boolean();
+    }
+
+    [[nodiscard]] bool has_array(const Json& value, const std::string_view name)
+    {
+        return value.contains(name) && value.at(name).is_array();
+    }
+
+    [[nodiscard]] bool has_u32(const Json& value, const std::string_view name)
+    {
+        if (!value.contains(name) || !value.at(name).is_number_integer())
+        {
+            return false;
+        }
+        if (value.at(name).is_number_unsigned())
+        {
+            return value.at(name).get<std::uint64_t>() <= std::numeric_limits<std::uint32_t>::max();
+        }
+        return value.at(name).get<std::int64_t>() >= 0;
+    }
+
+    [[nodiscard]] bool has_decimal_string(const Json& value, const std::string_view name)
+    {
+        if (!has_string(value, name))
+        {
+            return false;
+        }
+        const auto text = value.at(name).get<std::string_view>();
+        return !text.empty() && std::ranges::all_of(text, [](const char character) {
+            return character >= '0' && character <= '9';
+        });
+    }
+
+    [[nodiscard]] bool valid_optional_u32(const Json& value, const std::string_view name)
+    {
+        if (!value.contains(name))
+        {
+            return true;
+        }
+        if (!value.at(name).is_number_integer())
+        {
+            return false;
+        }
+        if (value.at(name).is_number_unsigned())
+        {
+            return value.at(name).get<std::uint64_t>() <= std::numeric_limits<std::uint32_t>::max();
+        }
+        return value.at(name).get<std::int64_t>() >= 0;
+    }
+
+    [[nodiscard]] bool valid_optional_enum(const Json& value,
+                                           const std::string_view name,
+                                           const std::array<std::string_view, 2>& values)
+    {
+        return !value.contains(name) ||
+               (value.at(name).is_string() &&
+                std::ranges::find(values, value.at(name).get<std::string_view>()) != values.end());
+    }
+
+    [[nodiscard]] bool valid_column(const Json& column)
+    {
+        static constexpr std::array<std::string_view, 12> types{"DOUBLE PRECISION",
+                                                                "DECIMAL",
+                                                                "DATE",
+                                                                "TIMESTAMP",
+                                                                "TIMESTAMP WITH LOCAL TIME ZONE",
+                                                                "CHAR",
+                                                                "VARCHAR",
+                                                                "BOOLEAN",
+                                                                "HASHTYPE",
+                                                                "GEOMETRY",
+                                                                "INTERVAL YEAR TO MONTH",
+                                                                "INTERVAL DAY TO SECOND"};
+        return column.is_object() && has_string(column, "name") && has_string(column, "type") &&
+               std::ranges::find(types, column.at("type").get<std::string_view>()) != types.end() &&
+               has_string(column, "type_name") && valid_optional_u32(column, "size") &&
+               valid_optional_u32(column, "precision") && valid_optional_u32(column, "scale") &&
+               valid_optional_u32(column, "fractional_second_precision") &&
+               valid_optional_u32(column, "srid") &&
+               valid_optional_enum(column, "size_unit", {"BYTE", "BIT"}) &&
+               valid_optional_enum(column, "character_set", {"ASCII", "UTF8"});
+    }
+
+    [[nodiscard]] bool valid_columns(const Json& value, const std::string_view name)
+    {
+        return has_array(value, name) && std::ranges::all_of(value.at(name), valid_column);
+    }
+
+    [[nodiscard]] bool valid_connection(const Json& value)
+    {
+        return value.is_object() && has_string(value, "kind") && has_string(value, "address") &&
+               has_string(value, "user") && has_string(value, "password");
+    }
+
+    [[nodiscard]] bool valid_parameters(const Json& value)
+    {
+        return value.is_array() && std::ranges::all_of(value, [](const Json& parameter) {
+                   return parameter.is_object() && has_string(parameter, "key") &&
+                          has_string(parameter, "value");
+               });
+    }
+
+    [[nodiscard]] bool valid_optional_string(const Json& value, const std::string_view name)
+    {
+        return !value.contains(name) || value.at(name).is_string();
+    }
+
+    [[nodiscard]] bool valid_optional_connection(const Json& value)
+    {
+        return !value.contains("connection_information") ||
+               valid_connection(value.at("connection_information"));
+    }
+
+    [[nodiscard]] bool valid_optional_columns(const Json& value, const std::string_view name)
+    {
+        return !value.contains(name) || valid_columns(value, name);
+    }
+
+    [[nodiscard]] bool valid_call_metadata(const Json& value)
+    {
+        const auto valid_iterator = [&value](const std::string_view name) {
+            return has_string(value, name) &&
+                   (value.at(name) == "EXACTLY_ONCE" || value.at(name) == "MULTIPLE");
+        };
+        return has_string(value, "database_name") && has_string(value, "database_version") &&
+               has_decimal_string(value, "session_id") && has_u32(value, "statement_id") &&
+               has_u32(value, "node_count") && has_u32(value, "node_id") &&
+               has_decimal_string(value, "vm_id") &&
+               has_decimal_string(value, "maximal_memory_limit") &&
+               has_string(value, "script_schema") && valid_optional_string(value, "current_user") &&
+               valid_optional_string(value, "current_schema") &&
+               valid_optional_string(value, "scope_user") && valid_iterator("input_iter_type") &&
+               valid_iterator("output_iter_type") && has_boolean(value, "single_call_mode");
+    }
+
+    [[nodiscard]] bool valid_import_specification(const Json& value)
+    {
+        return has_boolean(value, "is_subselect") &&
+               valid_optional_string(value, "connection_name") &&
+               valid_optional_connection(value) &&
+               valid_optional_columns(value, "subselect_column_specification") &&
+               (!value.contains("parameters") || valid_parameters(value.at("parameters")));
+    }
+
+    [[nodiscard]] bool valid_export_specification(const Json& value)
+    {
+        const auto valid_source_columns = [&value] {
+            return !value.contains("source_column_names") ||
+                   (has_array(value, "source_column_names") &&
+                    std::ranges::all_of(value.at("source_column_names"),
+                                        [](const Json& item) { return item.is_string(); }));
+        };
+        return has_boolean(value, "has_truncate") && has_boolean(value, "has_replace") &&
+               valid_optional_string(value, "created_by") &&
+               valid_optional_string(value, "connection_name") &&
+               valid_optional_connection(value) && valid_source_columns() &&
+               (!value.contains("parameters") || valid_parameters(value.at("parameters")));
+    }
+
 } // namespace
 
 interface::Result<void> MetadataCodec::validate(const JsonDocument document,
@@ -143,6 +309,7 @@ interface::Result<void> MetadataCodec::validate(const JsonDocument document,
     {
         return invalid_metadata("metadata document must be an object");
     }
+#if 0
     const auto has_string = [&value](const std::string_view name) {
         return value.contains(name) && value.at(name).is_string();
     };
@@ -288,6 +455,24 @@ interface::Result<void> MetadataCodec::validate(const JsonDocument document,
                     (!value.contains("parameters") || valid_parameters(value.at("parameters")));
             break;
     }
+#endif
+    const auto valid = [&value, document] {
+        switch (document)
+        {
+            case JsonDocument::CallMetadata:
+                return valid_call_metadata(value);
+            case JsonDocument::ColumnMetadata:
+                return valid_columns(value, "input_columns") &&
+                       valid_columns(value, "output_columns");
+            case JsonDocument::ConnectionInformation:
+                return valid_connection(value);
+            case JsonDocument::ImportSpecification:
+                return valid_import_specification(value);
+            case JsonDocument::ExportSpecification:
+                return valid_export_specification(value);
+        }
+        return false;
+    }();
     return valid ? interface::Result<void>::success()
                  : invalid_metadata("metadata document is missing required fields");
 }
