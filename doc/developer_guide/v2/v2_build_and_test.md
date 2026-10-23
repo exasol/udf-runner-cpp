@@ -5,7 +5,7 @@ The v2 implementation is under
 [`MODULE.bazel`](../../../udf-runner-cpp/v2/MODULE.bazel), and its targets are in
 [`BUILD.bazel`](../../../udf-runner-cpp/v2/BUILD.bazel).
 
-The v2 module is built independently with Bazel 8.3.1 in CI.
+The v2 module is built independently with Bazel 8.8.2 in CI.
 
 v2 is currently validated by the native Bazel workflow and is not included in
 the checked-in `test-udf-runner-cpp-v1` SLC flavor.
