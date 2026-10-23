@@ -14,6 +14,11 @@ namespace exasol::udf::v2::context
 namespace
 {
 
+    using enum JsonDocument;
+    constexpr auto connection_document = JsonDocument::ConnectionInformation;
+    constexpr auto import_document     = JsonDocument::ImportSpecification;
+    constexpr auto export_document     = JsonDocument::ExportSpecification;
+
     class MetadataExampleReadError final : public std::runtime_error
     {
     public:
@@ -88,8 +93,8 @@ TEST(MetadataCodecValidationTest, RejectsMalformedJson)
 
 TEST(MetadataCodecValidationTest, RejectsWrongTopLevelType)
 {
-    EXPECT_FALSE(MetadataCodec::validate(JsonDocument::CallMetadata, "[]"));
-    EXPECT_FALSE(MetadataCodec::validate(JsonDocument::ConnectionInformation, "null"));
+    EXPECT_FALSE(MetadataCodec::validate(CallMetadata, "[]"));
+    EXPECT_FALSE(MetadataCodec::validate(connection_document, "null"));
 }
 
 TEST(MetadataCodecValidationTest, RejectsInvalidCallMetadataValues)
@@ -109,7 +114,7 @@ TEST(MetadataCodecValidationTest, RejectsInvalidColumnOptionalValues)
     const std::string metadata = R"({
         "input_columns":[{"name":"A", "type":"DECIMAL", "type_name":"DECIMAL",
                            "precision":-1, "character_set":"UTF16"}],
-        "output_columns":[]
+        "output_columns":[{"name":"OUT","type":"BOOLEAN","type_name":"BOOLEAN"}]
     })";
     EXPECT_FALSE(MetadataCodec::decode_column_metadata(metadata));
 }
@@ -128,6 +133,7 @@ TEST(MetadataCodecValidationTest, RejectsInvalidNestedExportValues)
         R"({"has_truncate":false,"has_replace":false,"source_column_names":[1]})"));
     EXPECT_FALSE(MetadataCodec::decode_export_specification(
         R"({"has_truncate":false,"has_replace":false,"connection_name":true})"));
+    EXPECT_FALSE(MetadataCodec::decode_connection_information(R"({"kind":1})"));
 }
 
 TEST(MetadataCodecValidationTest, DecodesOptionalCallFields)
@@ -159,7 +165,7 @@ TEST(MetadataCodecDecodeTest, DecodesAllColumnTypesAndOptionalFields)
             {"name":"YM","type":"INTERVAL YEAR TO MONTH","type_name":"INTERVAL YEAR(2) TO MONTH","precision":2},
             {"name":"DS","type":"INTERVAL DAY TO SECOND","type_name":"INTERVAL DAY(2) TO SECOND(3)","precision":2,"fractional_second_precision":3}
         ],
-        "output_columns":[]
+        "output_columns":[{"name":"OUT","type":"BOOLEAN","type_name":"BOOLEAN"}]
 })JSON";
     const auto result          = MetadataCodec::decode_column_metadata(metadata);
     ASSERT_TRUE(result);
@@ -212,35 +218,30 @@ TEST(MetadataCodecDecodeTest, DecodesAllOptionalExportFields)
 TEST(MetadataCodecValidationTest, RejectsInvalidDocumentsForEveryMetadataKind)
 {
     const std::vector<std::pair<JsonDocument, std::string>> invalid_documents{
-        {JsonDocument::CallMetadata, R"({"database_name":1})"},
-        {JsonDocument::CallMetadata, R"({"session_id":"-1"})"},
-        {JsonDocument::CallMetadata, R"({"statement_id":4294967296})"},
-        {JsonDocument::CallMetadata, R"({"current_user":false})"},
-        {JsonDocument::CallMetadata, R"({"input_iter_type":"INVALID"})"},
-        {JsonDocument::ColumnMetadata, R"({"input_columns":[]})"},
-        {JsonDocument::ColumnMetadata, R"({"input_columns":[1],"output_columns":[]})"},
-        {JsonDocument::ColumnMetadata, R"({"input_columns":[{"name":1}],"output_columns":[]})"},
-        {JsonDocument::ColumnMetadata,
+        {CallMetadata, R"({"database_name":1})"},
+        {CallMetadata, R"({"session_id":"-1"})"},
+        {CallMetadata, R"({"statement_id":4294967296})"},
+        {CallMetadata, R"({"current_user":false})"},
+        {CallMetadata, R"({"input_iter_type":"INVALID"})"},
+        {ColumnMetadata, R"({"input_columns":[]})"},
+        {ColumnMetadata, R"({"input_columns":[1],"output_columns":[]})"},
+        {ColumnMetadata, R"({"input_columns":[{"name":1}],"output_columns":[]})"},
+        {ColumnMetadata,
          R"({"input_columns":[{"name":"A","type":"UNKNOWN","type_name":"X"}],"output_columns":[]})"},
-        {JsonDocument::ColumnMetadata,
+        {ColumnMetadata,
          R"({"input_columns":[{"name":"A","type":"DECIMAL","type_name":1}],"output_columns":[]})"},
-        {JsonDocument::ColumnMetadata,
+        {ColumnMetadata,
          R"({"input_columns":[{"name":"A","type":"DECIMAL","type_name":"X","size_unit":1}],"output_columns":[]})"},
-        {JsonDocument::ConnectionInformation, R"({"kind":"JDBC"})"},
-        {JsonDocument::ConnectionInformation,
-         R"({"kind":"JDBC","address":1,"user":"u","password":"p"})"},
-        {JsonDocument::ImportSpecification, R"({"is_subselect":1})"},
-        {JsonDocument::ImportSpecification, R"({"is_subselect":true,"connection_name":1})"},
-        {JsonDocument::ImportSpecification,
-         R"({"is_subselect":true,"subselect_column_specification":1})"},
-        {JsonDocument::ImportSpecification, R"({"is_subselect":true,"parameters":1})"},
-        {JsonDocument::ExportSpecification, R"({"has_truncate":true})"},
-        {JsonDocument::ExportSpecification,
-         R"({"has_truncate":true,"has_replace":false,"created_by":1})"},
-        {JsonDocument::ExportSpecification,
-         R"({"has_truncate":true,"has_replace":false,"source_column_names":1})"},
-        {JsonDocument::ExportSpecification,
-         R"({"has_truncate":true,"has_replace":false,"parameters":1})"}};
+        {connection_document, R"({"kind":"JDBC"})"},
+        {connection_document, R"({"kind":"JDBC","address":1,"user":"u","password":"p"})"},
+        {import_document, R"({"is_subselect":1})"},
+        {import_document, R"({"is_subselect":true,"connection_name":1})"},
+        {import_document, R"({"is_subselect":true,"subselect_column_specification":1})"},
+        {import_document, R"({"is_subselect":true,"parameters":1})"},
+        {export_document, R"({"has_truncate":true})"},
+        {export_document, R"({"has_truncate":true,"has_replace":false,"created_by":1})"},
+        {export_document, R"({"has_truncate":true,"has_replace":false,"source_column_names":1})"},
+        {export_document, R"({"has_truncate":true,"has_replace":false,"parameters":1})"}};
 
     for (const auto& [document, json] : invalid_documents)
     {
@@ -257,7 +258,7 @@ TEST(MetadataCodecValidationTest, AcceptsMultipleIteratorsAndMaximumUnsignedValu
         "input_iter_type":"MULTIPLE", "output_iter_type":"MULTIPLE",
         "single_call_mode":true
     })";
-    ASSERT_TRUE(MetadataCodec::validate(JsonDocument::CallMetadata, metadata));
+    ASSERT_TRUE(MetadataCodec::validate(CallMetadata, metadata));
     const auto result = MetadataCodec::decode_call_metadata(metadata);
     ASSERT_TRUE(result);
     EXPECT_EQ(result.value->input_iter_type, IteratorType::Multiple);
