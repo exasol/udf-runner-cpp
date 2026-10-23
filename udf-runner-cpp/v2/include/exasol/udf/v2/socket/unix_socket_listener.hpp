@@ -31,6 +31,11 @@ public:
     [[nodiscard]] static UnixSocketListener bind(const std::filesystem::path& path,
                                                  int backlog = SOMAXCONN);
 
+    /** Creates a listener using the supplied POSIX facade. */
+    [[nodiscard]] static UnixSocketListener bind(const std::filesystem::path& path,
+                                                 posix::Posix& posix,
+                                                 int backlog = SOMAXCONN);
+
     /** Returns the native listener descriptor, or -1 when closed. */
     [[nodiscard]] int native_handle() const noexcept;
 
@@ -53,8 +58,8 @@ private:
     UnixSocketListener(OwnedFileDescriptor owned_fd, std::filesystem::path path) noexcept;
     void unlink_path() noexcept;
 
-    OwnedFileDescriptor file_descriptor;
-    std::filesystem::path bound_path;
+    OwnedFileDescriptor m_file_descriptor;
+    std::filesystem::path m_bound_path;
 };
 
 } // namespace exasol::udf::v2::socket

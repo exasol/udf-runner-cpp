@@ -29,6 +29,9 @@ public:
      */
     [[nodiscard]] static UnixSocket connect(const std::filesystem::path& path);
 
+    /** Connects using the supplied POSIX facade. */
+    [[nodiscard]] static UnixSocket connect(const std::filesystem::path& path, posix::Posix& posix);
+
     /** Takes ownership of an open Unix stream socket descriptor.
      *
      * @throws std::system_error if @p owned_fd is closed or is not a Unix stream socket.
@@ -46,7 +49,7 @@ public:
 private:
     explicit UnixSocket(OwnedFileDescriptor owned_fd) noexcept;
 
-    OwnedFileDescriptor file_descriptor;
+    OwnedFileDescriptor m_file_descriptor;
 };
 
 } // namespace exasol::udf::v2::socket

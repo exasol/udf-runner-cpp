@@ -1,7 +1,5 @@
 #include "unix_socket_detail.hpp"
 
-#include <unistd.h>
-
 #include <bit>
 #include <cerrno>
 #include <cstddef>
@@ -29,14 +27,14 @@ sockaddr_un make_socket_address(const std::filesystem::path& path, socklen_t& le
     return address;
 }
 
-OwnedFileDescriptor create_socket()
+OwnedFileDescriptor create_socket(posix::Posix& posix)
 {
-    const int socket_fd = ::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    const int socket_fd = posix.socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
     if (socket_fd == -1)
     {
         throw std::system_error(errno, std::generic_category(), "create Unix socket");
     }
-    return OwnedFileDescriptor::adopt_native_handle(socket_fd);
+    return OwnedFileDescriptor::adopt_native_handle(socket_fd, posix);
 }
 
 const sockaddr* as_socket_address(const sockaddr_un& address) noexcept

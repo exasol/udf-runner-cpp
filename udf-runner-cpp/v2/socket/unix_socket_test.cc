@@ -1,4 +1,5 @@
 #include <exasol/udf/v2/socket/unix_socket_listener.hpp>
+#include <exasol/udf/v2/posix/posix.hpp>
 
 #include <fcntl.h>
 #include <sys/socket.h>
@@ -24,6 +25,142 @@ using exasol::udf::v2::socket::OwnedFileDescriptor;
 using exasol::udf::v2::socket::Shutdown;
 using exasol::udf::v2::socket::UnixSocket;
 using exasol::udf::v2::socket::UnixSocketListener;
+using Posix = exasol::udf::v2::posix::Posix;
+
+class RecordingPosix final : public Posix
+{
+public:
+    [[nodiscard]] int socket_call_count() const noexcept
+    {
+        return socket_calls;
+    }
+    [[nodiscard]] int connect_call_count() const noexcept
+    {
+        return connect_calls;
+    }
+    [[nodiscard]] int bind_call_count() const noexcept
+    {
+        return bind_calls;
+    }
+    [[nodiscard]] int listen_call_count() const noexcept
+    {
+        return listen_calls;
+    }
+    [[nodiscard]] int accept4_call_count() const noexcept
+    {
+        return accept4_calls;
+    }
+    [[nodiscard]] int getsockopt_call_count() const noexcept
+    {
+        return getsockopt_calls;
+    }
+    [[nodiscard]] int shutdown_call_count() const noexcept
+    {
+        return shutdown_calls;
+    }
+    [[nodiscard]] int readv_call_count() const noexcept
+    {
+        return readv_calls;
+    }
+    [[nodiscard]] int sendmsg_call_count() const noexcept
+    {
+        return sendmsg_calls;
+    }
+    [[nodiscard]] int unlink_call_count() const noexcept
+    {
+        return unlink_calls;
+    }
+    [[nodiscard]] int close_call_count() const noexcept
+    {
+        return close_calls;
+    }
+
+    int socket(const int domain, const int type, const int protocol) override
+    {
+        ++socket_calls;
+        return Posix::socket(domain, type, protocol);
+    }
+
+    int connect(const int sockfd, const sockaddr* address, const socklen_t address_length) override
+    {
+        ++connect_calls;
+        return Posix::connect(sockfd, address, address_length);
+    }
+
+    int bind(const int sockfd, const sockaddr* address, const socklen_t address_length) override
+    {
+        ++bind_calls;
+        return Posix::bind(sockfd, address, address_length);
+    }
+
+    int listen(const int sockfd, const int backlog) override
+    {
+        ++listen_calls;
+        return Posix::listen(sockfd, backlog);
+    }
+
+    int accept4(const int sockfd,
+                sockaddr* address,
+                socklen_t* address_length,
+                const int flags) override
+    {
+        ++accept4_calls;
+        return Posix::accept4(sockfd, address, address_length, flags);
+    }
+
+    int getsockopt(const int sockfd,
+                   const int level,
+                   const int option_name,
+                   void* option_value, // NOSONAR: required by Posix::getsockopt interface
+                   socklen_t* option_length) override
+    {
+        ++getsockopt_calls;
+        return Posix::getsockopt(sockfd, level, option_name, option_value, option_length);
+    }
+
+    int shutdown(const int sockfd, const int how) override
+    {
+        ++shutdown_calls;
+        return Posix::shutdown(sockfd, how);
+    }
+
+    ssize_t readv(const int file_descriptor, const iovec* buffers, const int buffer_count) override
+    {
+        ++readv_calls;
+        return Posix::readv(file_descriptor, buffers, buffer_count);
+    }
+
+    ssize_t sendmsg(const int sockfd, const msghdr* message, const int flags) override
+    {
+        ++sendmsg_calls;
+        return Posix::sendmsg(sockfd, message, flags);
+    }
+
+    int unlink(const char* path) override
+    {
+        ++unlink_calls;
+        return Posix::unlink(path);
+    }
+
+    int close(const int file_descriptor) override
+    {
+        ++close_calls;
+        return Posix::close(file_descriptor);
+    }
+
+private:
+    int socket_calls     = 0;
+    int connect_calls    = 0;
+    int bind_calls       = 0;
+    int listen_calls     = 0;
+    int accept4_calls    = 0;
+    int getsockopt_calls = 0;
+    int shutdown_calls   = 0;
+    int readv_calls      = 0;
+    int sendmsg_calls    = 0;
+    int unlink_calls     = 0;
+    int close_calls      = 0;
+};
 
 void expect_system_error(const auto& function, const std::errc expected)
 {
@@ -84,6 +221,41 @@ TEST_F(UnixSocketPathTest, ListenerConnectsAcceptsAndCleansUpPath)
     EXPECT_EQ(received, sent);
 
     listener.close();
+    EXPECT_FALSE(std::filesystem::exists(path));
+}
+
+TEST_F(UnixSocketPathTest, RoutesAllSocketOperationsThroughInjectedPosix)
+{
+    RecordingPosix posix;
+    const std::filesystem::path path = get_socket_path();
+    {
+        UnixSocketListener listener = UnixSocketListener::bind(path, posix);
+        UnixSocket client           = UnixSocket::connect(path, posix);
+        UnixSocket server           = listener.accept();
+
+        const std::array<std::byte, 1> sent{std::byte{'x'}};
+        ASSERT_EQ(client.write_some(sent), sent.size());
+        std::array<std::byte, 1> received{};
+        ASSERT_EQ(server.read_some(received), received.size());
+        EXPECT_EQ(received, sent);
+        server.shutdown(Shutdown::Both);
+
+        client.close();
+        server.close();
+        listener.close();
+    }
+
+    EXPECT_EQ(posix.socket_call_count(), 2);
+    EXPECT_EQ(posix.connect_call_count(), 1);
+    EXPECT_EQ(posix.bind_call_count(), 1);
+    EXPECT_EQ(posix.listen_call_count(), 1);
+    EXPECT_EQ(posix.accept4_call_count(), 1);
+    EXPECT_EQ(posix.getsockopt_call_count(), 2);
+    EXPECT_EQ(posix.shutdown_call_count(), 1);
+    EXPECT_EQ(posix.readv_call_count(), 1);
+    EXPECT_EQ(posix.sendmsg_call_count(), 1);
+    EXPECT_EQ(posix.unlink_call_count(), 1);
+    EXPECT_EQ(posix.close_call_count(), 3);
     EXPECT_FALSE(std::filesystem::exists(path));
 }
 

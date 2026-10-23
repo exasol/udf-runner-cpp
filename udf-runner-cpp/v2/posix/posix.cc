@@ -1,11 +1,18 @@
 #include <exasol/udf/v2/posix/posix.hpp>
 
+#include <sys/eventfd.h>
+
 namespace exasol::udf::v2::posix
 {
 
 int Posix::socket(const int domain, const int type, const int protocol)
 {
     return ::socket(domain, type, protocol);
+}
+
+int Posix::eventfd(const unsigned int initial_value, const int flags)
+{
+    return ::eventfd(initial_value, flags);
 }
 
 int Posix::connect(const int sockfd, const sockaddr* address, const socklen_t address_length)
@@ -47,6 +54,20 @@ ssize_t Posix::readv(const int file_descriptor, const iovec* buffers, const int 
     return ::readv(file_descriptor, buffers, buffer_count);
 }
 
+ssize_t Posix::read(const int file_descriptor,
+                    void* buffer, // NOSONAR: required by the POSIX read interface
+                    const size_t count)
+{
+    return ::read(file_descriptor, buffer, count);
+}
+
+ssize_t Posix::write(const int file_descriptor,
+                     const void* buffer, // NOSONAR: required by the POSIX write interface
+                     const size_t count)
+{
+    return ::write(file_descriptor, buffer, count);
+}
+
 ssize_t Posix::sendmsg(const int sockfd, const msghdr* message, const int flags)
 {
     return ::sendmsg(sockfd, message, flags);
@@ -60,6 +81,12 @@ int Posix::unlink(const char* path)
 int Posix::close(const int file_descriptor)
 {
     return ::close(file_descriptor);
+}
+
+Posix& default_posix() noexcept
+{
+    static Posix instance;
+    return instance;
 }
 
 } // namespace exasol::udf::v2::posix
