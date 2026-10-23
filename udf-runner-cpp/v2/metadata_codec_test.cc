@@ -13,12 +13,18 @@ namespace exasol::udf::v2::context
 namespace
 {
 
+    class MetadataExampleReadError final : public std::runtime_error
+    {
+    public:
+        using std::runtime_error::runtime_error;
+    };
+
     std::string read_example(const std::string& name)
     {
         std::ifstream input("testdata/high_level_examples/" + name);
         if (!input)
         {
-            throw std::runtime_error("cannot open metadata example: " + name);
+            throw MetadataExampleReadError("cannot open metadata example: " + name);
         }
         std::ostringstream contents;
         contents << input.rdbuf();
@@ -70,6 +76,69 @@ TEST(MetadataCodecExampleTest, DecodesExportExample)
     EXPECT_TRUE(result.value->has_truncate);
     EXPECT_FALSE(result.value->has_replace);
     EXPECT_EQ(result.value->source_column_names.size(), 2U);
+}
+
+TEST(MetadataCodecValidationTest, RejectsMalformedJson)
+{
+    const auto result = MetadataCodec::decode_call_metadata("{");
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.status, interface::OperationStatus::ProtocolError);
+}
+
+TEST(MetadataCodecValidationTest, RejectsWrongTopLevelType)
+{
+    EXPECT_FALSE(MetadataCodec::validate(JsonDocument::CallMetadata, "[]"));
+    EXPECT_FALSE(MetadataCodec::validate(JsonDocument::ConnectionInformation, "null"));
+}
+
+TEST(MetadataCodecValidationTest, RejectsInvalidCallMetadataValues)
+{
+    const std::string metadata = R"({
+        "database_name":"EXASOL", "database_version":"8", "session_id":"1",
+        "statement_id":-1, "node_count":1, "node_id":1, "vm_id":"1",
+        "maximal_memory_limit":"1", "script_schema":"SYS",
+        "input_iter_type":"INVALID", "output_iter_type":"EXACTLY_ONCE",
+        "single_call_mode":false
+    })";
+    EXPECT_FALSE(MetadataCodec::decode_call_metadata(metadata));
+}
+
+TEST(MetadataCodecValidationTest, RejectsInvalidColumnOptionalValues)
+{
+    const std::string metadata = R"({
+        "input_columns":[{"name":"A", "type":"DECIMAL", "type_name":"DECIMAL",
+                           "precision":-1, "character_set":"UTF16"}],
+        "output_columns":[]
+    })";
+    EXPECT_FALSE(MetadataCodec::decode_column_metadata(metadata));
+}
+
+TEST(MetadataCodecValidationTest, RejectsInvalidNestedImportValues)
+{
+    EXPECT_FALSE(MetadataCodec::decode_import_specification(
+        R"({"is_subselect":true,"connection_information":{"kind":"JDBC"}})"));
+    EXPECT_FALSE(MetadataCodec::decode_import_specification(
+        R"({"is_subselect":true,"parameters":[{"key":"x","value":1}]})"));
+}
+
+TEST(MetadataCodecValidationTest, RejectsInvalidNestedExportValues)
+{
+    EXPECT_FALSE(MetadataCodec::decode_export_specification(
+        R"({"has_truncate":false,"has_replace":false,"source_column_names":[1]})"));
+    EXPECT_FALSE(MetadataCodec::decode_export_specification(
+        R"({"has_truncate":false,"has_replace":false,"connection_name":true})"));
+}
+
+TEST(MetadataCodecValidationTest, DecodesOptionalCallFields)
+{
+    auto metadata = read_example("call_metadata.json");
+    metadata.insert(metadata.rfind('}'),
+                    R"(,"current_user":"SYS","current_schema":"APP","scope_user":"U")");
+    const auto result = MetadataCodec::decode_call_metadata(metadata);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result.value->current_user, "SYS");
+    EXPECT_EQ(result.value->current_schema, "APP");
+    EXPECT_EQ(result.value->scope_user, "U");
 }
 
 } // namespace exasol::udf::v2::context

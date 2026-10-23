@@ -2,9 +2,9 @@
 
 #include <exasol/udf/v2/json_schema.hpp>
 
-#include <algorithm>
 #include <array>
 #include <limits>
+#include <ranges>
 #include <string>
 
 namespace exasol::udf::v2::context
@@ -30,8 +30,7 @@ namespace
     [[nodiscard]] interface::Result<Json> parse_document(const JsonDocument document,
                                                          const std::string_view text)
     {
-        auto validation = MetadataCodec::validate(document, text);
-        if (!validation)
+        if (auto validation = MetadataCodec::validate(document, text); !validation)
         {
             return decode_error<Json>(validation);
         }
@@ -39,7 +38,7 @@ namespace
         {
             return interface::Result<Json>::success(Json::parse(text));
         }
-        catch (const std::exception& error)
+        catch (const Json::parse_error& error)
         {
             return interface::Result<Json>::failure(
                 interface::OperationStatus::ProtocolError,
@@ -49,22 +48,23 @@ namespace
 
     [[nodiscard]] ExasolType decode_type(const std::string_view type)
     {
+        using enum ExasolType;
         static constexpr std::array<std::pair<std::string_view, ExasolType>, 12> types{
-            {{"DOUBLE PRECISION", ExasolType::DoublePrecision},
-             {"DECIMAL", ExasolType::Decimal},
-             {"DATE", ExasolType::Date},
-             {"TIMESTAMP", ExasolType::Timestamp},
-             {"TIMESTAMP WITH LOCAL TIME ZONE", ExasolType::TimestampWithLocalTimeZone},
-             {"CHAR", ExasolType::Char},
-             {"VARCHAR", ExasolType::Varchar},
-             {"BOOLEAN", ExasolType::Boolean},
-             {"HASHTYPE", ExasolType::HashType},
-             {"GEOMETRY", ExasolType::Geometry},
-             {"INTERVAL YEAR TO MONTH", ExasolType::IntervalYearToMonth},
-             {"INTERVAL DAY TO SECOND", ExasolType::IntervalDayToSecond}}};
-        return std::find_if(types.begin(), types.end(),
-                            [type](const auto& item) { return item.first == type; })
-            ->second;
+            {{"DOUBLE PRECISION", DoublePrecision},
+             {"DECIMAL", Decimal},
+             {"DATE", Date},
+             {"TIMESTAMP", Timestamp},
+             {"TIMESTAMP WITH LOCAL TIME ZONE", TimestampWithLocalTimeZone},
+             {"CHAR", Char},
+             {"VARCHAR", Varchar},
+             {"BOOLEAN", Boolean},
+             {"HASHTYPE", HashType},
+             {"GEOMETRY", Geometry},
+             {"INTERVAL YEAR TO MONTH", IntervalYearToMonth},
+             {"INTERVAL DAY TO SECOND", IntervalDayToSecond}}};
+        const auto found =
+            std::ranges::find_if(types, [type](const auto& item) { return item.first == type; });
+        return found->second;
     }
 
     [[nodiscard]] ColumnDefinition decode_column(const Json& value)
@@ -135,7 +135,7 @@ interface::Result<void> MetadataCodec::validate(const JsonDocument document,
     {
         value = Json::parse(json);
     }
-    catch (const std::exception& error)
+    catch (const Json::parse_error& error)
     {
         return invalid_metadata(error.what());
     }
@@ -157,14 +157,11 @@ interface::Result<void> MetadataCodec::validate(const JsonDocument document,
         {
             return false;
         }
-        try
+        if (value.at(name).is_number_unsigned())
         {
             return value.at(name).get<std::uint64_t>() <= std::numeric_limits<std::uint32_t>::max();
         }
-        catch (const std::exception&)
-        {
-            return false;
-        }
+        return value.at(name).get<std::int64_t>() >= 0;
     };
     const auto has_decimal_string = [&value, &has_string](const std::string_view name) {
         if (!has_string(name))
@@ -172,7 +169,7 @@ interface::Result<void> MetadataCodec::validate(const JsonDocument document,
             return false;
         }
         const auto text = value.at(name).get<std::string_view>();
-        return !text.empty() && std::all_of(text.begin(), text.end(), [](const char character) {
+        return !text.empty() && std::ranges::all_of(text, [](const char character) {
             return character >= '0' && character <= '9';
         });
     };
@@ -189,15 +186,65 @@ interface::Result<void> MetadataCodec::validate(const JsonDocument document,
                                                                 "GEOMETRY",
                                                                 "INTERVAL YEAR TO MONTH",
                                                                 "INTERVAL DAY TO SECOND"};
+        const auto valid_optional_u32 = [&column](const std::string_view name) {
+            if (!column.contains(name))
+            {
+                return true;
+            }
+            if (!column.at(name).is_number_integer())
+            {
+                return false;
+            }
+            if (column.at(name).is_number_unsigned())
+            {
+                return column.at(name).get<std::uint64_t>() <=
+                       std::numeric_limits<std::uint32_t>::max();
+            }
+            return column.at(name).get<std::int64_t>() >= 0;
+        };
+        const auto valid_optional_enum = [&column](const std::string_view name,
+                                                   const std::array<std::string_view, 2> values) {
+            return !column.contains(name) ||
+                   (column.at(name).is_string() &&
+                    std::ranges::find(values, column.at(name).get<std::string_view>()) !=
+                        values.end());
+        };
         return column.is_object() && column.contains("name") && column.at("name").is_string() &&
                column.contains("type") && column.at("type").is_string() &&
-               std::find(types.begin(), types.end(), column.at("type").get<std::string_view>()) !=
-                   types.end() &&
-               column.contains("type_name") && column.at("type_name").is_string();
+               std::ranges::find(types, column.at("type").get<std::string_view>()) != types.end() &&
+               column.contains("type_name") && column.at("type_name").is_string() &&
+               valid_optional_u32("size") && valid_optional_u32("precision") &&
+               valid_optional_u32("scale") && valid_optional_u32("fractional_second_precision") &&
+               valid_optional_u32("srid") && valid_optional_enum("size_unit", {"BYTE", "BIT"}) &&
+               valid_optional_enum("character_set", {"ASCII", "UTF8"});
     };
     const auto valid_columns = [&value, &has_array, &valid_column](const std::string_view name) {
-        return has_array(name) &&
-               std::all_of(value.at(name).begin(), value.at(name).end(), valid_column);
+        return has_array(name) && std::ranges::all_of(value.at(name), valid_column);
+    };
+    const auto valid_connection = [](const Json& connection) {
+        return connection.is_object() && connection.contains("kind") &&
+               connection.at("kind").is_string() && connection.contains("address") &&
+               connection.at("address").is_string() && connection.contains("user") &&
+               connection.at("user").is_string() && connection.contains("password") &&
+               connection.at("password").is_string();
+    };
+    const auto valid_parameters = [](const Json& parameters) {
+        return parameters.is_array() && std::ranges::all_of(parameters, [](const Json& parameter) {
+                   return parameter.is_object() && parameter.contains("key") &&
+                          parameter.at("key").is_string() && parameter.contains("value") &&
+                          parameter.at("value").is_string();
+               });
+    };
+    const auto valid_optional_string = [&value](const std::string_view name) {
+        return !value.contains(name) || value.at(name).is_string();
+    };
+    const auto valid_optional_connection = [&value, &valid_connection] {
+        return !value.contains("connection_information") ||
+               valid_connection(value.at("connection_information"));
+    };
+    const auto valid_optional_columns = [&value, &valid_column](const std::string_view name) {
+        return !value.contains(name) ||
+               (value.at(name).is_array() && std::ranges::all_of(value.at(name), valid_column));
     };
     bool valid = false;
     switch (document)
@@ -207,7 +254,10 @@ interface::Result<void> MetadataCodec::validate(const JsonDocument document,
                     has_decimal_string("session_id") && has_u32("statement_id") &&
                     has_u32("node_count") && has_u32("node_id") && has_decimal_string("vm_id") &&
                     has_decimal_string("maximal_memory_limit") && has_string("script_schema") &&
-                    has_string("input_iter_type") && has_string("output_iter_type") &&
+                    valid_optional_string("current_user") &&
+                    valid_optional_string("current_schema") &&
+                    valid_optional_string("scope_user") && has_string("input_iter_type") &&
+                    has_string("output_iter_type") &&
                     (value.at("input_iter_type") == "EXACTLY_ONCE" ||
                      value.at("input_iter_type") == "MULTIPLE") &&
                     (value.at("output_iter_type") == "EXACTLY_ONCE" ||
@@ -222,10 +272,20 @@ interface::Result<void> MetadataCodec::validate(const JsonDocument document,
                     has_string("password");
             break;
         case JsonDocument::ImportSpecification:
-            valid = has_boolean("is_subselect");
+            valid = has_boolean("is_subselect") && valid_optional_string("connection_name") &&
+                    valid_optional_connection() &&
+                    valid_optional_columns("subselect_column_specification") &&
+                    (!value.contains("parameters") || valid_parameters(value.at("parameters")));
             break;
         case JsonDocument::ExportSpecification:
-            valid = has_boolean("has_truncate") && has_boolean("has_replace");
+            valid = has_boolean("has_truncate") && has_boolean("has_replace") &&
+                    valid_optional_string("created_by") &&
+                    valid_optional_string("connection_name") && valid_optional_connection() &&
+                    (!value.contains("source_column_names") ||
+                     (value.at("source_column_names").is_array() &&
+                      std::ranges::all_of(value.at("source_column_names"),
+                                          [](const Json& item) { return item.is_string(); }))) &&
+                    (!value.contains("parameters") || valid_parameters(value.at("parameters")));
             break;
     }
     return valid ? interface::Result<void>::success()
