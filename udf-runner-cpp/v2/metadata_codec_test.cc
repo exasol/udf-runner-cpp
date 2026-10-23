@@ -93,13 +93,13 @@ TEST(MetadataCodecValidationTest, RejectsWrongTopLevelType)
 
 TEST(MetadataCodecValidationTest, RejectsInvalidCallMetadataValues)
 {
-    const std::string metadata = R"({
+    const std::string metadata = R"JSON({
         "database_name":"EXASOL", "database_version":"8", "session_id":"1",
         "statement_id":-1, "node_count":1, "node_id":1, "vm_id":"1",
         "maximal_memory_limit":"1", "script_schema":"SYS",
         "input_iter_type":"INVALID", "output_iter_type":"EXACTLY_ONCE",
         "single_call_mode":false
-    })";
+    })JSON";
     EXPECT_FALSE(MetadataCodec::decode_call_metadata(metadata));
 }
 
@@ -139,6 +139,73 @@ TEST(MetadataCodecValidationTest, DecodesOptionalCallFields)
     EXPECT_EQ(result.value->current_user, "SYS");
     EXPECT_EQ(result.value->current_schema, "APP");
     EXPECT_EQ(result.value->scope_user, "U");
+}
+
+TEST(MetadataCodecDecodeTest, DecodesAllColumnTypesAndOptionalFields)
+{
+    const std::string metadata = R"JSON({
+        "input_columns":[
+            {"name":"DOUBLE","type":"DOUBLE PRECISION","type_name":"DOUBLE PRECISION"},
+            {"name":"DECIMAL","type":"DECIMAL","type_name":"DECIMAL(10,2)","precision":10,"scale":2},
+            {"name":"DATE","type":"DATE","type_name":"DATE"},
+            {"name":"TIMESTAMP","type":"TIMESTAMP","type_name":"TIMESTAMP","precision":6},
+            {"name":"TIMESTAMP_TZ","type":"TIMESTAMP WITH LOCAL TIME ZONE","type_name":"TIMESTAMP WITH LOCAL TIME ZONE"},
+            {"name":"CHAR","type":"CHAR","type_name":"CHAR(10)","size":10,"character_set":"ASCII"},
+            {"name":"VARCHAR","type":"VARCHAR","type_name":"VARCHAR(10)","size":10,"character_set":"UTF8"},
+            {"name":"BOOLEAN","type":"BOOLEAN","type_name":"BOOLEAN"},
+            {"name":"HASH","type":"HASHTYPE","type_name":"HASHTYPE(8)","size":8,"size_unit":"BYTE"},
+            {"name":"GEOMETRY","type":"GEOMETRY","type_name":"GEOMETRY","srid":4326},
+            {"name":"YM","type":"INTERVAL YEAR TO MONTH","type_name":"INTERVAL YEAR(2) TO MONTH","precision":2},
+            {"name":"DS","type":"INTERVAL DAY TO SECOND","type_name":"INTERVAL DAY(2) TO SECOND(3)","precision":2,"fractional_second_precision":3}
+        ],
+        "output_columns":[]
+})JSON";
+    const auto result          = MetadataCodec::decode_column_metadata(metadata);
+    ASSERT_TRUE(result);
+    ASSERT_EQ(result.value->input_columns.size(), 12U);
+    EXPECT_EQ(result.value->input_columns[0].type, ExasolType::DoublePrecision);
+    EXPECT_EQ(result.value->input_columns[2].type, ExasolType::Date);
+    EXPECT_EQ(result.value->input_columns[4].type, ExasolType::TimestampWithLocalTimeZone);
+    EXPECT_EQ(result.value->input_columns[8].type, ExasolType::HashType);
+    EXPECT_EQ(result.value->input_columns[9].type, ExasolType::Geometry);
+    EXPECT_EQ(result.value->input_columns[10].type, ExasolType::IntervalYearToMonth);
+    EXPECT_EQ(result.value->input_columns[11].type, ExasolType::IntervalDayToSecond);
+    EXPECT_EQ(result.value->input_columns[9].srid, 4326U);
+}
+
+TEST(MetadataCodecDecodeTest, DecodesAllOptionalImportFields)
+{
+    const auto result = MetadataCodec::decode_import_specification(R"({
+        "is_subselect":false,
+        "connection_information":{"kind":"JDBC","address":"db","user":"u","password":"p"},
+        "connection_name":"REMOTE",
+        "subselect_column_specification":[{"name":"ID","type":"DECIMAL","type_name":"DECIMAL","precision":10}],
+        "parameters":[{"key":"encoding","value":"UTF-8"}]
+    })");
+    ASSERT_TRUE(result);
+    ASSERT_TRUE(result.value->connection_information.has_value());
+    EXPECT_EQ(result.value->connection_information->address, "db");
+    EXPECT_EQ(result.value->connection_name, "REMOTE");
+    ASSERT_EQ(result.value->parameters.size(), 1U);
+    EXPECT_EQ(result.value->parameters.front().first, "encoding");
+}
+
+TEST(MetadataCodecDecodeTest, DecodesAllOptionalExportFields)
+{
+    const auto result = MetadataCodec::decode_export_specification(R"({
+        "has_truncate":false,"has_replace":true,"created_by":"UDF",
+        "source_column_names":["ID"],
+        "connection_information":{"kind":"JDBC","address":"db","user":"u","password":"p"},
+        "connection_name":"REMOTE",
+        "parameters":[{"key":"format","value":"CSV"}]
+    })");
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result.value->created_by, "UDF");
+    ASSERT_TRUE(result.value->connection_information.has_value());
+    EXPECT_EQ(result.value->connection_name, "REMOTE");
+    ASSERT_EQ(result.value->source_column_names.size(), 1U);
+    ASSERT_EQ(result.value->parameters.size(), 1U);
+    EXPECT_EQ(result.value->parameters.front().second, "CSV");
 }
 
 } // namespace exasol::udf::v2::context

@@ -62,7 +62,7 @@ namespace
              {"GEOMETRY", Geometry},
              {"INTERVAL YEAR TO MONTH", IntervalYearToMonth},
              {"INTERVAL DAY TO SECOND", IntervalDayToSecond}}};
-        const auto found =
+        const auto* const found =
             std::ranges::find_if(types, [type](const auto& item) { return item.first == type; });
         return found->second;
     }
