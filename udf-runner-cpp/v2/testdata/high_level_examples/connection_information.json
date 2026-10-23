@@ -1,0 +1,1 @@
+{"kind":"JDBC","address":"jdbc:example://host/database","user":"user","password":"secret"}
