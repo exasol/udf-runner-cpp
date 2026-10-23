@@ -35,6 +35,12 @@ public:
         read_file_descriptor = file_descriptor;
         read_count           = count;
         ++read_calls;
+        if (read_eintr_count > 0)
+        {
+            --read_eintr_count;
+            errno = EINTR;
+            return -1;
+        }
         if (read_result == static_cast<ssize_t>(sizeof(std::uint64_t)))
         {
             std::memcpy(buffer, &read_value, sizeof(read_value));
@@ -49,6 +55,12 @@ public:
         write_file_descriptor = file_descriptor;
         write_count           = count;
         ++write_calls;
+        if (write_eintr_count > 0)
+        {
+            --write_eintr_count;
+            errno = EINTR;
+            return -1;
+        }
         if (count == sizeof(write_value))
         {
             std::memcpy(&write_value, buffer, sizeof(write_value));
@@ -65,6 +77,16 @@ public:
     void set_read_value(const std::uint64_t value)
     {
         read_value = value;
+    }
+
+    void set_read_eintr_count(const int count)
+    {
+        read_eintr_count = count;
+    }
+
+    void set_write_eintr_count(const int count)
+    {
+        write_eintr_count = count;
     }
 
     [[nodiscard]] int eventfd_call_count() const
@@ -119,11 +141,13 @@ private:
     int eventfd_flags                  = 0;
     ssize_t read_result                = sizeof(std::uint64_t);
     int read_calls                     = 0;
+    int read_eintr_count               = 0;
     int read_file_descriptor           = -1;
     size_t read_count                  = 0;
     std::uint64_t read_value           = 0;
     ssize_t write_result               = sizeof(std::uint64_t);
     int write_calls                    = 0;
+    int write_eintr_count              = 0;
     int write_file_descriptor          = -1;
     size_t write_count                 = 0;
     std::uint64_t write_value          = 0;
@@ -182,6 +206,20 @@ TEST(EventFdTest, UsesInjectedPosixForCreationAndIo)
     EXPECT_EQ(posix.read_call_count(), 1);
     EXPECT_EQ(posix.read_descriptor(), 42);
     EXPECT_EQ(posix.read_size(), sizeof(std::uint64_t));
+}
+
+TEST(EventFdTest, RetriesNotificationIoAfterInterruptedCalls)
+{
+    RecordingPosix posix;
+    posix.set_read_value(7);
+    posix.set_read_eintr_count(1);
+    posix.set_write_eintr_count(1);
+
+    exasol::udf::v2::LinuxEventFd event_fd(posix);
+    event_fd.write_notification();
+    EXPECT_EQ(event_fd.read_notification(), 7);
+    EXPECT_EQ(posix.write_call_count(), 2);
+    EXPECT_EQ(posix.read_call_count(), 2);
 }
 
 TEST(EventFdTest, FactoryUsesInjectedPosix)

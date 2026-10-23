@@ -136,33 +136,33 @@ UnixSocket UnixSocket::adopt_native_handle(OwnedFileDescriptor owned_fd)
 
 int UnixSocket::native_handle() const noexcept
 {
-    return file_descriptor.native_handle();
+    return m_file_descriptor.native_handle();
 }
 
 bool UnixSocket::is_open() const noexcept
 {
-    return file_descriptor.is_open();
+    return m_file_descriptor.is_open();
 }
 
 void UnixSocket::close() noexcept
 {
-    file_descriptor.close();
+    m_file_descriptor.close();
 }
 
 OwnedFileDescriptor UnixSocket::release_native_handle() noexcept
 {
-    const int released_fd = file_descriptor.release_native_handle();
+    const int released_fd = m_file_descriptor.release_native_handle();
     if (released_fd == -1)
     {
         return {};
     }
-    return OwnedFileDescriptor::adopt_native_handle(released_fd);
+    return OwnedFileDescriptor::adopt_native_handle(released_fd, m_file_descriptor.posix_facade());
 }
 
 void UnixSocket::shutdown(const Shutdown how)
 {
-    if (file_descriptor.posix_facade().shutdown(file_descriptor.native_handle(),
-                                                shutdown_direction(how)) == -1)
+    if (m_file_descriptor.posix_facade().shutdown(m_file_descriptor.native_handle(),
+                                                  shutdown_direction(how)) == -1)
     {
         throw std::system_error(errno, std::generic_category(), "shutdown Unix socket");
     }
@@ -179,8 +179,8 @@ std::size_t UnixSocket::read_some(const std::span<const std::span<std::byte>> bu
     ssize_t result = -1;
     do
     {
-        result = file_descriptor.posix_facade().readv(
-            file_descriptor.native_handle(), iovecs.data(), static_cast<int>(iovecs.size()));
+        result = m_file_descriptor.posix_facade().readv(
+            m_file_descriptor.native_handle(), iovecs.data(), static_cast<int>(iovecs.size()));
     } while (result == -1 && errno == EINTR);
 
     if (result == -1)
@@ -204,8 +204,8 @@ std::size_t UnixSocket::write_some(const std::span<const std::span<const std::by
     ssize_t result     = -1;
     do
     {
-        result = file_descriptor.posix_facade().sendmsg(file_descriptor.native_handle(), &message,
-                                                        MSG_NOSIGNAL);
+        result = m_file_descriptor.posix_facade().sendmsg(m_file_descriptor.native_handle(),
+                                                          &message, MSG_NOSIGNAL);
     } while (result == -1 && errno == EINTR);
 
     if (result == -1)
@@ -215,7 +215,8 @@ std::size_t UnixSocket::write_some(const std::span<const std::span<const std::by
     return static_cast<std::size_t>(result);
 }
 
-UnixSocket::UnixSocket(OwnedFileDescriptor owned_fd) noexcept : file_descriptor(std::move(owned_fd))
+UnixSocket::UnixSocket(OwnedFileDescriptor owned_fd) noexcept
+    : m_file_descriptor(std::move(owned_fd))
 {
 }
 

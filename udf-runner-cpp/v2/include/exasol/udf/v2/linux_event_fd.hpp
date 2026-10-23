@@ -29,8 +29,8 @@ public:
     void write_notification() override;
 
 private:
-    int file_descriptor = -1;
-    posix::Posix* posix = nullptr;
+    int m_file_descriptor = -1;
+    posix::Posix* m_posix = nullptr;
 };
 
 } // namespace exasol::udf::v2

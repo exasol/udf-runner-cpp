@@ -25,7 +25,7 @@ namespace
     {
     public:
         SocketPathCleanup(std::filesystem::path& path, posix::Posix& posix) noexcept
-            : path(path), posix(posix)
+            : m_path(path), m_posix(posix)
         {
         }
 
@@ -36,21 +36,21 @@ namespace
 
         ~SocketPathCleanup()
         {
-            if (cleanup)
+            if (m_cleanup)
             {
-                unlink_socket_path(path, posix);
+                unlink_socket_path(m_path, m_posix);
             }
         }
 
         void dont_clean() noexcept
         {
-            cleanup = false;
+            m_cleanup = false;
         }
 
     private:
-        std::filesystem::path& path;
-        posix::Posix& posix;
-        bool cleanup = true;
+        std::filesystem::path& m_path;
+        posix::Posix& m_posix;
+        bool m_cleanup = true;
     };
 
 } // namespace
@@ -63,8 +63,8 @@ UnixSocketListener::~UnixSocketListener() noexcept
 }
 
 UnixSocketListener::UnixSocketListener(UnixSocketListener&& other) noexcept
-    : file_descriptor(std::move(other.file_descriptor)),
-      bound_path(std::exchange(other.bound_path, {}))
+    : m_file_descriptor(std::move(other.m_file_descriptor)),
+      m_bound_path(std::exchange(other.m_bound_path, {}))
 {
 }
 
@@ -73,8 +73,8 @@ UnixSocketListener& UnixSocketListener::operator=(UnixSocketListener&& other) no
     if (this != &other)
     {
         this->close();
-        this->file_descriptor = std::move(other.file_descriptor);
-        this->bound_path      = std::exchange(other.bound_path, {});
+        this->m_file_descriptor = std::move(other.m_file_descriptor);
+        this->m_bound_path      = std::exchange(other.m_bound_path, {});
     }
     return *this;
 }
@@ -112,29 +112,29 @@ UnixSocketListener UnixSocketListener::bind(const std::filesystem::path& path,
 
 int UnixSocketListener::native_handle() const noexcept
 {
-    return this->file_descriptor.native_handle();
+    return m_file_descriptor.native_handle();
 }
 
 bool UnixSocketListener::is_open() const noexcept
 {
-    return this->file_descriptor.is_open();
+    return m_file_descriptor.is_open();
 }
 
 void UnixSocketListener::close() noexcept
 {
-    this->file_descriptor.close();
-    this->unlink_path();
+    m_file_descriptor.close();
+    unlink_path();
 }
 
 OwnedFileDescriptor UnixSocketListener::release_native_handle() noexcept
 {
-    const int released_fd = this->file_descriptor.release_native_handle();
+    const int released_fd = m_file_descriptor.release_native_handle();
     this->unlink_path();
     if (released_fd == -1)
     {
         return {};
     }
-    return OwnedFileDescriptor::adopt_native_handle(released_fd);
+    return OwnedFileDescriptor::adopt_native_handle(released_fd, m_file_descriptor.posix_facade());
 }
 
 UnixSocket UnixSocketListener::accept(const int flags) const
@@ -142,26 +142,26 @@ UnixSocket UnixSocketListener::accept(const int flags) const
     int accepted_fd = -1;
     do
     {
-        accepted_fd = this->file_descriptor.posix_facade().accept4(
-            this->file_descriptor.native_handle(), nullptr, nullptr, flags);
+        accepted_fd = m_file_descriptor.posix_facade().accept4(m_file_descriptor.native_handle(),
+                                                               nullptr, nullptr, flags);
     } while (accepted_fd == -1 && errno == EINTR);
 
     if (accepted_fd == -1)
     {
         throw std::system_error(errno, std::generic_category(), "accept Unix socket connection");
     }
-    return UnixSocket::adopt_native_handle(OwnedFileDescriptor::adopt_native_handle(
-        accepted_fd, this->file_descriptor.posix_facade()));
+    return UnixSocket::adopt_native_handle(
+        OwnedFileDescriptor::adopt_native_handle(accepted_fd, m_file_descriptor.posix_facade()));
 }
 
 void UnixSocketListener::unlink_path() noexcept
 {
-    unlink_socket_path(this->bound_path, this->file_descriptor.posix_facade());
+    unlink_socket_path(m_bound_path, m_file_descriptor.posix_facade());
 }
 
 UnixSocketListener::UnixSocketListener(OwnedFileDescriptor owned_fd,
                                        std::filesystem::path path) noexcept
-    : file_descriptor(std::move(owned_fd)), bound_path(std::move(path))
+    : m_file_descriptor(std::move(owned_fd)), m_bound_path(std::move(path))
 {
 }
 

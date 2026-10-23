@@ -21,7 +21,7 @@ n/a
 ## Refactorings
 
 * #44: Extracted WaitableQueue eventfd notifications into a reusable component
-* #95: Routed posix APIs of socket-abstraction and Linux eventfd through POSIX façade
+* #95: Routed POSIX APIs of socket-abstraction and Linux eventfd through POSIX facade
 
 ## Internal
 
