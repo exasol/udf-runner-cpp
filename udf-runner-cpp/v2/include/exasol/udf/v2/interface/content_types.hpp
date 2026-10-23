@@ -4,10 +4,12 @@
 
 #include <arrow/c/abi.h>
 
+#include <bit>
 #include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace exasol::udf::v2::interface
 {
@@ -27,6 +29,27 @@ struct ArrowCDataDeleter
 
 using ArrowSchemaPtr = std::unique_ptr<ArrowSchema, ArrowCDataDeleter<ArrowSchema>>;
 using ArrowArrayPtr  = std::unique_ptr<ArrowArray, ArrowCDataDeleter<ArrowArray>>;
+
+/// One named high-level protocol payload.
+struct Payload
+{
+    std::string name;   // NOLINT(misc-non-private-member-variables-in-classes)
+    std::string value;  // NOLINT(misc-non-private-member-variables-in-classes)
+    bool binary{false}; // NOLINT(misc-non-private-member-variables-in-classes)
+};
+
+using Payloads = std::vector<Payload>;
+
+/// Capabilities advertised during low-level connection initialization.
+struct ServerCapabilities
+{
+    std::uint32_t major{}; // NOLINT(misc-non-private-member-variables-in-classes)
+    std::uint32_t minor{}; // NOLINT(misc-non-private-member-variables-in-classes)
+    std::endian endianness{
+        std::endian::native}; // NOLINT(misc-non-private-member-variables-in-classes)
+    std::uint32_t
+        number_of_supported_workers{}; // NOLINT(misc-non-private-member-variables-in-classes)
+};
 
 /// Metadata identifying a newly opened call.
 struct OpenCall
@@ -75,6 +98,7 @@ struct CallMessage
     ~CallMessage()                                 = default;
 
     std::optional<OpenCall> open_call;     // NOLINT(misc-non-private-member-variables-in-classes)
+    std::optional<Payloads> payloads;      // NOLINT(misc-non-private-member-variables-in-classes)
     std::optional<DataSchema> data_schema; // NOLINT(misc-non-private-member-variables-in-classes)
     std::optional<Next> next;              // NOLINT(misc-non-private-member-variables-in-classes)
     std::optional<OutboundNext>
@@ -94,9 +118,12 @@ struct ControlMessage
     ControlMessage& operator=(ControlMessage&&) noexcept = delete;
     ~ControlMessage()                                    = default;
 
-    bool keep_alive{false};         // NOLINT(misc-non-private-member-variables-in-classes)
-    std::optional<ErrorInfo> error; // NOLINT(misc-non-private-member-variables-in-classes)
-    bool close_connection{false};   // NOLINT(misc-non-private-member-variables-in-classes)
+    std::optional<ServerCapabilities>
+        server_capabilities;          // NOLINT(misc-non-private-member-variables-in-classes)
+    bool keep_alive{false};           // NOLINT(misc-non-private-member-variables-in-classes)
+    std::optional<Payloads> payloads; // NOLINT(misc-non-private-member-variables-in-classes)
+    std::optional<ErrorInfo> error;   // NOLINT(misc-non-private-member-variables-in-classes)
+    bool close_connection{false};     // NOLINT(misc-non-private-member-variables-in-classes)
 };
 
 } // namespace exasol::udf::v2::interface
