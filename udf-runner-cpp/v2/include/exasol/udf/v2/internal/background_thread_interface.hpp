@@ -66,7 +66,7 @@ protected:
 using OutboundBatch = std::vector<std::unique_ptr<OutboundMessage>>;
 using InboundBatch  = std::vector<std::unique_ptr<InboundMessage>>;
 
-/// Queue operations used exclusively by one background context thread.
+/// Queue operations shared by one Context owner and one background context thread.
 ///
 /// The production implementation owns the queue endpoints and worker
 /// notifications. A background-loop test injects a mock of this interface to
@@ -85,6 +85,9 @@ public:
     /// Waits for outbound work, shutdown, or timer activity.
     [[nodiscard]] virtual BackgroundEvents wait_until(
         std::optional<std::chrono::steady_clock::time_point> deadline) = 0;
+
+    /// Requests background-thread shutdown and wakes a pending wait.
+    virtual void request_shutdown() noexcept = 0;
 
     /// Removes all currently available worker submissions from the outbound queue.
     [[nodiscard]] virtual OutboundBatch dequeue_outbound_batch() = 0;
