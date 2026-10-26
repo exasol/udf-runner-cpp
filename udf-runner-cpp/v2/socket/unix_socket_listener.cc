@@ -55,8 +55,6 @@ namespace
 
 } // namespace
 
-UnixSocketListener::UnixSocketListener() noexcept = default;
-
 UnixSocketListener::~UnixSocketListener() noexcept
 {
     this->close();
@@ -77,11 +75,6 @@ UnixSocketListener& UnixSocketListener::operator=(UnixSocketListener&& other) no
         this->m_bound_path      = std::exchange(other.m_bound_path, {});
     }
     return *this;
-}
-
-UnixSocketListener UnixSocketListener::bind(const std::filesystem::path& path, const int backlog)
-{
-    return bind(path, posix::default_posix(), backlog);
 }
 
 UnixSocketListener UnixSocketListener::bind(const std::filesystem::path& path,
@@ -132,7 +125,7 @@ OwnedFileDescriptor UnixSocketListener::release_native_handle() noexcept
     this->unlink_path();
     if (released_fd == -1)
     {
-        return {};
+        return OwnedFileDescriptor(m_file_descriptor.posix_facade());
     }
     return OwnedFileDescriptor::adopt_native_handle(released_fd, m_file_descriptor.posix_facade());
 }

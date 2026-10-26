@@ -13,23 +13,12 @@ namespace exasol::udf::v2::socket
 class UnixSocketListener
 {
 public:
-    UnixSocketListener() noexcept;
     ~UnixSocketListener() noexcept;
 
     UnixSocketListener(const UnixSocketListener&)            = delete;
     UnixSocketListener& operator=(const UnixSocketListener&) = delete;
     UnixSocketListener(UnixSocketListener&& other) noexcept;
     UnixSocketListener& operator=(UnixSocketListener&& other) noexcept;
-
-    /** Creates a listener at @p path and starts listening for connections.
-     *
-     * @param path Filesystem path for the Unix socket.
-     * @param backlog Maximum number of pending connections.
-     * @throws std::system_error if socket creation, binding, or listening fails.
-     * @throws std::invalid_argument if @p path is not a valid Unix socket path.
-     */
-    [[nodiscard]] static UnixSocketListener bind(const std::filesystem::path& path,
-                                                 int backlog = SOMAXCONN);
 
     /** Creates a listener using the supplied POSIX facade. */
     [[nodiscard]] static UnixSocketListener bind(const std::filesystem::path& path,

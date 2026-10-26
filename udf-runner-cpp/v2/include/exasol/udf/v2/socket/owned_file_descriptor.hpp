@@ -10,16 +10,10 @@ class OwnedFileDescriptor
 {
 public:
     /** Creates an empty descriptor that does not own a native handle. */
-    OwnedFileDescriptor() noexcept;
+    explicit OwnedFileDescriptor(posix::Posix& posix) noexcept;
 
     /** Closes the owned descriptor, if any. */
     ~OwnedFileDescriptor() noexcept;
-
-    /** Takes ownership of an open native file descriptor.
-     *
-     * @throws std::invalid_argument if @p owned_fd is negative.
-     */
-    [[nodiscard]] static OwnedFileDescriptor adopt_native_handle(int owned_fd);
 
     /** Takes ownership of an open native file descriptor using @p posix. */
     [[nodiscard]] static OwnedFileDescriptor adopt_native_handle(int owned_fd, posix::Posix& posix);
@@ -50,7 +44,7 @@ private:
     friend class UnixSocketListener;
 
     int m_file_descriptor         = -1;
-    posix::Posix* m_posix_pointer = &posix::default_posix();
+    posix::Posix* m_posix_pointer = nullptr;
 };
 
 } // namespace exasol::udf::v2::socket

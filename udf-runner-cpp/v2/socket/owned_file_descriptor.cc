@@ -6,16 +6,13 @@
 namespace exasol::udf::v2::socket
 {
 
-OwnedFileDescriptor::OwnedFileDescriptor() noexcept = default;
+OwnedFileDescriptor::OwnedFileDescriptor(posix::Posix& posix) noexcept : m_posix_pointer(&posix)
+{
+}
 
 OwnedFileDescriptor::~OwnedFileDescriptor() noexcept
 {
     this->close();
-}
-
-OwnedFileDescriptor OwnedFileDescriptor::adopt_native_handle(const int owned_fd)
-{
-    return adopt_native_handle(owned_fd, posix::default_posix());
 }
 
 OwnedFileDescriptor OwnedFileDescriptor::adopt_native_handle(const int owned_fd,
@@ -30,7 +27,7 @@ OwnedFileDescriptor OwnedFileDescriptor::adopt_native_handle(const int owned_fd,
 
 OwnedFileDescriptor::OwnedFileDescriptor(OwnedFileDescriptor&& other) noexcept
     : m_file_descriptor(std::exchange(other.m_file_descriptor, -1)),
-      m_posix_pointer(std::exchange(other.m_posix_pointer, &posix::default_posix()))
+      m_posix_pointer(std::exchange(other.m_posix_pointer, nullptr))
 {
 }
 
@@ -40,7 +37,7 @@ OwnedFileDescriptor& OwnedFileDescriptor::operator=(OwnedFileDescriptor&& other)
     {
         this->close();
         this->m_file_descriptor = std::exchange(other.m_file_descriptor, -1);
-        this->m_posix_pointer   = std::exchange(other.m_posix_pointer, &posix::default_posix());
+        this->m_posix_pointer   = std::exchange(other.m_posix_pointer, nullptr);
     }
     return *this;
 }

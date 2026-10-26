@@ -452,6 +452,7 @@ cc_test(
     tags = ["no-mull"],
     deps = [
         ":socket",
+        ":posix",
         "@googletest//:gtest_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],
@@ -464,6 +465,7 @@ cc_test(
     tags = ["no-mull"],
     deps = [
         ":socket",
+        ":posix",
         "@googletest//:gtest_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],
@@ -474,7 +476,10 @@ cc_fuzz_test(
     srcs = ["socket/socket_fuzz_test.cc"],
     corpus = glob(["fuzz/corpus/socket/**"]),
     copts = ["-std=c++23"],
-    deps = [":socket"],
+    deps = [
+        ":posix",
+        ":socket",
+    ],
     tags = ["fuzz-test"],
     target_compatible_with = ["@platforms//os:linux"],
 )

@@ -90,8 +90,6 @@ namespace
 
 } // namespace
 
-UnixSocket::UnixSocket() noexcept = default;
-
 UnixSocket::~UnixSocket()
 {
     close();
@@ -100,11 +98,6 @@ UnixSocket::~UnixSocket()
 UnixSocket::UnixSocket(UnixSocket&& other) noexcept = default;
 
 UnixSocket& UnixSocket::operator=(UnixSocket&& other) noexcept = default;
-
-UnixSocket UnixSocket::connect(const std::filesystem::path& path)
-{
-    return connect(path, posix::default_posix());
-}
 
 UnixSocket UnixSocket::connect(const std::filesystem::path& path, posix::Posix& posix)
 {
@@ -154,7 +147,7 @@ OwnedFileDescriptor UnixSocket::release_native_handle() noexcept
     const int released_fd = m_file_descriptor.release_native_handle();
     if (released_fd == -1)
     {
-        return {};
+        return OwnedFileDescriptor(m_file_descriptor.posix_facade());
     }
     return OwnedFileDescriptor::adopt_native_handle(released_fd, m_file_descriptor.posix_facade());
 }

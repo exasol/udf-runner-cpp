@@ -14,20 +14,12 @@ public:
     using Socket::read_some;
     using Socket::write_some;
 
-    UnixSocket() noexcept;
     ~UnixSocket() override;
 
     UnixSocket(const UnixSocket&)            = delete;
     UnixSocket& operator=(const UnixSocket&) = delete;
     UnixSocket(UnixSocket&& other) noexcept;
     UnixSocket& operator=(UnixSocket&& other) noexcept;
-
-    /** Connects to a Unix-domain socket at @p path.
-     *
-     * @throws std::system_error if socket creation or connection fails.
-     * @throws std::invalid_argument if @p path is not a valid Unix socket path.
-     */
-    [[nodiscard]] static UnixSocket connect(const std::filesystem::path& path);
 
     /** Connects using the supplied POSIX facade. */
     [[nodiscard]] static UnixSocket connect(const std::filesystem::path& path, posix::Posix& posix);

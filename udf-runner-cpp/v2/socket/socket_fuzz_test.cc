@@ -1,4 +1,5 @@
 #include <exasol/udf/v2/socket/unix_socket.hpp>
+#include <exasol/udf/v2/posix/posix.hpp>
 
 #include <sys/socket.h>
 
@@ -17,6 +18,7 @@
  */
 extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, const std::size_t size)
 {
+    exasol::udf::v2::posix::Native posix;
     if (size > 4096)
     {
         return 0;
@@ -27,9 +29,9 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, const std::size_
         __builtin_trap();
     }
     auto writer = exasol::udf::v2::socket::UnixSocket::adopt_native_handle(
-        exasol::udf::v2::socket::OwnedFileDescriptor::adopt_native_handle(descriptors[0]));
+        exasol::udf::v2::socket::OwnedFileDescriptor::adopt_native_handle(descriptors[0], posix));
     auto reader = exasol::udf::v2::socket::UnixSocket::adopt_native_handle(
-        exasol::udf::v2::socket::OwnedFileDescriptor::adopt_native_handle(descriptors[1]));
+        exasol::udf::v2::socket::OwnedFileDescriptor::adopt_native_handle(descriptors[1], posix));
     const std::span bytes(reinterpret_cast<const std::byte*>(data), size);
     const std::size_t written =
         writer.write_some(std::array{bytes.first(size / 2), bytes.subspan(size / 2)});
