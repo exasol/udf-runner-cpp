@@ -5,87 +5,87 @@
 namespace exasol::udf::v2::posix
 {
 
-int Posix::socket(const int domain, const int type, const int protocol)
+int Native::socket(const int domain, const int type, const int protocol)
 {
     return ::socket(domain, type, protocol);
 }
 
-int Posix::eventfd(const unsigned int initial_value, const int flags)
+int Native::eventfd(const unsigned int initial_value, const int flags)
 {
     return ::eventfd(initial_value, flags);
 }
 
-int Posix::connect(const int sockfd, const sockaddr* address, const socklen_t address_length)
+int Native::connect(const int sockfd, const sockaddr* address, const socklen_t address_length)
 {
     return ::connect(sockfd, address, address_length);
 }
 
-int Posix::bind(const int sockfd, const sockaddr* address, const socklen_t address_length)
+int Native::bind(const int sockfd, const sockaddr* address, const socklen_t address_length)
 {
     return ::bind(sockfd, address, address_length);
 }
 
-int Posix::listen(const int sockfd, const int backlog)
+int Native::listen(const int sockfd, const int backlog)
 {
     return ::listen(sockfd, backlog);
 }
 
-int Posix::accept4(const int sockfd, sockaddr* address, socklen_t* address_length, const int flags)
+int Native::accept4(const int sockfd, sockaddr* address, socklen_t* address_length, const int flags)
 {
     return ::accept4(sockfd, address, address_length, flags);
 }
 
-int Posix::getsockopt(const int sockfd,
-                      const int level,
-                      const int option_name,
-                      void* option_value, // NOSONAR: required by the POSIX getsockopt interface
-                      socklen_t* option_length)
+int Native::getsockopt(const int sockfd,
+                       const int level,
+                       const int option_name,
+                       void* option_value, // NOSONAR: required by the POSIX getsockopt interface
+                       socklen_t* option_length)
 {
     return ::getsockopt(sockfd, level, option_name, option_value, option_length);
 }
 
-int Posix::shutdown(const int sockfd, const int how)
+int Native::shutdown(const int sockfd, const int how)
 {
     return ::shutdown(sockfd, how);
 }
 
-ssize_t Posix::readv(const int file_descriptor, const iovec* buffers, const int buffer_count)
+ssize_t Native::readv(const int file_descriptor, const iovec* buffers, const int buffer_count)
 {
     return ::readv(file_descriptor, buffers, buffer_count);
 }
 
-ssize_t Posix::read(const int file_descriptor,
-                    void* buffer, // NOSONAR: required by the POSIX read interface
-                    const size_t count)
+ssize_t Native::read(const int file_descriptor,
+                     void* buffer, // NOSONAR: required by the POSIX read interface
+                     const size_t count)
 {
     return ::read(file_descriptor, buffer, count);
 }
 
-ssize_t Posix::write(const int file_descriptor,
-                     const void* buffer, // NOSONAR: required by the POSIX write interface
-                     const size_t count)
+ssize_t Native::write(const int file_descriptor,
+                      const void* buffer, // NOSONAR: required by the POSIX write interface
+                      const size_t count)
 {
     return ::write(file_descriptor, buffer, count);
 }
 
-ssize_t Posix::sendmsg(const int sockfd, const msghdr* message, const int flags)
+ssize_t Native::sendmsg(const int sockfd, const msghdr* message, const int flags)
 {
     return ::sendmsg(sockfd, message, flags);
 }
 
-int Posix::unlink(const char* path)
+int Native::unlink(const char* path)
 {
     return ::unlink(path);
 }
 
-int Posix::close(const int file_descriptor)
+int Native::close(const int file_descriptor)
 {
     return ::close(file_descriptor);
 }
 
 Posix& default_posix() noexcept
 {
-    static Posix instance;
+    static Native instance;
     return instance;
 }
 
