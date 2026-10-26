@@ -199,6 +199,8 @@ void expect_system_error(const auto& function, const std::errc expected)
 class UnixSocketPathTest : public testing::Test
 {
 protected:
+    Native native_posix;
+
     void SetUp() override
     {
         // Each test gets an isolated directory so socket paths cannot collide.
@@ -223,7 +225,6 @@ protected:
     }
 
 private:
-    Native native_posix;
     std::filesystem::path temporary_directory;
 };
 
