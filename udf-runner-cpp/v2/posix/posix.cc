@@ -83,10 +83,4 @@ int Native::close(const int file_descriptor)
     return ::close(file_descriptor);
 }
 
-Posix& default_posix() noexcept
-{
-    static Native instance;
-    return instance;
-}
-
 } // namespace exasol::udf::v2::posix

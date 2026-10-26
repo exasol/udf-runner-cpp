@@ -82,7 +82,4 @@ public:
     int close(int file_descriptor) override;
 };
 
-/** Returns the temporary default POSIX facade used during migration. */
-Posix& default_posix() noexcept;
-
 } // namespace exasol::udf::v2::posix
