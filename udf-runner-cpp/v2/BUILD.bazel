@@ -516,6 +516,7 @@ cc_test(
         ":event_fd_factory",
         ":linux_event_fd",
         ":posix",
+        "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],

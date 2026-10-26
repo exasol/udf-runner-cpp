@@ -5,6 +5,7 @@
 #endif
 
 #include <cstdint>
+#include <memory>
 
 #include <exasol/udf/v2/event_fd.hpp>
 #include <exasol/udf/v2/posix/posix.hpp>
@@ -29,6 +30,7 @@ public:
     void write_notification() override;
 
 private:
+    std::unique_ptr<posix::Native> m_owned_posix;
     int m_file_descriptor = -1;
     posix::Posix* m_posix = nullptr;
 };

@@ -9,8 +9,15 @@
 namespace exasol::udf::v2
 {
 
-LinuxEventFd::LinuxEventFd() : LinuxEventFd(posix::default_posix())
+LinuxEventFd::LinuxEventFd()
+    : m_owned_posix(std::make_unique<posix::Native>()),
+      m_file_descriptor(m_owned_posix->eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)),
+      m_posix(m_owned_posix.get())
 {
+    if (m_file_descriptor == -1)
+    {
+        throw std::system_error(errno, std::generic_category(), "eventfd");
+    }
 }
 
 LinuxEventFd::LinuxEventFd(posix::Posix& posix_facade)
@@ -31,9 +38,11 @@ LinuxEventFd::~LinuxEventFd()
 }
 
 LinuxEventFd::LinuxEventFd(LinuxEventFd&& other) noexcept
-    : m_file_descriptor(std::exchange(other.m_file_descriptor, -1)),
-      m_posix(std::exchange(other.m_posix, nullptr))
+    : m_owned_posix(std::move(other.m_owned_posix)),
+      m_file_descriptor(std::exchange(other.m_file_descriptor, -1))
 {
+    m_posix       = m_owned_posix ? m_owned_posix.get() : std::exchange(other.m_posix, nullptr);
+    other.m_posix = nullptr;
 }
 
 LinuxEventFd& LinuxEventFd::operator=(LinuxEventFd&& other) noexcept
@@ -44,8 +53,10 @@ LinuxEventFd& LinuxEventFd::operator=(LinuxEventFd&& other) noexcept
         {
             m_posix->close(m_file_descriptor);
         }
+        m_owned_posix     = std::move(other.m_owned_posix);
         m_file_descriptor = std::exchange(other.m_file_descriptor, -1);
-        m_posix           = std::exchange(other.m_posix, nullptr);
+        m_posix       = m_owned_posix ? m_owned_posix.get() : std::exchange(other.m_posix, nullptr);
+        other.m_posix = nullptr;
     }
     return *this;
 }

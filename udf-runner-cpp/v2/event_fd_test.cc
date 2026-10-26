@@ -12,14 +12,91 @@
 #include <exasol/udf/v2/event_fd.hpp>
 #include <exasol/udf/v2/event_fd_factory.hpp>
 #include <exasol/udf/v2/linux_event_fd.hpp>
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 namespace
 {
 
+class MockPosix : public exasol::udf::v2::posix::Posix
+{
+public:
+    MOCK_METHOD(int, socket, (int, int, int), (override));
+    MOCK_METHOD(int, eventfd, (unsigned int, int), (override));
+    MOCK_METHOD(int, connect, (int, const sockaddr*, socklen_t), (override));
+    MOCK_METHOD(int, bind, (int, const sockaddr*, socklen_t), (override));
+    MOCK_METHOD(int, listen, (int, int), (override));
+    MOCK_METHOD(int, accept4, (int, sockaddr*, socklen_t*, int), (override));
+    MOCK_METHOD(int,
+                getsockopt,
+                (int, int, int, void*, socklen_t*), // NOSONAR
+                (override));
+    MOCK_METHOD(int, shutdown, (int, int), (override));
+    MOCK_METHOD(ssize_t, readv, (int, const iovec*, int), (override));
+    MOCK_METHOD(ssize_t, read, (int, void*, size_t), (override));        // NOSONAR
+    MOCK_METHOD(ssize_t, write, (int, const void*, size_t), (override)); // NOSONAR
+    MOCK_METHOD(ssize_t, sendmsg, (int, const msghdr*, int), (override));
+    MOCK_METHOD(int, unlink, (const char*), (override));
+    MOCK_METHOD(int, close, (int), (override));
+};
+
 class RecordingPosix final : public exasol::udf::v2::posix::Posix
 {
 public:
+    int socket(int domain, int type, int protocol) override
+    {
+        return native.socket(domain, type, protocol);
+    }
+
+    int connect(int sockfd, const sockaddr* address, socklen_t address_length) override
+    {
+        return native.connect(sockfd, address, address_length);
+    }
+
+    int bind(int sockfd, const sockaddr* address, socklen_t address_length) override
+    {
+        return native.bind(sockfd, address, address_length);
+    }
+
+    int listen(int sockfd, int backlog) override
+    {
+        return native.listen(sockfd, backlog);
+    }
+
+    int accept4(int sockfd, sockaddr* address, socklen_t* address_length, int flags) override
+    {
+        return native.accept4(sockfd, address, address_length, flags);
+    }
+
+    int getsockopt(int sockfd,
+                   int level,
+                   int option_name,
+                   void* option_value, // NOSONAR: required by Posix::getsockopt interface
+                   socklen_t* option_length) override
+    {
+        return native.getsockopt(sockfd, level, option_name, option_value, option_length);
+    }
+
+    int shutdown(int sockfd, int how) override
+    {
+        return native.shutdown(sockfd, how);
+    }
+
+    ssize_t readv(int file_descriptor, const iovec* buffers, int buffer_count) override
+    {
+        return native.readv(file_descriptor, buffers, buffer_count);
+    }
+
+    ssize_t sendmsg(int sockfd, const msghdr* message, int flags) override
+    {
+        return native.sendmsg(sockfd, message, flags);
+    }
+
+    int unlink(const char* path) override
+    {
+        return native.unlink(path);
+    }
+
     int eventfd(unsigned int initial_value, int flags) override
     {
         eventfd_initial_value = initial_value;
@@ -135,6 +212,7 @@ public:
     }
 
 private:
+    exasol::udf::v2::posix::Native native;
     int eventfd_result                 = 42;
     int eventfd_calls                  = 0;
     unsigned int eventfd_initial_value = 0;
@@ -231,6 +309,17 @@ TEST(EventFdTest, FactoryUsesInjectedPosix)
     EXPECT_EQ(posix.eventfd_call_count(), 1);
 }
 
+TEST(EventFdTest, FactoryUsesMockPosix)
+{
+    testing::StrictMock<MockPosix> posix;
+    EXPECT_CALL(posix, eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)).WillOnce(testing::Return(42));
+    EXPECT_CALL(posix, close(42)).WillOnce(testing::Return(0));
+
+    auto event_fd = exasol::udf::v2::make_linux_event_fd(posix);
+    ASSERT_NE(event_fd, nullptr);
+    EXPECT_EQ(event_fd->native_handle(), 42);
+}
+
 TEST(EventFdTest, InjectedPosixClosesOnDestructionAndMoveAssignment)
 {
     RecordingPosix posix;
@@ -245,7 +334,8 @@ TEST(EventFdTest, InjectedPosixClosesOnDestructionAndMoveAssignment)
 
 TEST(EventFdTest, AccumulatesNotifications)
 {
-    exasol::udf::v2::LinuxEventFd event_fd;
+    exasol::udf::v2::posix::Native posix;
+    exasol::udf::v2::LinuxEventFd event_fd(posix);
     ASSERT_NE(event_fd.native_handle(), -1);
 
     event_fd.write_notification();
@@ -255,6 +345,16 @@ TEST(EventFdTest, AccumulatesNotifications)
 
 TEST(EventFdTest, FactoryCreatesLinuxEventFd)
 {
+    exasol::udf::v2::posix::Native posix;
+    auto event_fd = exasol::udf::v2::make_linux_event_fd(posix);
+    ASSERT_NE(event_fd, nullptr);
+    ASSERT_NE(event_fd->native_handle(), -1);
+    event_fd->write_notification();
+    EXPECT_EQ(event_fd->read_notification(), 1);
+}
+
+TEST(EventFdTest, DefaultFactoryCreatesLinuxEventFd)
+{
     auto event_fd = exasol::udf::v2::make_linux_event_fd();
     ASSERT_NE(event_fd, nullptr);
     ASSERT_NE(event_fd->native_handle(), -1);
@@ -262,9 +362,18 @@ TEST(EventFdTest, FactoryCreatesLinuxEventFd)
     EXPECT_EQ(event_fd->read_notification(), 1);
 }
 
-TEST(EventFdTest, RejectsReadWhenEmpty)
+TEST(EventFdTest, DefaultConstructorCreatesLinuxEventFd)
 {
     exasol::udf::v2::LinuxEventFd event_fd;
+    ASSERT_NE(event_fd.native_handle(), -1);
+    event_fd.write_notification();
+    EXPECT_EQ(event_fd.read_notification(), 1);
+}
+
+TEST(EventFdTest, RejectsReadWhenEmpty)
+{
+    exasol::udf::v2::posix::Native posix;
+    exasol::udf::v2::LinuxEventFd event_fd(posix);
     expect_system_error([&event_fd] { event_fd.read_notification(); },
                         std::errc::resource_unavailable_try_again,
                         "empty eventfd read should report EAGAIN");
@@ -272,7 +381,8 @@ TEST(EventFdTest, RejectsReadWhenEmpty)
 
 TEST(EventFdTest, SupportsMoveConstruction)
 {
-    exasol::udf::v2::LinuxEventFd event_fd;
+    exasol::udf::v2::posix::Native posix;
+    exasol::udf::v2::LinuxEventFd event_fd(posix);
     const int moved_handle = event_fd.native_handle();
     exasol::udf::v2::LinuxEventFd move_constructed(std::move(event_fd));
     EXPECT_EQ(move_constructed.native_handle(), moved_handle);
@@ -280,9 +390,10 @@ TEST(EventFdTest, SupportsMoveConstruction)
 
 TEST(EventFdTest, SupportsMoveAssignmentAndSelfMove)
 {
-    exasol::udf::v2::LinuxEventFd source;
+    exasol::udf::v2::posix::Native posix;
+    exasol::udf::v2::LinuxEventFd source(posix);
     const int moved_handle = source.native_handle();
-    exasol::udf::v2::LinuxEventFd move_assigned;
+    exasol::udf::v2::LinuxEventFd move_assigned(posix);
     move_assigned = std::move(source);
     EXPECT_EQ(move_assigned.native_handle(), moved_handle);
     self_move_assign(move_assigned);
@@ -291,8 +402,9 @@ TEST(EventFdTest, SupportsMoveAssignmentAndSelfMove)
 
 TEST(EventFdTest, MoveAssignmentClosesReplacedDescriptor)
 {
-    exasol::udf::v2::LinuxEventFd source;
-    exasol::udf::v2::LinuxEventFd destination;
+    exasol::udf::v2::posix::Native posix;
+    exasol::udf::v2::LinuxEventFd source(posix);
+    exasol::udf::v2::LinuxEventFd destination(posix);
     const int replaced_handle = destination.native_handle();
 
     destination = std::move(source);
@@ -303,8 +415,9 @@ TEST(EventFdTest, MoveAssignmentClosesReplacedDescriptor)
 TEST(EventFdTest, DestructorClosesDescriptor)
 {
     int destroyed_handle = -1;
+    exasol::udf::v2::posix::Native posix;
     {
-        exasol::udf::v2::LinuxEventFd event_fd;
+        exasol::udf::v2::LinuxEventFd event_fd(posix);
         destroyed_handle = event_fd.native_handle();
     }
 
@@ -313,7 +426,8 @@ TEST(EventFdTest, DestructorClosesDescriptor)
 
 TEST(EventFdTest, RejectsReadOnClosedDescriptor)
 {
-    exasol::udf::v2::LinuxEventFd closed_event_fd;
+    exasol::udf::v2::posix::Native posix;
+    exasol::udf::v2::LinuxEventFd closed_event_fd(posix);
     ASSERT_EQ(::close(closed_event_fd.native_handle()), 0);
     expect_system_error([&closed_event_fd] { closed_event_fd.read_notification(); },
                         std::errc::bad_file_descriptor, "closed eventfd read should be rejected");
@@ -321,7 +435,8 @@ TEST(EventFdTest, RejectsReadOnClosedDescriptor)
 
 TEST(EventFdTest, RejectsWriteOnClosedDescriptor)
 {
-    exasol::udf::v2::LinuxEventFd closed_event_fd;
+    exasol::udf::v2::posix::Native posix;
+    exasol::udf::v2::LinuxEventFd closed_event_fd(posix);
     ASSERT_EQ(::close(closed_event_fd.native_handle()), 0);
     expect_system_error([&closed_event_fd] { closed_event_fd.write_notification(); },
                         std::errc::bad_file_descriptor, "closed eventfd write should be rejected");
