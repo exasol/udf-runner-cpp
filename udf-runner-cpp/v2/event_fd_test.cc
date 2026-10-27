@@ -18,7 +18,8 @@
 namespace
 {
 
-class MockPosix : public exasol::udf::v2::posix::Posix
+class MockPosix : public exasol::udf::v2::posix::Posix // NOSONAR: GMock mock implements the
+                                                       // complete POSIX interface
 {
 public:
     MOCK_METHOD(int, socket, (int, int, int), (override));
