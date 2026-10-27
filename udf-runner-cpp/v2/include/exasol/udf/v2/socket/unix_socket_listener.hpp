@@ -47,8 +47,8 @@ private:
     UnixSocketListener(OwnedFileDescriptor owned_fd, std::filesystem::path path) noexcept;
     void unlink_path() noexcept;
 
-    OwnedFileDescriptor m_file_descriptor;
-    std::filesystem::path m_bound_path;
+    OwnedFileDescriptor file_descriptor;
+    std::filesystem::path bound_path;
 };
 
 } // namespace exasol::udf::v2::socket

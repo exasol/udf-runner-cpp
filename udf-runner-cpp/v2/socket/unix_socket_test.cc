@@ -201,7 +201,7 @@ class UnixSocketPathTest : public testing::Test
 protected:
     [[nodiscard]] Native& native_posix() noexcept
     {
-        return m_native_posix;
+        return this->native_posix;
     }
 
     void SetUp() override
@@ -228,7 +228,7 @@ protected:
     }
 
 private:
-    Native m_native_posix;
+    Native native_posix;
     std::filesystem::path temporary_directory;
 };
 

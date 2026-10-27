@@ -43,8 +43,8 @@ private:
     friend class UnixSocket;
     friend class UnixSocketListener;
 
-    int m_file_descriptor         = -1;
-    posix::Posix* m_posix_pointer = nullptr;
+    int file_descriptor         = -1;
+    posix::Posix* posix_pointer = nullptr;
 };
 
 } // namespace exasol::udf::v2::socket

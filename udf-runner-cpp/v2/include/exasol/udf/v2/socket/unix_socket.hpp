@@ -41,7 +41,7 @@ public:
 private:
     explicit UnixSocket(OwnedFileDescriptor owned_fd) noexcept;
 
-    OwnedFileDescriptor m_file_descriptor;
+    OwnedFileDescriptor file_descriptor;
 };
 
 } // namespace exasol::udf::v2::socket

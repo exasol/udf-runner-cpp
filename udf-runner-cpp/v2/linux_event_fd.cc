@@ -10,20 +10,20 @@ namespace exasol::udf::v2
 {
 
 LinuxEventFd::LinuxEventFd()
-    : m_owned_posix(std::make_unique<posix::Native>()),
-      m_file_descriptor(m_owned_posix->eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)),
-      m_posix(m_owned_posix.get())
+    : owned_posix(std::make_unique<posix::Native>()),
+      file_descriptor(owned_posix->eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)),
+      posix(owned_posix.get())
 {
-    if (m_file_descriptor == -1)
+    if (this->file_descriptor == -1)
     {
         throw std::system_error(errno, std::generic_category(), "eventfd");
     }
 }
 
 LinuxEventFd::LinuxEventFd(posix::Posix& posix_facade)
-    : m_file_descriptor(posix_facade.eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)), m_posix(&posix_facade)
+    : file_descriptor(posix_facade.eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)), posix(&posix_facade)
 {
-    if (m_file_descriptor == -1)
+    if (this->file_descriptor == -1)
     {
         throw std::system_error(errno, std::generic_category(), "eventfd");
     }
@@ -31,39 +31,40 @@ LinuxEventFd::LinuxEventFd(posix::Posix& posix_facade)
 
 LinuxEventFd::~LinuxEventFd()
 {
-    if (m_file_descriptor != -1)
+    if (this->file_descriptor != -1)
     {
-        m_posix->close(m_file_descriptor);
+        this->posix->close(this->file_descriptor);
     }
 }
 
 LinuxEventFd::LinuxEventFd(LinuxEventFd&& other) noexcept
-    : m_owned_posix(std::move(other.m_owned_posix)),
-      m_file_descriptor(std::exchange(other.m_file_descriptor, -1))
+    : owned_posix(std::move(other.owned_posix)),
+      file_descriptor(std::exchange(other.file_descriptor, -1))
 {
-    m_posix       = m_owned_posix ? m_owned_posix.get() : std::exchange(other.m_posix, nullptr);
-    other.m_posix = nullptr;
+    this->posix = this->owned_posix ? this->owned_posix.get() : std::exchange(other.posix, nullptr);
+    other.posix = nullptr;
 }
 
 LinuxEventFd& LinuxEventFd::operator=(LinuxEventFd&& other) noexcept
 {
     if (this != &other)
     {
-        if (m_file_descriptor != -1)
+        if (this->file_descriptor != -1)
         {
-            m_posix->close(m_file_descriptor);
+            this->posix->close(this->file_descriptor);
         }
-        m_owned_posix     = std::move(other.m_owned_posix);
-        m_file_descriptor = std::exchange(other.m_file_descriptor, -1);
-        m_posix       = m_owned_posix ? m_owned_posix.get() : std::exchange(other.m_posix, nullptr);
-        other.m_posix = nullptr;
+        this->owned_posix     = std::move(other.owned_posix);
+        this->file_descriptor = std::exchange(other.file_descriptor, -1);
+        this->posix =
+            this->owned_posix ? this->owned_posix.get() : std::exchange(other.posix, nullptr);
+        other.posix = nullptr;
     }
     return *this;
 }
 
 int LinuxEventFd::native_handle() const noexcept
 {
-    return m_file_descriptor;
+    return this->file_descriptor;
 }
 
 std::uint64_t LinuxEventFd::read_notification()
@@ -72,7 +73,7 @@ std::uint64_t LinuxEventFd::read_notification()
     ssize_t result      = -1;
     do
     {
-        result = m_posix->read(m_file_descriptor, &value, sizeof(value));
+        result = this->posix->read(this->file_descriptor, &value, sizeof(value));
     } while (result == -1 && errno == EINTR);
 
     if (result == sizeof(value))
@@ -92,7 +93,7 @@ void LinuxEventFd::write_notification()
     ssize_t result                 = -1;
     do
     {
-        result = m_posix->write(m_file_descriptor, &signal, sizeof(signal));
+        result = this->posix->write(this->file_descriptor, &signal, sizeof(signal));
     } while (result == -1 && errno == EINTR);
 
     if (result == sizeof(signal))
