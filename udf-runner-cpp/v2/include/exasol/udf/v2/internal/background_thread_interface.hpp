@@ -76,9 +76,6 @@ public:
     BackgroundThreadInterface(BackgroundThreadInterface&&)                 = delete;
     BackgroundThreadInterface& operator=(BackgroundThreadInterface&&)      = delete;
 
-    /// Starts the background thread.
-    virtual void start() = 0;
-
     /// Waits for inbound work, shutdown, or an optional absolute deadline.
     ///
     /// An absent deadline waits indefinitely. Shutdown takes precedence when
@@ -102,9 +99,6 @@ public:
 
     /// Requests background-thread shutdown and wakes a pending background wait.
     virtual void request_shutdown() noexcept = 0;
-
-    /// Waits until the background thread has stopped.
-    virtual void join() = 0;
 
 protected:
     BackgroundThreadInterface() = default;
