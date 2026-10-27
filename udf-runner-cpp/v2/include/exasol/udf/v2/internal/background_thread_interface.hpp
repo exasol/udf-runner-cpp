@@ -1,5 +1,8 @@
 #pragma once
 
+#include <exasol/udf/v2/interface/error_info.hpp>
+#include <exasol/udf/v2/interface/status.hpp>
+
 #include <chrono>
 #include <cstdint>
 #include <memory>
@@ -9,41 +12,32 @@
 namespace exasol::udf::v2::internal
 {
 
-/// Events that wake the background context thread.
-enum class BackgroundEvent : std::uint8_t
+/// Event that wakes the low-level Context.
+enum class Event : std::uint8_t
 {
-    None              = 0,
-    OutboundAvailable = 1U << 0U,
-    ShutdownRequested = 1U << 1U,
-    DeadlineExpired   = 1U << 2U,
+    InboundAvailable,
+    ShutdownRequested,
+    DeadlineExpired,
 };
 
-/// Bit set returned by a background-context wait operation.
-class BackgroundEvents
+/// Lifecycle state of one background-thread component.
+enum class BackgroundThreadState
 {
-public:
-    constexpr BackgroundEvents() = default;
-
-    constexpr explicit BackgroundEvents(const BackgroundEvent event)
-        : events_(static_cast<std::uint8_t>(event))
-    {
-    }
-
-    [[nodiscard]] constexpr bool contains(const BackgroundEvent event) const noexcept
-    {
-        return (events_ & static_cast<std::uint8_t>(event)) != 0;
-    }
-
-    constexpr void add(const BackgroundEvent event) noexcept
-    {
-        events_ |= static_cast<std::uint8_t>(event);
-    }
-
-private:
-    std::uint8_t events_{0};
+    NotStarted,
+    Running,
+    ShutdownRequested,
+    Stopped,
 };
 
-/// Private base type for a logical message submitted by the worker.
+/// Immutable snapshot of background-thread lifecycle and terminal outcome.
+struct BackgroundThreadResult
+{
+    BackgroundThreadState state{BackgroundThreadState::NotStarted};
+    std::optional<interface::OperationStatus> terminal_status;
+    std::optional<interface::ErrorInfo> error;
+};
+
+/// Private base type for a logical message submitted by the low-level Context.
 class OutboundMessage
 {
 public:
@@ -53,7 +47,7 @@ protected:
     OutboundMessage() = default;
 };
 
-/// Private base type for a verified logical message delivered to the worker.
+/// Private base type for a verified logical message delivered to the low-level Context.
 class InboundMessage
 {
 public:
@@ -66,12 +60,12 @@ protected:
 using OutboundBatch = std::vector<std::unique_ptr<OutboundMessage>>;
 using InboundBatch  = std::vector<std::unique_ptr<InboundMessage>>;
 
-/// Queue operations shared by one Context owner and one background context thread.
+/// Background-thread operations used by the low-level Context.
 ///
-/// The production implementation owns the queue endpoints and worker
-/// notifications. A background-loop test injects a mock of this interface to
-/// script availability and verify queue interactions. Socket I/O, framing,
-/// and protocol processing are not part of this Context-to-thread boundary.
+/// The production background-thread component implements this interface and
+/// owns the queue endpoints, notifications, and thread. Tests inject a mock
+/// into the low-level Context. Socket I/O, framing, and protocol processing
+/// are not part of this Context-to-thread boundary.
 class BackgroundThreadInterface
 {
 public:
@@ -82,18 +76,35 @@ public:
     BackgroundThreadInterface(BackgroundThreadInterface&&)                 = delete;
     BackgroundThreadInterface& operator=(BackgroundThreadInterface&&)      = delete;
 
-    /// Waits for outbound work, shutdown, or timer activity.
-    [[nodiscard]] virtual BackgroundEvents wait_until(
+    /// Starts the background thread.
+    virtual void start() = 0;
+
+    /// Waits for inbound work, shutdown, or an optional absolute deadline.
+    ///
+    /// An absent deadline waits indefinitely. Shutdown takes precedence when
+    /// it is observed with inbound work.
+    [[nodiscard]] virtual Event wait_until(
         std::optional<std::chrono::steady_clock::time_point> deadline) = 0;
 
-    /// Requests background-thread shutdown and wakes a pending wait.
+    /// Returns the current lifecycle state and, once terminal, its outcome.
+    [[nodiscard]] virtual BackgroundThreadResult get_result() const = 0;
+
+    /// Transfers complete outbound messages to the background thread without blocking.
+    ///
+    /// Returns false when the background thread has stopped accepting work.
+    virtual bool enqueue_outbound_messages(OutboundBatch messages) = 0;
+
+    /// Transfers one outbound message to the background thread without blocking.
+    virtual bool enqueue_outbound_message(std::unique_ptr<OutboundMessage> message) = 0;
+
+    /// Removes all currently available verified messages from the inbound queue.
+    [[nodiscard]] virtual InboundBatch dequeue_inbound_messages() = 0;
+
+    /// Requests background-thread shutdown and wakes a pending background wait.
     virtual void request_shutdown() noexcept = 0;
 
-    /// Removes all currently available worker submissions from the outbound queue.
-    [[nodiscard]] virtual OutboundBatch dequeue_outbound_batch() = 0;
-
-    /// Adds verified messages to the inbound queue and notifies worker waiters.
-    virtual void enqueue_inbound_batch(InboundBatch messages) = 0;
+    /// Waits until the background thread has stopped.
+    virtual void join() = 0;
 
 protected:
     BackgroundThreadInterface() = default;
