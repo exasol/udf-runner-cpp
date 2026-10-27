@@ -91,7 +91,7 @@ public:
     /// Removes all currently available verified messages from the inbound queue.
     [[nodiscard]] virtual InboundBatch dequeue_inbound_messages() = 0;
 
-    /// Requests background-thread shutdown and wakes a pending background wait.
+    /// Requests shutdown of this context's background work.
     virtual void request_shutdown() noexcept = 0;
 
 protected:
