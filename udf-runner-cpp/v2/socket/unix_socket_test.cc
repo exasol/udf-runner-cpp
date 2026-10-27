@@ -199,7 +199,7 @@ void expect_system_error(const auto& function, const std::errc expected)
 class UnixSocketPathTest : public testing::Test
 {
 protected:
-    [[nodiscard]] Native& native_posix() noexcept
+    [[nodiscard]] Native& native_posix_facade() noexcept
     {
         return this->native_posix;
     }
@@ -235,10 +235,10 @@ private:
 TEST_F(UnixSocketPathTest, ListenerConnectsAcceptsAndCleansUpPath)
 {
     const std::filesystem::path path = get_socket_path();
-    UnixSocketListener listener      = UnixSocketListener::bind(path, native_posix());
+    UnixSocketListener listener      = UnixSocketListener::bind(path, native_posix_facade());
     ASSERT_TRUE(std::filesystem::exists(path));
     // Connecting and accepting through the path verifies both listener endpoints.
-    UnixSocket client = UnixSocket::connect(path, native_posix());
+    UnixSocket client = UnixSocket::connect(path, native_posix_facade());
     UnixSocket server = listener.accept();
 
     const std::array<std::byte, 2> sent{std::byte{'o'}, std::byte{'k'}};
@@ -288,11 +288,12 @@ TEST_F(UnixSocketPathTest, RoutesAllSocketOperationsThroughInjectedPosix)
 
 TEST_F(UnixSocketPathTest, AcceptUsesCallerProvidedFlags)
 {
-    UnixSocketListener listener = UnixSocketListener::bind(get_socket_path(), native_posix());
+    UnixSocketListener listener =
+        UnixSocketListener::bind(get_socket_path(), native_posix_facade());
 
-    UnixSocket blocking_client          = UnixSocket::connect(get_socket_path(), native_posix());
-    UnixSocket blocking_server          = listener.accept(0);
-    const int blocking_status_flags     = ::fcntl(blocking_server.native_handle(), F_GETFL);
+    UnixSocket blocking_client      = UnixSocket::connect(get_socket_path(), native_posix_facade());
+    UnixSocket blocking_server      = listener.accept(0);
+    const int blocking_status_flags = ::fcntl(blocking_server.native_handle(), F_GETFL);
     const int blocking_descriptor_flags = ::fcntl(blocking_server.native_handle(), F_GETFD);
     ASSERT_NE(blocking_status_flags, -1);
     ASSERT_NE(blocking_descriptor_flags, -1);
@@ -301,8 +302,8 @@ TEST_F(UnixSocketPathTest, AcceptUsesCallerProvidedFlags)
     EXPECT_EQ(blocking_status & static_cast<unsigned int>(O_NONBLOCK), 0U);
     EXPECT_EQ(blocking_descriptor & static_cast<unsigned int>(FD_CLOEXEC), 0U);
 
-    UnixSocket nonblocking_client          = UnixSocket::connect(get_socket_path(), native_posix());
-    UnixSocket nonblocking_server          = listener.accept(SOCK_NONBLOCK | SOCK_CLOEXEC);
+    UnixSocket nonblocking_client = UnixSocket::connect(get_socket_path(), native_posix_facade());
+    UnixSocket nonblocking_server = listener.accept(SOCK_NONBLOCK | SOCK_CLOEXEC);
     const int nonblocking_status_flags     = ::fcntl(nonblocking_server.native_handle(), F_GETFL);
     const int nonblocking_descriptor_flags = ::fcntl(nonblocking_server.native_handle(), F_GETFD);
     ASSERT_NE(nonblocking_status_flags, -1);
@@ -317,16 +318,16 @@ TEST_F(UnixSocketPathTest, ConnectReportsAddressError)
 {
     const std::filesystem::path path = get_socket_path().parent_path() / "missing" / "socket";
     expect_system_error(
-        [this, path] { static_cast<void>(UnixSocket::connect(path, native_posix())); },
+        [this, path] { static_cast<void>(UnixSocket::connect(path, native_posix_facade())); },
         std::errc::no_such_file_or_directory);
 }
 
 TEST_F(UnixSocketPathTest, ListenerDoesNotOverwriteExistingPath)
 {
     const std::filesystem::path path = get_socket_path();
-    UnixSocketListener listener      = UnixSocketListener::bind(path, native_posix());
+    UnixSocketListener listener      = UnixSocketListener::bind(path, native_posix_facade());
     expect_system_error(
-        [this, path] { static_cast<void>(UnixSocketListener::bind(path, native_posix())); },
+        [this, path] { static_cast<void>(UnixSocketListener::bind(path, native_posix_facade())); },
         std::errc::address_in_use);
     listener.close();
     EXPECT_FALSE(std::filesystem::exists(path));
@@ -336,13 +337,14 @@ TEST_F(UnixSocketPathTest, BindReportsAddressError)
 {
     const std::filesystem::path path = get_socket_path().parent_path() / "missing" / "socket";
     expect_system_error(
-        [this, path] { static_cast<void>(UnixSocketListener::bind(path, native_posix())); },
+        [this, path] { static_cast<void>(UnixSocketListener::bind(path, native_posix_facade())); },
         std::errc::no_such_file_or_directory);
 }
 
 TEST_F(UnixSocketPathTest, DefaultListenerCanBeInspectedAndReleased)
 {
-    UnixSocketListener listener = UnixSocketListener::bind(get_socket_path(), native_posix());
+    UnixSocketListener listener =
+        UnixSocketListener::bind(get_socket_path(), native_posix_facade());
     listener.close();
     EXPECT_FALSE(listener.is_open());
     EXPECT_EQ(listener.native_handle(), -1);
@@ -351,7 +353,8 @@ TEST_F(UnixSocketPathTest, DefaultListenerCanBeInspectedAndReleased)
 
 TEST_F(UnixSocketPathTest, AcceptOnClosedListenerReportsError)
 {
-    UnixSocketListener listener = UnixSocketListener::bind(get_socket_path(), native_posix());
+    UnixSocketListener listener =
+        UnixSocketListener::bind(get_socket_path(), native_posix_facade());
     listener.close();
     expect_system_error([&listener] { static_cast<void>(listener.accept()); },
                         std::errc::bad_file_descriptor);
@@ -359,7 +362,7 @@ TEST_F(UnixSocketPathTest, AcceptOnClosedListenerReportsError)
 
 TEST_F(UnixSocketPathTest, RejectsEmptyPath)
 {
-    EXPECT_THROW(static_cast<void>(UnixSocketListener::bind({}, native_posix())),
+    EXPECT_THROW(static_cast<void>(UnixSocketListener::bind({}, native_posix_facade())),
                  std::invalid_argument);
 }
 
@@ -367,7 +370,7 @@ TEST_F(UnixSocketPathTest, DestructionCleansUpPath)
 {
     const std::filesystem::path path = get_socket_path();
     {
-        UnixSocketListener listener = UnixSocketListener::bind(path, native_posix());
+        UnixSocketListener listener = UnixSocketListener::bind(path, native_posix_facade());
         EXPECT_TRUE(std::filesystem::exists(path));
     }
     EXPECT_FALSE(std::filesystem::exists(path));
@@ -376,7 +379,7 @@ TEST_F(UnixSocketPathTest, DestructionCleansUpPath)
 TEST_F(UnixSocketPathTest, ReleasingDescriptorCleansUpPath)
 {
     const std::filesystem::path path = get_socket_path();
-    UnixSocketListener listener      = UnixSocketListener::bind(path, native_posix());
+    UnixSocketListener listener      = UnixSocketListener::bind(path, native_posix_facade());
 
     OwnedFileDescriptor released = listener.release_native_handle();
 
@@ -388,8 +391,8 @@ TEST_F(UnixSocketPathTest, MoveAssignmentCleansUpReplacedPath)
 {
     const std::filesystem::path first_path  = get_socket_path();
     const std::filesystem::path second_path = first_path.parent_path() / "second_socket";
-    UnixSocketListener source               = UnixSocketListener::bind(first_path, native_posix());
-    UnixSocketListener destination          = UnixSocketListener::bind(second_path, native_posix());
+    UnixSocketListener source      = UnixSocketListener::bind(first_path, native_posix_facade());
+    UnixSocketListener destination = UnixSocketListener::bind(second_path, native_posix_facade());
 
     destination = std::move(source);
 
