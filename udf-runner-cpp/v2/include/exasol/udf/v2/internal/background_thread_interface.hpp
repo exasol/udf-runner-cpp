@@ -1,12 +1,16 @@
 #pragma once
 
 #include <exasol/udf/v2/interface/error_info.hpp>
+#include <exasol/udf/v2/interface/message_builder/call_message_builder.hpp>
+#include <exasol/udf/v2/interface/message_builder/control_message_builder.hpp>
+#include <exasol/udf/v2/interface/message_view/call_message_view.hpp>
+#include <exasol/udf/v2/interface/message_view/control_message_view.hpp>
 #include <exasol/udf/v2/interface/status.hpp>
 
 #include <chrono>
 #include <cstdint>
-#include <memory>
 #include <optional>
+#include <variant>
 #include <vector>
 
 namespace exasol::udf::v2::internal
@@ -37,28 +41,18 @@ struct BackgroundThreadResult
     std::optional<interface::ErrorInfo> error;
 };
 
-/// Private base type for a logical message submitted by the low-level Context.
-class OutboundMessage
-{
-public:
-    virtual ~OutboundMessage() = default;
+/// A completed builder transferred from the low-level Context for sending.
+///
+/// The background thread consumes it exactly once with `take()` and does not
+/// otherwise modify it.
+using OutboundMessage =
+    std::variant<interface::CallMessageBuilder, interface::ControlMessageBuilder>;
 
-protected:
-    OutboundMessage() = default;
-};
+/// A verified message view transferred from the background thread to the low-level Context.
+using InboundMessage = std::variant<interface::CallMessageView, interface::ControlMessageView>;
 
-/// Private base type for a verified logical message delivered to the low-level Context.
-class InboundMessage
-{
-public:
-    virtual ~InboundMessage() = default;
-
-protected:
-    InboundMessage() = default;
-};
-
-using OutboundBatch = std::vector<std::unique_ptr<OutboundMessage>>;
-using InboundBatch  = std::vector<std::unique_ptr<InboundMessage>>;
+using OutboundBatch = std::vector<OutboundMessage>;
+using InboundBatch  = std::vector<InboundMessage>;
 
 /// Background-thread operations used by the low-level Context.
 ///
@@ -92,7 +86,7 @@ public:
     virtual bool enqueue_outbound_messages(OutboundBatch messages) = 0;
 
     /// Transfers one outbound message to the background thread without blocking.
-    virtual bool enqueue_outbound_message(std::unique_ptr<OutboundMessage> message) = 0;
+    virtual bool enqueue_outbound_message(OutboundMessage message) = 0;
 
     /// Removes all currently available verified messages from the inbound queue.
     [[nodiscard]] virtual InboundBatch dequeue_inbound_messages() = 0;
