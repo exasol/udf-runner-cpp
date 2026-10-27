@@ -13,7 +13,12 @@ namespace exasol::udf::v2::posix
 class Posix
 {
 public:
-    virtual ~Posix() = default;
+    Posix()                        = default;
+    Posix(const Posix&)            = delete;
+    Posix& operator=(const Posix&) = delete;
+    Posix(Posix&&)                 = delete;
+    Posix& operator=(Posix&&)      = delete;
+    virtual ~Posix()               = default;
 
     /** Creates a socket. */
     virtual int socket(int domain, int type, int protocol) = 0;
