@@ -68,9 +68,6 @@ public:
     [[nodiscard]] virtual BackgroundThreadResult wait_until(
         std::optional<std::chrono::steady_clock::time_point> deadline) = 0;
 
-    /// Returns the current lifecycle state and, once terminal, its outcome.
-    [[nodiscard]] virtual BackgroundThreadResult get_result() const = 0;
-
     /// Transfers complete outbound messages to the background thread without blocking.
     ///
     /// Returns false without consuming `messages` when the background thread
