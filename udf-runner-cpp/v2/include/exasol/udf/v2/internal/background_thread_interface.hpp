@@ -24,19 +24,10 @@ enum class Event : std::uint8_t
     DeadlineExpired,
 };
 
-/// Lifecycle state of one background-thread component.
-enum class BackgroundThreadState
-{
-    NotStarted,
-    Running,
-    ShutdownRequested,
-    Stopped,
-};
-
 /// Immutable snapshot of background-thread lifecycle and terminal outcome.
 struct BackgroundThreadResult
 {
-    BackgroundThreadState state{BackgroundThreadState::NotStarted};
+    Event event;
     std::optional<interface::OperationStatus> terminal_status;
     std::optional<interface::ErrorInfo> error;
 };
@@ -74,7 +65,7 @@ public:
     ///
     /// An absent deadline waits indefinitely. Shutdown takes precedence when
     /// it is observed with inbound work.
-    [[nodiscard]] virtual Event wait_until(
+    [[nodiscard]] virtual BackgroundThreadResult wait_until(
         std::optional<std::chrono::steady_clock::time_point> deadline) = 0;
 
     /// Returns the current lifecycle state and, once terminal, its outcome.
