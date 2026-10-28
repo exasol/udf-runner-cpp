@@ -25,6 +25,8 @@ Arrow C Data Interface.
   contract.
 - [context_implementation.md](context_implementation.md) defines the internal queues, background I/O thread,
   notification, batching, and shutdown design.
+- [stream_management.md](stream_management.md) defines low-level context stream IDs, routing, pending-message
+  ownership, and close behavior.
 - [interface_class_diagram.md](interface_class_diagram.md) documents the abstract worker-facing interfaces and the
   high-level relationship between those interfaces, their implementations, and generated FlatBuffer objects.
 - [epoll_design.md](epoll_design.md) defines the Linux epoll abstraction and its registration ownership model.
