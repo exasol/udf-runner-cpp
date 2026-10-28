@@ -5,7 +5,6 @@
 #include <exasol/udf/v2/interface/message_builder/control_message_builder.hpp>
 #include <exasol/udf/v2/interface/message_view/call_message_view.hpp>
 #include <exasol/udf/v2/interface/message_view/control_message_view.hpp>
-#include <exasol/udf/v2/interface/status.hpp>
 
 #include <chrono>
 #include <cstdint>
@@ -28,7 +27,6 @@ enum class Event : std::uint8_t
 struct BackgroundThreadResult
 {
     Event event;
-    std::optional<interface::OperationStatus> terminal_status;
     std::optional<interface::ErrorInfo> error;
 };
 
