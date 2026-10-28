@@ -25,6 +25,8 @@ Arrow C Data Interface.
   contract.
 - [context_implementation.md](context_implementation.md) defines the internal queues, background I/O thread,
   notification, batching, and shutdown design.
+- [stream_management.md](stream_management.md) defines low-level context stream IDs, routing, pending-message
+  ownership, and close behavior.
 - [interface_class_diagram.md](interface_class_diagram.md) analyzes the v2 interface dependencies and documents
   Arrow ownership transfer into the public record-batch import utility.
 
