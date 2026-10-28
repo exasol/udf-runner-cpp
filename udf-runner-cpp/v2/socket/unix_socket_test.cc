@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <memory>
 #include <span>
 #include <stdexcept>
 #include <system_error>
@@ -199,7 +200,7 @@ void expect_system_error(const auto& function, const std::errc expected)
 class UnixSocketPathTest : public testing::Test
 {
 protected:
-    [[nodiscard]] Native& native_posix_facade() noexcept
+    [[nodiscard]] std::shared_ptr<Native> native_posix_facade() noexcept
     {
         return this->native_posix;
     }
@@ -228,7 +229,7 @@ protected:
     }
 
 private:
-    Native native_posix;
+    std::shared_ptr<Native> native_posix = std::make_shared<Native>();
     std::filesystem::path temporary_directory;
 };
 
@@ -253,7 +254,7 @@ TEST_F(UnixSocketPathTest, ListenerConnectsAcceptsAndCleansUpPath)
 
 TEST_F(UnixSocketPathTest, RoutesAllSocketOperationsThroughInjectedPosix)
 {
-    RecordingPosix posix;
+    auto posix                       = std::make_shared<RecordingPosix>();
     const std::filesystem::path path = get_socket_path();
     {
         UnixSocketListener listener = UnixSocketListener::bind(path, posix);
@@ -272,17 +273,17 @@ TEST_F(UnixSocketPathTest, RoutesAllSocketOperationsThroughInjectedPosix)
         listener.close();
     }
 
-    EXPECT_EQ(posix.socket_call_count(), 2);
-    EXPECT_EQ(posix.connect_call_count(), 1);
-    EXPECT_EQ(posix.bind_call_count(), 1);
-    EXPECT_EQ(posix.listen_call_count(), 1);
-    EXPECT_EQ(posix.accept4_call_count(), 1);
-    EXPECT_EQ(posix.getsockopt_call_count(), 2);
-    EXPECT_EQ(posix.shutdown_call_count(), 1);
-    EXPECT_EQ(posix.readv_call_count(), 1);
-    EXPECT_EQ(posix.sendmsg_call_count(), 1);
-    EXPECT_EQ(posix.unlink_call_count(), 1);
-    EXPECT_EQ(posix.close_call_count(), 3);
+    EXPECT_EQ(posix->socket_call_count(), 2);
+    EXPECT_EQ(posix->connect_call_count(), 1);
+    EXPECT_EQ(posix->bind_call_count(), 1);
+    EXPECT_EQ(posix->listen_call_count(), 1);
+    EXPECT_EQ(posix->accept4_call_count(), 1);
+    EXPECT_EQ(posix->getsockopt_call_count(), 2);
+    EXPECT_EQ(posix->shutdown_call_count(), 1);
+    EXPECT_EQ(posix->readv_call_count(), 1);
+    EXPECT_EQ(posix->sendmsg_call_count(), 1);
+    EXPECT_EQ(posix->unlink_call_count(), 1);
+    EXPECT_EQ(posix->close_call_count(), 3);
     EXPECT_FALSE(std::filesystem::exists(path));
 }
 
@@ -402,9 +403,34 @@ TEST_F(UnixSocketPathTest, MoveAssignmentCleansUpReplacedPath)
     EXPECT_FALSE(std::filesystem::exists(first_path));
 }
 
+TEST_F(UnixSocketPathTest, MoveConstructionLeavesSourceSafe)
+{
+    const std::filesystem::path path = get_socket_path();
+    UnixSocketListener source        = UnixSocketListener::bind(path, native_posix_facade());
+
+    UnixSocketListener destination(std::move(source));
+
+    EXPECT_TRUE(destination.is_open());
+    destination.close();
+    EXPECT_FALSE(std::filesystem::exists(path));
+}
+
+TEST_F(UnixSocketPathTest, ListenerRetainsSharedPosixFacade)
+{
+    const std::filesystem::path path       = get_socket_path();
+    auto posix                             = std::make_shared<Native>();
+    const std::weak_ptr<Native> weak_posix = posix;
+    {
+        UnixSocketListener listener = UnixSocketListener::bind(path, posix);
+        posix.reset();
+        EXPECT_FALSE(weak_posix.expired());
+    }
+    EXPECT_TRUE(weak_posix.expired());
+}
+
 TEST(UnixSocketTest, SupportsScatterGatherIo)
 {
-    Native posix;
+    auto posix = std::make_shared<Native>();
     std::array<int, 2> sockets{};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
     // Wrap both ends so descriptor ownership is transferred to UnixSocket.
@@ -425,7 +451,7 @@ TEST(UnixSocketTest, SupportsScatterGatherIo)
 
 TEST(UnixSocketTest, ReadReturnsZeroAtPeerEof)
 {
-    Native posix;
+    auto posix = std::make_shared<Native>();
     std::array<int, 2> sockets{};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
     UnixSocket writer = UnixSocket::adopt_native_handle(
@@ -441,7 +467,7 @@ TEST(UnixSocketTest, ReadReturnsZeroAtPeerEof)
 // A nonblocking read maps EAGAIN to resource_unavailable_try_again.
 TEST(UnixSocketTest, HandlesNonblockingRead)
 {
-    Native posix;
+    auto posix = std::make_shared<Native>();
     std::array<int, 2> sockets{};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
     UnixSocket reader = UnixSocket::adopt_native_handle(
@@ -456,7 +482,7 @@ TEST(UnixSocketTest, HandlesNonblockingRead)
 
 TEST(UnixSocketTest, SendShutdownDisablesOnlyWrites)
 {
-    Native posix;
+    auto posix = std::make_shared<Native>();
     std::array<int, 2> sockets{};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
     UnixSocket writer = UnixSocket::adopt_native_handle(
@@ -477,7 +503,7 @@ TEST(UnixSocketTest, SendShutdownDisablesOnlyWrites)
 
 TEST(UnixSocketTest, ReleasesDescriptor)
 {
-    Native posix;
+    auto posix = std::make_shared<Native>();
     std::array<int, 2> sockets{};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
     UnixSocket socket = UnixSocket::adopt_native_handle(
@@ -492,7 +518,7 @@ TEST(UnixSocketTest, ReleasesDescriptor)
 
 TEST(UnixSocketTest, SupportsMoveConstructionAndAssignment)
 {
-    Native posix;
+    auto posix = std::make_shared<Native>();
     std::array<int, 2> sockets{};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
     UnixSocket source = UnixSocket::adopt_native_handle(
@@ -508,14 +534,14 @@ TEST(UnixSocketTest, SupportsMoveConstructionAndAssignment)
 
 TEST(UnixSocketTest, RejectsClosedDescriptor)
 {
-    Native posix;
+    auto posix = std::make_shared<Native>();
     EXPECT_THROW(static_cast<void>(UnixSocket::adopt_native_handle(OwnedFileDescriptor(posix))),
                  std::system_error);
 }
 
 TEST(UnixSocketTest, RejectsNonUnixSocketDescriptor)
 {
-    Native posix;
+    auto posix           = std::make_shared<Native>();
     const int descriptor = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
     ASSERT_NE(descriptor, -1);
     OwnedFileDescriptor owned = OwnedFileDescriptor::adopt_native_handle(descriptor, posix);
@@ -525,7 +551,7 @@ TEST(UnixSocketTest, RejectsNonUnixSocketDescriptor)
 
 TEST(UnixSocketTest, HandlesEmptyIoBuffers)
 {
-    Native posix;
+    auto posix = std::make_shared<Native>();
     std::array<int, 2> sockets{};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
     UnixSocket socket = UnixSocket::adopt_native_handle(
@@ -539,7 +565,7 @@ TEST(UnixSocketTest, HandlesEmptyIoBuffers)
 
 TEST(UnixSocketTest, RejectsTooManyIoBuffers)
 {
-    Native posix;
+    auto posix = std::make_shared<Native>();
     std::array<int, 2> sockets{};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
     UnixSocket socket = UnixSocket::adopt_native_handle(
@@ -553,7 +579,7 @@ TEST(UnixSocketTest, RejectsTooManyIoBuffers)
 
 TEST(UnixSocketTest, HandlesAllShutdownDirectionsAndInvalidDirection)
 {
-    Native posix;
+    auto posix = std::make_shared<Native>();
     std::array<int, 2> sockets{};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
     UnixSocket socket = UnixSocket::adopt_native_handle(
@@ -567,7 +593,7 @@ TEST(UnixSocketTest, HandlesAllShutdownDirectionsAndInvalidDirection)
 
 TEST(UnixSocketTest, ReportsShutdownAndReleaseOnClosedSocket)
 {
-    Native posix;
+    auto posix           = std::make_shared<Native>();
     const int descriptor = ::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
     ASSERT_NE(descriptor, -1);
     UnixSocket socket = UnixSocket::adopt_native_handle(

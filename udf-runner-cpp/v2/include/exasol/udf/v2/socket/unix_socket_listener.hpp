@@ -3,6 +3,7 @@
 #include <sys/socket.h>
 
 #include <filesystem>
+#include <memory>
 
 #include <exasol/udf/v2/socket/unix_socket.hpp>
 
@@ -22,7 +23,7 @@ public:
 
     /** Creates a listener using the supplied POSIX facade. */
     [[nodiscard]] static UnixSocketListener bind(const std::filesystem::path& path,
-                                                 posix::Posix& posix,
+                                                 std::shared_ptr<posix::Posix> posix,
                                                  int backlog = SOMAXCONN);
 
     /** Returns the native listener descriptor, or -1 when closed. */
@@ -44,11 +45,14 @@ public:
     [[nodiscard]] UnixSocket accept(int flags = SOCK_CLOEXEC) const;
 
 private:
-    UnixSocketListener(OwnedFileDescriptor owned_fd, std::filesystem::path path) noexcept;
+    UnixSocketListener(OwnedFileDescriptor owned_fd,
+                       std::filesystem::path path,
+                       std::shared_ptr<posix::Posix> posix) noexcept;
     void unlink_path() noexcept;
 
     OwnedFileDescriptor file_descriptor;
     std::filesystem::path bound_path;
+    std::shared_ptr<posix::Posix> posix_pointer;
 };
 
 } // namespace exasol::udf::v2::socket

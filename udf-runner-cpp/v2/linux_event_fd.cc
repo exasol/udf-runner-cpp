@@ -9,19 +9,13 @@
 namespace exasol::udf::v2
 {
 
-LinuxEventFd::LinuxEventFd()
-    : owned_posix(std::make_unique<posix::Native>()),
-      file_descriptor(owned_posix->eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)),
-      posix(owned_posix.get())
+LinuxEventFd::LinuxEventFd() : LinuxEventFd(std::make_shared<posix::Native>())
 {
-    if (this->file_descriptor == -1)
-    {
-        throw std::system_error(errno, std::generic_category(), "eventfd");
-    }
 }
 
-LinuxEventFd::LinuxEventFd(posix::Posix& posix_facade)
-    : file_descriptor(posix_facade.eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)), posix(&posix_facade)
+LinuxEventFd::LinuxEventFd(std::shared_ptr<posix::Posix> posix_facade)
+    : file_descriptor(posix_facade->eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)),
+      posix(std::move(posix_facade))
 {
     if (this->file_descriptor == -1)
     {
@@ -38,11 +32,8 @@ LinuxEventFd::~LinuxEventFd()
 }
 
 LinuxEventFd::LinuxEventFd(LinuxEventFd&& other) noexcept
-    : owned_posix(std::move(other.owned_posix)),
-      file_descriptor(std::exchange(other.file_descriptor, -1))
+    : file_descriptor(std::exchange(other.file_descriptor, -1)), posix(std::move(other.posix))
 {
-    this->posix = this->owned_posix ? this->owned_posix.get() : std::exchange(other.posix, nullptr);
-    other.posix = nullptr;
 }
 
 LinuxEventFd& LinuxEventFd::operator=(LinuxEventFd&& other) noexcept
@@ -53,11 +44,8 @@ LinuxEventFd& LinuxEventFd::operator=(LinuxEventFd&& other) noexcept
         {
             this->posix->close(this->file_descriptor);
         }
-        this->owned_posix     = std::move(other.owned_posix);
         this->file_descriptor = std::exchange(other.file_descriptor, -1);
-        this->posix =
-            this->owned_posix ? this->owned_posix.get() : std::exchange(other.posix, nullptr);
-        other.posix = nullptr;
+        this->posix           = std::move(other.posix);
     }
     return *this;
 }

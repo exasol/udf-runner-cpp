@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #include <exasol/udf/v2/posix/posix.hpp>
 
 namespace exasol::udf::v2::socket
@@ -10,13 +12,14 @@ class OwnedFileDescriptor
 {
 public:
     /** Creates an empty descriptor that does not own a native handle. */
-    explicit OwnedFileDescriptor(posix::Posix& posix) noexcept;
+    explicit OwnedFileDescriptor(std::shared_ptr<posix::Posix> posix) noexcept;
 
     /** Closes the owned descriptor, if any. */
     ~OwnedFileDescriptor() noexcept;
 
     /** Takes ownership of an open native file descriptor using @p posix. */
-    [[nodiscard]] static OwnedFileDescriptor adopt_native_handle(int owned_fd, posix::Posix& posix);
+    [[nodiscard]] static OwnedFileDescriptor adopt_native_handle(
+        int owned_fd, std::shared_ptr<posix::Posix> posix);
 
     OwnedFileDescriptor(const OwnedFileDescriptor&)            = delete;
     OwnedFileDescriptor& operator=(const OwnedFileDescriptor&) = delete;
@@ -36,15 +39,15 @@ public:
     [[nodiscard]] int release_native_handle() noexcept;
 
 private:
-    explicit OwnedFileDescriptor(int owned_fd, posix::Posix& posix) noexcept;
+    explicit OwnedFileDescriptor(int owned_fd, std::shared_ptr<posix::Posix> posix) noexcept;
 
-    [[nodiscard]] posix::Posix& posix_facade() const noexcept;
+    [[nodiscard]] std::shared_ptr<posix::Posix> posix_facade() const noexcept;
 
     friend class UnixSocket;
     friend class UnixSocketListener;
 
-    int file_descriptor         = -1;
-    posix::Posix* posix_pointer = nullptr;
+    int file_descriptor = -1;
+    std::shared_ptr<posix::Posix> posix_pointer;
 };
 
 } // namespace exasol::udf::v2::socket

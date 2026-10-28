@@ -17,7 +17,7 @@ class LinuxEventFd final : public EventFd
 {
 public:
     LinuxEventFd();
-    explicit LinuxEventFd(posix::Posix& posix_facade);
+    explicit LinuxEventFd(std::shared_ptr<posix::Posix> posix_facade);
     ~LinuxEventFd() override;
 
     LinuxEventFd(const LinuxEventFd&)            = delete;
@@ -30,9 +30,8 @@ public:
     void write_notification() override;
 
 private:
-    std::unique_ptr<posix::Native> owned_posix;
     int file_descriptor = -1;
-    posix::Posix* posix = nullptr;
+    std::shared_ptr<posix::Posix> posix;
 };
 
 } // namespace exasol::udf::v2

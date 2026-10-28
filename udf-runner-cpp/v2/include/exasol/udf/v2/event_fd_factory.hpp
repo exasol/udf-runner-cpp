@@ -9,6 +9,6 @@ namespace exasol::udf::v2
 {
 
 std::unique_ptr<EventFd> make_linux_event_fd();
-std::unique_ptr<EventFd> make_linux_event_fd(posix::Posix& posix);
+std::unique_ptr<EventFd> make_linux_event_fd(std::shared_ptr<posix::Posix> posix);
 
 } // namespace exasol::udf::v2

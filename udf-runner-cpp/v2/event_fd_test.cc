@@ -34,8 +34,9 @@ public:
                 (override));
     MOCK_METHOD(int, shutdown, (int, int), (override));
     MOCK_METHOD(ssize_t, readv, (int, const iovec*, int), (override));
-    MOCK_METHOD(ssize_t, read, (int, void*, size_t), (override));        // NOSONAR
-    MOCK_METHOD(ssize_t, write, (int, const void*, size_t), (override)); // NOSONAR
+    MOCK_METHOD(ssize_t, read, (int, void*, size_t), (override)); // NOSONAR
+    MOCK_METHOD(ssize_t, write, (int, const void*, size_t),
+                (override)); // NOSONAR
     MOCK_METHOD(ssize_t, sendmsg, (int, const msghdr*, int), (override));
     MOCK_METHOD(int, unlink, (const char*), (override));
     MOCK_METHOD(int, close, (int), (override));
@@ -267,54 +268,54 @@ void expect_closed_descriptor(int file_descriptor)
 
 TEST(EventFdTest, UsesInjectedPosixForCreationAndIo)
 {
-    RecordingPosix posix;
-    posix.set_read_value(7);
+    auto posix = std::make_shared<RecordingPosix>();
+    posix->set_read_value(7);
 
     exasol::udf::v2::LinuxEventFd event_fd(posix);
-    EXPECT_EQ(posix.eventfd_call_count(), 1);
-    EXPECT_EQ(posix.eventfd_initial(), 0);
-    EXPECT_EQ(posix.eventfd_flag_value(), EFD_NONBLOCK | EFD_CLOEXEC);
+    EXPECT_EQ(posix->eventfd_call_count(), 1);
+    EXPECT_EQ(posix->eventfd_initial(), 0);
+    EXPECT_EQ(posix->eventfd_flag_value(), EFD_NONBLOCK | EFD_CLOEXEC);
 
     event_fd.write_notification();
-    EXPECT_EQ(posix.write_call_count(), 1);
-    EXPECT_EQ(posix.write_descriptor(), 42);
-    EXPECT_EQ(posix.write_size(), sizeof(std::uint64_t));
-    EXPECT_EQ(posix.written_value(), 1);
+    EXPECT_EQ(posix->write_call_count(), 1);
+    EXPECT_EQ(posix->write_descriptor(), 42);
+    EXPECT_EQ(posix->write_size(), sizeof(std::uint64_t));
+    EXPECT_EQ(posix->written_value(), 1);
 
     EXPECT_EQ(event_fd.read_notification(), 7);
-    EXPECT_EQ(posix.read_call_count(), 1);
-    EXPECT_EQ(posix.read_descriptor(), 42);
-    EXPECT_EQ(posix.read_size(), sizeof(std::uint64_t));
+    EXPECT_EQ(posix->read_call_count(), 1);
+    EXPECT_EQ(posix->read_descriptor(), 42);
+    EXPECT_EQ(posix->read_size(), sizeof(std::uint64_t));
 }
 
 TEST(EventFdTest, RetriesNotificationIoAfterInterruptedCalls)
 {
-    RecordingPosix posix;
-    posix.set_read_value(7);
-    posix.set_read_eintr_count(1);
-    posix.set_write_eintr_count(1);
+    auto posix = std::make_shared<RecordingPosix>();
+    posix->set_read_value(7);
+    posix->set_read_eintr_count(1);
+    posix->set_write_eintr_count(1);
 
     exasol::udf::v2::LinuxEventFd event_fd(posix);
     event_fd.write_notification();
     EXPECT_EQ(event_fd.read_notification(), 7);
-    EXPECT_EQ(posix.write_call_count(), 2);
-    EXPECT_EQ(posix.read_call_count(), 2);
+    EXPECT_EQ(posix->write_call_count(), 2);
+    EXPECT_EQ(posix->read_call_count(), 2);
 }
 
 TEST(EventFdTest, FactoryUsesInjectedPosix)
 {
-    RecordingPosix posix;
+    auto posix    = std::make_shared<RecordingPosix>();
     auto event_fd = exasol::udf::v2::make_linux_event_fd(posix);
     ASSERT_NE(event_fd, nullptr);
     EXPECT_EQ(event_fd->native_handle(), 42);
-    EXPECT_EQ(posix.eventfd_call_count(), 1);
+    EXPECT_EQ(posix->eventfd_call_count(), 1);
 }
 
 TEST(EventFdTest, FactoryUsesMockPosix)
 {
-    testing::StrictMock<MockPosix> posix;
-    EXPECT_CALL(posix, eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)).WillOnce(testing::Return(42));
-    EXPECT_CALL(posix, close(42)).WillOnce(testing::Return(0));
+    auto posix = std::make_shared<testing::StrictMock<MockPosix>>();
+    EXPECT_CALL(*posix, eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)).WillOnce(testing::Return(42));
+    EXPECT_CALL(*posix, close(42)).WillOnce(testing::Return(0));
 
     auto event_fd = exasol::udf::v2::make_linux_event_fd(posix);
     ASSERT_NE(event_fd, nullptr);
@@ -323,19 +324,19 @@ TEST(EventFdTest, FactoryUsesMockPosix)
 
 TEST(EventFdTest, InjectedPosixClosesOnDestructionAndMoveAssignment)
 {
-    RecordingPosix posix;
+    auto posix = std::make_shared<RecordingPosix>();
     {
         exasol::udf::v2::LinuxEventFd source(posix);
         exasol::udf::v2::LinuxEventFd destination(posix);
         destination = std::move(source);
-        ASSERT_EQ(posix.closed_descriptors(), std::vector<int>{42});
+        ASSERT_EQ(posix->closed_descriptors(), std::vector<int>{42});
     }
-    EXPECT_EQ(posix.closed_descriptors(), (std::vector<int>{42, 42}));
+    EXPECT_EQ(posix->closed_descriptors(), (std::vector<int>{42, 42}));
 }
 
 TEST(EventFdTest, AccumulatesNotifications)
 {
-    exasol::udf::v2::posix::Native posix;
+    auto posix = std::make_shared<exasol::udf::v2::posix::Native>();
     exasol::udf::v2::LinuxEventFd event_fd(posix);
     ASSERT_NE(event_fd.native_handle(), -1);
 
@@ -346,7 +347,7 @@ TEST(EventFdTest, AccumulatesNotifications)
 
 TEST(EventFdTest, FactoryCreatesLinuxEventFd)
 {
-    exasol::udf::v2::posix::Native posix;
+    auto posix    = std::make_shared<exasol::udf::v2::posix::Native>();
     auto event_fd = exasol::udf::v2::make_linux_event_fd(posix);
     ASSERT_NE(event_fd, nullptr);
     ASSERT_NE(event_fd->native_handle(), -1);
@@ -373,7 +374,7 @@ TEST(EventFdTest, DefaultConstructorCreatesLinuxEventFd)
 
 TEST(EventFdTest, RejectsReadWhenEmpty)
 {
-    exasol::udf::v2::posix::Native posix;
+    auto posix = std::make_shared<exasol::udf::v2::posix::Native>();
     exasol::udf::v2::LinuxEventFd event_fd(posix);
     expect_system_error([&event_fd] { event_fd.read_notification(); },
                         std::errc::resource_unavailable_try_again,
@@ -382,7 +383,7 @@ TEST(EventFdTest, RejectsReadWhenEmpty)
 
 TEST(EventFdTest, SupportsMoveConstruction)
 {
-    exasol::udf::v2::posix::Native posix;
+    auto posix = std::make_shared<exasol::udf::v2::posix::Native>();
     exasol::udf::v2::LinuxEventFd event_fd(posix);
     const int moved_handle = event_fd.native_handle();
     exasol::udf::v2::LinuxEventFd move_constructed(std::move(event_fd));
@@ -391,7 +392,7 @@ TEST(EventFdTest, SupportsMoveConstruction)
 
 TEST(EventFdTest, SupportsMoveAssignmentAndSelfMove)
 {
-    exasol::udf::v2::posix::Native posix;
+    auto posix = std::make_shared<exasol::udf::v2::posix::Native>();
     exasol::udf::v2::LinuxEventFd source(posix);
     const int moved_handle = source.native_handle();
     exasol::udf::v2::LinuxEventFd move_assigned(posix);
@@ -403,7 +404,7 @@ TEST(EventFdTest, SupportsMoveAssignmentAndSelfMove)
 
 TEST(EventFdTest, MoveAssignmentClosesReplacedDescriptor)
 {
-    exasol::udf::v2::posix::Native posix;
+    auto posix = std::make_shared<exasol::udf::v2::posix::Native>();
     exasol::udf::v2::LinuxEventFd source(posix);
     exasol::udf::v2::LinuxEventFd destination(posix);
     const int replaced_handle = destination.native_handle();
@@ -416,7 +417,7 @@ TEST(EventFdTest, MoveAssignmentClosesReplacedDescriptor)
 TEST(EventFdTest, DestructorClosesDescriptor)
 {
     int destroyed_handle = -1;
-    exasol::udf::v2::posix::Native posix;
+    auto posix           = std::make_shared<exasol::udf::v2::posix::Native>();
     {
         exasol::udf::v2::LinuxEventFd event_fd(posix);
         destroyed_handle = event_fd.native_handle();
@@ -427,7 +428,7 @@ TEST(EventFdTest, DestructorClosesDescriptor)
 
 TEST(EventFdTest, RejectsReadOnClosedDescriptor)
 {
-    exasol::udf::v2::posix::Native posix;
+    auto posix = std::make_shared<exasol::udf::v2::posix::Native>();
     exasol::udf::v2::LinuxEventFd closed_event_fd(posix);
     ASSERT_EQ(::close(closed_event_fd.native_handle()), 0);
     expect_system_error([&closed_event_fd] { closed_event_fd.read_notification(); },
@@ -436,7 +437,7 @@ TEST(EventFdTest, RejectsReadOnClosedDescriptor)
 
 TEST(EventFdTest, RejectsWriteOnClosedDescriptor)
 {
-    exasol::udf::v2::posix::Native posix;
+    auto posix = std::make_shared<exasol::udf::v2::posix::Native>();
     exasol::udf::v2::LinuxEventFd closed_event_fd(posix);
     ASSERT_EQ(::close(closed_event_fd.native_handle()), 0);
     expect_system_error([&closed_event_fd] { closed_event_fd.write_notification(); },

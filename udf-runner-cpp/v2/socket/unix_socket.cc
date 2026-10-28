@@ -24,18 +24,20 @@ namespace
         using std::logic_error::logic_error;
     };
 
-    void check_unix_stream_socket(const int file_descriptor, posix::Posix& posix)
+    void check_unix_stream_socket(const int file_descriptor,
+                                  const std::shared_ptr<posix::Posix>& posix)
     {
         int domain = 0;
         if (socklen_t domain_length = sizeof(domain);
-            posix.getsockopt(file_descriptor, SOL_SOCKET, SO_DOMAIN, &domain, &domain_length) == -1)
+            posix->getsockopt(file_descriptor, SOL_SOCKET, SO_DOMAIN, &domain, &domain_length) ==
+            -1)
         {
             throw std::system_error(errno, std::generic_category(), "inspect socket domain");
         }
 
         int type = 0;
         if (socklen_t type_length = sizeof(type);
-            posix.getsockopt(file_descriptor, SOL_SOCKET, SO_TYPE, &type, &type_length) == -1)
+            posix->getsockopt(file_descriptor, SOL_SOCKET, SO_TYPE, &type, &type_length) == -1)
         {
             throw std::system_error(errno, std::generic_category(), "inspect socket type");
         }
@@ -99,13 +101,14 @@ UnixSocket::UnixSocket(UnixSocket&& other) noexcept = default;
 
 UnixSocket& UnixSocket::operator=(UnixSocket&& other) noexcept = default;
 
-UnixSocket UnixSocket::connect(const std::filesystem::path& path, posix::Posix& posix)
+UnixSocket UnixSocket::connect(const std::filesystem::path& path,
+                               const std::shared_ptr<posix::Posix>& posix)
 {
     socklen_t address_length      = 0;
     const sockaddr_un address     = detail::make_socket_address(path, address_length);
     OwnedFileDescriptor socket_fd = detail::create_socket(posix);
-    while (posix.connect(socket_fd.native_handle(), detail::as_socket_address(address),
-                         address_length) == -1)
+    while (posix->connect(socket_fd.native_handle(), detail::as_socket_address(address),
+                          address_length) == -1)
     {
         if (errno != EINTR)
         {
@@ -155,8 +158,8 @@ OwnedFileDescriptor UnixSocket::release_native_handle() noexcept
 
 void UnixSocket::shutdown(const Shutdown how)
 {
-    if (this->file_descriptor.posix_facade().shutdown(this->file_descriptor.native_handle(),
-                                                      shutdown_direction(how)) == -1)
+    if (this->file_descriptor.posix_facade()->shutdown(this->file_descriptor.native_handle(),
+                                                       shutdown_direction(how)) == -1)
     {
         throw std::system_error(errno, std::generic_category(), "shutdown Unix socket");
     }
@@ -173,7 +176,7 @@ std::size_t UnixSocket::read_some(const std::span<const std::span<std::byte>> bu
     ssize_t result = -1;
     do
     {
-        result = this->file_descriptor.posix_facade().readv(
+        result = this->file_descriptor.posix_facade()->readv(
             this->file_descriptor.native_handle(), iovecs.data(), static_cast<int>(iovecs.size()));
     } while (result == -1 && errno == EINTR);
 
@@ -198,8 +201,8 @@ std::size_t UnixSocket::write_some(const std::span<const std::span<const std::by
     ssize_t result     = -1;
     do
     {
-        result = this->file_descriptor.posix_facade().sendmsg(this->file_descriptor.native_handle(),
-                                                              &message, MSG_NOSIGNAL);
+        result = this->file_descriptor.posix_facade()->sendmsg(
+            this->file_descriptor.native_handle(), &message, MSG_NOSIGNAL);
     } while (result == -1 && errno == EINTR);
 
     if (result == -1)

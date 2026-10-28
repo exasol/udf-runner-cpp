@@ -6,6 +6,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <span>
 
 /**
@@ -18,7 +19,7 @@
  */
 extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, const std::size_t size)
 {
-    exasol::udf::v2::posix::Native posix;
+    auto posix = std::make_shared<exasol::udf::v2::posix::Native>();
     if (size > 4096)
     {
         return 0;

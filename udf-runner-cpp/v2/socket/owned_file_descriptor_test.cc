@@ -1,6 +1,7 @@
 #include <unistd.h>
 
 #include <array>
+#include <memory>
 #include <cerrno>
 #include <stdexcept>
 #include <utility>
@@ -17,7 +18,7 @@ using exasol::udf::v2::socket::OwnedFileDescriptor;
 
 TEST(OwnedFileDescriptorTest, ClosesExactlyOnceAfterMoveAndRelease)
 {
-    Native posix;
+    auto posix = std::make_shared<Native>();
     std::array<int, 2> pipe_fds{};
     ASSERT_EQ(::pipe(pipe_fds.data()), 0);
     OwnedFileDescriptor descriptor = OwnedFileDescriptor::adopt_native_handle(pipe_fds[0], posix);
@@ -36,14 +37,14 @@ TEST(OwnedFileDescriptorTest, ClosesExactlyOnceAfterMoveAndRelease)
 
 TEST(OwnedFileDescriptorTest, RejectsInvalidDescriptorAdoption)
 {
-    Native posix;
+    auto posix = std::make_shared<Native>();
     EXPECT_THROW(static_cast<void>(OwnedFileDescriptor::adopt_native_handle(-1, posix)),
                  std::invalid_argument);
 }
 
 TEST(OwnedFileDescriptorTest, DefaultDescriptorIsClosed)
 {
-    Native posix;
+    auto posix = std::make_shared<Native>();
     const OwnedFileDescriptor descriptor(posix);
     EXPECT_FALSE(descriptor.is_open());
     EXPECT_EQ(descriptor.native_handle(), -1);
@@ -51,7 +52,7 @@ TEST(OwnedFileDescriptorTest, DefaultDescriptorIsClosed)
 
 TEST(OwnedFileDescriptorTest, MoveAssignmentClosesReplacedDescriptor)
 {
-    Native posix;
+    auto posix = std::make_shared<Native>();
     std::array<int, 2> first_pipe{};
     std::array<int, 2> second_pipe{};
     ASSERT_EQ(::pipe(first_pipe.data()), 0);

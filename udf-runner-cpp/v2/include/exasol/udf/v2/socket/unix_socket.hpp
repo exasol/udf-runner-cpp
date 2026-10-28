@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #include <filesystem>
 
 #include <exasol/udf/v2/socket/socket.hpp>
@@ -22,7 +24,8 @@ public:
     UnixSocket& operator=(UnixSocket&& other) noexcept;
 
     /** Connects using the supplied POSIX facade. */
-    [[nodiscard]] static UnixSocket connect(const std::filesystem::path& path, posix::Posix& posix);
+    [[nodiscard]] static UnixSocket connect(const std::filesystem::path& path,
+                                            const std::shared_ptr<posix::Posix>& posix);
 
     /** Takes ownership of an open Unix stream socket descriptor.
      *

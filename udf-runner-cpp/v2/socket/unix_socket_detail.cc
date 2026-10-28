@@ -27,14 +27,14 @@ sockaddr_un make_socket_address(const std::filesystem::path& path, socklen_t& le
     return address;
 }
 
-OwnedFileDescriptor create_socket(posix::Posix& posix)
+OwnedFileDescriptor create_socket(std::shared_ptr<posix::Posix> posix)
 {
-    const int socket_fd = posix.socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    const int socket_fd = posix->socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
     if (socket_fd == -1)
     {
         throw std::system_error(errno, std::generic_category(), "create Unix socket");
     }
-    return OwnedFileDescriptor::adopt_native_handle(socket_fd, posix);
+    return OwnedFileDescriptor::adopt_native_handle(socket_fd, std::move(posix));
 }
 
 const sockaddr* as_socket_address(const sockaddr_un& address) noexcept
