@@ -440,6 +440,7 @@ cc_library(
     ],
     includes = ["include"],
     copts = ["-std=c++23"],
+    deps = [":posix"],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
@@ -451,6 +452,7 @@ cc_test(
     tags = ["no-mull"],
     deps = [
         ":socket",
+        ":posix",
         "@googletest//:gtest_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],
@@ -463,6 +465,7 @@ cc_test(
     tags = ["no-mull"],
     deps = [
         ":socket",
+        ":posix",
         "@googletest//:gtest_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],
@@ -473,7 +476,10 @@ cc_fuzz_test(
     srcs = ["socket/socket_fuzz_test.cc"],
     corpus = glob(["fuzz/corpus/socket/**"]),
     copts = ["-std=c++23"],
-    deps = [":socket"],
+    deps = [
+        ":posix",
+        ":socket",
+    ],
     tags = ["fuzz-test"],
     target_compatible_with = ["@platforms//os:linux"],
 )
@@ -483,7 +489,10 @@ cc_library(
     srcs = ["linux_event_fd.cc"],
     hdrs = ["include/exasol/udf/v2/linux_event_fd.hpp"],
     includes = ["include"],
-    deps = [":event_fd"],
+    deps = [
+        ":event_fd",
+        ":posix",
+    ],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
@@ -492,7 +501,10 @@ cc_library(
     srcs = ["event_fd_factory.cc"],
     hdrs = ["include/exasol/udf/v2/event_fd_factory.hpp"],
     includes = ["include"],
-    deps = [":linux_event_fd"],
+    deps = [
+        ":linux_event_fd",
+        ":posix",
+    ],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
@@ -503,6 +515,8 @@ cc_test(
     deps = [
         ":event_fd_factory",
         ":linux_event_fd",
+        ":posix",
+        "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],

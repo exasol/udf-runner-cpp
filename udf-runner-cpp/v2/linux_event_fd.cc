@@ -1,7 +1,6 @@
 #include <exasol/udf/v2/linux_event_fd.hpp>
 
 #include <sys/eventfd.h>
-#include <unistd.h>
 
 #include <cerrno>
 #include <system_error>
@@ -10,9 +9,15 @@
 namespace exasol::udf::v2
 {
 
-LinuxEventFd::LinuxEventFd() : file_descriptor(::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC))
+LinuxEventFd::LinuxEventFd() : LinuxEventFd(std::make_shared<posix::Native>())
 {
-    if (file_descriptor == -1)
+}
+
+LinuxEventFd::LinuxEventFd(std::shared_ptr<posix::Posix> posix_facade)
+    : file_descriptor(posix_facade->eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)),
+      posix(std::move(posix_facade))
+{
+    if (this->file_descriptor == -1)
     {
         throw std::system_error(errno, std::generic_category(), "eventfd");
     }
@@ -20,14 +25,14 @@ LinuxEventFd::LinuxEventFd() : file_descriptor(::eventfd(0, EFD_NONBLOCK | EFD_C
 
 LinuxEventFd::~LinuxEventFd()
 {
-    if (file_descriptor != -1)
+    if (this->file_descriptor != -1)
     {
-        ::close(file_descriptor);
+        this->posix->close(this->file_descriptor);
     }
 }
 
 LinuxEventFd::LinuxEventFd(LinuxEventFd&& other) noexcept
-    : file_descriptor(std::exchange(other.file_descriptor, -1))
+    : file_descriptor(std::exchange(other.file_descriptor, -1)), posix(std::move(other.posix))
 {
 }
 
@@ -35,24 +40,30 @@ LinuxEventFd& LinuxEventFd::operator=(LinuxEventFd&& other) noexcept
 {
     if (this != &other)
     {
-        if (file_descriptor != -1)
+        if (this->file_descriptor != -1)
         {
-            ::close(file_descriptor);
+            this->posix->close(this->file_descriptor);
         }
-        file_descriptor = std::exchange(other.file_descriptor, -1);
+        this->file_descriptor = std::exchange(other.file_descriptor, -1);
+        this->posix           = std::move(other.posix);
     }
     return *this;
 }
 
 int LinuxEventFd::native_handle() const noexcept
 {
-    return file_descriptor;
+    return this->file_descriptor;
 }
 
 std::uint64_t LinuxEventFd::read_notification()
 {
-    std::uint64_t value  = 0;
-    const ssize_t result = ::read(file_descriptor, &value, sizeof(value));
+    std::uint64_t value = 0;
+    ssize_t result      = -1;
+    do
+    {
+        result = this->posix->read(this->file_descriptor, &value, sizeof(value));
+    } while (result == -1 && errno == EINTR);
+
     if (result == sizeof(value))
     {
         return value;
@@ -67,7 +78,12 @@ std::uint64_t LinuxEventFd::read_notification()
 void LinuxEventFd::write_notification()
 {
     constexpr std::uint64_t signal = 1;
-    const ssize_t result           = ::write(file_descriptor, &signal, sizeof(signal));
+    ssize_t result                 = -1;
+    do
+    {
+        result = this->posix->write(this->file_descriptor, &signal, sizeof(signal));
+    } while (result == -1 && errno == EINTR);
+
     if (result == sizeof(signal))
     {
         return;

@@ -3,6 +3,7 @@
 #include <sys/socket.h>
 
 #include <filesystem>
+#include <memory>
 
 #include <exasol/udf/v2/socket/unix_socket.hpp>
 
@@ -13,7 +14,6 @@ namespace exasol::udf::v2::socket
 class UnixSocketListener
 {
 public:
-    UnixSocketListener() noexcept;
     ~UnixSocketListener() noexcept;
 
     UnixSocketListener(const UnixSocketListener&)            = delete;
@@ -21,14 +21,9 @@ public:
     UnixSocketListener(UnixSocketListener&& other) noexcept;
     UnixSocketListener& operator=(UnixSocketListener&& other) noexcept;
 
-    /** Creates a listener at @p path and starts listening for connections.
-     *
-     * @param path Filesystem path for the Unix socket.
-     * @param backlog Maximum number of pending connections.
-     * @throws std::system_error if socket creation, binding, or listening fails.
-     * @throws std::invalid_argument if @p path is not a valid Unix socket path.
-     */
+    /** Creates a listener using the supplied POSIX facade. */
     [[nodiscard]] static UnixSocketListener bind(const std::filesystem::path& path,
+                                                 std::shared_ptr<posix::Posix> posix,
                                                  int backlog = SOMAXCONN);
 
     /** Returns the native listener descriptor, or -1 when closed. */
@@ -50,11 +45,14 @@ public:
     [[nodiscard]] UnixSocket accept(int flags = SOCK_CLOEXEC) const;
 
 private:
-    UnixSocketListener(OwnedFileDescriptor owned_fd, std::filesystem::path path) noexcept;
+    UnixSocketListener(OwnedFileDescriptor owned_fd,
+                       std::filesystem::path path,
+                       std::shared_ptr<posix::Posix> posix) noexcept;
     void unlink_path() noexcept;
 
     OwnedFileDescriptor file_descriptor;
     std::filesystem::path bound_path;
+    std::shared_ptr<posix::Posix> posix_pointer;
 };
 
 } // namespace exasol::udf::v2::socket
