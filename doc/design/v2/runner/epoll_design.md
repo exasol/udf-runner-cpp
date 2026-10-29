@@ -2,11 +2,14 @@
 
 ## Summary
 
-Add a v2-only LinuxEpoll move-only RAII type. It exclusively owns the epoll instance descriptor; every registered socket, eventfd, or other descriptor remains borrowed and owned by its caller.
+Introduce two abstract v2/Linux interfaces:
 
-All production POSIX calls go through posix::Posix: epoll_create1, epoll_ctl, epoll_wait, and close.
+- LinuxEpoll: owns the readiness-wait capability.
+- EpollRegistration: owns one borrowed descriptor’s epoll registration and deregisters it on destruction.
 
-## Public interface
+NativeLinuxEpoll and its private native registration implementation use posix::Posix for every production system call. Tests may instead supply mock implementations of both public interfaces, without requiring real descriptors or POSIX interaction.
+
+## Public interfaces
 
 namespace exasol::udf::v2 {
 
@@ -24,80 +27,109 @@ struct EpollReadyEvent {
     bool peer_closed = false;
 };
 
-class LinuxEpoll final {
+class EpollRegistration {
 public:
-    LinuxEpoll();
-    explicit LinuxEpoll(std::shared_ptr<posix::Posix> posix_facade);
-    ~LinuxEpoll() noexcept;
+    virtual ~EpollRegistration() = default;
+
+    EpollRegistration(const EpollRegistration&) = delete;
+    EpollRegistration& operator=(const EpollRegistration&) = delete;
+    EpollRegistration(EpollRegistration&&) = delete;
+    EpollRegistration& operator=(EpollRegistration&&) = delete;
+
+    virtual void modify(EpollInterest interest, std::uint64_t token) = 0;
+    virtual void remove() noexcept = 0;
+    [[nodiscard]] virtual bool is_registered() const noexcept = 0;
+
+protected:
+    EpollRegistration() = default;
+};
+
+class LinuxEpoll {
+public:
+    virtual ~LinuxEpoll() = default;
 
     LinuxEpoll(const LinuxEpoll&) = delete;
     LinuxEpoll& operator=(const LinuxEpoll&) = delete;
-    LinuxEpoll(LinuxEpoll&& other) noexcept;
-    LinuxEpoll& operator=(LinuxEpoll&& other) noexcept;
+    LinuxEpoll(LinuxEpoll&&) = delete;
+    LinuxEpoll& operator=(LinuxEpoll&&) = delete;
+
+    [[nodiscard]] virtual std::unique_ptr<EpollRegistration> add(
+        int file_descriptor, EpollInterest interest, std::uint64_t token) = 0;
+
+    [[nodiscard]] virtual std::size_t wait(
+        std::span<EpollReadyEvent> events,
+        std::optional<std::chrono::milliseconds> timeout) = 0;
+
+protected:
+    LinuxEpoll() = default;
+};
+
+class NativeLinuxEpoll final : public LinuxEpoll {
+public:
+    NativeLinuxEpoll();
+    explicit NativeLinuxEpoll(std::shared_ptr<posix::Posix> posix_facade);
+    ~NativeLinuxEpoll() override;
+
+    [[nodiscard]] std::unique_ptr<EpollRegistration> add(
+        int file_descriptor, EpollInterest interest, std::uint64_t token) override;
+    [[nodiscard]] std::size_t wait(
+        std::span<EpollReadyEvent> events,
+        std::optional<std::chrono::milliseconds> timeout) override;
+
+    NativeLinuxEpoll(const NativeLinuxEpoll&) = delete;
+    NativeLinuxEpoll& operator=(const NativeLinuxEpoll&) = delete;
+    NativeLinuxEpoll(NativeLinuxEpoll&&) noexcept;
+    NativeLinuxEpoll& operator=(NativeLinuxEpoll&&) noexcept;
 
     [[nodiscard]] int native_handle() const noexcept;
     [[nodiscard]] bool is_open() const noexcept;
     void close() noexcept;
-
-    void add(int file_descriptor, EpollInterest interest, std::uint64_t token);
-    void modify(int file_descriptor, EpollInterest interest, std::uint64_t token);
-    void remove(int file_descriptor);
-
-    [[nodiscard]] std::size_t wait(
-        std::span<EpollReadyEvent> events,
-        std::optional<std::chrono::milliseconds> timeout);
-
-private:
-    int file_descriptor = -1;
-    std::shared_ptr<posix::Posix> posix;
-    std::vector<epoll_event> native_events;
 };
 
 } // namespace exasol::udf::v2
 
-EpollInterest supports level-triggered readable and writable interest only. EpollReadyEvent::token is the caller-provided epoll_event.data.u64 value; it is not a descriptor.
+LinuxEpoll has no public modify or remove: a registration is the sole lifecycle authority for its descriptor. EpollRegistration::modify() changes both readiness interest and token. remove() is idempotent, noexcept, and marks the registration inactive even if cleanup is already unnecessary.
 
-## RAII and lifecycle contract
+## RAII and ownership
 
-The private cleanup path is:
+- NativeLinuxEpoll owns only the epoll descriptor created with EPOLL_CLOEXEC.
+- add() receives a borrowed descriptor and returns std::unique_ptr<EpollRegistration>. The caller retains descriptor ownership.
+- A live registration represents one successful EPOLL_CTL_ADD.
+- Destroying a native registration performs best-effort EPOLL_CTL_DEL if its epoll instance remains open. Explicit remove() performs the same operation early.
+- Destroying or closing NativeLinuxEpoll closes only the epoll descriptor. It never closes registered descriptors.
+- Registrations may outlive their NativeLinuxEpoll safely: they retain a std::weak_ptr to internal epoll state. If the state has expired or its epoll descriptor is closed, removal becomes a no-op instead of accessing freed state or a reused descriptor.
+- NativeLinuxEpoll uses std::exchange in its idempotent close() path. Destruction and move assignment both invoke that path. Move construction transfers the state and leaves the source closed.
+- add() first creates an inactive registration object, performs EPOLL_CTL_ADD, then marks it active. Therefore, an allocation failure cannot leave an unowned kernel registration behind.
 
-void LinuxEpoll::close() noexcept
-{
-    const int closed_fd = std::exchange(this->file_descriptor, -1);
-    if (closed_fd != -1)
-    {
-        static_cast<void>(this->posix->close(closed_fd));
-    }
-}
+## Native implementation and POSIX facade
 
-- The destructor calls close().
-- Move construction transfers the descriptor and POSIX facade, leaving the source closed (native_handle() == -1).
-- Move assignment first calls close() on its current descriptor, then transfers the source; self-move is a no-op.
-- close() is idempotent, best-effort, and noexcept.
-- Creation uses EPOLL_CLOEXEC; failure throws std::system_error.
-- Closing the epoll instance only releases the epoll descriptor and its kernel registration set. It never closes registered descriptors.
-- add, modify, and remove accept borrowed descriptors. The caller remains responsible for their lifetime. The preferred lifecycle is to remove a registration before closing or reusing its descriptor.
+Add public headers for the two interfaces and NativeLinuxEpoll, plus implementation files for the native epoll and registration internals.
 
-## POSIX facade and behavior
+Extend posix::Posix and posix::Native with:
 
-Extend posix::Posix and posix::Native with epoll_create1, epoll_ctl, and epoll_wait. Native directly forwards each call.
+virtual int epoll_create1(int flags) = 0;
+virtual int epoll_ctl(int epoll_fd, int operation, int file_descriptor,
+                      epoll_event* event) = 0;
+virtual int epoll_wait(int epoll_fd, epoll_event* events,
+                       int maximum_events, int timeout) = 0;
 
-LinuxEpoll translates interests to EPOLLIN / EPOLLOUT, stores tokens in data.u64, and maps EPOLLIN, EPOLLOUT, EPOLLERR, EPOLLHUP, and EPOLLRDHUP into EpollReadyEvent.
+The native implementation translates EpollInterest to level-triggered EPOLLIN / EPOLLOUT, stores tokens in data.u64, and maps readable, writable, error, hangup, and peer-close flags into EpollReadyEvent.
 
-wait() validates a non-empty output span and a valid millisecond timeout. nullopt means infinite wait; 0ms polls. It reuses the private native_events buffer, avoiding repeated allocations once the largest requested output capacity has been reached. It retries EINTR while recomputing a finite timeout against a steady-clock deadline; other failures throw std::system_error.
+wait() rejects an empty result span and invalid finite timeout. It reuses an internal native-event buffer, retries EINTR while preserving a finite deadline, and throws std::system_error for other failures.
 
 ## Tests and integration
 
-- Test creation, RAII destruction, idempotent close, move construction, move assignment, and self-move with an injected recording facade.
-- Verify that destination cleanup occurs exactly once before move assignment takes ownership.
-- Test add, modify, remove, token forwarding, readiness-flag translation, invalid arguments, native failures, timeout, and interrupted wait.
-- Add native integration coverage for separate eventfd and socket tokens.
-- Extend all existing Posix mocks/recording fakes with the new pure virtual methods.
-- Replace raw epoll setup in the waitable-queue integration test; keep raw epoll in the benchmark to preserve its kernel-only measurement.
-- Add the approved ticket to the unreleased changelog and add this design under doc/design/v2/runner/ before implementation.
+- Add mock LinuxEpoll and EpollRegistration tests to prove consumers can be tested without Linux or POSIX.
+- Test native creation, level-trigger mapping, event/token translation, timeout, interrupted wait, and POSIX failures through an injected Posix.
+- Test registration destruction, explicit idempotent removal, modification, move/destroy ordering, and a registration outliving its epoll instance.
+- Verify epoll destruction never closes registered eventfd or socket descriptors.
+- Extend every existing Posix mock/recording fake with the three epoll methods.
+- Replace raw epoll setup in the waitable-queue integration test with NativeLinuxEpoll; retain raw benchmark epoll calls to preserve the benchmark’s kernel-only measurement.
+- Add the approved ticket and changelog entry, and record the reviewed design under doc/design/v2/runner/.
 
 ## Assumptions
 
-- v2/Linux only; no v1 changes.
-- No edge-triggered, one-shot, callback, timer, descriptor registry, or thread-safety feature in the first version.
-- Registered descriptors outlive their registration and are never owned by LinuxEpoll.
+- v2/Linux only; v1 remains unchanged.
+- The initial API exposes only level-triggered readable/writable interest.
+- Caller tokens are the sole ready-event identity.
+- No edge-triggered, one-shot, timer, callback registry, or thread-safety contract is included.
