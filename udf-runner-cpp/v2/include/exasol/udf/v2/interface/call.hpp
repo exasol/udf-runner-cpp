@@ -6,6 +6,7 @@
 #include <exasol/udf/v2/interface/status.hpp>
 #include <exasol/udf/v2/interface/timeout.hpp>
 
+#include <memory>
 #include <utility>
 
 namespace exasol::udf::v2::interface
@@ -22,20 +23,17 @@ public:
     Call& operator=(Call&&)      = delete;
     /// Returns the non-blocking readiness state for this call's stream.
     [[nodiscard]] virtual MessageStatus receive_status() const = 0;
+    /// Creates a builder bound to this call's stream.
+    [[nodiscard]] virtual std::unique_ptr<CallMessageBuilder> create_message_builder() const = 0;
     /// Receives the next message for this call without waiting.
-    [[nodiscard]] Result<CallMessageView> receive()
-    {
-        return receive(std::nullopt);
-    }
+    [[nodiscard]] virtual Result<std::unique_ptr<CallMessageView>> receive() = 0;
     /// Receives the next message for this call, optionally waiting up to `timeout`.
-    [[nodiscard]] virtual Result<CallMessageView> receive(Timeout timeout) = 0;
+    [[nodiscard]] virtual Result<std::unique_ptr<CallMessageView>> receive(Timeout timeout) = 0;
     /// Sends one composite call message without waiting for flow-control permission.
-    [[nodiscard]] Result<void> send(CallMessageBuilder message)
-    {
-        return send(std::move(message), std::nullopt);
-    }
+    [[nodiscard]] virtual Result<void> send(std::unique_ptr<CallMessageBuilder> message) = 0;
     /// Sends one composite call message, waiting up to `timeout` for flow-control permission.
-    [[nodiscard]] virtual Result<void> send(CallMessageBuilder message, Timeout timeout) = 0;
+    [[nodiscard]] virtual Result<void> send(std::unique_ptr<CallMessageBuilder> message,
+                                            Timeout timeout) = 0;
 
 protected:
     Call() = default;

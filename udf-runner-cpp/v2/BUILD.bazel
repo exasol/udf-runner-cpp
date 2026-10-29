@@ -118,6 +118,7 @@ cc_test(
     tags = ["no-mull"],
     deps = [
         ":interface",
+        ":interface_internal",
         ":udf_protocol",
         "@googletest//:gtest_main",
     ],
@@ -244,7 +245,14 @@ cc_library(
         "interface/control_stream.cc",
         "interface/call_message_builder.cc",
         "interface/control_message_builder.cc",
+        "interface/control_message_view_impl.cc",
         "interface/message_view.cc",
+        "include/exasol/udf/v2/internal/background_thread_interface.hpp",
+        "include/exasol/udf/v2/internal/call_message_builder_impl.hpp",
+        "include/exasol/udf/v2/internal/call_message_view_impl.hpp",
+        "include/exasol/udf/v2/internal/control_message_builder_impl.hpp",
+        "include/exasol/udf/v2/internal/control_message_view_impl.hpp",
+        "include/exasol/udf/v2/internal/message_builder_factory.hpp",
     ],
     hdrs = [
         "include/exasol/udf/v2/interface/call.hpp",
@@ -271,6 +279,24 @@ cc_library(
         ":arrow_core",
         ":udf_protocol",
     ],
+)
+
+# Internal headers are available only through this implementation-facing
+# target. Keeping them out of :interface prevents the worker-facing Bazel
+# target from exporting implementation details to its dependents.
+cc_library(
+    name = "interface_internal",
+    hdrs = [
+        "include/exasol/udf/v2/internal/background_thread_interface.hpp",
+        "include/exasol/udf/v2/internal/call_message_builder_impl.hpp",
+        "include/exasol/udf/v2/internal/call_message_view_impl.hpp",
+        "include/exasol/udf/v2/internal/control_message_builder_impl.hpp",
+        "include/exasol/udf/v2/internal/control_message_view_impl.hpp",
+        "include/exasol/udf/v2/internal/message_builder_factory.hpp",
+    ],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    deps = [":interface"],
 )
 
 cc_test(

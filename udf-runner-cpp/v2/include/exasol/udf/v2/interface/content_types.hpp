@@ -64,26 +64,6 @@ struct RecordBatch
     bool is_end_of_group{false}; // NOLINT(misc-non-private-member-variables-in-classes)
 };
 
-/// Composite message exchanged on a call stream.
-struct CallMessage
-{
-    CallMessage()                                  = default;
-    CallMessage(const CallMessage&)                = delete;
-    CallMessage(CallMessage&&) noexcept            = default;
-    CallMessage& operator=(const CallMessage&)     = delete;
-    CallMessage& operator=(CallMessage&&) noexcept = delete;
-    ~CallMessage()                                 = default;
-
-    std::optional<OpenCall> open_call;     // NOLINT(misc-non-private-member-variables-in-classes)
-    std::optional<DataSchema> data_schema; // NOLINT(misc-non-private-member-variables-in-classes)
-    std::optional<Next> next;              // NOLINT(misc-non-private-member-variables-in-classes)
-    std::optional<OutboundNext>
-        outbound_next;                       // NOLINT(misc-non-private-member-variables-in-classes)
-    std::optional<RecordBatch> record_batch; // NOLINT(misc-non-private-member-variables-in-classes)
-    std::optional<ErrorInfo> error;          // NOLINT(misc-non-private-member-variables-in-classes)
-    bool close_call{false};                  // NOLINT(misc-non-private-member-variables-in-classes)
-};
-
 /// Composite message exchanged on the connection control stream.
 struct ControlMessage
 {

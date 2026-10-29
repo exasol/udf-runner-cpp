@@ -1,20 +1,25 @@
-#include <exasol/udf/v2/interface/message_builder/call_message_builder.hpp>
+#include <exasol/udf/v2/internal/call_message_builder_impl.hpp>
 
 #include <cstdlib>
 #include <string>
 #include <utility>
 
-namespace exasol::udf::v2::interface
+namespace exasol::udf::v2::internal
 {
 
-CallMessageBuilder& CallMessageBuilder::open_call(std::string_view name)
+CallMessageBuilderImpl::CallMessageBuilderImpl(const std::uint64_t stream_id)
+    : stream_id_(stream_id)
 {
-    message_.open_call = OpenCall{std::string(name)};
+}
+
+interface::CallMessageBuilder& CallMessageBuilderImpl::open_call(std::string_view name)
+{
+    open_call_ = interface::OpenCall{std::string(name)};
     return *this;
 }
 
 // LCOV_EXCL_START: payload encoding will be implemented with the protocol codec.
-CallMessageBuilder& CallMessageBuilder::add_payload( // NOSONAR
+interface::CallMessageBuilder& CallMessageBuilderImpl::add_payload( // NOSONAR
     std::string_view name,
     std::string_view value,
     bool binary)
@@ -26,48 +31,46 @@ CallMessageBuilder& CallMessageBuilder::add_payload( // NOSONAR
 }
 // LCOV_EXCL_STOP
 
-CallMessageBuilder& CallMessageBuilder::data_schema(ArrowSchemaPtr schema,
-                                                    bool has_group_id,
-                                                    bool has_row_id)
+interface::CallMessageBuilder& CallMessageBuilderImpl::data_schema(interface::ArrowSchemaPtr schema,
+                                                                   bool has_group_id,
+                                                                   bool has_row_id)
 {
-    message_.data_schema = DataSchema{std::move(schema), has_group_id, has_row_id};
+    data_schema_ = interface::DataSchema{std::move(schema), has_group_id, has_row_id};
     return *this;
 }
 
-CallMessageBuilder& CallMessageBuilder::next(std::uint32_t byte_budget,
-                                             bool reset,
-                                             std::uint64_t row)
+interface::CallMessageBuilder& CallMessageBuilderImpl::next(std::uint32_t byte_budget,
+                                                            bool reset,
+                                                            std::uint64_t row)
 {
-    message_.outbound_next = OutboundNext{byte_budget, reset, row};
+    outbound_next_ = interface::OutboundNext{byte_budget, reset, row};
     return *this;
 }
 
-CallMessageBuilder& CallMessageBuilder::record_batch(ArrowArrayPtr array, bool is_end_of_group)
+interface::CallMessageBuilder& CallMessageBuilderImpl::record_batch(interface::ArrowArrayPtr array,
+                                                                    bool is_end_of_group)
 {
-    message_.record_batch = RecordBatch{std::move(array), is_end_of_group};
+    record_batch_ = interface::RecordBatch{std::move(array), is_end_of_group};
     return *this;
 }
 
-CallMessageBuilder& CallMessageBuilder::error(std::string_view code, std::string_view text)
+interface::CallMessageBuilder& CallMessageBuilderImpl::error(std::string_view code,
+                                                             std::string_view text)
 {
-    message_.error.emplace(std::string(code), std::string(text));
+    error_.emplace(std::string(code), std::string(text));
     return *this;
 }
 
-CallMessageBuilder& CallMessageBuilder::close_call()
+interface::CallMessageBuilder& CallMessageBuilderImpl::close_call()
 {
-    message_.close_call = true;
+    close_call_ = true;
     return *this;
 }
 
-const CallMessage& CallMessageBuilder::message() const& noexcept
+CallMessageEncodingView CallMessageBuilderImpl::encoding_view() const noexcept
 {
-    return message_;
+    return {stream_id_,    open_call_, data_schema_, outbound_next_,
+            record_batch_, error_,     close_call_};
 }
 
-CallMessage CallMessageBuilder::take() &&
-{
-    return std::move(message_);
-}
-
-} // namespace exasol::udf::v2::interface
+} // namespace exasol::udf::v2::internal

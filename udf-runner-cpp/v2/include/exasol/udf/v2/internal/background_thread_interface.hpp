@@ -8,6 +8,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <variant>
 #include <vector>
@@ -31,14 +32,13 @@ struct BackgroundThreadResult
 };
 
 /// A completed builder transferred from the low-level Context for sending.
-///
-/// The background thread consumes it exactly once with `take()` and does not
-/// otherwise modify it.
-using OutboundMessage =
-    std::variant<interface::CallMessageBuilder, interface::ControlMessageBuilder>;
+/// The background thread owns the builder and does not modify it.
+using OutboundMessage = std::variant<std::unique_ptr<interface::CallMessageBuilder>,
+                                     std::unique_ptr<interface::ControlMessageBuilder>>;
 
 /// A verified message view transferred from the background thread to the low-level Context.
-using InboundMessage = std::variant<interface::CallMessageView, interface::ControlMessageView>;
+using InboundMessage = std::variant<std::unique_ptr<interface::CallMessageView>,
+                                    std::unique_ptr<interface::ControlMessageView>>;
 
 using OutboundBatch = std::vector<OutboundMessage>;
 using InboundBatch  = std::vector<InboundMessage>;

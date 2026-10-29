@@ -1,44 +1,44 @@
 #pragma once
 
-#include <exasol/udf/v2/interface/content_types.hpp>
 #include <exasol/udf/v2/udf_protocol.hpp>
 
 #include <functional>
-#include <memory>
 #include <optional>
 
 namespace exasol::udf::v2::interface
 {
 
-/// Non-owning view of one received connection-level message.
+/// Interface for a view of one received connection-level message.
 class ControlMessageView
 {
 public:
-    ControlMessageView() = default;
+    virtual ~ControlMessageView()                            = default;
+    ControlMessageView(const ControlMessageView&)            = delete;
+    ControlMessageView& operator=(const ControlMessageView&) = delete;
+    ControlMessageView(ControlMessageView&&)                 = delete;
+    ControlMessageView& operator=(ControlMessageView&&)      = delete;
+
     /// Returns whether server capabilities are present.
-    [[nodiscard]] bool has_server_capabilities() const noexcept;
-    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::ServerCapabilities>>
-    server_capabilities() const noexcept;
+    [[nodiscard]] virtual bool has_server_capabilities() const noexcept = 0;
+    [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::ServerCapabilities>>
+    server_capabilities() const noexcept = 0;
     /// Returns whether a wire-level FlatBuffer keep-alive object is present.
-    [[nodiscard]] bool has_keep_alive() const noexcept;
+    [[nodiscard]] virtual bool has_keep_alive() const noexcept = 0;
     /// Returns whether wire-level payloads are present.
-    [[nodiscard]] bool has_payloads() const noexcept;
+    [[nodiscard]] virtual bool has_payloads() const noexcept = 0;
     /// Returns the wire-level FlatBuffer payload table, or an empty optional when absent.
-    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Payloads>> payloads()
-        const noexcept;
+    [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::Payloads>> payloads()
+        const noexcept = 0;
     /// Returns whether an error is present.
-    [[nodiscard]] bool has_error() const noexcept;
+    [[nodiscard]] virtual bool has_error() const noexcept = 0;
     /// Returns the wire-level FlatBuffer error table, or an empty optional when absent.
-    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Error>> error()
-        const noexcept;
+    [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::Error>> error()
+        const noexcept = 0;
     /// Returns whether this message starts or acknowledges connection shutdown.
-    [[nodiscard]] bool has_close_connection() const noexcept;
+    [[nodiscard]] virtual bool has_close_connection() const noexcept = 0;
 
-    explicit ControlMessageView(std::shared_ptr<const protocol::DecodedFrame> frame);
-
-private:
-    std::optional<ControlMessage> control_message_;
-    std::shared_ptr<const protocol::DecodedFrame> decoded_frame_;
+protected:
+    ControlMessageView() = default;
 };
 
 } // namespace exasol::udf::v2::interface

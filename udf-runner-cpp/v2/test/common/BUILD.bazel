@@ -9,5 +9,6 @@ cc_library(
     deps = [
         "//:arrow_core",
         "//:interface",
+        "//:interface_internal",
     ],
 )

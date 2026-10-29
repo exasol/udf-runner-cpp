@@ -1,8 +1,7 @@
 #pragma once
 
-#include <exasol/udf/v2/interface/content_types.hpp>
-
 #include <bit>
+#include <cstdint>
 #include <string_view>
 
 namespace exasol::udf::v2::interface
@@ -12,28 +11,30 @@ namespace exasol::udf::v2::interface
 class ControlMessageBuilder
 {
 public:
+    ControlMessageBuilder(const ControlMessageBuilder&)            = delete;
+    ControlMessageBuilder& operator=(const ControlMessageBuilder&) = delete;
+    ControlMessageBuilder(ControlMessageBuilder&&)                 = delete;
+    ControlMessageBuilder& operator=(ControlMessageBuilder&&)      = delete;
+    virtual ~ControlMessageBuilder()                               = default;
     /// Adds or replaces the advertised protocol capabilities.
-    ControlMessageBuilder& server_capabilities(std::uint32_t major,
-                                               std::uint32_t minor,
-                                               std::endian endianness,
-                                               std::uint32_t number_of_supported_workers);
+    virtual ControlMessageBuilder& server_capabilities(
+        std::uint32_t major,
+        std::uint32_t minor,
+        std::endian endianness,
+        std::uint32_t number_of_supported_workers) = 0;
     /// Adds a keep-alive message.
-    ControlMessageBuilder& keep_alive();
+    virtual ControlMessageBuilder& keep_alive() = 0;
     /// Adds one named payload to the message.
-    ControlMessageBuilder& add_payload(std::string_view name,
-                                       std::string_view value,
-                                       bool binary = false);
+    virtual ControlMessageBuilder& add_payload(std::string_view name,
+                                               std::string_view value,
+                                               bool binary = false) = 0;
     /// Adds or replaces a control-stream error description.
-    ControlMessageBuilder& error(std::string_view code, std::string_view text);
+    virtual ControlMessageBuilder& error(std::string_view code, std::string_view text) = 0;
     /// Starts or acknowledges connection shutdown.
-    ControlMessageBuilder& close_connection();
-    /// Returns the current message without consuming the builder.
-    [[nodiscard]] const ControlMessage& message() const& noexcept;
-    /// Moves the built message out of the builder.
-    [[nodiscard]] ControlMessage take() &&;
+    virtual ControlMessageBuilder& close_connection() = 0;
 
-private:
-    ControlMessage message_;
+protected:
+    ControlMessageBuilder() = default;
 };
 
 } // namespace exasol::udf::v2::interface
