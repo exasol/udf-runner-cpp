@@ -26,11 +26,6 @@ namespace
         if (const auto* control = control_message(decoded_frame); control != nullptr)
         {
             message.keep_alive = control->value_as_KeepAlive() != nullptr;
-            if (const auto* error = control->error(); error != nullptr)
-            {
-                message.error.emplace(error->code() != nullptr ? error->code()->str() : "",
-                                      error->message() != nullptr ? error->message()->str() : "");
-            }
             if (const auto* close = control->value_as_CloseControlMessage(); close != nullptr)
             {
                 message.close_connection = close->close_connection() != nullptr;

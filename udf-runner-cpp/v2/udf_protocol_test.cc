@@ -221,6 +221,34 @@ TEST(UdfProtocolTest, DecodedFrameOwnsBufferForGeneratedViews)
     EXPECT_EQ(control_view.error()->get().message()->str(), "example failure");
 }
 
+TEST(UdfProtocolTest, ControlViewHandlesMissingErrorStrings)
+{
+    exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder missing_error_fields_builder;
+    const auto missing_error_fields =
+        exasol::udf::protocol::CreateError(missing_error_fields_builder);
+    const auto keep_alive = exasol::udf::protocol::CreateKeepAlive(missing_error_fields_builder);
+    const auto control_with_missing_error_fields = exasol::udf::protocol::CreateControlMessage(
+        missing_error_fields_builder, 0, 0, 0, missing_error_fields,
+        exasol::udf::protocol::ControlMessageValue_KeepAlive, keep_alive.Union());
+    const auto frame_with_missing_error_fields = exasol::udf::protocol::CreateFrame(
+        missing_error_fields_builder, 0, control_with_missing_error_fields);
+    missing_error_fields_builder.Finish(frame_with_missing_error_fields);
+    const std::vector<std::uint8_t> encoded_missing_error_fields(
+        missing_error_fields_builder.GetBufferPointer(),
+        missing_error_fields_builder.GetBufferPointer() + missing_error_fields_builder.GetSize());
+    auto decoded_missing_error_fields =
+        exasol::udf::protocol::DecodedFrame::decode(encoded_missing_error_fields);
+    ASSERT_TRUE(decoded_missing_error_fields.has_value());
+    const auto frame_with_missing_error_fields_owner =
+        std::make_shared<exasol::udf::protocol::DecodedFrame>(
+            std::move(decoded_missing_error_fields.value()));
+    const exasol::udf::v2::internal::ControlMessageViewImpl view_with_missing_error_fields(
+        frame_with_missing_error_fields_owner);
+    ASSERT_TRUE(view_with_missing_error_fields.error());
+    EXPECT_EQ(view_with_missing_error_fields.error()->get().code(), nullptr);
+    EXPECT_EQ(view_with_missing_error_fields.error()->get().message(), nullptr);
+}
+
 TEST(UdfProtocolTest, FrameBackedCallViewPopulatesHighLevelFields)
 {
     exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder builder;
