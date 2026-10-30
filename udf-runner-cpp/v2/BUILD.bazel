@@ -585,6 +585,7 @@ cc_test(
     srcs = ["waitable_queue_integration_test.cc"],
     copts = ["-std=c++23"],
     deps = [
+        ":linux_epoll",
         ":linux_waitable_queue",
         "@googletest//:gtest_main",
     ],
