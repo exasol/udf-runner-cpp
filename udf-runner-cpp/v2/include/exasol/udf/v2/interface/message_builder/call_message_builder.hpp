@@ -8,7 +8,6 @@ namespace exasol::udf::v2::interface
 /// Builds one composite message for a call stream.
 class CallMessageBuilder : public CallMessageBuilderBase
 {
-public:
 protected:
     CallMessageBuilder() = default;
 };

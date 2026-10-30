@@ -16,6 +16,8 @@ struct ControlMessageEncodingView
 class ControlMessageBuilderImpl final : public interface::ControlMessageBuilder
 {
 public:
+    using interface::ControlMessageBuilder::add_payload;
+
     explicit ControlMessageBuilderImpl(std::uint64_t stream_id);
 
     interface::ControlMessageBuilder& server_capabilities(

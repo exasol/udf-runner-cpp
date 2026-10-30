@@ -46,6 +46,11 @@ private:
 class CallMessageBuilderImpl final : public interface::CallMessageBuilder
 {
 public:
+    using interface::CallMessageBuilderBase::add_payload;
+    using interface::CallMessageBuilderBase::data_schema;
+    using interface::CallMessageBuilderBase::next;
+    using interface::CallMessageBuilderBase::record_batch;
+
     explicit CallMessageBuilderImpl(std::uint64_t stream_id);
 
     interface::CallMessageBuilder& add_payload(std::string_view name,
@@ -70,6 +75,11 @@ private:
 class OpeningCallMessageBuilderImpl final : public interface::OpeningCallMessageBuilder
 {
 public:
+    using interface::CallMessageBuilderBase::add_payload;
+    using interface::CallMessageBuilderBase::data_schema;
+    using interface::CallMessageBuilderBase::next;
+    using interface::CallMessageBuilderBase::record_batch;
+
     explicit OpeningCallMessageBuilderImpl(std::uint64_t stream_id);
 
     interface::OpeningCallMessageBuilder& open_call(std::string_view name) override;
