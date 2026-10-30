@@ -1,5 +1,6 @@
 #pragma once
 
+#include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
 
@@ -24,6 +25,14 @@ public:
     virtual int socket(int domain, int type, int protocol) = 0;
     /** Creates an event file descriptor. */
     virtual int eventfd(unsigned int initial_value, int flags) = 0;
+    /** Creates an epoll instance. */
+    virtual int epoll_create1(int flags) = 0;
+    /** Controls an epoll registration. */
+    virtual int epoll_ctl(int epoll_fd, int operation, int file_descriptor, epoll_event* event) =
+        0;
+    /** Waits for epoll readiness events. */
+    virtual int epoll_wait(int epoll_fd, epoll_event* events, int maximum_events, int timeout) =
+        0;
     /** Connects a socket to a peer address. */
     virtual int connect(int sockfd, const sockaddr* address, socklen_t address_length) = 0;
     /** Binds a socket to a local address. */
@@ -65,6 +74,9 @@ class Native final : public Posix
 public:
     int socket(int domain, int type, int protocol) override;
     int eventfd(unsigned int initial_value, int flags) override;
+    int epoll_create1(int flags) override;
+    int epoll_ctl(int epoll_fd, int operation, int file_descriptor, epoll_event* event) override;
+    int epoll_wait(int epoll_fd, epoll_event* events, int maximum_events, int timeout) override;
     int connect(int sockfd, const sockaddr* address, socklen_t address_length) override;
     int bind(int sockfd, const sockaddr* address, socklen_t address_length) override;
     int listen(int sockfd, int backlog) override;

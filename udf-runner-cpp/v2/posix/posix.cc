@@ -15,6 +15,27 @@ int Native::eventfd(const unsigned int initial_value, const int flags)
     return ::eventfd(initial_value, flags);
 }
 
+int Native::epoll_create1(const int flags)
+{
+    return ::epoll_create1(flags);
+}
+
+int Native::epoll_ctl(const int epoll_fd,
+                      const int operation,
+                      const int file_descriptor,
+                      epoll_event* const event)
+{
+    return ::epoll_ctl(epoll_fd, operation, file_descriptor, event);
+}
+
+int Native::epoll_wait(const int epoll_fd,
+                       epoll_event* const events,
+                       const int maximum_events,
+                       const int timeout)
+{
+    return ::epoll_wait(epoll_fd, events, maximum_events, timeout);
+}
+
 int Native::connect(const int sockfd, const sockaddr* address, const socklen_t address_length)
 {
     return ::connect(sockfd, address, address_length);
