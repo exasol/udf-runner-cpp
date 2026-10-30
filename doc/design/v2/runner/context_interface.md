@@ -72,7 +72,7 @@ Context {
     receive_status() -> MessageStatus
     wait_for_message(optional<Duration> timeout) -> MessageStatus
     accept_call() -> Result<unique_ptr<Call>>
-    create_call_message_builder() -> unique_ptr<OpeningCallMessageBuilder>
+    create_opening_call_message_builder() -> unique_ptr<OpeningCallMessageBuilder>
     open_call(unique_ptr<OpeningCallMessageBuilder>) -> Result<unique_ptr<Call>>
     control_stream() -> ControlStream&
 }
@@ -103,7 +103,8 @@ as the first message on a new logical call stream. It may contain any other prot
 successful local registration and transmission, the function returns the `Call` object without waiting for a peer
 response. The peer's response is received through that call's `receive()` operation.
 
-`create_call_message_builder()` reserves a new locally owned stream ID and returns an `OpeningCallMessageBuilder`
+`create_opening_call_message_builder()` reserves a new locally owned stream ID and returns an
+`OpeningCallMessageBuilder`
 bound to it. The worker adds the required `open_call` field and passes that builder to `open_call()`. A reserved stream
 ID is not reused if its builder is abandoned or `open_call()` fails.
 

@@ -119,7 +119,7 @@ public:
     }
 
     [[nodiscard]] std::unique_ptr<interface::OpeningCallMessageBuilder>
-    create_call_message_builder() override
+    create_opening_call_message_builder() override
     {
         return internal::MessageBuilderFactory::create_opening_call_builder(2);
     }

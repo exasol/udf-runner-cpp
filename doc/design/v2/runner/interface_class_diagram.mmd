@@ -7,7 +7,7 @@ namespace exasol_udf_v2 {
         +receive_status() MessageStatus
         +wait_for_message(timeout) MessageStatus
         +accept_call() Result~unique_ptr~Call~~
-        +create_call_message_builder() unique_ptr~OpeningCallMessageBuilder~
+        +create_opening_call_message_builder() unique_ptr~OpeningCallMessageBuilder~
         +open_call(builder) Result~unique_ptr~Call~~
         +control_stream() ControlStream&
     }

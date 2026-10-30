@@ -17,7 +17,7 @@ TEST(ContextTest, ConvenienceMethodsDelegateToVirtualOperations)
     EXPECT_EQ(context.wait_for_message(), MessageStatus::TimedOut);
     EXPECT_EQ(context.wait_for_message(Timeout{}), MessageStatus::TimedOut);
     EXPECT_EQ(context.accept_call().status, OperationStatus::Cancelled);
-    auto opening_message = context.create_call_message_builder();
+    auto opening_message = context.create_opening_call_message_builder();
     opening_message->open_call("nested");
     EXPECT_EQ(context.open_call(std::move(opening_message)).status, OperationStatus::Cancelled);
     EXPECT_NE(&context.control_stream(), nullptr);
