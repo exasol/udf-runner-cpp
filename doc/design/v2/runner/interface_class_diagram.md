@@ -50,7 +50,7 @@ namespace exasol_udf_v2 {
         +receive_status() MessageStatus
         +wait_for_message(timeout) MessageStatus
         +accept_call() Result~unique_ptr~Call~~
-        +create_call_message_builder() unique_ptr~CallMessageBuilder~
+        +create_call_message_builder() unique_ptr~OpeningCallMessageBuilder~
         +open_call(builder) Result~unique_ptr~Call~~
         +control_stream() ControlStream&
     }
@@ -71,13 +71,21 @@ namespace exasol_udf_v2 {
 
     class CallMessageBuilder {
         <<abstract>>
-        +open_call(name) CallMessageBuilder&
-        +add_payload(name, value, binary) CallMessageBuilder&
-        +data_schema(schema, flags) CallMessageBuilder&
-        +next(byte_budget, reset, row_id) CallMessageBuilder&
-        +record_batch(array, end_of_group) CallMessageBuilder&
-        +error(code, text) CallMessageBuilder&
-        +close_call() CallMessageBuilder&
+    }
+
+    class CallMessageBuilderBase {
+        <<abstract>>
+        +add_payload(name, value, binary) CallMessageBuilderBase&
+        +data_schema(schema, flags) CallMessageBuilderBase&
+        +next(byte_budget, reset, row_id) CallMessageBuilderBase&
+        +record_batch(array, end_of_group) CallMessageBuilderBase&
+        +error(code, text) CallMessageBuilderBase&
+        +close_call() CallMessageBuilderBase&
+    }
+
+    class OpeningCallMessageBuilder {
+        <<abstract>>
+        +open_call(name) OpeningCallMessageBuilder&
     }
 
     class ControlMessageBuilder {
@@ -93,6 +101,9 @@ namespace exasol_udf_v2 {
         -stream_id_ uint64_t
         -optional outbound fields
         +encoding_view() CallMessageEncodingView
+    }
+    class OpeningCallMessageBuilderImpl {
+        +open_call(name) OpeningCallMessageBuilder&
     }
 
     class ControlMessageBuilderImpl {
@@ -192,10 +203,13 @@ namespace exasol_udf_protocol {
 
 Context --> Call : accepts/opens
 Context --> ControlStream : returns stream zero
-Context --> CallMessageBuilder : opens outbound call
+Context --> OpeningCallMessageBuilder : creates opening message
 
 Call --> CallMessageBuilder : sends
 CallMessageBuilderImpl --|> CallMessageBuilder
+CallMessageBuilder --|> CallMessageBuilderBase
+OpeningCallMessageBuilder --|> CallMessageBuilderBase
+OpeningCallMessageBuilderImpl --|> OpeningCallMessageBuilder
 Call --> CallMessageView : receives
 CallMessageViewImpl --|> CallMessageView
 

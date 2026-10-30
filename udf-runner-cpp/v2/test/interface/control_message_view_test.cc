@@ -1,13 +1,17 @@
-#include <exasol/udf/v2/interface/message_view/control_message_view.hpp>
+#include <exasol/udf/v2/internal/control_message_view_impl.hpp>
 
 #include <gtest/gtest.h>
 
-namespace exasol::udf::v2::interface
+#include <type_traits>
+
+namespace exasol::udf::v2::internal
 {
+
+static_assert(std::is_abstract_v<interface::ControlMessageView>);
 
 TEST(ControlMessageViewTest, EmptyViewReportsNoFields)
 {
-    const ControlMessageView view;
+    const ControlMessageViewImpl view(nullptr);
     EXPECT_FALSE(view.has_server_capabilities());
     EXPECT_FALSE(view.server_capabilities());
     EXPECT_FALSE(view.has_payloads());
@@ -18,4 +22,4 @@ TEST(ControlMessageViewTest, EmptyViewReportsNoFields)
     EXPECT_FALSE(view.has_close_connection());
 }
 
-} // namespace exasol::udf::v2::interface
+} // namespace exasol::udf::v2::internal

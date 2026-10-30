@@ -36,10 +36,11 @@ public:
     /// The context allocates and reserves the stream ID. The returned builder
     /// is bound to that stream and must contain an OpenCall field before it
     /// is passed to open_call().
-    [[nodiscard]] virtual std::unique_ptr<CallMessageBuilder> create_call_message_builder() = 0;
+    [[nodiscard]] virtual std::unique_ptr<OpeningCallMessageBuilder>
+    create_call_message_builder() = 0;
     /// Opens an outbound call using `opening_message` as its first message.
     [[nodiscard]] virtual Result<std::unique_ptr<Call>> open_call(
-        std::unique_ptr<CallMessageBuilder> opening_message) = 0;
+        std::unique_ptr<OpeningCallMessageBuilder> opening_message) = 0;
     /// Returns the connection-level stream-zero interface.
     [[nodiscard]] virtual ControlStream& control_stream() = 0;
 

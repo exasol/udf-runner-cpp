@@ -19,6 +19,12 @@ public:
         return std::make_unique<CallMessageBuilderImpl>(stream_id);
     }
 
+    [[nodiscard]] static std::unique_ptr<interface::OpeningCallMessageBuilder>
+    create_opening_call_builder(std::uint64_t stream_id)
+    {
+        return std::make_unique<OpeningCallMessageBuilderImpl>(stream_id);
+    }
+
     [[nodiscard]] static std::unique_ptr<interface::ControlMessageBuilder> create_control_builder()
     {
         return std::make_unique<ControlMessageBuilderImpl>(0);

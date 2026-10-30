@@ -262,6 +262,7 @@ cc_library(
         "include/exasol/udf/v2/interface/error_info.hpp",
         "include/exasol/udf/v2/interface/interface.hpp",
         "include/exasol/udf/v2/interface/message_builder/call_message_builder.hpp",
+        "include/exasol/udf/v2/interface/message_builder/call_message_builder_base.hpp",
         "include/exasol/udf/v2/interface/message_builder/control_message_builder.hpp",
         "include/exasol/udf/v2/interface/message_view/call_message_view.hpp",
         "include/exasol/udf/v2/interface/message_view/control_message_view.hpp",

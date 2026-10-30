@@ -72,8 +72,8 @@ Context {
     receive_status() -> MessageStatus
     wait_for_message(optional<Duration> timeout) -> MessageStatus
     accept_call() -> Result<unique_ptr<Call>>
-    create_call_message_builder() -> unique_ptr<CallMessageBuilder>
-    open_call(unique_ptr<CallMessageBuilder>) -> Result<unique_ptr<Call>>
+    create_call_message_builder() -> unique_ptr<OpeningCallMessageBuilder>
+    open_call(unique_ptr<OpeningCallMessageBuilder>) -> Result<unique_ptr<Call>>
     control_stream() -> ControlStream&
 }
 ```
@@ -103,9 +103,9 @@ as the first message on a new logical call stream. It may contain any other prot
 successful local registration and transmission, the function returns the `Call` object without waiting for a peer
 response. The peer's response is received through that call's `receive()` operation.
 
-`create_call_message_builder()` reserves a new locally owned stream ID and returns a builder bound to it. The worker
-adds the required `open_call` field and passes the builder to `open_call()`. A reserved stream ID is not reused if its
-builder is abandoned or `open_call()` fails.
+`create_call_message_builder()` reserves a new locally owned stream ID and returns an `OpeningCallMessageBuilder`
+bound to it. The worker adds the required `open_call` field and passes that builder to `open_call()`. A reserved stream
+ID is not reused if its builder is abandoned or `open_call()` fails.
 
 ## Call interface
 
@@ -249,21 +249,26 @@ and prevents connection-only fields from being sent on a call stream.
 ### Call message builder
 
 ```text
-CallMessageBuilder {
-    open_call(call_name) -> CallMessageBuilder&
-    add_payload(name, value, binary = false) -> CallMessageBuilder&
-    data_schema(ArrowSchemaPtr schema, has_group_id, has_row_id) -> CallMessageBuilder&
-    next(byte_budget, reset, row_id) -> CallMessageBuilder&
-    record_batch(ArrowArrayPtr array, is_end_of_group) -> CallMessageBuilder&
-    error(code, message) -> CallMessageBuilder&
-    close_call() -> CallMessageBuilder&
+CallMessageBuilderBase {
+    add_payload(name, value, binary = false) -> CallMessageBuilderBase&
+    data_schema(ArrowSchemaPtr schema, has_group_id, has_row_id) -> CallMessageBuilderBase&
+    next(byte_budget, reset, row_id) -> CallMessageBuilderBase&
+    record_batch(ArrowArrayPtr array, is_end_of_group) -> CallMessageBuilderBase&
+    error(code, message) -> CallMessageBuilderBase&
+    close_call() -> CallMessageBuilderBase&
+}
+
+OpeningCallMessageBuilder : CallMessageBuilderBase {
+    open_call(call_name) -> OpeningCallMessageBuilder&
 }
 ```
 
-The call builder describes one composite call message. Repeated `add_payload()` calls append payloads in order. After
+The ordinary call builder describes one composite message after a call has been opened; it cannot add `open_call`.
+The opening builder adds `open_call` to the shared set of composite fields. Repeated `add_payload()` calls append
+payloads in order. After
 `data_schema()` or `record_batch()`, the builder owns the supplied Arrow objects. The stream creates the builder and
-binds it to its stream ID. Passing its `unique_ptr` to `Context::open_call()` or `Call::send()` transfers it to that
-operation, and the builder must not be reused.
+binds it to its stream ID. Passing the opening builder to `Context::open_call()` or an ordinary builder to `Call::send()`
+transfers it to that operation, and the builder must not be reused.
 
 ### Control message builder
 

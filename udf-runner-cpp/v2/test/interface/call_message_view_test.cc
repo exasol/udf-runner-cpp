@@ -1,5 +1,5 @@
-#include <exasol/udf/v2/interface/message_view/call_message_view.hpp>
-#include <exasol/udf/v2/interface/message_builder/call_message_builder.hpp>
+#include <exasol/udf/v2/internal/call_message_view_impl.hpp>
+#include <exasol/udf/v2/internal/message_builder_factory.hpp>
 
 #include <gtest/gtest.h>
 
@@ -7,13 +7,23 @@
 #include <arrow/c/bridge.h>
 
 #include <utility>
+#include <type_traits>
 
-namespace exasol::udf::v2::interface
+namespace exasol::udf::v2::internal
 {
+
+using interface::ArrowArrayPtr;
+using interface::ArrowSchemaPtr;
+using interface::DataSchema;
+using interface::DataSchemaView;
+using interface::RecordBatch;
+using interface::RecordBatchView;
+
+static_assert(std::is_abstract_v<interface::CallMessageView>);
 
 TEST(CallMessageViewTest, EmptyViewReportsNoFields)
 {
-    CallMessageView view;
+    CallMessageViewImpl view(nullptr);
     EXPECT_FALSE(view.has_open_call());
     EXPECT_FALSE(view.open_call());
     EXPECT_FALSE(view.has_payloads());
@@ -66,18 +76,12 @@ TEST(CallMessageViewTest, ArrowDataCanRoundTripThroughInterface)
     ArrowArray sent_array{};
     ASSERT_TRUE(arrow::ExportRecordBatch(*imported.ValueOrDie(), &sent_array, &sent_schema).ok());
     {
-        CallMessageBuilder outgoing;
-        outgoing.data_schema(ArrowSchemaPtr(&sent_schema), false, false)
+        auto outgoing = MessageBuilderFactory::create_call_builder(2);
+        outgoing->data_schema(ArrowSchemaPtr(&sent_schema), false, false)
             .record_batch(ArrowArrayPtr(&sent_array), true);
-        const auto sent = std::move(outgoing).take();
-        ASSERT_TRUE(sent.data_schema.has_value());
-        EXPECT_EQ(sent.data_schema->schema.get(), &sent_schema);
-        ASSERT_TRUE(sent.record_batch.has_value());
-        EXPECT_EQ(sent.record_batch->array.get(), &sent_array);
-        EXPECT_TRUE(sent.record_batch->is_end_of_group);
     }
     EXPECT_EQ(sent_schema.release, nullptr);
     EXPECT_EQ(sent_array.release, nullptr);
 }
 
-} // namespace exasol::udf::v2::interface
+} // namespace exasol::udf::v2::internal

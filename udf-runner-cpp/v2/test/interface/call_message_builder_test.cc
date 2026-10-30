@@ -1,16 +1,21 @@
-#include <exasol/udf/v2/interface/message_builder/call_message_builder.hpp>
+#include <exasol/udf/v2/internal/call_message_builder_impl.hpp>
+#include <exasol/udf/v2/internal/message_builder_factory.hpp>
 
 #include <gtest/gtest.h>
 
-namespace exasol::udf::v2::interface
+#include <type_traits>
+
+namespace exasol::udf::v2::internal
 {
+
+static_assert(std::is_abstract_v<interface::CallMessageBuilder>);
 
 TEST(CallMessageBuilderTest, AddPayloadIsNotImplemented)
 {
     EXPECT_DEATH(
         {
-            CallMessageBuilder builder;
-            builder.add_payload("request", "{}");
+            auto builder = MessageBuilderFactory::create_opening_call_builder(2);
+            builder->add_payload("request", "{}");
         },
         "");
 }
@@ -19,24 +24,22 @@ TEST(CallMessageBuilderTest, BuildsCompositeMessage)
 {
     ArrowSchema schema{};
     ArrowArray array{};
-    CallMessageBuilder builder;
-    builder.open_call("nested")
-        .data_schema(ArrowSchemaPtr(&schema), true, true)
+    auto builder = MessageBuilderFactory::create_opening_call_builder(2);
+    builder->open_call("nested")
+        .data_schema(interface::ArrowSchemaPtr(&schema), true, true)
         .next(1024, true, 42)
-        .record_batch(ArrowArrayPtr(&array), true)
+        .record_batch(interface::ArrowArrayPtr(&array), true)
         .error("E_TEST", "failure")
         .close_call();
 
-    ASSERT_TRUE(builder.message().open_call.has_value());
-    ASSERT_TRUE(builder.message().data_schema.has_value());
-    EXPECT_EQ(builder.message().data_schema->schema.get(), &schema);
-    ASSERT_TRUE(builder.message().outbound_next.has_value());
-    EXPECT_EQ(builder.message().outbound_next->byte_budget, 1024);
-    ASSERT_TRUE(builder.message().record_batch.has_value());
-    EXPECT_EQ(builder.message().record_batch->array.get(), &array);
-    auto message = std::move(builder).take();
-    EXPECT_TRUE(message.error.has_value());
-    EXPECT_TRUE(message.close_call);
+    const auto view = static_cast<const OpeningCallMessageBuilderImpl&>(*builder).encoding_view();
+    EXPECT_EQ(view.stream_id, 2);
+    EXPECT_TRUE(view.open_call.has_value());
+    EXPECT_TRUE(view.data_schema.has_value());
+    EXPECT_TRUE(view.next.has_value());
+    EXPECT_TRUE(view.record_batch.has_value());
+    EXPECT_TRUE(view.error.has_value());
+    EXPECT_TRUE(view.close_call);
 }
 
-} // namespace exasol::udf::v2::interface
+} // namespace exasol::udf::v2::internal
