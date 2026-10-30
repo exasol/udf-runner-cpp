@@ -11,7 +11,7 @@ Diagram source: [interface_class_diagram.mmd](interface_class_diagram.mmd). Rend
 The PR changes 30 files and adds the following areas:
 
 - Abstract APIs: `Context`, `Call`, and `ControlStream`.
-- Message and result types: `CallMessage`, `ControlMessage`, `Result<T>`, and
+- Message and result types: `ControlMessage`, `Result<T>`, and
   `ErrorInfo`.
 - Builders for outbound call and control messages.
 - Views for inbound call and control messages.
@@ -50,6 +50,7 @@ namespace exasol_udf_v2 {
         +receive_status() MessageStatus
         +wait_for_message(timeout) MessageStatus
         +accept_call() Result~unique_ptr~Call~~
+        +create_opening_call_message_builder() unique_ptr~OpeningCallMessageBuilder~
         +open_call(builder) Result~unique_ptr~Call~~
         +control_stream() ControlStream&
     }
@@ -57,43 +58,72 @@ namespace exasol_udf_v2 {
     class Call {
         <<abstract>>
         +receive_status() MessageStatus
-        +receive(timeout) Result~CallMessageView~
+        +receive(timeout) Result~unique_ptr~CallMessageView~~
         +send(builder, timeout) Result~void~
     }
 
     class ControlStream {
         <<abstract>>
         +receive_status() MessageStatus
-        +receive(timeout) Result~ControlMessageView~
+        +receive(timeout) Result~unique_ptr~ControlMessageView~~
         +send(builder) Result~void~
     }
 
     class CallMessageBuilder {
-        -CallMessage message_
-        +open_call(name) CallMessageBuilder&
-        +add_payload(name, value, binary) CallMessageBuilder&
-        +data_schema(schema, flags) CallMessageBuilder&
-        +next(byte_budget, reset, row_id) CallMessageBuilder&
-        +record_batch(array, end_of_group) CallMessageBuilder&
-        +error(code, text) CallMessageBuilder&
-        +close_call() CallMessageBuilder&
-        +message() CallMessage&
-        +take() CallMessage
+        <<abstract>>
+    }
+
+    class CallMessageBuilderBase {
+        <<abstract>>
+        +add_payload(name, value, binary) CallMessageBuilderBase&
+        +data_schema(schema, flags) CallMessageBuilderBase&
+        +next(byte_budget, reset, row_id) CallMessageBuilderBase&
+        +record_batch(array, end_of_group) CallMessageBuilderBase&
+        +error(code, text) CallMessageBuilderBase&
+        +close_call() CallMessageBuilderBase&
+    }
+
+    class OpeningCallMessageBuilder {
+        <<abstract>>
+        +open_call(name) OpeningCallMessageBuilder&
     }
 
     class ControlMessageBuilder {
-        -ControlMessage message_
+        <<abstract>>
         +server_capabilities(...) ControlMessageBuilder&
         +keep_alive() ControlMessageBuilder&
         +add_payload(name, value, binary) ControlMessageBuilder&
         +error(code, text) ControlMessageBuilder&
         +close_connection() ControlMessageBuilder&
-        +message() ControlMessage&
-        +take() ControlMessage
+    }
+
+    class CallMessageBuilderImpl {
+        -stream_id_ uint64_t
+        -optional outbound fields
+        +encoding_view() CallMessageEncodingView
+    }
+    class OpeningCallMessageBuilderImpl {
+        +open_call(name) OpeningCallMessageBuilder&
+    }
+
+    class ControlMessageBuilderImpl {
+        -stream_id_ uint64_t
+        -ControlMessage message_
+        +encoding_view() ControlMessageEncodingView
     }
 
     class CallMessageView {
-        -optional~CallMessage~ call_message_
+        <<abstract>>
+        +open_call() OpenCall&
+        +payloads() protocol::Payloads&
+        +data_schema() DataSchemaView
+        +next() Next&
+        +record_batch() RecordBatchView
+        +error() ErrorInfo&
+    }
+
+    class CallMessageViewImpl {
+        -optional inbound fields
         -shared_ptr~DecodedFrame~ decoded_frame_
         +open_call() OpenCall&
         +payloads() protocol::Payloads&
@@ -104,6 +134,13 @@ namespace exasol_udf_v2 {
     }
 
     class ControlMessageView {
+        <<abstract>>
+        +server_capabilities() protocol::ServerCapabilities&
+        +payloads() protocol::Payloads&
+        +error() ErrorInfo&
+    }
+
+    class ControlMessageViewImpl {
         -optional~ControlMessage~ control_message_
         -shared_ptr~DecodedFrame~ decoded_frame_
         +server_capabilities() protocol::ServerCapabilities&
@@ -124,16 +161,6 @@ namespace exasol_udf_v2 {
         +is_end_of_group() bool
     }
 
-    class CallMessage {
-        +optional~OpenCall~ open_call
-        +optional~Payloads~ payloads
-        +optional~DataSchema~ data_schema
-        +optional~Next~ next
-        +optional~OutboundNext~ outbound_next
-        +optional~RecordBatch~ record_batch
-        +optional~ErrorInfo~ error
-        +bool close_call
-    }
 
     class ControlMessage {
         +optional~ServerCapabilities~ server_capabilities
@@ -176,43 +203,41 @@ namespace exasol_udf_protocol {
 
 Context --> Call : accepts/opens
 Context --> ControlStream : returns stream zero
-Context --> CallMessageBuilder : opens outbound call
+Context --> OpeningCallMessageBuilder : creates opening message
 
 Call --> CallMessageBuilder : sends
+CallMessageBuilderImpl --|> CallMessageBuilder
+CallMessageBuilder --|> CallMessageBuilderBase
+OpeningCallMessageBuilder --|> CallMessageBuilderBase
+OpeningCallMessageBuilderImpl --|> OpeningCallMessageBuilder
 Call --> CallMessageView : receives
+CallMessageViewImpl --|> CallMessageView
 
 ControlStream --> ControlMessageBuilder : sends
+ControlMessageBuilderImpl --|> ControlMessageBuilder
 ControlStream --> ControlMessageView : receives
+ControlMessageViewImpl --|> ControlMessageView
 
-CallMessageBuilder *-- CallMessage : owns
-ControlMessageBuilder *-- ControlMessage : owns
+ControlMessageBuilderImpl *-- ControlMessage : owns
 
-CallMessage *-- OpenCall : optional
-CallMessage *-- Payloads : optional
-CallMessage *-- DataSchema : optional
-CallMessage *-- Next : optional
-CallMessage *-- OutboundNext : optional
-CallMessage *-- RecordBatch : optional
-CallMessage *-- ErrorInfo : optional
 
 ControlMessage *-- ServerCapabilities : optional
 ControlMessage *-- Payloads : optional
 ControlMessage *-- ErrorInfo : optional
 
 Payloads *-- Payload : contains
-CallMessageView *-- CallMessage : decoded snapshot
-ControlMessageView *-- ControlMessage : decoded snapshot
+ControlMessageViewImpl *-- ControlMessage : decoded snapshot
 
-CallMessageView o-- DecodedFrame : shared lifetime
-ControlMessageView o-- DecodedFrame : shared lifetime
+CallMessageViewImpl o-- DecodedFrame : shared lifetime
+ControlMessageViewImpl o-- DecodedFrame : shared lifetime
 CallMessageView --> DataSchemaView
 CallMessageView --> RecordBatchView
 DataSchemaView ..> DataSchema : moves schema ownership
 RecordBatchView ..> RecordBatch : moves array ownership
 
-CallMessageView --> WirePayloads : direct wire view
-ControlMessageView --> WirePayloads : direct wire view
-ControlMessageView --> WireServerCapabilities : direct wire view
+CallMessageViewImpl --> WirePayloads : direct wire view
+ControlMessageViewImpl --> WirePayloads : direct wire view
+ControlMessageViewImpl --> WireServerCapabilities : direct wire view
 
 DecodedFrame --> Frame : exposes generated view
 DecodedFrame *-- "owned bytes" Frame : backs generated objects

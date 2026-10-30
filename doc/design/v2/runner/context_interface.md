@@ -72,7 +72,8 @@ Context {
     receive_status() -> MessageStatus
     wait_for_message(optional<Duration> timeout) -> MessageStatus
     accept_call() -> Result<unique_ptr<Call>>
-    open_call(CallMessageBuilder) -> Result<unique_ptr<Call>>
+    create_opening_call_message_builder() -> unique_ptr<OpeningCallMessageBuilder>
+    open_call(unique_ptr<OpeningCallMessageBuilder>) -> Result<unique_ptr<Call>>
     control_stream() -> ControlStream&
 }
 ```
@@ -102,15 +103,21 @@ as the first message on a new logical call stream. It may contain any other prot
 successful local registration and transmission, the function returns the `Call` object without waiting for a peer
 response. The peer's response is received through that call's `receive()` operation.
 
+`create_opening_call_message_builder()` reserves a new locally owned stream ID and returns an
+`OpeningCallMessageBuilder`
+bound to it. The worker adds the required `open_call` field and passes that builder to `open_call()`. A reserved stream
+ID is not reused if its builder is abandoned or `open_call()` fails.
+
 ## Call interface
 
 The conceptual call contract is:
 
 ```text
 Call {
+    create_message_builder() -> unique_ptr<CallMessageBuilder>
     receive_status() -> MessageStatus
-    receive(optional<Duration> timeout) -> Result<CallMessageView>
-    send(CallMessageBuilder, optional<Duration> timeout) -> Result<void>
+    receive(optional<Duration> timeout) -> Result<unique_ptr<CallMessageView>>
+    send(unique_ptr<CallMessageBuilder>, optional<Duration> timeout) -> Result<void>
 }
 ```
 
@@ -125,8 +132,8 @@ payloads, `DataSchema`, `Next`, `RecordBatch`, error, or close fields carried in
 messages must not contain `open_call`.
 
 For a call returned by `open_call()`, the opening message has already been sent by the context. Its first successful
-`Call::receive()` returns the peer's first message and must not contain `open_call`. A `CallMessage` containing
-`open_call` is not valid for a `CallMessageBuilder` passed to `Call::send()` after the call object has been created.
+`Call::receive()` returns the peer's first message and must not contain `open_call`. An `open_call` field is not valid
+for a `CallMessageBuilder` passed to `Call::send()` after the call object has been created.
 
 If a control message or another call's message arrives while `Call::receive()` is blocked, the context dispatches it
 to its own stream and the call receive continues waiting. It does not return unrelated traffic.
@@ -161,10 +168,10 @@ RecordBatch {
 
 This is an interface-level type. It is not the wire-level FlatBuffer `DataRecordBatch` table.
 
-`CallMessage` is one composite message whose fields are independently optional:
+Each call message is composite; its fields are independently optional:
 
 ```text
-CallMessage {
+Call message {
     optional open_call
     optional payloads
     optional data_schema: DataSchema
@@ -175,8 +182,8 @@ CallMessage {
 }
 ```
 
-The same conceptual type is used for sending and receiving. A single message may contain one or multiple fields. A
-worker sends fields separately by sending separate `CallMessage` values; no field-specific send methods are required.
+A single message may contain one or multiple fields. A worker sends fields separately by submitting separate
+`CallMessageBuilder` instances; no field-specific send methods are required.
 
 For inbound calls, `open_call` is required on the first received message and forbidden on subsequent received messages.
 For outbound calls, `open_call` is required only in the opening message supplied to `Context::open_call()` and is
@@ -208,9 +215,10 @@ after the message is processed.
 
 ```text
 ControlStream {
+    create_message_builder() -> unique_ptr<ControlMessageBuilder>
     receive_status() -> MessageStatus
-    receive(optional<Duration> timeout) -> Result<ControlMessageView>
-    send(ControlMessageBuilder) -> Result<void>
+    receive(optional<Duration> timeout) -> Result<unique_ptr<ControlMessageView>>
+    send(unique_ptr<ControlMessageBuilder>) -> Result<void>
 }
 ```
 
@@ -242,20 +250,27 @@ and prevents connection-only fields from being sent on a call stream.
 ### Call message builder
 
 ```text
-CallMessageBuilder {
-    open_call(call_name) -> CallMessageBuilder&
-    add_payload(name, value, binary = false) -> CallMessageBuilder&
-    data_schema(ArrowSchemaPtr schema, has_group_id, has_row_id) -> CallMessageBuilder&
-    next(byte_budget, reset, row_id) -> CallMessageBuilder&
-    record_batch(ArrowArrayPtr array, is_end_of_group) -> CallMessageBuilder&
-    error(code, message) -> CallMessageBuilder&
-    close_call() -> CallMessageBuilder&
+CallMessageBuilderBase {
+    add_payload(name, value, binary = false) -> CallMessageBuilderBase&
+    data_schema(ArrowSchemaPtr schema, has_group_id, has_row_id) -> CallMessageBuilderBase&
+    next(byte_budget, reset, row_id) -> CallMessageBuilderBase&
+    record_batch(ArrowArrayPtr array, is_end_of_group) -> CallMessageBuilderBase&
+    error(code, message) -> CallMessageBuilderBase&
+    close_call() -> CallMessageBuilderBase&
+}
+
+OpeningCallMessageBuilder : CallMessageBuilderBase {
+    open_call(call_name) -> OpeningCallMessageBuilder&
 }
 ```
 
-The call builder describes one composite call message. Repeated `add_payload()` calls append payloads in order. After
-`data_schema()` or `record_batch()`, the builder owns the supplied Arrow objects. Passing the builder to
-`Context::open_call()` or `Call::send()` transfers it to that operation, and the builder must not be reused.
+The ordinary call builder describes one composite message after a call has been opened; it cannot add `open_call`.
+The opening builder adds `open_call` to the shared set of composite fields. Repeated `add_payload()` calls append
+payloads in order. After `data_schema()` or `record_batch()`, the builder owns the supplied Arrow objects. `Context`
+creates an `OpeningCallMessageBuilder` and binds it to the stream ID it reserves for the new call. After the call is
+opened, `Call` creates ordinary `CallMessageBuilder` instances bound to that call's stream ID. Passing the opening
+builder to `Context::open_call()` or an ordinary builder to `Call::send()` transfers it to that operation, and the
+builder must not be reused.
 
 ### Control message builder
 
@@ -270,8 +285,9 @@ ControlMessageBuilder {
 }
 ```
 
-The control builder cannot construct `OpenCall`, `CloseCall`, `Next`, `DataSchema`, or record-batch fields. Passing it
-to `ControlStream::send()` transfers it to that operation, and the builder must not be reused.
+The control builder cannot construct `OpenCall`, `CloseCall`, `Next`, `DataSchema`, or record-batch fields.
+`ControlStream` creates `ControlMessageBuilder` instances bound to stream 0. Passing its `unique_ptr` to
+`ControlStream::send()` transfers it to that operation, and the builder must not be reused.
 
 ### Call message view
 
@@ -561,7 +577,7 @@ the opening `CallMessageView` containing both `open_call` and `close_call`; the 
 ### Separate call messages
 
 The peer may send a `DataSchema`, then a `Next`, then a `RecordBatch` as three separate messages. The worker receives
-three successive `CallMessage` values.
+three successive call-message views.
 
 ### Error-only message
 
