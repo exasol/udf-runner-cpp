@@ -27,7 +27,11 @@ public:
     /// Adds one named payload to the message.
     virtual ControlMessageBuilder& add_payload(std::string_view name,
                                                std::string_view value,
-                                               bool binary = false) = 0;
+                                               bool binary) = 0;
+    ControlMessageBuilder& add_payload(std::string_view name, std::string_view value)
+    {
+        return add_payload(name, value, false);
+    }
     /// Adds or replaces a control-stream error description.
     virtual ControlMessageBuilder& error(std::string_view code, std::string_view text) = 0;
     /// Starts or acknowledges connection shutdown.

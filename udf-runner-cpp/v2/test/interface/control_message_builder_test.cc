@@ -35,7 +35,9 @@ TEST(ControlMessageBuilderTest, BuildsCompositeMessage)
     auto builder = MessageBuilderFactory::create_control_builder();
     builder->keep_alive().error("E_CONTROL", "control failure").close_connection();
 
-    const auto view = static_cast<const ControlMessageBuilderImpl&>(*builder).encoding_view();
+    const auto* builder_impl = dynamic_cast<const ControlMessageBuilderImpl*>(builder.get());
+    ASSERT_NE(builder_impl, nullptr);
+    const auto view = builder_impl->encoding_view();
     EXPECT_EQ(view.stream_id, 0);
     EXPECT_TRUE(view.message.error.has_value());
     EXPECT_TRUE(view.message.close_connection);

@@ -6,7 +6,7 @@ namespace exasol::udf::v2::interface
 {
 
 /// Builds one composite message for a call stream.
-class CallMessageBuilder : public virtual CallMessageBuilderBase
+class CallMessageBuilder : public CallMessageBuilderBase
 {
 public:
 protected:
@@ -14,7 +14,7 @@ protected:
 };
 
 /// Builds the first message on a newly opened call stream.
-class OpeningCallMessageBuilder : public virtual CallMessageBuilderBase
+class OpeningCallMessageBuilder : public CallMessageBuilderBase
 {
 public:
     virtual OpeningCallMessageBuilder& open_call(std::string_view name) = 0;

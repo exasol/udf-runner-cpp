@@ -32,7 +32,9 @@ TEST(CallMessageBuilderTest, BuildsCompositeMessage)
         .error("E_TEST", "failure")
         .close_call();
 
-    const auto view = static_cast<const OpeningCallMessageBuilderImpl&>(*builder).encoding_view();
+    const auto* builder_impl = dynamic_cast<const OpeningCallMessageBuilderImpl*>(builder.get());
+    ASSERT_NE(builder_impl, nullptr);
+    const auto view = builder_impl->encoding_view();
     EXPECT_EQ(view.stream_id, 2);
     EXPECT_TRUE(view.open_call.has_value());
     EXPECT_TRUE(view.data_schema.has_value());

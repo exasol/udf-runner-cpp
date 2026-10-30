@@ -27,7 +27,7 @@ enum class Event : std::uint8_t
 /// Immutable snapshot of background-thread lifecycle and terminal outcome.
 struct BackgroundThreadResult
 {
-    Event event;
+    Event event{Event::InboundAvailable};
     std::optional<interface::ErrorInfo> error;
 };
 
