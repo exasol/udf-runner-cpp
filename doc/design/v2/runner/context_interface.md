@@ -266,10 +266,11 @@ OpeningCallMessageBuilder : CallMessageBuilderBase {
 
 The ordinary call builder describes one composite message after a call has been opened; it cannot add `open_call`.
 The opening builder adds `open_call` to the shared set of composite fields. Repeated `add_payload()` calls append
-payloads in order. After
-`data_schema()` or `record_batch()`, the builder owns the supplied Arrow objects. The stream creates the builder and
-binds it to its stream ID. Passing the opening builder to `Context::open_call()` or an ordinary builder to `Call::send()`
-transfers it to that operation, and the builder must not be reused.
+payloads in order. After `data_schema()` or `record_batch()`, the builder owns the supplied Arrow objects. `Context`
+creates an `OpeningCallMessageBuilder` and binds it to the stream ID it reserves for the new call. After the call is
+opened, `Call` creates ordinary `CallMessageBuilder` instances bound to that call's stream ID. Passing the opening
+builder to `Context::open_call()` or an ordinary builder to `Call::send()` transfers it to that operation, and the
+builder must not be reused.
 
 ### Control message builder
 
@@ -284,9 +285,9 @@ ControlMessageBuilder {
 }
 ```
 
-The control builder cannot construct `OpenCall`, `CloseCall`, `Next`, `DataSchema`, or record-batch fields. The
-control stream creates it and binds it to stream 0. Passing its `unique_ptr` to `ControlStream::send()` transfers it
-to that operation, and the builder must not be reused.
+The control builder cannot construct `OpenCall`, `CloseCall`, `Next`, `DataSchema`, or record-batch fields.
+`ControlStream` creates `ControlMessageBuilder` instances bound to stream 0. Passing its `unique_ptr` to
+`ControlStream::send()` transfers it to that operation, and the builder must not be reused.
 
 ### Call message view
 
