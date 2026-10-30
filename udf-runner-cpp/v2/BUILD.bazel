@@ -523,6 +523,28 @@ cc_test(
 )
 
 cc_library(
+    name = "linux_epoll",
+    srcs = ["linux_epoll.cc"],
+    hdrs = ["include/exasol/udf/v2/linux_epoll.hpp"],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    deps = [":posix"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_test(
+    name = "linux_epoll_test",
+    srcs = ["linux_epoll_test.cc"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":linux_epoll",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
     name = "waitable_queue",
     hdrs = ["include/exasol/udf/v2/waitable_queue.hpp"],
     includes = ["include"],
@@ -563,6 +585,7 @@ cc_test(
     srcs = ["waitable_queue_integration_test.cc"],
     copts = ["-std=c++23"],
     deps = [
+        ":linux_epoll",
         ":linux_waitable_queue",
         "@googletest//:gtest_main",
     ],

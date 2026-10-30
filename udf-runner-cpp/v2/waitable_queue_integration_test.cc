@@ -1,18 +1,23 @@
-#include <sys/epoll.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 #include <array>
+#include <chrono>
 #include <cstdint>
+#include <memory>
 #include <span>
 #include <utility>
 #include <vector>
 
+#include <exasol/udf/v2/linux_epoll.hpp>
 #include <exasol/udf/v2/linux_waitable_queue.hpp>
 #include <gtest/gtest.h>
 
 namespace
 {
+
+constexpr std::uint64_t queue_token  = 1;
+constexpr std::uint64_t socket_token = 2;
 
 template <typename Queue>
 void self_move_assign(Queue& queue)
@@ -27,25 +32,21 @@ class SpscEpollTest : public testing::Test
 protected:
     void SetUp() override
     {
-        ASSERT_NE(epoll_fd_storage, -1);
+        ASSERT_TRUE(epoll_storage.is_open());
         ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets_storage.data()), 0);
-        ASSERT_TRUE(add_to_epoll(queue_storage.native_handle(), EPOLLIN));
-        ASSERT_TRUE(add_to_epoll(sockets_storage[1], EPOLLIN));
+        queue_registration =
+            epoll_storage.add(queue_storage.native_handle(),
+                              exasol::udf::v2::EpollInterest{.readable = true}, queue_token);
+        socket_registration = epoll_storage.add(
+            sockets_storage[1], exasol::udf::v2::EpollInterest{.readable = true}, socket_token);
     }
 
     void TearDown() override
     {
+        queue_registration.reset();
+        socket_registration.reset();
         ::close(sockets_storage[0]);
         ::close(sockets_storage[1]);
-        ::close(epoll_fd_storage);
-    }
-
-    bool add_to_epoll(int fd, std::uint32_t events) const
-    {
-        epoll_event event{};
-        event.events  = events;
-        event.data.fd = fd;
-        return ::epoll_ctl(epoll_fd_storage, EPOLL_CTL_ADD, fd, &event) == 0;
     }
 
     exasol::udf::v2::WaitableSpscQueue<int>& queue() noexcept
@@ -53,9 +54,9 @@ protected:
         return queue_storage;
     }
 
-    [[nodiscard]] int epoll_fd() const noexcept
+    [[nodiscard]] exasol::udf::v2::LinuxEpoll& epoll() noexcept
     {
-        return epoll_fd_storage;
+        return epoll_storage;
     }
 
     [[nodiscard]] const std::array<int, 2>& sockets() const noexcept
@@ -66,8 +67,10 @@ protected:
 private:
     exasol::udf::v2::WaitableSpscQueue<int> queue_storage =
         exasol::udf::v2::make_waitable_spsc_queue<int>();
-    int epoll_fd_storage = ::epoll_create1(EPOLL_CLOEXEC);
+    exasol::udf::v2::NativeLinuxEpoll epoll_storage;
     std::array<int, 2> sockets_storage{};
+    std::unique_ptr<exasol::udf::v2::EpollRegistration> queue_registration;
+    std::unique_ptr<exasol::udf::v2::EpollRegistration> socket_registration;
 };
 
 } // namespace
@@ -78,16 +81,16 @@ TEST_F(SpscEpollTest, ReportsQueueAndSocketReadiness)
     const char byte = 'x';
     ASSERT_EQ(::write(sockets()[0], &byte, sizeof(byte)), sizeof(byte));
 
-    std::array<epoll_event, 2> events{};
-    const int event_count = ::epoll_wait(epoll_fd(), events.data(), events.size(), 1000);
+    std::array<exasol::udf::v2::EpollReadyEvent, 2> events{};
+    const std::size_t event_count = epoll().wait(events, std::chrono::seconds(1));
     ASSERT_EQ(event_count, 2);
 
     bool queue_ready  = false;
     bool socket_ready = false;
-    for (const auto& event : std::span(events).first(static_cast<std::size_t>(event_count)))
+    for (const auto& event : std::span(events).first(event_count))
     {
-        queue_ready |= event.data.fd == queue().native_handle();
-        socket_ready |= event.data.fd == sockets()[1];
+        queue_ready |= event.token == queue_token && event.readable;
+        socket_ready |= event.token == socket_token && event.readable;
     }
     EXPECT_TRUE(queue_ready);
     EXPECT_TRUE(socket_ready);
