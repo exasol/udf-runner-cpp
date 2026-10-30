@@ -28,7 +28,7 @@ public:
     [[nodiscard]] bool has_close_connection() const noexcept override;
 
 private:
-    std::optional<interface::ControlMessage> control_message_;
+    interface::ControlMessage control_message_;
     std::shared_ptr<const protocol::DecodedFrame> decoded_frame_;
 };
 

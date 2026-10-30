@@ -61,7 +61,7 @@ ControlMessageViewImpl::server_capabilities() const noexcept
 
 bool ControlMessageViewImpl::has_keep_alive() const noexcept
 {
-    return control_message_.has_value() && control_message_->keep_alive;
+    return control_message_.keep_alive;
 }
 
 bool ControlMessageViewImpl::has_payloads() const noexcept
@@ -90,7 +90,7 @@ std::optional<std::reference_wrapper<const protocol::Error>> ControlMessageViewI
 
 bool ControlMessageViewImpl::has_close_connection() const noexcept
 {
-    return control_message_.has_value() && control_message_->close_connection;
+    return control_message_.close_connection;
 }
 
 } // namespace exasol::udf::v2::internal

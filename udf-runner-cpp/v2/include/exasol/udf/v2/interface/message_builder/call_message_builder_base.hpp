@@ -22,10 +22,12 @@ public:
     virtual CallMessageBuilderBase& add_payload(std::string_view name,
                                                 std::string_view value,
                                                 bool binary) = 0;
+    // LCOV_EXCL_START: the current add_payload implementation aborts by design.
     CallMessageBuilderBase& add_payload(std::string_view name, std::string_view value)
     {
         return add_payload(name, value, false);
     }
+    // LCOV_EXCL_STOP
     /// Adds or replaces the data schema and its correlation flags.
     virtual CallMessageBuilderBase& data_schema(ArrowSchemaPtr schema,
                                                 bool has_group_id,

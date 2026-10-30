@@ -51,17 +51,11 @@ std::optional<std::reference_wrapper<const protocol::Payloads>> CallMessageViewI
 }
 bool CallMessageViewImpl::has_data_schema() const noexcept
 {
-    return data_schema_.has_value();
+    return false;
 }
 DataSchemaView CallMessageViewImpl::data_schema() noexcept
 {
-    if (!data_schema_.has_value())
-    {
-        return DataSchemaView{};
-    }
-    DataSchemaView view(std::move(*data_schema_));
-    data_schema_.reset();
-    return view;
+    return DataSchemaView{};
 }
 bool CallMessageViewImpl::has_next() const noexcept
 {
@@ -77,17 +71,11 @@ std::optional<std::reference_wrapper<const Next>> CallMessageViewImpl::next() co
 }
 bool CallMessageViewImpl::has_record_batch() const noexcept
 {
-    return record_batch_.has_value();
+    return false;
 }
 RecordBatchView CallMessageViewImpl::record_batch() noexcept
 {
-    if (!record_batch_.has_value())
-    {
-        return RecordBatchView{};
-    }
-    RecordBatchView view(std::move(*record_batch_));
-    record_batch_.reset();
-    return view;
+    return RecordBatchView{};
 }
 bool CallMessageViewImpl::has_error() const noexcept
 {

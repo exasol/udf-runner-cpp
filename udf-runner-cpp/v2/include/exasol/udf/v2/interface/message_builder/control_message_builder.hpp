@@ -28,10 +28,12 @@ public:
     virtual ControlMessageBuilder& add_payload(std::string_view name,
                                                std::string_view value,
                                                bool binary) = 0;
+    // LCOV_EXCL_START: the current add_payload implementation aborts by design.
     ControlMessageBuilder& add_payload(std::string_view name, std::string_view value)
     {
         return add_payload(name, value, false);
     }
+    // LCOV_EXCL_STOP
     /// Adds or replaces a control-stream error description.
     virtual ControlMessageBuilder& error(std::string_view code, std::string_view text) = 0;
     /// Starts or acknowledges connection shutdown.

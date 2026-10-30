@@ -33,9 +33,10 @@ public:
     [[nodiscard]] bool has_close_call() const noexcept override;
 
 private:
-    std::optional<interface::DataSchema> data_schema_;
+    // Add these when the stream can supply Arrow data alongside the decoded frame:
+    // std::optional<interface::DataSchema> data_schema_;
+    // std::optional<interface::RecordBatch> record_batch_;
     std::optional<interface::Next> next_;
-    std::optional<interface::RecordBatch> record_batch_;
     bool close_call_{false};
     std::shared_ptr<const protocol::DecodedFrame> decoded_frame_;
 };
