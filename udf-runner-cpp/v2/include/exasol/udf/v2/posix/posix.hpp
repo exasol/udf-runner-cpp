@@ -28,11 +28,9 @@ public:
     /** Creates an epoll instance. */
     virtual int epoll_create1(int flags) = 0;
     /** Controls an epoll registration. */
-    virtual int epoll_ctl(int epoll_fd, int operation, int file_descriptor, epoll_event* event) =
-        0;
+    virtual int epoll_ctl(int epoll_fd, int operation, int file_descriptor, epoll_event* event) = 0;
     /** Waits for epoll readiness events. */
-    virtual int epoll_wait(int epoll_fd, epoll_event* events, int maximum_events, int timeout) =
-        0;
+    virtual int epoll_wait(int epoll_fd, epoll_event* events, int maximum_events, int timeout) = 0;
     /** Connects a socket to a peer address. */
     virtual int connect(int sockfd, const sockaddr* address, socklen_t address_length) = 0;
     /** Binds a socket to a local address. */
