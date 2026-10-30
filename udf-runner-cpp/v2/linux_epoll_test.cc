@@ -72,6 +72,18 @@ TEST(NativeLinuxEpollTest, CreatesAndClosesEpollDescriptor)
     }
 }
 
+TEST(NativeLinuxEpollTest, ReportsEpollCreationFailure)
+{
+    auto posix = std::make_shared<testing::StrictMock<MockPosix>>();
+    EXPECT_CALL(*posix, epoll_create1(EPOLL_CLOEXEC)).WillOnce([](int) {
+        errno = EMFILE;
+        return -1;
+    });
+
+    expect_system_error([&posix] { static_cast<void>(NativeLinuxEpoll(posix)); },
+                        std::errc::too_many_files_open);
+}
+
 TEST(NativeLinuxEpollTest, RegistrationDeregistersOnDestruction)
 {
     auto posix = std::make_shared<testing::StrictMock<MockPosix>>();
