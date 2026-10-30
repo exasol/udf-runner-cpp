@@ -88,7 +88,7 @@ protected:
 namespace detail
 {
     class NativeEpollState;
-}
+} // namespace detail
 
 /** Implements LinuxEpoll using native Linux epoll APIs. */
 class NativeLinuxEpoll final : public LinuxEpoll
