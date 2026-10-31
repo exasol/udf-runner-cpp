@@ -5,6 +5,7 @@
 #include <exasol/udf/v2/interface/message_builder/control_message_builder.hpp>
 
 #include <optional>
+#include <vector>
 
 namespace exasol::udf::v2::internal
 {
@@ -16,10 +17,14 @@ struct ControlMessage
     {
     }
 
-    std::uint64_t stream_id;
-    bool keep_alive{false}; // NOLINT(misc-non-private-member-variables-in-classes)
+    std::uint64_t stream_id; // NOLINT(misc-non-private-member-variables-in-classes)
+    std::optional<interface::ServerCapabilities>
+        server_capabilities; // NOLINT(misc-non-private-member-variables-in-classes)
+    bool keep_alive{false};  // NOLINT(misc-non-private-member-variables-in-classes)
+    std::vector<interface::Payload>
+        payloads; // NOLINT(misc-non-private-member-variables-in-classes)
     std::optional<interface::ErrorInfo>
-        error; // NOLINT(misc-non-private-member-variables-in-classes)
+        error;                    // NOLINT(misc-non-private-member-variables-in-classes)
     bool close_connection{false}; // NOLINT(misc-non-private-member-variables-in-classes)
 };
 

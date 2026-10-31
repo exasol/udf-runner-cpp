@@ -2,6 +2,7 @@
 
 #include <arrow/c/abi.h>
 
+#include <bit>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -44,6 +45,24 @@ struct RecordBatch
 {
     ArrowArrayPtr array;         // NOLINT(misc-non-private-member-variables-in-classes)
     bool is_end_of_group{false}; // NOLINT(misc-non-private-member-variables-in-classes)
+};
+
+/// Protocol capabilities advertised by the server on the control stream.
+struct ServerCapabilities
+{
+    std::uint32_t major;    // NOLINT(misc-non-private-member-variables-in-classes)
+    std::uint32_t minor;    // NOLINT(misc-non-private-member-variables-in-classes)
+    std::endian endianness; // NOLINT(misc-non-private-member-variables-in-classes)
+    std::uint32_t
+        number_of_supported_workers; // NOLINT(misc-non-private-member-variables-in-classes)
+};
+
+/// One named text or binary payload attached to a control message.
+struct Payload
+{
+    std::string name;   // NOLINT(misc-non-private-member-variables-in-classes)
+    std::string value;  // NOLINT(misc-non-private-member-variables-in-classes)
+    bool binary{false}; // NOLINT(misc-non-private-member-variables-in-classes)
 };
 
 } // namespace exasol::udf::v2::interface
