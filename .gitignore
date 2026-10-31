@@ -10,6 +10,9 @@ dist
 *.swp
 MODULE.bazel.lock
 bazel-*
+/udf-runner-cpp/v2/.bazel-output-root/
+/udf-runner-cpp/v2/.bazel-repository-cache/
+/udf-runner-cpp/v2/.bazelisk/
 /udf-runner-cpp/v2/coverage-html/
 .serena
 # CLion IDE
