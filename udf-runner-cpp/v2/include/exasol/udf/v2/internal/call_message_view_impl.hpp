@@ -27,9 +27,6 @@ public:
         const noexcept override;
 
 private:
-    // Add these when the stream can supply Arrow data alongside the decoded frame:
-    // std::optional<interface::DataSchema> data_schema_;
-    // std::optional<interface::RecordBatch> record_batch_;
     std::shared_ptr<const protocol::DecodedFrame> decoded_frame_;
 };
 } // namespace exasol::udf::v2::internal

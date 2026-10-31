@@ -16,7 +16,7 @@ TEST(RecordBatchViewTest, TransfersArrayAndReleasesItOnce)
     array.private_data = &releases;
     array.release      = test::count_array_release;
     {
-        RecordBatchView view(RecordBatch{ArrowArrayPtr(&array), true});
+        RecordBatchView view(ArrowArrayPtr(&array), true);
         EXPECT_TRUE(view.is_end_of_group());
         auto transferred = std::move(view).take_array();
         EXPECT_EQ(transferred.get(), &array);

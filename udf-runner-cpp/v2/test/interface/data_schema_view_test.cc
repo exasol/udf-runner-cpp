@@ -16,7 +16,7 @@ TEST(DataSchemaViewTest, TransfersSchemaAndReleasesItOnce)
     schema.private_data = &releases;
     schema.release      = test::count_schema_release;
     {
-        DataSchemaView view(DataSchema{ArrowSchemaPtr(&schema), true, true});
+        DataSchemaView view(ArrowSchemaPtr(&schema), true, true);
         EXPECT_TRUE(view.has_group_id());
         EXPECT_TRUE(view.has_row_id());
         auto transferred = std::move(view).take_schema();

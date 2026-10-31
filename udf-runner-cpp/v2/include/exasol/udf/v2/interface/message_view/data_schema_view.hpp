@@ -2,26 +2,19 @@
 
 #include <exasol/udf/v2/interface/arrow_c_data.hpp>
 
-#include <optional>
 #include <utility>
 
 namespace exasol::udf::v2::interface
 {
 
 /// Arrow schema and correlation-field metadata for one data direction.
-struct DataSchema
-{
-    ArrowSchemaPtr schema;    // NOLINT(misc-non-private-member-variables-in-classes)
-    bool has_group_id{false}; // NOLINT(misc-non-private-member-variables-in-classes)
-    bool has_row_id{false};   // NOLINT(misc-non-private-member-variables-in-classes)
-};
-
 /// Owning view of a received Arrow data schema and its correlation flags.
 class DataSchemaView
 {
 public:
     DataSchemaView() = default;
-    explicit DataSchemaView(DataSchema value) : data_schema_(std::move(value))
+    DataSchemaView(ArrowSchemaPtr schema, bool has_group_id, bool has_row_id)
+        : schema_(std::move(schema)), has_group_id_(has_group_id), has_row_id_(has_row_id)
     {
     }
     DataSchemaView(const DataSchemaView&)                = delete;
@@ -33,33 +26,23 @@ public:
     /// Transfers ownership of the received Arrow schema to the caller.
     [[nodiscard]] ArrowSchemaPtr take_schema() &&
     {
-        if (!data_schema_.has_value())
-        {
-            return {};
-        }
-        return std::move(data_schema_.value().schema);
+        return std::move(schema_);
     }
     /// Returns whether the schema reserves a group-id field.
     [[nodiscard]] bool has_group_id() const
     {
-        if (!data_schema_.has_value())
-        {
-            return false;
-        }
-        return data_schema_.value().has_group_id;
+        return has_group_id_;
     }
     /// Returns whether the schema reserves a row-id field.
     [[nodiscard]] bool has_row_id() const
     {
-        if (!data_schema_.has_value())
-        {
-            return false;
-        }
-        return data_schema_.value().has_row_id;
+        return has_row_id_;
     }
 
 private:
-    std::optional<DataSchema> data_schema_;
+    ArrowSchemaPtr schema_;
+    bool has_group_id_{false};
+    bool has_row_id_{false};
 };
 
 } // namespace exasol::udf::v2::interface

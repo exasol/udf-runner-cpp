@@ -72,12 +72,12 @@ TEST(CallMessageBuilderTest, BuildsMessageWithDefaultOptions)
     const auto& message = builder_impl->message();
     EXPECT_EQ(message.stream_id(), 7);
     ASSERT_TRUE(message.data_schema().has_value());
-    EXPECT_TRUE(message.data_schema()->has_group_id);
-    EXPECT_FALSE(message.data_schema()->has_row_id);
+    EXPECT_TRUE(message.data_schema()->has_group_id());
+    EXPECT_FALSE(message.data_schema()->has_row_id());
     ASSERT_TRUE(message.reset_row_id().has_value());
     EXPECT_EQ(*message.reset_row_id(), 0);
     ASSERT_TRUE(message.record_batch().has_value());
-    EXPECT_FALSE(message.record_batch()->is_end_of_group);
+    EXPECT_FALSE(message.record_batch()->is_end_of_group());
     ASSERT_TRUE(message.error().has_value());
     EXPECT_EQ(message.error()->code(), "E_TEST");
     EXPECT_EQ(message.error()->message(), "failure");

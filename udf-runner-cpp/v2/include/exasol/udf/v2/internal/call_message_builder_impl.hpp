@@ -1,9 +1,8 @@
 #pragma once
 
 #include <exasol/udf/v2/interface/error_info.hpp>
+#include <exasol/udf/v2/interface/arrow_c_data.hpp>
 #include <exasol/udf/v2/interface/message_builder/call_message_builder.hpp>
-#include <exasol/udf/v2/interface/message_view/data_schema_view.hpp>
-#include <exasol/udf/v2/interface/message_view/record_batch_view.hpp>
 #include <exasol/udf/v2/internal/payload.hpp>
 
 #include <optional>
@@ -12,6 +11,53 @@
 
 namespace exasol::udf::v2::internal
 {
+
+class DataSchema
+{
+public:
+    DataSchema(interface::ArrowSchemaPtr schema, bool has_group_id, bool has_row_id)
+        : schema_(std::move(schema)), has_group_id_(has_group_id), has_row_id_(has_row_id)
+    {
+    }
+    [[nodiscard]] const interface::ArrowSchemaPtr& schema() const noexcept
+    {
+        return schema_;
+    }
+    [[nodiscard]] bool has_group_id() const noexcept
+    {
+        return has_group_id_;
+    }
+    [[nodiscard]] bool has_row_id() const noexcept
+    {
+        return has_row_id_;
+    }
+
+private:
+    interface::ArrowSchemaPtr schema_;
+    bool has_group_id_;
+    bool has_row_id_;
+};
+
+class RecordBatch
+{
+public:
+    RecordBatch(interface::ArrowArrayPtr array, bool is_end_of_group)
+        : array_(std::move(array)), is_end_of_group_(is_end_of_group)
+    {
+    }
+    [[nodiscard]] const interface::ArrowArrayPtr& array() const noexcept
+    {
+        return array_;
+    }
+    [[nodiscard]] bool is_end_of_group() const noexcept
+    {
+        return is_end_of_group_;
+    }
+
+private:
+    interface::ArrowArrayPtr array_;
+    bool is_end_of_group_;
+};
 
 /// Internal mutable representation consumed by the protocol encoder.
 class CallMessage
@@ -29,9 +75,9 @@ public:
     [[nodiscard]] std::uint64_t stream_id() const noexcept;
     [[nodiscard]] const std::optional<std::string>& open_call() const noexcept;
     [[nodiscard]] const std::vector<Payload>& payloads() const noexcept;
-    [[nodiscard]] const std::optional<interface::DataSchema>& data_schema() const noexcept;
+    [[nodiscard]] const std::optional<DataSchema>& data_schema() const noexcept;
     [[nodiscard]] const std::optional<std::uint64_t>& reset_row_id() const noexcept;
-    [[nodiscard]] const std::optional<interface::RecordBatch>& record_batch() const noexcept;
+    [[nodiscard]] const std::optional<RecordBatch>& record_batch() const noexcept;
     [[nodiscard]] const std::optional<interface::ErrorInfo>& error() const noexcept;
     [[nodiscard]] bool is_close_call() const noexcept;
 
@@ -39,9 +85,9 @@ private:
     std::uint64_t stream_id_;
     std::optional<std::string> open_call_;
     std::vector<Payload> payloads_;
-    std::optional<interface::DataSchema> data_schema_;
+    std::optional<DataSchema> data_schema_;
     std::optional<std::uint64_t> reset_row_id_;
-    std::optional<interface::RecordBatch> record_batch_;
+    std::optional<RecordBatch> record_batch_;
     std::optional<interface::ErrorInfo> error_;
     bool close_call_{false};
 };

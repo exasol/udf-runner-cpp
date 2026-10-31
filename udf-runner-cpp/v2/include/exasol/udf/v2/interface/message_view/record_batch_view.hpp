@@ -2,25 +2,19 @@
 
 #include <exasol/udf/v2/interface/arrow_c_data.hpp>
 
-#include <optional>
 #include <utility>
 
 namespace exasol::udf::v2::interface
 {
 
 /// Arrow record batch and its group-boundary marker.
-struct RecordBatch
-{
-    ArrowArrayPtr array;         // NOLINT(misc-non-private-member-variables-in-classes)
-    bool is_end_of_group{false}; // NOLINT(misc-non-private-member-variables-in-classes)
-};
-
 /// Owning view of a received Arrow record batch.
 class RecordBatchView
 {
 public:
     RecordBatchView() = default;
-    explicit RecordBatchView(RecordBatch value) : record_batch_(std::move(value))
+    RecordBatchView(ArrowArrayPtr array, bool is_end_of_group)
+        : array_(std::move(array)), is_end_of_group_(is_end_of_group)
     {
     }
     RecordBatchView(const RecordBatchView&)                = delete;
@@ -32,24 +26,17 @@ public:
     /// Transfers ownership of the received Arrow array to the caller.
     [[nodiscard]] ArrowArrayPtr take_array() &&
     {
-        if (!record_batch_.has_value())
-        {
-            return {};
-        }
-        return std::move(record_batch_.value().array);
+        return std::move(array_);
     }
     /// Returns whether the final group in this batch ends here.
     [[nodiscard]] bool is_end_of_group() const
     {
-        if (!record_batch_.has_value())
-        {
-            return false;
-        }
-        return record_batch_.value().is_end_of_group;
+        return is_end_of_group_;
     }
 
 private:
-    std::optional<RecordBatch> record_batch_;
+    ArrowArrayPtr array_;
+    bool is_end_of_group_{false};
 };
 
 } // namespace exasol::udf::v2::interface

@@ -17,7 +17,7 @@ void CallMessage::add_payload(std::string_view name, std::string_view value, con
 
 void CallMessage::data_schema(interface::ArrowSchemaPtr schema, bool has_group_id, bool has_row_id)
 {
-    data_schema_ = interface::DataSchema{std::move(schema), has_group_id, has_row_id};
+    data_schema_ = DataSchema{std::move(schema), has_group_id, has_row_id};
 }
 
 void CallMessage::reset(std::uint64_t row_id)
@@ -27,7 +27,7 @@ void CallMessage::reset(std::uint64_t row_id)
 
 void CallMessage::record_batch(interface::ArrowArrayPtr array, bool is_end_of_group)
 {
-    record_batch_ = interface::RecordBatch{std::move(array), is_end_of_group};
+    record_batch_ = RecordBatch{std::move(array), is_end_of_group};
 }
 
 void CallMessage::error(std::string_view code, std::string_view text)
@@ -60,7 +60,7 @@ const std::vector<Payload>& CallMessage::payloads() const noexcept
     return payloads_;
 }
 
-const std::optional<interface::DataSchema>& CallMessage::data_schema() const noexcept
+const std::optional<DataSchema>& CallMessage::data_schema() const noexcept
 {
     return data_schema_;
 }
@@ -70,7 +70,7 @@ const std::optional<std::uint64_t>& CallMessage::reset_row_id() const noexcept
     return reset_row_id_;
 }
 
-const std::optional<interface::RecordBatch>& CallMessage::record_batch() const noexcept
+const std::optional<RecordBatch>& CallMessage::record_batch() const noexcept
 {
     return record_batch_;
 }

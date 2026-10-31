@@ -14,9 +14,7 @@ namespace exasol::udf::v2::internal
 
 using interface::ArrowArrayPtr;
 using interface::ArrowSchemaPtr;
-using interface::DataSchema;
 using interface::DataSchemaView;
-using interface::RecordBatch;
 using interface::RecordBatchView;
 
 static_assert(std::is_abstract_v<interface::CallMessageView>);
@@ -46,8 +44,8 @@ TEST(CallMessageViewTest, ArrowDataCanRoundTripThroughInterface)
     ArrowSchema received_schema{};
     ArrowArray received_array{};
     ASSERT_TRUE(arrow::ExportRecordBatch(*source, &received_array, &received_schema).ok());
-    DataSchemaView schema_view(DataSchema{ArrowSchemaPtr(&received_schema), false, false});
-    RecordBatchView batch_view(RecordBatch{ArrowArrayPtr(&received_array), true});
+    DataSchemaView schema_view(ArrowSchemaPtr(&received_schema), false, false);
+    RecordBatchView batch_view(ArrowArrayPtr(&received_array), true);
     auto schema_owner = std::move(schema_view).take_schema();
     auto array_owner  = std::move(batch_view).take_array();
     ASSERT_NE(schema_owner, nullptr);
