@@ -4,28 +4,45 @@
 #include <exasol/udf/v2/interface/error_info.hpp>
 #include <exasol/udf/v2/interface/message_builder/control_message_builder.hpp>
 
+#include <bit>
+#include <cstdint>
 #include <optional>
+#include <string_view>
 #include <vector>
 
 namespace exasol::udf::v2::internal
 {
 
 /// Internal mutable representation consumed by the protocol encoder.
-struct ControlMessage
+class ControlMessage
 {
-    explicit ControlMessage(std::uint64_t stream_id) : stream_id(stream_id)
-    {
-    }
+public:
+    explicit ControlMessage(std::uint64_t stream_id);
 
-    std::uint64_t stream_id; // NOLINT(misc-non-private-member-variables-in-classes)
-    std::optional<interface::ServerCapabilities>
-        server_capabilities; // NOLINT(misc-non-private-member-variables-in-classes)
-    bool keep_alive{false};  // NOLINT(misc-non-private-member-variables-in-classes)
-    std::vector<interface::Payload>
-        payloads; // NOLINT(misc-non-private-member-variables-in-classes)
-    std::optional<interface::ErrorInfo>
-        error;                    // NOLINT(misc-non-private-member-variables-in-classes)
-    bool close_connection{false}; // NOLINT(misc-non-private-member-variables-in-classes)
+    void server_capabilities(std::uint32_t major,
+                             std::uint32_t minor,
+                             std::endian endianness,
+                             std::uint32_t number_of_supported_workers);
+    void keep_alive();
+    void add_payload(std::string_view name, std::string_view value, bool binary);
+    void error(std::string_view code, std::string_view text);
+    void close_connection();
+
+    [[nodiscard]] std::uint64_t stream_id() const noexcept;
+    [[nodiscard]] const std::optional<interface::ServerCapabilities>& server_capabilities()
+        const noexcept;
+    [[nodiscard]] bool is_keep_alive() const noexcept;
+    [[nodiscard]] const std::vector<interface::Payload>& payloads() const noexcept;
+    [[nodiscard]] const std::optional<interface::ErrorInfo>& error() const noexcept;
+    [[nodiscard]] bool is_close_connection() const noexcept;
+
+private:
+    std::uint64_t stream_id_;
+    std::optional<interface::ServerCapabilities> server_capabilities_;
+    bool keep_alive_{false};
+    std::vector<interface::Payload> payloads_;
+    std::optional<interface::ErrorInfo> error_;
+    bool close_connection_{false};
 };
 
 class ControlMessageBuilderImpl final : public interface::ControlMessageBuilder
