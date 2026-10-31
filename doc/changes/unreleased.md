@@ -25,6 +25,8 @@ n/a
 
 ## Internal
 
+* #111: Fixed Lima Mull provisioning by installing the pinned LLVM 22 package
+  directly from its verified release artifact
 * #70: Removed the standalone JSON schema validation script and its dedicated CI workflow
 * #60: Added Mull mutation testing workflow and report-viewing documentation
   for v2; targets without generated mutants now produce warnings instead of
