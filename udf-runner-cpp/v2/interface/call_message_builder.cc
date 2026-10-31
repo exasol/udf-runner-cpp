@@ -7,13 +7,13 @@
 namespace exasol::udf::v2::internal
 {
 
-CallMessageBuilderState::CallMessageBuilderState(const std::uint64_t stream_id)
+CallMessage::CallMessage(const std::uint64_t stream_id)
     : stream_id_(stream_id)
 {
 }
 
 // LCOV_EXCL_START: payload encoding will be implemented with the protocol codec.
-void CallMessageBuilderState::add_payload( // NOSONAR
+void CallMessage::add_payload( // NOSONAR
     std::string_view name,
     std::string_view value,
     bool binary)
@@ -25,45 +25,74 @@ void CallMessageBuilderState::add_payload( // NOSONAR
 }
 // LCOV_EXCL_STOP
 
-void CallMessageBuilderState::data_schema(interface::ArrowSchemaPtr schema,
-                                          bool has_group_id,
-                                          bool has_row_id)
+void CallMessage::data_schema(interface::ArrowSchemaPtr schema,
+                              bool has_group_id,
+                              bool has_row_id)
 {
     data_schema_ = interface::DataSchema{std::move(schema), has_group_id, has_row_id};
 }
 
-void CallMessageBuilderState::reset(std::uint64_t row_id)
+void CallMessage::reset(std::uint64_t row_id)
 {
     reset_row_id_ = row_id;
 }
 
-void CallMessageBuilderState::record_batch(interface::ArrowArrayPtr array, bool is_end_of_group)
+void CallMessage::record_batch(interface::ArrowArrayPtr array, bool is_end_of_group)
 {
     record_batch_ = interface::RecordBatch{std::move(array), is_end_of_group};
 }
 
-void CallMessageBuilderState::error(std::string_view code, std::string_view text)
+void CallMessage::error(std::string_view code, std::string_view text)
 {
     error_.emplace(std::string(code), std::string(text));
 }
 
-void CallMessageBuilderState::close_call()
+void CallMessage::close_call()
 {
     close_call_ = true;
 }
 
-void CallMessageBuilderState::set_open_call(std::string_view name)
+void CallMessage::set_open_call(std::string_view name)
 {
     open_call_ = interface::OpenCall{std::string(name)};
 }
 
-CallMessageEncodingView CallMessageBuilderState::encoding_view() const noexcept
+std::uint64_t CallMessage::stream_id() const noexcept
 {
-    return {stream_id_,    open_call_, data_schema_, reset_row_id_,
-            record_batch_, error_,     close_call_};
+    return stream_id_;
 }
 
-CallMessageBuilderImpl::CallMessageBuilderImpl(const std::uint64_t stream_id) : state_(stream_id)
+const std::optional<interface::OpenCall>& CallMessage::open_call() const noexcept
+{
+    return open_call_;
+}
+
+const std::optional<interface::DataSchema>& CallMessage::data_schema() const noexcept
+{
+    return data_schema_;
+}
+
+const std::optional<std::uint64_t>& CallMessage::reset_row_id() const noexcept
+{
+    return reset_row_id_;
+}
+
+const std::optional<interface::RecordBatch>& CallMessage::record_batch() const noexcept
+{
+    return record_batch_;
+}
+
+const std::optional<interface::ErrorInfo>& CallMessage::error() const noexcept
+{
+    return error_;
+}
+
+bool CallMessage::is_close_call() const noexcept
+{
+    return close_call_;
+}
+
+CallMessageBuilderImpl::CallMessageBuilderImpl(const std::uint64_t stream_id) : message_(stream_id)
 {
 }
 
@@ -71,7 +100,7 @@ interface::CallMessageBuilder& CallMessageBuilderImpl::add_payload(std::string_v
                                                                    std::string_view value,
                                                                    bool binary)
 {
-    state_.add_payload(name, value, binary);
+    message_.add_payload(name, value, binary);
     return *this;
 }
 
@@ -79,96 +108,96 @@ interface::CallMessageBuilder& CallMessageBuilderImpl::data_schema(interface::Ar
                                                                    bool has_group_id,
                                                                    bool has_row_id)
 {
-    state_.data_schema(std::move(schema), has_group_id, has_row_id);
+    message_.data_schema(std::move(schema), has_group_id, has_row_id);
     return *this;
 }
 
 interface::CallMessageBuilder& CallMessageBuilderImpl::reset(std::uint64_t row_id)
 {
-    state_.reset(row_id);
+    message_.reset(row_id);
     return *this;
 }
 
 interface::CallMessageBuilder& CallMessageBuilderImpl::record_batch(interface::ArrowArrayPtr array,
                                                                     bool is_end_of_group)
 {
-    state_.record_batch(std::move(array), is_end_of_group);
+    message_.record_batch(std::move(array), is_end_of_group);
     return *this;
 }
 
 interface::CallMessageBuilder& CallMessageBuilderImpl::error(std::string_view code,
                                                              std::string_view text)
 {
-    state_.error(code, text);
+    message_.error(code, text);
     return *this;
 }
 
 interface::CallMessageBuilder& CallMessageBuilderImpl::close_call()
 {
-    state_.close_call();
+    message_.close_call();
     return *this;
 }
 
-CallMessageEncodingView CallMessageBuilderImpl::encoding_view() const noexcept
+const CallMessage& CallMessageBuilderImpl::message() const noexcept
 {
-    return state_.encoding_view();
+    return message_;
 }
 
 OpeningCallMessageBuilderImpl::OpeningCallMessageBuilderImpl(const std::uint64_t stream_id)
-    : state_(stream_id)
+    : message_(stream_id)
 {
 }
 
 interface::OpeningCallMessageBuilder& OpeningCallMessageBuilderImpl::open_call(
     std::string_view name)
 {
-    state_.set_open_call(name);
+    message_.set_open_call(name);
     return *this;
 }
 
 interface::OpeningCallMessageBuilder& OpeningCallMessageBuilderImpl::add_payload(
     std::string_view name, std::string_view value, bool binary)
 {
-    state_.add_payload(name, value, binary);
+    message_.add_payload(name, value, binary);
     return *this;
 }
 
 interface::OpeningCallMessageBuilder& OpeningCallMessageBuilderImpl::data_schema(
     interface::ArrowSchemaPtr schema, bool has_group_id, bool has_row_id)
 {
-    state_.data_schema(std::move(schema), has_group_id, has_row_id);
+    message_.data_schema(std::move(schema), has_group_id, has_row_id);
     return *this;
 }
 
 interface::OpeningCallMessageBuilder& OpeningCallMessageBuilderImpl::reset(std::uint64_t row_id)
 {
-    state_.reset(row_id);
+    message_.reset(row_id);
     return *this;
 }
 
 interface::OpeningCallMessageBuilder& OpeningCallMessageBuilderImpl::record_batch(
     interface::ArrowArrayPtr array, bool is_end_of_group)
 {
-    state_.record_batch(std::move(array), is_end_of_group);
+    message_.record_batch(std::move(array), is_end_of_group);
     return *this;
 }
 
 interface::OpeningCallMessageBuilder& OpeningCallMessageBuilderImpl::error(std::string_view code,
                                                                            std::string_view text)
 {
-    state_.error(code, text);
+    message_.error(code, text);
     return *this;
 }
 
 interface::OpeningCallMessageBuilder& OpeningCallMessageBuilderImpl::close_call()
 {
-    state_.close_call();
+    message_.close_call();
     return *this;
 }
 
-CallMessageEncodingView OpeningCallMessageBuilderImpl::encoding_view() const noexcept
+const CallMessage& OpeningCallMessageBuilderImpl::message() const noexcept
 {
-    return state_.encoding_view();
+    return message_;
 }
 
 } // namespace exasol::udf::v2::internal

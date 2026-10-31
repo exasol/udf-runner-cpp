@@ -1,16 +1,26 @@
 #pragma once
 
 #include <exasol/udf/v2/interface/content_types.hpp>
+#include <exasol/udf/v2/interface/error_info.hpp>
 #include <exasol/udf/v2/interface/message_builder/control_message_builder.hpp>
+
+#include <optional>
 
 namespace exasol::udf::v2::internal
 {
 
-/// Internal, non-owning representation consumed by the protocol encoder.
-struct ControlMessageEncodingView
+/// Internal mutable representation consumed by the protocol encoder.
+struct ControlMessage
 {
+    explicit ControlMessage(std::uint64_t stream_id) : stream_id(stream_id)
+    {
+    }
+
     std::uint64_t stream_id;
-    const interface::ControlMessage& message;
+    bool keep_alive{false}; // NOLINT(misc-non-private-member-variables-in-classes)
+    std::optional<interface::ErrorInfo>
+        error; // NOLINT(misc-non-private-member-variables-in-classes)
+    bool close_connection{false}; // NOLINT(misc-non-private-member-variables-in-classes)
 };
 
 class ControlMessageBuilderImpl final : public interface::ControlMessageBuilder
@@ -32,11 +42,10 @@ public:
     interface::ControlMessageBuilder& error(std::string_view code, std::string_view text) override;
     interface::ControlMessageBuilder& close_connection() override;
 
-    [[nodiscard]] ControlMessageEncodingView encoding_view() const noexcept;
+    [[nodiscard]] const ControlMessage& message() const noexcept;
 
 private:
-    std::uint64_t stream_id_;
-    interface::ControlMessage message_;
+    ControlMessage message_;
 };
 
 } // namespace exasol::udf::v2::internal

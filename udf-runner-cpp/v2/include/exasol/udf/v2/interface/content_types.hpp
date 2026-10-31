@@ -1,12 +1,9 @@
 #pragma once
 
-#include <exasol/udf/v2/interface/error_info.hpp>
-
 #include <arrow/c/abi.h>
 
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
 
 namespace exasol::udf::v2::interface
@@ -47,21 +44,6 @@ struct RecordBatch
 {
     ArrowArrayPtr array;         // NOLINT(misc-non-private-member-variables-in-classes)
     bool is_end_of_group{false}; // NOLINT(misc-non-private-member-variables-in-classes)
-};
-
-/// Composite message exchanged on the connection control stream.
-struct ControlMessage
-{
-    ControlMessage()                                     = default;
-    ControlMessage(const ControlMessage&)                = default;
-    ControlMessage(ControlMessage&&) noexcept            = default;
-    ControlMessage& operator=(const ControlMessage&)     = delete;
-    ControlMessage& operator=(ControlMessage&&) noexcept = delete;
-    ~ControlMessage()                                    = default;
-
-    bool keep_alive{false};         // NOLINT(misc-non-private-member-variables-in-classes)
-    std::optional<ErrorInfo> error; // NOLINT(misc-non-private-member-variables-in-classes)
-    bool close_connection{false};   // NOLINT(misc-non-private-member-variables-in-classes)
 };
 
 } // namespace exasol::udf::v2::interface

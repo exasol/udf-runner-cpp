@@ -8,7 +8,7 @@ namespace exasol::udf::v2::internal
 {
 
 ControlMessageBuilderImpl::ControlMessageBuilderImpl(const std::uint64_t stream_id)
-    : stream_id_(stream_id)
+    : message_(stream_id)
 {
 }
 
@@ -59,9 +59,9 @@ interface::ControlMessageBuilder& ControlMessageBuilderImpl::close_connection()
     return *this;
 }
 
-ControlMessageEncodingView ControlMessageBuilderImpl::encoding_view() const noexcept
+const ControlMessage& ControlMessageBuilderImpl::message() const noexcept
 {
-    return {stream_id_, message_};
+    return message_;
 }
 
 } // namespace exasol::udf::v2::internal

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <exasol/udf/v2/interface/error_info.hpp>
 #include <exasol/udf/v2/interface/message_builder/call_message_builder.hpp>
 
 #include <optional>
@@ -7,22 +8,11 @@
 namespace exasol::udf::v2::internal
 {
 
-/// Internal, non-owning representation consumed by the protocol encoder.
-struct CallMessageEncodingView
-{
-    std::uint64_t stream_id;
-    const std::optional<interface::OpenCall>& open_call;
-    const std::optional<interface::DataSchema>& data_schema;
-    const std::optional<std::uint64_t>& reset_row_id;
-    const std::optional<interface::RecordBatch>& record_batch;
-    const std::optional<interface::ErrorInfo>& error;
-    bool close_call;
-};
-
-class CallMessageBuilderState
+/// Internal mutable representation consumed by the protocol encoder.
+class CallMessage
 {
 public:
-    explicit CallMessageBuilderState(std::uint64_t stream_id);
+    explicit CallMessage(std::uint64_t stream_id);
 
     void add_payload(std::string_view name, std::string_view value, bool binary);
     void data_schema(interface::ArrowSchemaPtr schema, bool has_group_id, bool has_row_id);
@@ -31,7 +21,13 @@ public:
     void error(std::string_view code, std::string_view text);
     void close_call();
     void set_open_call(std::string_view name);
-    [[nodiscard]] CallMessageEncodingView encoding_view() const noexcept;
+    [[nodiscard]] std::uint64_t stream_id() const noexcept;
+    [[nodiscard]] const std::optional<interface::OpenCall>& open_call() const noexcept;
+    [[nodiscard]] const std::optional<interface::DataSchema>& data_schema() const noexcept;
+    [[nodiscard]] const std::optional<std::uint64_t>& reset_row_id() const noexcept;
+    [[nodiscard]] const std::optional<interface::RecordBatch>& record_batch() const noexcept;
+    [[nodiscard]] const std::optional<interface::ErrorInfo>& error() const noexcept;
+    [[nodiscard]] bool is_close_call() const noexcept;
 
 private:
     std::uint64_t stream_id_;
@@ -64,10 +60,10 @@ public:
                                                 bool is_end_of_group) override;
     interface::CallMessageBuilder& error(std::string_view code, std::string_view text) override;
     interface::CallMessageBuilder& close_call() override;
-    [[nodiscard]] CallMessageEncodingView encoding_view() const noexcept;
+    [[nodiscard]] const CallMessage& message() const noexcept;
 
 private:
-    CallMessageBuilderState state_;
+    CallMessage message_;
 };
 
 class OpeningCallMessageBuilderImpl final : public interface::OpeningCallMessageBuilder
@@ -93,10 +89,10 @@ public:
     interface::OpeningCallMessageBuilder& error(std::string_view code,
                                                 std::string_view text) override;
     interface::OpeningCallMessageBuilder& close_call() override;
-    [[nodiscard]] CallMessageEncodingView encoding_view() const noexcept;
+    [[nodiscard]] const CallMessage& message() const noexcept;
 
 private:
-    CallMessageBuilderState state_;
+    CallMessage message_;
 };
 
 } // namespace exasol::udf::v2::internal

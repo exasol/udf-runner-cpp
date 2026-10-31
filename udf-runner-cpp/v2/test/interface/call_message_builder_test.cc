@@ -34,14 +34,14 @@ TEST(CallMessageBuilderTest, BuildsCompositeMessage)
 
     const auto* builder_impl = dynamic_cast<const OpeningCallMessageBuilderImpl*>(builder.get());
     ASSERT_NE(builder_impl, nullptr);
-    const auto view = builder_impl->encoding_view();
-    EXPECT_EQ(view.stream_id, 2);
-    EXPECT_TRUE(view.open_call.has_value());
-    EXPECT_TRUE(view.data_schema.has_value());
-    EXPECT_TRUE(view.reset_row_id.has_value());
-    EXPECT_TRUE(view.record_batch.has_value());
-    EXPECT_TRUE(view.error.has_value());
-    EXPECT_TRUE(view.close_call);
+    const auto& message = builder_impl->message();
+    EXPECT_EQ(message.stream_id(), 2);
+    EXPECT_TRUE(message.open_call().has_value());
+    EXPECT_TRUE(message.data_schema().has_value());
+    EXPECT_TRUE(message.reset_row_id().has_value());
+    EXPECT_TRUE(message.record_batch().has_value());
+    EXPECT_TRUE(message.error().has_value());
+    EXPECT_TRUE(message.is_close_call());
 }
 
 TEST(CallMessageBuilderTest, BuildsMessageWithDefaultOptions)
@@ -57,19 +57,19 @@ TEST(CallMessageBuilderTest, BuildsMessageWithDefaultOptions)
 
     const auto* builder_impl = dynamic_cast<const CallMessageBuilderImpl*>(builder.get());
     ASSERT_NE(builder_impl, nullptr);
-    const auto view = builder_impl->encoding_view();
-    EXPECT_EQ(view.stream_id, 7);
-    ASSERT_TRUE(view.data_schema.has_value());
-    EXPECT_TRUE(view.data_schema->has_group_id);
-    EXPECT_FALSE(view.data_schema->has_row_id);
-    ASSERT_TRUE(view.reset_row_id.has_value());
-    EXPECT_EQ(*view.reset_row_id, 0);
-    ASSERT_TRUE(view.record_batch.has_value());
-    EXPECT_FALSE(view.record_batch->is_end_of_group);
-    ASSERT_TRUE(view.error.has_value());
-    EXPECT_EQ(view.error->code(), "E_TEST");
-    EXPECT_EQ(view.error->message(), "failure");
-    EXPECT_TRUE(view.close_call);
+    const auto& message = builder_impl->message();
+    EXPECT_EQ(message.stream_id(), 7);
+    ASSERT_TRUE(message.data_schema().has_value());
+    EXPECT_TRUE(message.data_schema()->has_group_id);
+    EXPECT_FALSE(message.data_schema()->has_row_id);
+    ASSERT_TRUE(message.reset_row_id().has_value());
+    EXPECT_EQ(*message.reset_row_id(), 0);
+    ASSERT_TRUE(message.record_batch().has_value());
+    EXPECT_FALSE(message.record_batch()->is_end_of_group);
+    ASSERT_TRUE(message.error().has_value());
+    EXPECT_EQ(message.error()->code(), "E_TEST");
+    EXPECT_EQ(message.error()->message(), "failure");
+    EXPECT_TRUE(message.is_close_call());
 }
 
 } // namespace exasol::udf::v2::internal
