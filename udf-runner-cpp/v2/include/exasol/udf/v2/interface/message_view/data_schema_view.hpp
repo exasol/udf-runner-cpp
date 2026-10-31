@@ -1,12 +1,20 @@
 #pragma once
 
-#include <exasol/udf/v2/interface/content_types.hpp>
+#include <exasol/udf/v2/interface/arrow_c_data.hpp>
 
 #include <optional>
 #include <utility>
 
 namespace exasol::udf::v2::interface
 {
+
+/// Arrow schema and correlation-field metadata for one data direction.
+struct DataSchema
+{
+    ArrowSchemaPtr schema;    // NOLINT(misc-non-private-member-variables-in-classes)
+    bool has_group_id{false}; // NOLINT(misc-non-private-member-variables-in-classes)
+    bool has_row_id{false};   // NOLINT(misc-non-private-member-variables-in-classes)
+};
 
 /// Owning view of a received Arrow data schema and its correlation flags.
 class DataSchemaView

@@ -1,12 +1,19 @@
 #pragma once
 
-#include <exasol/udf/v2/interface/content_types.hpp>
+#include <exasol/udf/v2/interface/arrow_c_data.hpp>
 
 #include <optional>
 #include <utility>
 
 namespace exasol::udf::v2::interface
 {
+
+/// Arrow record batch and its group-boundary marker.
+struct RecordBatch
+{
+    ArrowArrayPtr array;         // NOLINT(misc-non-private-member-variables-in-classes)
+    bool is_end_of_group{false}; // NOLINT(misc-non-private-member-variables-in-classes)
+};
 
 /// Owning view of a received Arrow record batch.
 class RecordBatchView

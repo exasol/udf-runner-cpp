@@ -7,8 +7,7 @@
 namespace exasol::udf::v2::internal
 {
 
-CallMessage::CallMessage(const std::uint64_t stream_id)
-    : stream_id_(stream_id)
+CallMessage::CallMessage(const std::uint64_t stream_id) : stream_id_(stream_id)
 {
 }
 
@@ -25,9 +24,7 @@ void CallMessage::add_payload( // NOSONAR
 }
 // LCOV_EXCL_STOP
 
-void CallMessage::data_schema(interface::ArrowSchemaPtr schema,
-                              bool has_group_id,
-                              bool has_row_id)
+void CallMessage::data_schema(interface::ArrowSchemaPtr schema, bool has_group_id, bool has_row_id)
 {
     data_schema_ = interface::DataSchema{std::move(schema), has_group_id, has_row_id};
 }
@@ -54,7 +51,7 @@ void CallMessage::close_call()
 
 void CallMessage::set_open_call(std::string_view name)
 {
-    open_call_ = interface::OpenCall{std::string(name)};
+    open_call_ = std::string(name);
 }
 
 std::uint64_t CallMessage::stream_id() const noexcept
@@ -62,7 +59,7 @@ std::uint64_t CallMessage::stream_id() const noexcept
     return stream_id_;
 }
 
-const std::optional<interface::OpenCall>& CallMessage::open_call() const noexcept
+const std::optional<std::string>& CallMessage::open_call() const noexcept
 {
     return open_call_;
 }

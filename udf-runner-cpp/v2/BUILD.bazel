@@ -257,7 +257,7 @@ cc_library(
     hdrs = [
         "include/exasol/udf/v2/interface/call.hpp",
         "include/exasol/udf/v2/interface/context.hpp",
-        "include/exasol/udf/v2/interface/content_types.hpp",
+        "include/exasol/udf/v2/interface/arrow_c_data.hpp",
         "include/exasol/udf/v2/interface/control_stream.hpp",
         "include/exasol/udf/v2/interface/error_info.hpp",
         "include/exasol/udf/v2/interface/interface.hpp",

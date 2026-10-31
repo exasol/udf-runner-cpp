@@ -1,6 +1,5 @@
 #pragma once
 
-#include <exasol/udf/v2/interface/content_types.hpp>
 #include <exasol/udf/v2/interface/error_info.hpp>
 #include <exasol/udf/v2/interface/message_builder/control_message_builder.hpp>
 
@@ -12,6 +11,23 @@
 
 namespace exasol::udf::v2::internal
 {
+
+/// Protocol capabilities retained by the control-message builder.
+struct ServerCapabilities
+{
+    std::uint32_t major;
+    std::uint32_t minor;
+    std::endian endianness;
+    std::uint32_t number_of_supported_workers;
+};
+
+/// One named text or binary payload retained by the control-message builder.
+struct Payload
+{
+    std::string name;
+    std::string value;
+    bool binary{false};
+};
 
 /// Internal mutable representation consumed by the protocol encoder.
 class ControlMessage
@@ -29,18 +45,17 @@ public:
     void close_connection();
 
     [[nodiscard]] std::uint64_t stream_id() const noexcept;
-    [[nodiscard]] const std::optional<interface::ServerCapabilities>& server_capabilities()
-        const noexcept;
+    [[nodiscard]] const std::optional<ServerCapabilities>& server_capabilities() const noexcept;
     [[nodiscard]] bool is_keep_alive() const noexcept;
-    [[nodiscard]] const std::vector<interface::Payload>& payloads() const noexcept;
+    [[nodiscard]] const std::vector<Payload>& payloads() const noexcept;
     [[nodiscard]] const std::optional<interface::ErrorInfo>& error() const noexcept;
     [[nodiscard]] bool is_close_connection() const noexcept;
 
 private:
     std::uint64_t stream_id_;
-    std::optional<interface::ServerCapabilities> server_capabilities_;
+    std::optional<ServerCapabilities> server_capabilities_;
     bool keep_alive_{false};
-    std::vector<interface::Payload> payloads_;
+    std::vector<Payload> payloads_;
     std::optional<interface::ErrorInfo> error_;
     bool close_connection_{false};
 };

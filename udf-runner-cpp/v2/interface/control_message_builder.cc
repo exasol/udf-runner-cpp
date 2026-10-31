@@ -16,7 +16,7 @@ void ControlMessage::server_capabilities(const std::uint32_t major,
                                          const std::uint32_t number_of_supported_workers)
 {
     server_capabilities_ =
-        interface::ServerCapabilities{major, minor, endianness, number_of_supported_workers};
+        ServerCapabilities{major, minor, endianness, number_of_supported_workers};
 }
 
 void ControlMessage::keep_alive()
@@ -44,8 +44,7 @@ std::uint64_t ControlMessage::stream_id() const noexcept
     return stream_id_;
 }
 
-const std::optional<interface::ServerCapabilities>& ControlMessage::server_capabilities()
-    const noexcept
+const std::optional<ServerCapabilities>& ControlMessage::server_capabilities() const noexcept
 {
     return server_capabilities_;
 }
@@ -55,7 +54,7 @@ bool ControlMessage::is_keep_alive() const noexcept
     return keep_alive_;
 }
 
-const std::vector<interface::Payload>& ControlMessage::payloads() const noexcept
+const std::vector<Payload>& ControlMessage::payloads() const noexcept
 {
     return payloads_;
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <exasol/udf/v2/interface/content_types.hpp>
+#include <exasol/udf/v2/interface/arrow_c_data.hpp>
 
 #include <string_view>
 #include <utility>
