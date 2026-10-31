@@ -35,8 +35,8 @@ ControlMessageViewImpl::server_capabilities() const noexcept
                                                  : nullptr);
 }
 
-std::optional<std::reference_wrapper<const protocol::KeepAlive>> ControlMessageViewImpl::keep_alive()
-    const noexcept
+std::optional<std::reference_wrapper<const protocol::KeepAlive>>
+ControlMessageViewImpl::keep_alive() const noexcept
 {
     const auto* control = control_message(decoded_frame_.get());
     return optional_reference(control != nullptr ? control->value_as_KeepAlive() : nullptr);
@@ -60,7 +60,7 @@ std::optional<std::reference_wrapper<const protocol::CloseConnection>>
 ControlMessageViewImpl::close_connection() const noexcept
 {
     const auto* control = control_message(decoded_frame_.get());
-    const auto* close = control != nullptr ? control->value_as_CloseControlMessage() : nullptr;
+    const auto* close   = control != nullptr ? control->value_as_CloseControlMessage() : nullptr;
     return optional_reference(close != nullptr ? close->close_connection() : nullptr);
 }
 

@@ -12,7 +12,7 @@ CallMessage::CallMessage(const std::uint64_t stream_id) : stream_id_(stream_id)
 
 void CallMessage::add_payload(std::string_view name, std::string_view value, const bool binary)
 {
-    payloads_.push_back({std::string(name), std::string(value), binary});
+    payloads_.emplace_back(std::string(name), std::string(value), binary);
 }
 
 void CallMessage::data_schema(interface::ArrowSchemaPtr schema, bool has_group_id, bool has_row_id)

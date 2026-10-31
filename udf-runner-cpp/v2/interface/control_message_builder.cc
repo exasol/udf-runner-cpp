@@ -26,7 +26,7 @@ void ControlMessage::keep_alive()
 
 void ControlMessage::add_payload(std::string_view name, std::string_view value, const bool binary)
 {
-    payloads_.push_back({std::string(name), std::string(value), binary});
+    payloads_.emplace_back(std::string(name), std::string(value), binary);
 }
 
 void ControlMessage::error(std::string_view code, std::string_view text)

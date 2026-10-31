@@ -20,10 +20,10 @@ TEST(ControlMessageBuilderTest, StoresServerCapabilities)
     ASSERT_NE(builder_impl, nullptr);
     const auto& capabilities = builder_impl->message().server_capabilities();
     ASSERT_TRUE(capabilities.has_value());
-    EXPECT_EQ(capabilities->major, 3);
-    EXPECT_EQ(capabilities->minor, 2);
-    EXPECT_EQ(capabilities->endianness, std::endian::big);
-    EXPECT_EQ(capabilities->number_of_supported_workers, 8);
+    EXPECT_EQ(capabilities->major(), 3);
+    EXPECT_EQ(capabilities->minor(), 2);
+    EXPECT_EQ(capabilities->endianness(), std::endian::big);
+    EXPECT_EQ(capabilities->number_of_supported_workers(), 8);
 }
 
 TEST(ControlMessageBuilderTest, StoresTextAndBinaryPayloadsInOrder)
@@ -35,12 +35,12 @@ TEST(ControlMessageBuilderTest, StoresTextAndBinaryPayloadsInOrder)
     ASSERT_NE(builder_impl, nullptr);
     const auto& payloads = builder_impl->message().payloads();
     ASSERT_EQ(payloads.size(), 2);
-    EXPECT_EQ(payloads[0].name, "text");
-    EXPECT_EQ(payloads[0].value, "value");
-    EXPECT_FALSE(payloads[0].binary);
-    EXPECT_EQ(payloads[1].name, "binary");
-    EXPECT_EQ(payloads[1].value, std::string("\x01\x02", 2));
-    EXPECT_TRUE(payloads[1].binary);
+    EXPECT_EQ(payloads[0].name(), "text");
+    EXPECT_EQ(payloads[0].value(), "value");
+    EXPECT_FALSE(payloads[0].is_binary());
+    EXPECT_EQ(payloads[1].name(), "binary");
+    EXPECT_EQ(payloads[1].value(), std::string("\x01\x02", 2));
+    EXPECT_TRUE(payloads[1].is_binary());
 }
 
 TEST(ControlMessageBuilderTest, BuildsCompositeMessage)
@@ -58,9 +58,9 @@ TEST(ControlMessageBuilderTest, BuildsCompositeMessage)
     EXPECT_EQ(message.stream_id(), 0);
     EXPECT_TRUE(message.server_capabilities().has_value());
     ASSERT_EQ(message.payloads().size(), 1);
-    EXPECT_EQ(message.payloads()[0].name, "control");
-    EXPECT_EQ(message.payloads()[0].value, "value");
-    EXPECT_FALSE(message.payloads()[0].binary);
+    EXPECT_EQ(message.payloads()[0].name(), "control");
+    EXPECT_EQ(message.payloads()[0].value(), "value");
+    EXPECT_FALSE(message.payloads()[0].is_binary());
     EXPECT_TRUE(message.error().has_value());
     EXPECT_TRUE(message.is_close_connection());
     EXPECT_TRUE(message.is_keep_alive());

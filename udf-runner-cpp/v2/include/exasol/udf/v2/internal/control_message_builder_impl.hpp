@@ -14,12 +14,41 @@ namespace exasol::udf::v2::internal
 {
 
 /// Protocol capabilities retained by the control-message builder.
-struct ServerCapabilities
+class ServerCapabilities
 {
-    std::uint32_t major;
-    std::uint32_t minor;
-    std::endian endianness;
-    std::uint32_t number_of_supported_workers;
+public:
+    ServerCapabilities(std::uint32_t major,
+                       std::uint32_t minor,
+                       std::endian endianness,
+                       std::uint32_t number_of_supported_workers)
+        : major_(major),
+          minor_(minor),
+          endianness_(endianness),
+          number_of_supported_workers_(number_of_supported_workers)
+    {
+    }
+    [[nodiscard]] std::uint32_t major() const noexcept
+    {
+        return major_;
+    }
+    [[nodiscard]] std::uint32_t minor() const noexcept
+    {
+        return minor_;
+    }
+    [[nodiscard]] std::endian endianness() const noexcept
+    {
+        return endianness_;
+    }
+    [[nodiscard]] std::uint32_t number_of_supported_workers() const noexcept
+    {
+        return number_of_supported_workers_;
+    }
+
+private:
+    std::uint32_t major_;
+    std::uint32_t minor_;
+    std::endian endianness_;
+    std::uint32_t number_of_supported_workers_;
 };
 
 /// Internal mutable representation consumed by the protocol encoder.

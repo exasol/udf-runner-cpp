@@ -69,7 +69,7 @@ std::optional<std::reference_wrapper<const protocol::CloseCall>> CallMessageView
     const noexcept
 {
     const auto* control = control_message(decoded_frame_.get());
-    const auto* close = control != nullptr ? control->value_as_CloseControlMessage() : nullptr;
+    const auto* close   = control != nullptr ? control->value_as_CloseControlMessage() : nullptr;
     return optional_reference(close != nullptr ? close->close_call() : nullptr);
 }
 

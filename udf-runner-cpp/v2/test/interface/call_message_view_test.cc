@@ -1,4 +1,6 @@
 #include <exasol/udf/v2/internal/call_message_view_impl.hpp>
+#include <exasol/udf/v2/internal/data_schema_view_impl.hpp>
+#include <exasol/udf/v2/internal/record_batch_view_impl.hpp>
 #include <exasol/udf/v2/internal/message_builder_factory.hpp>
 
 #include <gtest/gtest.h>
@@ -14,8 +16,6 @@ namespace exasol::udf::v2::internal
 
 using interface::ArrowArrayPtr;
 using interface::ArrowSchemaPtr;
-using interface::DataSchemaView;
-using interface::RecordBatchView;
 
 static_assert(std::is_abstract_v<interface::CallMessageView>);
 
@@ -44,8 +44,8 @@ TEST(CallMessageViewTest, ArrowDataCanRoundTripThroughInterface)
     ArrowSchema received_schema{};
     ArrowArray received_array{};
     ASSERT_TRUE(arrow::ExportRecordBatch(*source, &received_array, &received_schema).ok());
-    DataSchemaView schema_view(ArrowSchemaPtr(&received_schema), false, false);
-    RecordBatchView batch_view(ArrowArrayPtr(&received_array), true);
+    DataSchemaViewImpl schema_view(ArrowSchemaPtr(&received_schema), false, false);
+    RecordBatchViewImpl batch_view(ArrowArrayPtr(&received_array), true);
     auto schema_owner = std::move(schema_view).take_schema();
     auto array_owner  = std::move(batch_view).take_array();
     ASSERT_NE(schema_owner, nullptr);

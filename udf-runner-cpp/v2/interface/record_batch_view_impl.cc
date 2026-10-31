@@ -3,7 +3,15 @@
 namespace exasol::udf::v2::internal
 {
 RecordBatchViewImpl::RecordBatchViewImpl(interface::ArrowArrayPtr array, bool end)
-    : array_(std::move(array)), is_end_of_group_(end) {}
-interface::ArrowArrayPtr RecordBatchViewImpl::take_array() && { return std::move(array_); }
-bool RecordBatchViewImpl::is_end_of_group() const noexcept { return is_end_of_group_; }
+    : array_(std::move(array)), is_end_of_group_(end)
+{
+} // namespace exasol::udf::v2::internal
+interface::ArrowArrayPtr RecordBatchViewImpl::take_array() &&
+{
+    return std::move(array_);
 }
+bool RecordBatchViewImpl::is_end_of_group() const noexcept
+{
+    return is_end_of_group_;
+}
+} // namespace exasol::udf::v2::internal

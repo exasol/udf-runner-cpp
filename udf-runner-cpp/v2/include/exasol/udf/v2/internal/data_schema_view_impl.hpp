@@ -11,9 +11,10 @@ public:
     interface::ArrowSchemaPtr take_schema() && override;
     bool has_group_id() const noexcept override;
     bool has_row_id() const noexcept override;
+
 private:
     interface::ArrowSchemaPtr schema_;
     bool has_group_id_;
     bool has_row_id_;
 };
-}
+} // namespace exasol::udf::v2::internal

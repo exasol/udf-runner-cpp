@@ -12,11 +12,11 @@ namespace exasol::udf::v2::interface
 class RecordBatchView
 {
 public:
-    virtual ~RecordBatchView() = default;
-    RecordBatchView(const RecordBatchView&) = delete;
+    virtual ~RecordBatchView()                         = default;
+    RecordBatchView(const RecordBatchView&)            = delete;
     RecordBatchView& operator=(const RecordBatchView&) = delete;
-    RecordBatchView(RecordBatchView&&) = delete;
-    RecordBatchView& operator=(RecordBatchView&&) = delete;
+    RecordBatchView(RecordBatchView&&)                 = delete;
+    RecordBatchView& operator=(RecordBatchView&&)      = delete;
 
     /// Transfers ownership of the received Arrow array to the caller.
     [[nodiscard]] virtual ArrowArrayPtr take_array() && = 0;

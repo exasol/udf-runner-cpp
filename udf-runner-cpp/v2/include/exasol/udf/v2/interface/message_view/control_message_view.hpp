@@ -21,8 +21,8 @@ public:
     [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::ServerCapabilities>>
     server_capabilities() const noexcept = 0;
     /// Returns the wire-level FlatBuffer keep-alive table, or an empty optional when absent.
-    [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::KeepAlive>> keep_alive()
-        const noexcept = 0;
+    [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::KeepAlive>>
+    keep_alive() const noexcept = 0;
     /// Returns the wire-level FlatBuffer payload table, or an empty optional when absent.
     [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::Payloads>> payloads()
         const noexcept = 0;

@@ -12,11 +12,11 @@ namespace exasol::udf::v2::interface
 class DataSchemaView
 {
 public:
-    virtual ~DataSchemaView() = default;
-    DataSchemaView(const DataSchemaView&) = delete;
+    virtual ~DataSchemaView()                        = default;
+    DataSchemaView(const DataSchemaView&)            = delete;
     DataSchemaView& operator=(const DataSchemaView&) = delete;
-    DataSchemaView(DataSchemaView&&) = delete;
-    DataSchemaView& operator=(DataSchemaView&&) = delete;
+    DataSchemaView(DataSchemaView&&)                 = delete;
+    DataSchemaView& operator=(DataSchemaView&&)      = delete;
 
     /// Transfers ownership of the received Arrow schema to the caller.
     [[nodiscard]] virtual ArrowSchemaPtr take_schema() && = 0;
