@@ -17,10 +17,10 @@ public:
         const noexcept override;
     [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Payloads>> payloads()
         const noexcept override;
-    [[nodiscard]] std::optional<interface::DataSchemaView> data_schema() noexcept override;
+    [[nodiscard]] std::unique_ptr<interface::DataSchemaView> data_schema() noexcept override;
     [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Reset>> reset()
         const noexcept override;
-    [[nodiscard]] std::optional<interface::RecordBatchView> record_batch() noexcept override;
+    [[nodiscard]] std::unique_ptr<interface::RecordBatchView> record_batch() noexcept override;
     [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Error>> error()
         const noexcept override;
     [[nodiscard]] std::optional<std::reference_wrapper<const protocol::CloseCall>> close_call()

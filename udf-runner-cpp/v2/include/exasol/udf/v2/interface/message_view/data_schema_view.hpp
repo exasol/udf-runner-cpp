@@ -12,37 +12,21 @@ namespace exasol::udf::v2::interface
 class DataSchemaView
 {
 public:
-    DataSchemaView() = default;
-    DataSchemaView(ArrowSchemaPtr schema, bool has_group_id, bool has_row_id)
-        : schema_(std::move(schema)), has_group_id_(has_group_id), has_row_id_(has_row_id)
-    {
-    }
-    DataSchemaView(const DataSchemaView&)                = delete;
-    DataSchemaView& operator=(const DataSchemaView&)     = delete;
-    DataSchemaView(DataSchemaView&&) noexcept            = default;
-    DataSchemaView& operator=(DataSchemaView&&) noexcept = default;
-    ~DataSchemaView()                                    = default;
+    virtual ~DataSchemaView() = default;
+    DataSchemaView(const DataSchemaView&) = delete;
+    DataSchemaView& operator=(const DataSchemaView&) = delete;
+    DataSchemaView(DataSchemaView&&) = delete;
+    DataSchemaView& operator=(DataSchemaView&&) = delete;
 
     /// Transfers ownership of the received Arrow schema to the caller.
-    [[nodiscard]] ArrowSchemaPtr take_schema() &&
-    {
-        return std::move(schema_);
-    }
+    [[nodiscard]] virtual ArrowSchemaPtr take_schema() && = 0;
     /// Returns whether the schema reserves a group-id field.
-    [[nodiscard]] bool has_group_id() const
-    {
-        return has_group_id_;
-    }
+    [[nodiscard]] virtual bool has_group_id() const noexcept = 0;
     /// Returns whether the schema reserves a row-id field.
-    [[nodiscard]] bool has_row_id() const
-    {
-        return has_row_id_;
-    }
+    [[nodiscard]] virtual bool has_row_id() const noexcept = 0;
 
-private:
-    ArrowSchemaPtr schema_;
-    bool has_group_id_{false};
-    bool has_row_id_{false};
+protected:
+    DataSchemaView() = default;
 };
 
 } // namespace exasol::udf::v2::interface

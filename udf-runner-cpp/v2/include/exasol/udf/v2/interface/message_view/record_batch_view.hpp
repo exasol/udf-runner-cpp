@@ -12,31 +12,19 @@ namespace exasol::udf::v2::interface
 class RecordBatchView
 {
 public:
-    RecordBatchView() = default;
-    RecordBatchView(ArrowArrayPtr array, bool is_end_of_group)
-        : array_(std::move(array)), is_end_of_group_(is_end_of_group)
-    {
-    }
-    RecordBatchView(const RecordBatchView&)                = delete;
-    RecordBatchView& operator=(const RecordBatchView&)     = delete;
-    RecordBatchView(RecordBatchView&&) noexcept            = default;
-    RecordBatchView& operator=(RecordBatchView&&) noexcept = default;
-    ~RecordBatchView()                                     = default;
+    virtual ~RecordBatchView() = default;
+    RecordBatchView(const RecordBatchView&) = delete;
+    RecordBatchView& operator=(const RecordBatchView&) = delete;
+    RecordBatchView(RecordBatchView&&) = delete;
+    RecordBatchView& operator=(RecordBatchView&&) = delete;
 
     /// Transfers ownership of the received Arrow array to the caller.
-    [[nodiscard]] ArrowArrayPtr take_array() &&
-    {
-        return std::move(array_);
-    }
+    [[nodiscard]] virtual ArrowArrayPtr take_array() && = 0;
     /// Returns whether the final group in this batch ends here.
-    [[nodiscard]] bool is_end_of_group() const
-    {
-        return is_end_of_group_;
-    }
+    [[nodiscard]] virtual bool is_end_of_group() const noexcept = 0;
 
-private:
-    ArrowArrayPtr array_;
-    bool is_end_of_group_{false};
+protected:
+    RecordBatchView() = default;
 };
 
 } // namespace exasol::udf::v2::interface

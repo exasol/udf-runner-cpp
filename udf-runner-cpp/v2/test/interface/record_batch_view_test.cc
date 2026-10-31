@@ -1,4 +1,5 @@
 #include <exasol/udf/v2/interface/message_view/record_batch_view.hpp>
+#include <exasol/udf/v2/internal/record_batch_view_impl.hpp>
 
 #include <gtest/gtest.h>
 
@@ -6,8 +7,10 @@
 
 #include <utility>
 
-namespace exasol::udf::v2::interface
+namespace exasol::udf::v2::internal
 {
+
+using interface::ArrowArrayPtr;
 
 TEST(RecordBatchViewTest, TransfersArrayAndReleasesItOnce)
 {
@@ -16,7 +19,7 @@ TEST(RecordBatchViewTest, TransfersArrayAndReleasesItOnce)
     array.private_data = &releases;
     array.release      = test::count_array_release;
     {
-        RecordBatchView view(ArrowArrayPtr(&array), true);
+        RecordBatchViewImpl view(ArrowArrayPtr(&array), true);
         EXPECT_TRUE(view.is_end_of_group());
         auto transferred = std::move(view).take_array();
         EXPECT_EQ(transferred.get(), &array);
@@ -61,4 +64,4 @@ TEST(RecordBatchViewTest, SupportsEmptyOwner)
     EXPECT_EQ(empty_array.get(), nullptr);
 }
 
-} // namespace exasol::udf::v2::interface
+} // namespace exasol::udf::v2::internal

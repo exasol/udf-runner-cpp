@@ -40,9 +40,9 @@ std::optional<std::reference_wrapper<const protocol::Payloads>> CallMessageViewI
     const auto* control = control_message(decoded_frame_.get());
     return optional_reference(control != nullptr ? control->payloads() : nullptr);
 }
-std::optional<DataSchemaView> CallMessageViewImpl::data_schema() noexcept
+std::unique_ptr<DataSchemaView> CallMessageViewImpl::data_schema() noexcept
 {
-    return std::nullopt;
+    return nullptr;
 }
 std::optional<std::reference_wrapper<const protocol::Reset>> CallMessageViewImpl::reset()
     const noexcept
@@ -50,9 +50,9 @@ std::optional<std::reference_wrapper<const protocol::Reset>> CallMessageViewImpl
     const auto* control = control_message(decoded_frame_.get());
     return optional_reference(control != nullptr ? control->reset() : nullptr);
 }
-std::optional<RecordBatchView> CallMessageViewImpl::record_batch() noexcept
+std::unique_ptr<RecordBatchView> CallMessageViewImpl::record_batch() noexcept
 {
-    return std::nullopt;
+    return nullptr;
 }
 std::optional<std::reference_wrapper<const protocol::Error>> CallMessageViewImpl::error()
     const noexcept

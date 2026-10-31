@@ -5,6 +5,7 @@
 #include <exasol/udf/v2/udf_protocol.hpp>
 
 #include <functional>
+#include <memory>
 #include <optional>
 
 namespace exasol::udf::v2::interface
@@ -31,12 +32,12 @@ public:
     [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::Payloads>> payloads()
         const noexcept = 0;
     /// Returns the data-schema view, or an empty optional when absent.
-    [[nodiscard]] virtual std::optional<DataSchemaView> data_schema() noexcept = 0;
+    [[nodiscard]] virtual std::unique_ptr<DataSchemaView> data_schema() noexcept = 0;
     /// Returns the wire-level FlatBuffer reset table, or an empty optional when absent.
     [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::Reset>> reset()
         const noexcept = 0;
     /// Returns the record-batch view, or an empty optional when absent.
-    [[nodiscard]] virtual std::optional<RecordBatchView> record_batch() noexcept = 0;
+    [[nodiscard]] virtual std::unique_ptr<RecordBatchView> record_batch() noexcept = 0;
     /// Returns the wire-level FlatBuffer error table, or an empty optional when absent.
     [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::Error>> error()
         const noexcept = 0;
