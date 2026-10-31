@@ -2,6 +2,7 @@
 
 #include <exasol/udf/v2/interface/error_info.hpp>
 #include <exasol/udf/v2/interface/message_builder/control_message_builder.hpp>
+#include <exasol/udf/v2/internal/payload.hpp>
 
 #include <bit>
 #include <cstdint>
@@ -19,14 +20,6 @@ struct ServerCapabilities
     std::uint32_t minor;
     std::endian endianness;
     std::uint32_t number_of_supported_workers;
-};
-
-/// One named text or binary payload retained by the control-message builder.
-struct Payload
-{
-    std::string name;
-    std::string value;
-    bool binary{false};
 };
 
 /// Internal mutable representation consumed by the protocol encoder.

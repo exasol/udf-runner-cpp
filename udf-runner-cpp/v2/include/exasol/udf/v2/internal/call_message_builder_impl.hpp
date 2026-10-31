@@ -4,9 +4,11 @@
 #include <exasol/udf/v2/interface/message_builder/call_message_builder.hpp>
 #include <exasol/udf/v2/interface/message_view/data_schema_view.hpp>
 #include <exasol/udf/v2/interface/message_view/record_batch_view.hpp>
+#include <exasol/udf/v2/internal/payload.hpp>
 
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace exasol::udf::v2::internal
 {
@@ -26,6 +28,7 @@ public:
     void set_open_call(std::string_view name);
     [[nodiscard]] std::uint64_t stream_id() const noexcept;
     [[nodiscard]] const std::optional<std::string>& open_call() const noexcept;
+    [[nodiscard]] const std::vector<Payload>& payloads() const noexcept;
     [[nodiscard]] const std::optional<interface::DataSchema>& data_schema() const noexcept;
     [[nodiscard]] const std::optional<std::uint64_t>& reset_row_id() const noexcept;
     [[nodiscard]] const std::optional<interface::RecordBatch>& record_batch() const noexcept;
@@ -35,6 +38,7 @@ public:
 private:
     std::uint64_t stream_id_;
     std::optional<std::string> open_call_;
+    std::vector<Payload> payloads_;
     std::optional<interface::DataSchema> data_schema_;
     std::optional<std::uint64_t> reset_row_id_;
     std::optional<interface::RecordBatch> record_batch_;

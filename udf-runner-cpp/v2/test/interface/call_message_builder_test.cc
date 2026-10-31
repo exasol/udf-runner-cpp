@@ -10,14 +10,21 @@ namespace exasol::udf::v2::internal
 
 static_assert(std::is_abstract_v<interface::CallMessageBuilder>);
 
-TEST(CallMessageBuilderTest, AddPayloadIsNotImplemented)
+TEST(CallMessageBuilderTest, StoresTextAndBinaryPayloadsInOrder)
 {
-    EXPECT_DEATH(
-        {
-            auto builder = MessageBuilderFactory::create_opening_call_builder(2);
-            builder->add_payload("request", "{}");
-        },
-        "");
+    auto builder = MessageBuilderFactory::create_call_builder(2);
+    builder->add_payload("text", "value").add_payload("binary", "\x01\x02", true);
+
+    const auto* builder_impl = dynamic_cast<const CallMessageBuilderImpl*>(builder.get());
+    ASSERT_NE(builder_impl, nullptr);
+    const auto& payloads = builder_impl->message().payloads();
+    ASSERT_EQ(payloads.size(), 2);
+    EXPECT_EQ(payloads[0].name, "text");
+    EXPECT_EQ(payloads[0].value, "value");
+    EXPECT_FALSE(payloads[0].binary);
+    EXPECT_EQ(payloads[1].name, "binary");
+    EXPECT_EQ(payloads[1].value, std::string("\x01\x02", 2));
+    EXPECT_TRUE(payloads[1].binary);
 }
 
 TEST(CallMessageBuilderTest, BuildsCompositeMessage)
@@ -26,6 +33,7 @@ TEST(CallMessageBuilderTest, BuildsCompositeMessage)
     ArrowArray array{};
     auto builder = MessageBuilderFactory::create_opening_call_builder(2);
     builder->open_call("nested")
+        .add_payload("request", "{}")
         .data_schema(interface::ArrowSchemaPtr(&schema), true, true)
         .reset(42)
         .record_batch(interface::ArrowArrayPtr(&array), true)
@@ -37,6 +45,10 @@ TEST(CallMessageBuilderTest, BuildsCompositeMessage)
     const auto& message = builder_impl->message();
     EXPECT_EQ(message.stream_id(), 2);
     EXPECT_TRUE(message.open_call().has_value());
+    ASSERT_EQ(message.payloads().size(), 1);
+    EXPECT_EQ(message.payloads()[0].name, "request");
+    EXPECT_EQ(message.payloads()[0].value, "{}");
+    EXPECT_FALSE(message.payloads()[0].binary);
     EXPECT_TRUE(message.data_schema().has_value());
     EXPECT_TRUE(message.reset_row_id().has_value());
     EXPECT_TRUE(message.record_batch().has_value());

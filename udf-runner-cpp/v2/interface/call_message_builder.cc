@@ -1,6 +1,5 @@
 #include <exasol/udf/v2/internal/call_message_builder_impl.hpp>
 
-#include <cstdlib>
 #include <string>
 #include <utility>
 
@@ -11,18 +10,10 @@ CallMessage::CallMessage(const std::uint64_t stream_id) : stream_id_(stream_id)
 {
 }
 
-// LCOV_EXCL_START: payload encoding will be implemented with the protocol codec.
-void CallMessage::add_payload( // NOSONAR
-    std::string_view name,
-    std::string_view value,
-    bool binary)
+void CallMessage::add_payload(std::string_view name, std::string_view value, const bool binary)
 {
-    static_cast<void>(name);
-    static_cast<void>(value);
-    static_cast<void>(binary);
-    std::abort();
+    payloads_.push_back({std::string(name), std::string(value), binary});
 }
-// LCOV_EXCL_STOP
 
 void CallMessage::data_schema(interface::ArrowSchemaPtr schema, bool has_group_id, bool has_row_id)
 {
@@ -62,6 +53,11 @@ std::uint64_t CallMessage::stream_id() const noexcept
 const std::optional<std::string>& CallMessage::open_call() const noexcept
 {
     return open_call_;
+}
+
+const std::vector<Payload>& CallMessage::payloads() const noexcept
+{
+    return payloads_;
 }
 
 const std::optional<interface::DataSchema>& CallMessage::data_schema() const noexcept

@@ -253,6 +253,7 @@ cc_library(
         "include/exasol/udf/v2/internal/control_message_builder_impl.hpp",
         "include/exasol/udf/v2/internal/control_message_view_impl.hpp",
         "include/exasol/udf/v2/internal/message_builder_factory.hpp",
+        "include/exasol/udf/v2/internal/payload.hpp",
     ],
     hdrs = [
         "include/exasol/udf/v2/interface/call.hpp",
@@ -294,6 +295,7 @@ cc_library(
         "include/exasol/udf/v2/internal/control_message_builder_impl.hpp",
         "include/exasol/udf/v2/internal/control_message_view_impl.hpp",
         "include/exasol/udf/v2/internal/message_builder_factory.hpp",
+        "include/exasol/udf/v2/internal/payload.hpp",
     ],
     includes = ["include"],
     copts = ["-std=c++23"],
