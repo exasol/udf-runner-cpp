@@ -5,12 +5,12 @@ stateDiagram-v2
         OutboundIdle --> SchemaAnnounced: Send schema
         OutboundIdle --> WaitingForNext: Send schema + first batch
         SchemaAnnounced --> WaitingForNext: Send first batch
-        OutboundIdle --> BudgetAvailable: Receive Next hint
-        SchemaAnnounced --> BudgetAvailable: Receive Next hint
+        OutboundIdle --> BudgetAvailable: Receive send budget
+        SchemaAnnounced --> BudgetAvailable: Receive send budget
         BudgetAvailable --> BudgetAvailable: Send batch while budget remains
         BudgetAvailable --> BudgetAvailable: Send schema + first batch
         BudgetAvailable --> WaitingForNext: Budget no longer usable
-        WaitingForNext --> BudgetAvailable: Receive Next hint
+        WaitingForNext --> BudgetAvailable: Receive send budget
         WaitingForNext --> OutboundCompleted: Finish stream
 
         OutboundCompleted --> [*]
@@ -21,11 +21,11 @@ stateDiagram-v2
 
         InboundIdle --> SchemaReceived: Receive schema
         InboundIdle --> BatchesInFlight: Receive schema + first batch
-        InboundIdle --> InboundIdle: Send Next hint
+        InboundIdle --> InboundIdle: Grant send budget
         SchemaReceived --> BatchesInFlight: Receive first batch
-        SchemaReceived --> SchemaReceived: Send Next hint
+        SchemaReceived --> SchemaReceived: Grant send budget
         BatchesInFlight --> BatchesInFlight: Receive batch
-        BatchesInFlight --> BatchesInFlight: Send Next hint
+        BatchesInFlight --> BatchesInFlight: Grant send budget
         BatchesInFlight --> InboundCompleted: Finish stream
 
         InboundCompleted --> [*]

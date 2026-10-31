@@ -32,9 +32,9 @@ void CallMessageBuilderState::data_schema(interface::ArrowSchemaPtr schema,
     data_schema_ = interface::DataSchema{std::move(schema), has_group_id, has_row_id};
 }
 
-void CallMessageBuilderState::next(bool reset, std::uint64_t row_id)
+void CallMessageBuilderState::reset(std::uint64_t row_id)
 {
-    next_ = interface::Next{reset, row_id};
+    reset_row_id_ = row_id;
 }
 
 void CallMessageBuilderState::record_batch(interface::ArrowArrayPtr array, bool is_end_of_group)
@@ -59,7 +59,7 @@ void CallMessageBuilderState::set_open_call(std::string_view name)
 
 CallMessageEncodingView CallMessageBuilderState::encoding_view() const noexcept
 {
-    return {stream_id_,    open_call_, data_schema_, next_,
+    return {stream_id_,    open_call_, data_schema_, reset_row_id_,
             record_batch_, error_,     close_call_};
 }
 
@@ -83,9 +83,9 @@ interface::CallMessageBuilder& CallMessageBuilderImpl::data_schema(interface::Ar
     return *this;
 }
 
-interface::CallMessageBuilder& CallMessageBuilderImpl::next(bool reset, std::uint64_t row_id)
+interface::CallMessageBuilder& CallMessageBuilderImpl::reset(std::uint64_t row_id)
 {
-    state_.next(reset, row_id);
+    state_.reset(row_id);
     return *this;
 }
 
@@ -140,10 +140,9 @@ interface::OpeningCallMessageBuilder& OpeningCallMessageBuilderImpl::data_schema
     return *this;
 }
 
-interface::OpeningCallMessageBuilder& OpeningCallMessageBuilderImpl::next(bool reset,
-                                                                           std::uint64_t row_id)
+interface::OpeningCallMessageBuilder& OpeningCallMessageBuilderImpl::reset(std::uint64_t row_id)
 {
-    state_.next(reset, row_id);
+    state_.reset(row_id);
     return *this;
 }
 

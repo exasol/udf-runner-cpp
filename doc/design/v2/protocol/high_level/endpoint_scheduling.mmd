@@ -5,7 +5,7 @@ stateDiagram-v2
         UdfInitializing --> UdfActive: Capabilities
         UdfActive --> UdfWaitingForActivity: Wait for DB or user code
         UdfWaitingForActivity --> UdfOutputReady: User-code output ready
-        UdfOutputReady --> UdfSendingData: First batch or Next credit
+        UdfOutputReady --> UdfSendingData: First batch or send budget
         UdfSendingData --> UdfActive: Transfer done
         UdfWaitingForActivity --> UdfActive: Socket or non-output user-code event
     }

@@ -40,12 +40,8 @@ public:
     {
         return data_schema(std::move(schema), has_group_id, false);
     }
-    /// Adds or replaces flow-control information. The call supplies byte credit when sending.
-    virtual CallMessageBuilderBase& next(bool reset, std::uint64_t row_id) = 0;
-    CallMessageBuilderBase& next(bool reset)
-    {
-        return next(reset, 0);
-    }
+    /// Requests that the peer resume sending from `row_id`.
+    virtual CallMessageBuilderBase& reset(std::uint64_t row_id) = 0;
     /// Adds or replaces the record batch and its group-boundary flag.
     virtual CallMessageBuilderBase& record_batch(ArrowArrayPtr array, bool is_end_of_group) = 0;
     CallMessageBuilderBase& record_batch(ArrowArrayPtr array)

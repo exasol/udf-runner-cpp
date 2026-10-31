@@ -9,7 +9,6 @@ namespace exasol::udf::v2::internal
 {
 
 using interface::DataSchemaView;
-using interface::Next;
 using interface::RecordBatchView;
 
 namespace
@@ -45,13 +44,11 @@ std::optional<DataSchemaView> CallMessageViewImpl::data_schema() noexcept
 {
     return std::nullopt;
 }
-std::optional<std::reference_wrapper<const Next>> CallMessageViewImpl::next() const noexcept
+std::optional<std::reference_wrapper<const protocol::Reset>> CallMessageViewImpl::reset()
+    const noexcept
 {
-    if (!next_.has_value())
-    {
-        return std::nullopt;
-    }
-    return std::cref(*next_);
+    const auto* control = control_message(decoded_frame_.get());
+    return optional_reference(control != nullptr ? control->reset() : nullptr);
 }
 std::optional<RecordBatchView> CallMessageViewImpl::record_batch() noexcept
 {
@@ -66,13 +63,6 @@ std::optional<std::reference_wrapper<const protocol::Error>> CallMessageViewImpl
 CallMessageViewImpl::CallMessageViewImpl(std::shared_ptr<const protocol::DecodedFrame> frame)
     : decoded_frame_(std::move(frame))
 {
-    if (const auto* control = control_message(decoded_frame_.get()); control != nullptr)
-    {
-        if (const auto* next = control->next(); next != nullptr)
-        {
-            next_ = Next{next->reset(), next->row_id()};
-        }
-    }
 }
 
 std::optional<std::reference_wrapper<const protocol::CloseCall>> CallMessageViewImpl::close_call()

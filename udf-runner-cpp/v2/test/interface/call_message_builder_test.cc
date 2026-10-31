@@ -27,7 +27,7 @@ TEST(CallMessageBuilderTest, BuildsCompositeMessage)
     auto builder = MessageBuilderFactory::create_opening_call_builder(2);
     builder->open_call("nested")
         .data_schema(interface::ArrowSchemaPtr(&schema), true, true)
-        .next(true, 42)
+        .reset(42)
         .record_batch(interface::ArrowArrayPtr(&array), true)
         .error("E_TEST", "failure")
         .close_call();
@@ -38,7 +38,7 @@ TEST(CallMessageBuilderTest, BuildsCompositeMessage)
     EXPECT_EQ(view.stream_id, 2);
     EXPECT_TRUE(view.open_call.has_value());
     EXPECT_TRUE(view.data_schema.has_value());
-    EXPECT_TRUE(view.next.has_value());
+    EXPECT_TRUE(view.reset_row_id.has_value());
     EXPECT_TRUE(view.record_batch.has_value());
     EXPECT_TRUE(view.error.has_value());
     EXPECT_TRUE(view.close_call);
@@ -51,7 +51,7 @@ TEST(CallMessageBuilderTest, BuildsMessageWithDefaultOptions)
     auto builder = MessageBuilderFactory::create_call_builder(7);
     builder->data_schema(interface::ArrowSchemaPtr(&schema))
         .data_schema(interface::ArrowSchemaPtr(&schema), true)
-        .next(true)
+        .reset(0)
         .record_batch(interface::ArrowArrayPtr(&array));
     builder->error("E_TEST", "failure").close_call();
 
@@ -62,9 +62,8 @@ TEST(CallMessageBuilderTest, BuildsMessageWithDefaultOptions)
     ASSERT_TRUE(view.data_schema.has_value());
     EXPECT_TRUE(view.data_schema->has_group_id);
     EXPECT_FALSE(view.data_schema->has_row_id);
-    ASSERT_TRUE(view.next.has_value());
-    EXPECT_TRUE(view.next->reset);
-    EXPECT_EQ(view.next->row_id, 0);
+    ASSERT_TRUE(view.reset_row_id.has_value());
+    EXPECT_EQ(*view.reset_row_id, 0);
     ASSERT_TRUE(view.record_batch.has_value());
     EXPECT_FALSE(view.record_batch->is_end_of_group);
     ASSERT_TRUE(view.error.has_value());

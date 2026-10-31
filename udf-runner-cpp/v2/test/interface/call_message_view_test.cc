@@ -27,7 +27,7 @@ TEST(CallMessageViewTest, EmptyViewReportsNoFields)
     EXPECT_FALSE(view.open_call());
     EXPECT_FALSE(view.payloads());
     EXPECT_FALSE(view.data_schema());
-    EXPECT_FALSE(view.next());
+    EXPECT_FALSE(view.reset());
     EXPECT_FALSE(view.record_batch());
     EXPECT_FALSE(view.error());
     EXPECT_FALSE(view.close_call());

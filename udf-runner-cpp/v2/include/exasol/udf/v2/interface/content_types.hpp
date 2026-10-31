@@ -34,13 +34,6 @@ struct OpenCall
     std::string call_name; // NOLINT(misc-non-private-member-variables-in-classes)
 };
 
-/// Flow-control information exposed by received messages.
-struct Next
-{
-    bool reset{false};      // NOLINT(misc-non-private-member-variables-in-classes)
-    std::uint64_t row_id{}; // NOLINT(misc-non-private-member-variables-in-classes)
-};
-
 /// Arrow schema and correlation-field metadata for one data direction.
 struct DataSchema
 {

@@ -33,8 +33,8 @@ public:
         const noexcept = 0;
     /// Returns the data-schema view, or an empty optional when absent.
     [[nodiscard]] virtual std::optional<DataSchemaView> data_schema() noexcept = 0;
-    /// Returns flow-control information, or an empty optional when absent.
-    [[nodiscard]] virtual std::optional<std::reference_wrapper<const Next>> next()
+    /// Returns the wire-level FlatBuffer reset table, or an empty optional when absent.
+    [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::Reset>> reset()
         const noexcept = 0;
     /// Returns the record-batch view, or an empty optional when absent.
     [[nodiscard]] virtual std::optional<RecordBatchView> record_batch() noexcept = 0;

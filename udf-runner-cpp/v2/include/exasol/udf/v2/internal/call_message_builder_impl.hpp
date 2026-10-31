@@ -13,7 +13,7 @@ struct CallMessageEncodingView
     std::uint64_t stream_id;
     const std::optional<interface::OpenCall>& open_call;
     const std::optional<interface::DataSchema>& data_schema;
-    const std::optional<interface::Next>& next;
+    const std::optional<std::uint64_t>& reset_row_id;
     const std::optional<interface::RecordBatch>& record_batch;
     const std::optional<interface::ErrorInfo>& error;
     bool close_call;
@@ -26,7 +26,7 @@ public:
 
     void add_payload(std::string_view name, std::string_view value, bool binary);
     void data_schema(interface::ArrowSchemaPtr schema, bool has_group_id, bool has_row_id);
-    void next(bool reset, std::uint64_t row_id);
+    void reset(std::uint64_t row_id);
     void record_batch(interface::ArrowArrayPtr array, bool is_end_of_group);
     void error(std::string_view code, std::string_view text);
     void close_call();
@@ -37,7 +37,7 @@ private:
     std::uint64_t stream_id_;
     std::optional<interface::OpenCall> open_call_;
     std::optional<interface::DataSchema> data_schema_;
-    std::optional<interface::Next> next_;
+    std::optional<std::uint64_t> reset_row_id_;
     std::optional<interface::RecordBatch> record_batch_;
     std::optional<interface::ErrorInfo> error_;
     bool close_call_{false};
@@ -48,7 +48,7 @@ class CallMessageBuilderImpl final : public interface::CallMessageBuilder
 public:
     using interface::CallMessageBuilderBase::add_payload;
     using interface::CallMessageBuilderBase::data_schema;
-    using interface::CallMessageBuilderBase::next;
+    using interface::CallMessageBuilderBase::reset;
     using interface::CallMessageBuilderBase::record_batch;
 
     explicit CallMessageBuilderImpl(std::uint64_t stream_id);
@@ -59,7 +59,7 @@ public:
     interface::CallMessageBuilder& data_schema(interface::ArrowSchemaPtr schema,
                                                bool has_group_id,
                                                bool has_row_id) override;
-    interface::CallMessageBuilder& next(bool reset, std::uint64_t row_id) override;
+    interface::CallMessageBuilder& reset(std::uint64_t row_id) override;
     interface::CallMessageBuilder& record_batch(interface::ArrowArrayPtr array,
                                                 bool is_end_of_group) override;
     interface::CallMessageBuilder& error(std::string_view code, std::string_view text) override;
@@ -75,7 +75,7 @@ class OpeningCallMessageBuilderImpl final : public interface::OpeningCallMessage
 public:
     using interface::CallMessageBuilderBase::add_payload;
     using interface::CallMessageBuilderBase::data_schema;
-    using interface::CallMessageBuilderBase::next;
+    using interface::CallMessageBuilderBase::reset;
     using interface::CallMessageBuilderBase::record_batch;
 
     explicit OpeningCallMessageBuilderImpl(std::uint64_t stream_id);
@@ -87,7 +87,7 @@ public:
     interface::OpeningCallMessageBuilder& data_schema(interface::ArrowSchemaPtr schema,
                                                       bool has_group_id,
                                                       bool has_row_id) override;
-    interface::OpeningCallMessageBuilder& next(bool reset, std::uint64_t row_id) override;
+    interface::OpeningCallMessageBuilder& reset(std::uint64_t row_id) override;
     interface::OpeningCallMessageBuilder& record_batch(interface::ArrowArrayPtr array,
                                                        bool is_end_of_group) override;
     interface::OpeningCallMessageBuilder& error(std::string_view code,

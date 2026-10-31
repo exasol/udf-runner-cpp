@@ -19,7 +19,7 @@ public:
     [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Payloads>> payloads()
         const noexcept override;
     [[nodiscard]] std::optional<interface::DataSchemaView> data_schema() noexcept override;
-    [[nodiscard]] std::optional<std::reference_wrapper<const interface::Next>> next()
+    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Reset>> reset()
         const noexcept override;
     [[nodiscard]] std::optional<interface::RecordBatchView> record_batch() noexcept override;
     [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Error>> error()
@@ -31,7 +31,6 @@ private:
     // Add these when the stream can supply Arrow data alongside the decoded frame:
     // std::optional<interface::DataSchema> data_schema_;
     // std::optional<interface::RecordBatch> record_batch_;
-    std::optional<interface::Next> next_;
     std::shared_ptr<const protocol::DecodedFrame> decoded_frame_;
 };
 } // namespace exasol::udf::v2::internal

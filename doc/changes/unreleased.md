@@ -20,7 +20,7 @@ n/a
 
 ## Refactorings
 
-* #111: Simplified v2 message-view presence APIs and removed byte-budget control from call-message builders
+* #111: Simplified v2 message-view presence APIs and split flow-control reset from send budget
 * #44: Extracted WaitableQueue eventfd notifications into a reusable component
 
 ## Internal

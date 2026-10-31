@@ -87,7 +87,7 @@ The current control-stream message set is:
 - `CloseConnection` for orderly connection shutdown
 
 `ControlMessage` uses a union for mutually exclusive message categories while keeping compatible attributes such as
-`Payloads`, `Next`, `DataSchema`, and `Error` directly on the control table. `Frame` may contain a control message, a
+`Payloads`, `Reset`, `next_send_budget_in_bytes`, `DataSchema`, and `Error` directly on the control table. `Frame` may contain a control message, a
 record batch, or both. Schema and record-batch encoding, including inline buffer ordering, are defined in
 [data_stream.md](data_stream.md).
 

@@ -56,7 +56,7 @@ are ignored. Calls that have no result payload may still close normally.
 - uses `call_metadata` and `column_metadata`, sent before any call, between calls, or with the opening message
 - may carry the first input batch together with the opening message
 - may stay active while nested calls such as `get_script` or `get_connection` execute
-- group and row correlation belong in the data, not in `Next(...)`
+- group and row correlation belong in the data, not in `Reset(...)`
 
 See [Group and Row Correlation](correlation.md).
 
@@ -121,8 +121,8 @@ call orchestration and do not alter the generic Client/Server stream rules in th
 
 1. run socket handling and user-code execution as independently wakeable activities
 2. wait for either DB socket activity or user-code activity; do not block solely on socket receive
-3. queue record batches produced by user code until the first-batch rule or a usable `Next(...)` byte budget permits emission
-4. use `Next(...)` byte budgets to bound data in flight; do not impose a message-count limit
+3. queue record batches produced by user code until the first-batch rule or a usable send budget permits emission
+4. use send budgets to bound data in flight; do not impose a message-count limit
 5. send regular `KeepAlive` messages so `DB` can continue housekeeping
 
 ### `DB`
@@ -130,7 +130,7 @@ call orchestration and do not alter the generic Client/Server stream rules in th
 1. prioritize nested-call responses before data-stream work
 2. receive and process record batches from `UDFRunner` as a distinct data-stream event; the first batch may accompany
    call-opening/control traffic
-3. queue DB-produced input batches until the first-batch rule or a usable `Next(...)` byte budget permits emission
+3. queue DB-produced input batches until the first-batch rule or a usable send budget permits emission
 4. if nothing is ready to send, block waiting for new incoming messages
 5. monitor peer liveness and terminate unhealthy sessions when needed
 6. optionally open `cleanup` between calls and wait for its `CloseCall` before starting the next call
