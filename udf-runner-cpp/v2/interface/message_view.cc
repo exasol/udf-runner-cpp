@@ -29,19 +29,11 @@ namespace
 
 } // namespace
 
-bool CallMessageViewImpl::has_open_call() const noexcept
-{
-    return open_call().has_value();
-}
 std::optional<std::reference_wrapper<const protocol::OpenCall>> CallMessageViewImpl::open_call()
     const noexcept
 {
     const auto* control = control_message(decoded_frame_.get());
     return optional_reference(control != nullptr ? control->value_as_OpenCall() : nullptr);
-}
-bool CallMessageViewImpl::has_payloads() const noexcept
-{
-    return payloads().has_value();
 }
 std::optional<std::reference_wrapper<const protocol::Payloads>> CallMessageViewImpl::payloads()
     const noexcept
@@ -49,17 +41,9 @@ std::optional<std::reference_wrapper<const protocol::Payloads>> CallMessageViewI
     const auto* control = control_message(decoded_frame_.get());
     return optional_reference(control != nullptr ? control->payloads() : nullptr);
 }
-bool CallMessageViewImpl::has_data_schema() const noexcept
+std::optional<DataSchemaView> CallMessageViewImpl::data_schema() noexcept
 {
-    return false;
-}
-DataSchemaView CallMessageViewImpl::data_schema() noexcept
-{
-    return DataSchemaView{};
-}
-bool CallMessageViewImpl::has_next() const noexcept
-{
-    return next_.has_value();
+    return std::nullopt;
 }
 std::optional<std::reference_wrapper<const Next>> CallMessageViewImpl::next() const noexcept
 {
@@ -69,17 +53,9 @@ std::optional<std::reference_wrapper<const Next>> CallMessageViewImpl::next() co
     }
     return std::cref(*next_);
 }
-bool CallMessageViewImpl::has_record_batch() const noexcept
+std::optional<RecordBatchView> CallMessageViewImpl::record_batch() noexcept
 {
-    return false;
-}
-RecordBatchView CallMessageViewImpl::record_batch() noexcept
-{
-    return RecordBatchView{};
-}
-bool CallMessageViewImpl::has_error() const noexcept
-{
-    return error().has_value();
+    return std::nullopt;
 }
 std::optional<std::reference_wrapper<const protocol::Error>> CallMessageViewImpl::error()
     const noexcept
@@ -96,16 +72,15 @@ CallMessageViewImpl::CallMessageViewImpl(std::shared_ptr<const protocol::Decoded
         {
             next_ = Next{next->reset(), next->row_id()};
         }
-        if (const auto* close = control->value_as_CloseControlMessage(); close != nullptr)
-        {
-            close_call_ = close->close_call() != nullptr;
-        }
     }
 }
 
-bool CallMessageViewImpl::has_close_call() const noexcept
+std::optional<std::reference_wrapper<const protocol::CloseCall>> CallMessageViewImpl::close_call()
+    const noexcept
 {
-    return close_call_;
+    const auto* control = control_message(decoded_frame_.get());
+    const auto* close = control != nullptr ? control->value_as_CloseControlMessage() : nullptr;
+    return optional_reference(close != nullptr ? close->close_call() : nullptr);
 }
 
 } // namespace exasol::udf::v2::internal

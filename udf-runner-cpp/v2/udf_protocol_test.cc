@@ -213,11 +213,11 @@ TEST(UdfProtocolTest, DecodedFrameOwnsBufferForGeneratedViews)
     const auto decoded_frame =
         std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded.value()));
     const exasol::udf::v2::internal::ControlMessageViewImpl control_view(decoded_frame);
-    EXPECT_TRUE(control_view.has_server_capabilities());
+    EXPECT_TRUE(control_view.server_capabilities());
     EXPECT_EQ(control_view.server_capabilities()->get().supported_version()->major(), 2);
     ASSERT_TRUE(control_view.payloads());
     EXPECT_EQ(control_view.payloads()->get().payloads()->Get(0)->name()->str(), "name");
-    EXPECT_TRUE(control_view.has_error());
+    EXPECT_TRUE(control_view.error());
     EXPECT_EQ(control_view.error()->get().message()->str(), "example failure");
 }
 
@@ -271,9 +271,9 @@ TEST(UdfProtocolTest, FrameBackedCallViewPopulatesHighLevelFields)
     const auto decoded_frame =
         std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded.value()));
     const exasol::udf::v2::internal::CallMessageViewImpl call_view(decoded_frame);
-    EXPECT_TRUE(call_view.has_open_call());
+    EXPECT_TRUE(call_view.open_call());
     EXPECT_EQ(call_view.open_call()->get().call_name()->str(), "example");
-    EXPECT_TRUE(call_view.has_error());
+    EXPECT_TRUE(call_view.error());
     EXPECT_EQ(call_view.error()->get().code()->str(), "example_error");
 
     exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder batch_builder;
@@ -288,8 +288,7 @@ TEST(UdfProtocolTest, FrameBackedCallViewPopulatesHighLevelFields)
     const auto decoded_batch_frame =
         std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded_batch.value()));
     exasol::udf::v2::internal::CallMessageViewImpl batch_view(decoded_batch_frame);
-    EXPECT_FALSE(batch_view.has_record_batch());
-    EXPECT_EQ(batch_view.record_batch().take_array(), nullptr);
+    EXPECT_FALSE(batch_view.record_batch());
 
     exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder close_builder;
     const auto close_call       = exasol::udf::protocol::CreateCloseCall(close_builder);
@@ -308,10 +307,9 @@ TEST(UdfProtocolTest, FrameBackedCallViewPopulatesHighLevelFields)
     ASSERT_TRUE(decoded_close.has_value());
     const auto decoded_close_frame =
         std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded_close.value()));
-    EXPECT_TRUE(
-        exasol::udf::v2::internal::CallMessageViewImpl(decoded_close_frame).has_close_call());
+    EXPECT_TRUE(exasol::udf::v2::internal::CallMessageViewImpl(decoded_close_frame).close_call());
     EXPECT_TRUE(exasol::udf::v2::internal::ControlMessageViewImpl(decoded_close_frame)
-                    .has_close_connection());
+                    .close_connection());
 }
 
 TEST(UdfProtocolTest, FrameBackedViewsExposeFlatbufferFields)
@@ -346,41 +344,36 @@ TEST(UdfProtocolTest, FrameBackedViewsExposeFlatbufferFields)
         std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded.value()));
 
     const exasol::udf::v2::internal::CallMessageViewImpl call_view(decoded_frame);
-    EXPECT_TRUE(call_view.has_payloads());
+    EXPECT_TRUE(call_view.payloads());
     EXPECT_EQ(call_view.payloads()->get().payloads()->Get(0)->name()->str(), "name");
-    EXPECT_TRUE(call_view.has_next());
+    EXPECT_TRUE(call_view.next());
     EXPECT_TRUE(call_view.next()->get().reset);
     EXPECT_EQ(call_view.next()->get().row_id, 42);
     const exasol::udf::v2::internal::ControlMessageViewImpl control_view(decoded_frame);
-    EXPECT_TRUE(control_view.has_payloads());
+    EXPECT_TRUE(control_view.payloads());
     EXPECT_EQ(control_view.payloads()->get().payloads()->Get(0)->name()->str(), "name");
-    EXPECT_FALSE(control_view.has_keep_alive());
+    EXPECT_FALSE(control_view.keep_alive());
     EXPECT_FALSE(control_view.server_capabilities());
 }
 
 TEST(UdfProtocolTest, EmptyAndDataOnlyFramesProduceEmptyViews)
 {
-    const exasol::udf::v2::internal::CallMessageViewImpl empty_call_view(
+    exasol::udf::v2::internal::CallMessageViewImpl empty_call_view(
         std::shared_ptr<const exasol::udf::protocol::DecodedFrame>{});
     const exasol::udf::v2::internal::ControlMessageViewImpl empty_control_view(
         std::shared_ptr<const exasol::udf::protocol::DecodedFrame>{});
-    EXPECT_FALSE(empty_call_view.has_open_call());
-    EXPECT_FALSE(empty_call_view.has_payloads());
+    EXPECT_FALSE(empty_call_view.open_call());
     EXPECT_FALSE(empty_call_view.payloads());
-    EXPECT_FALSE(empty_call_view.has_next());
     EXPECT_FALSE(empty_call_view.next());
-    EXPECT_FALSE(empty_call_view.has_data_schema());
-    EXPECT_FALSE(empty_call_view.has_record_batch());
-    EXPECT_FALSE(empty_call_view.has_error());
+    EXPECT_FALSE(empty_call_view.data_schema());
+    EXPECT_FALSE(empty_call_view.record_batch());
     EXPECT_FALSE(empty_call_view.error());
-    EXPECT_FALSE(empty_call_view.has_close_call());
-    EXPECT_FALSE(empty_control_view.has_server_capabilities());
-    EXPECT_FALSE(empty_control_view.has_payloads());
+    EXPECT_FALSE(empty_call_view.close_call());
+    EXPECT_FALSE(empty_control_view.server_capabilities());
     EXPECT_FALSE(empty_control_view.payloads());
-    EXPECT_FALSE(empty_control_view.has_error());
     EXPECT_FALSE(empty_control_view.error());
-    EXPECT_FALSE(empty_control_view.has_keep_alive());
-    EXPECT_FALSE(empty_control_view.has_close_connection());
+    EXPECT_FALSE(empty_control_view.keep_alive());
+    EXPECT_FALSE(empty_control_view.close_connection());
 
     exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder builder;
     const auto batch = exasol::udf::protocol::CreateDataRecordBatchMetadata(builder);
@@ -394,9 +387,8 @@ TEST(UdfProtocolTest, EmptyAndDataOnlyFramesProduceEmptyViews)
         std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded.value()));
     const exasol::udf::v2::internal::CallMessageViewImpl call_view(decoded_frame);
     const exasol::udf::v2::internal::ControlMessageViewImpl control_view(decoded_frame);
-    EXPECT_FALSE(call_view.has_open_call());
-    EXPECT_FALSE(control_view.has_server_capabilities());
-    EXPECT_FALSE(control_view.has_payloads());
+    EXPECT_FALSE(call_view.open_call());
+    EXPECT_FALSE(control_view.server_capabilities());
     EXPECT_FALSE(control_view.payloads());
 }
 
@@ -424,7 +416,7 @@ TEST(UdfProtocolTest, ViewsHandleMissingOptionalFlatbufferFields)
     const auto call_frame =
         std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded_call.value()));
     const exasol::udf::v2::internal::CallMessageViewImpl call_view(call_frame);
-    EXPECT_TRUE(call_view.has_open_call());
+    EXPECT_TRUE(call_view.open_call());
     EXPECT_EQ(call_view.open_call()->get().call_name(), nullptr);
     ASSERT_TRUE(call_view.error());
     EXPECT_EQ(call_view.error()->get().code(), nullptr);
@@ -464,10 +456,9 @@ TEST(UdfProtocolTest, ViewsHandleMissingOptionalFlatbufferFields)
     ASSERT_TRUE(decoded_close.has_value());
     const auto close_decoded_frame =
         std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded_close.value()));
-    EXPECT_FALSE(
-        exasol::udf::v2::internal::CallMessageViewImpl(close_decoded_frame).has_close_call());
+    EXPECT_FALSE(exasol::udf::v2::internal::CallMessageViewImpl(close_decoded_frame).close_call());
     EXPECT_FALSE(exasol::udf::v2::internal::ControlMessageViewImpl(close_decoded_frame)
-                     .has_close_connection());
+                     .close_connection());
 }
 
 TEST(UdfProtocolTest, FrameBackedControlViewDecodesCapabilitiesAndKeepAlive)
@@ -490,7 +481,7 @@ TEST(UdfProtocolTest, FrameBackedControlViewDecodesCapabilitiesAndKeepAlive)
         std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded.value()));
     const exasol::udf::v2::internal::ControlMessageViewImpl view(decoded_frame);
 
-    EXPECT_TRUE(view.has_server_capabilities());
+    EXPECT_TRUE(view.server_capabilities());
     EXPECT_EQ(view.server_capabilities()->get().supported_version()->major(), 2);
     EXPECT_EQ(view.server_capabilities()->get().supported_version()->minor(), 2);
     EXPECT_EQ(view.server_capabilities()->get().number_of_supported_workers(), 8);
@@ -515,5 +506,5 @@ TEST(UdfProtocolTest, FrameBackedControlViewDecodesCapabilitiesAndKeepAlive)
         std::move(decoded_keep_alive.value()));
     const exasol::udf::v2::internal::ControlMessageViewImpl keep_alive_control_view(
         keep_alive_view);
-    ASSERT_TRUE(keep_alive_control_view.has_keep_alive());
+    ASSERT_TRUE(keep_alive_control_view.keep_alive());
 }

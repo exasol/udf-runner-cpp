@@ -24,24 +24,13 @@ static_assert(std::is_abstract_v<interface::CallMessageView>);
 TEST(CallMessageViewTest, EmptyViewReportsNoFields)
 {
     CallMessageViewImpl view(nullptr);
-    EXPECT_FALSE(view.has_open_call());
     EXPECT_FALSE(view.open_call());
-    EXPECT_FALSE(view.has_payloads());
     EXPECT_FALSE(view.payloads());
-    EXPECT_FALSE(view.has_data_schema());
-    EXPECT_EQ(std::move(view.data_schema()).take_schema(), nullptr);
-    EXPECT_FALSE(view.data_schema().has_group_id());
-    EXPECT_FALSE(view.data_schema().has_row_id());
-    EXPECT_FALSE(view.has_next());
+    EXPECT_FALSE(view.data_schema());
     EXPECT_FALSE(view.next());
-    EXPECT_FALSE(view.has_record_batch());
-    EXPECT_EQ(std::move(view.record_batch()).take_array(), nullptr);
-    EXPECT_FALSE(view.record_batch().is_end_of_group());
-    EXPECT_FALSE(view.has_next());
-    EXPECT_FALSE(view.next());
-    EXPECT_FALSE(view.has_error());
+    EXPECT_FALSE(view.record_batch());
     EXPECT_FALSE(view.error());
-    EXPECT_FALSE(view.has_close_call());
+    EXPECT_FALSE(view.close_call());
 }
 
 TEST(CallMessageViewTest, ArrowDataCanRoundTripThroughInterface)

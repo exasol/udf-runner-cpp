@@ -41,14 +41,6 @@ struct Next
     std::uint64_t row_id{}; // NOLINT(misc-non-private-member-variables-in-classes)
 };
 
-/// Flow-control information supplied when sending a message.
-struct OutboundNext
-{
-    std::uint32_t byte_budget{}; // NOLINT(misc-non-private-member-variables-in-classes)
-    bool reset{false};           // NOLINT(misc-non-private-member-variables-in-classes)
-    std::uint64_t row_id{};      // NOLINT(misc-non-private-member-variables-in-classes)
-};
-
 /// Arrow schema and correlation-field metadata for one data direction.
 struct DataSchema
 {
