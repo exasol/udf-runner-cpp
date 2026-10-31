@@ -23,6 +23,9 @@
 
 minimumLimaVersion: 1.1.0
 
+cpus: 12
+memory: 10GiB
+
 base:
 - template://_images/ubuntu-24.04
 - template://_default/mounts
