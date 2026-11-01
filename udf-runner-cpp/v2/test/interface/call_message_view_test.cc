@@ -1,15 +1,15 @@
 #include <exasol/udf/v2/internal/call_message_view_impl.hpp>
 #include <exasol/udf/v2/internal/data_schema_view_impl.hpp>
-#include <exasol/udf/v2/internal/record_batch_view_impl.hpp>
 #include <exasol/udf/v2/internal/message_builder_factory.hpp>
+#include <exasol/udf/v2/internal/record_batch_view_impl.hpp>
 
 #include <gtest/gtest.h>
 
 #include <arrow/api.h>
 #include <arrow/c/bridge.h>
 
-#include <utility>
 #include <type_traits>
+#include <utility>
 
 namespace exasol::udf::v2::internal
 {
@@ -41,11 +41,11 @@ TEST(CallMessageViewTest, ArrowDataCanRoundTripThroughInterface)
     const auto schema = arrow::schema({arrow::field("id", arrow::int64())});
     const auto source = arrow::RecordBatch::Make(schema, 2, {ids});
 
-    ArrowSchema received_schema{};
-    ArrowArray received_array{};
-    ASSERT_TRUE(arrow::ExportRecordBatch(*source, &received_array, &received_schema).ok());
-    DataSchemaViewImpl schema_view(ArrowSchemaPtr(&received_schema), false, false);
-    RecordBatchViewImpl batch_view(ArrowArrayPtr(&received_array), true);
+    auto* received_schema = new ArrowSchema{};
+    auto* received_array  = new ArrowArray{};
+    ASSERT_TRUE(arrow::ExportRecordBatch(*source, received_array, received_schema).ok());
+    DataSchemaViewImpl schema_view(ArrowSchemaPtr(received_schema), false, false);
+    RecordBatchViewImpl batch_view(ArrowArrayPtr(received_array), true);
     auto schema_owner = std::move(schema_view).take_schema();
     auto array_owner  = std::move(batch_view).take_array();
     ASSERT_NE(schema_owner, nullptr);
@@ -59,16 +59,14 @@ TEST(CallMessageViewTest, ArrowDataCanRoundTripThroughInterface)
     EXPECT_EQ(imported_ids->Value(0), 7);
     EXPECT_EQ(imported_ids->Value(1), 11);
 
-    ArrowSchema sent_schema{};
-    ArrowArray sent_array{};
-    ASSERT_TRUE(arrow::ExportRecordBatch(*imported.ValueOrDie(), &sent_array, &sent_schema).ok());
+    auto* sent_schema = new ArrowSchema{};
+    auto* sent_array  = new ArrowArray{};
+    ASSERT_TRUE(arrow::ExportRecordBatch(*imported.ValueOrDie(), sent_array, sent_schema).ok());
     {
         auto outgoing = MessageBuilderFactory::create_call_builder(2);
-        outgoing->data_schema(ArrowSchemaPtr(&sent_schema), false, false)
-            .record_batch(ArrowArrayPtr(&sent_array), true);
+        outgoing->data_schema(ArrowSchemaPtr(sent_schema), false, false)
+            .record_batch(ArrowArrayPtr(sent_array), true);
     }
-    EXPECT_EQ(sent_schema.release, nullptr);
-    EXPECT_EQ(sent_array.release, nullptr);
 }
 
 } // namespace exasol::udf::v2::internal

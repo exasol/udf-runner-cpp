@@ -2,8 +2,10 @@
 #include <utility>
 namespace exasol::udf::v2::internal
 {
-DataSchemaViewImpl::DataSchemaViewImpl(interface::ArrowSchemaPtr schema, bool group, bool row)
-    : schema_(std::move(schema)), has_group_id_(group), has_row_id_(row)
+DataSchemaViewImpl::DataSchemaViewImpl(interface::ArrowSchemaPtr schema,
+                                       bool has_group_id,
+                                       bool has_row_id)
+    : schema_(std::move(schema)), has_group_id_(has_group_id), has_row_id_(has_row_id)
 {
 } // namespace exasol::udf::v2::internal
 interface::ArrowSchemaPtr DataSchemaViewImpl::take_schema() &&

@@ -14,51 +14,52 @@ using interface::ArrowArrayPtr;
 
 TEST(RecordBatchViewTest, TransfersArrayAndReleasesItOnce)
 {
-    int releases = 0;
-    ArrowArray array{};
-    array.private_data = &releases;
-    array.release      = test::count_array_release;
+    int releases        = 0;
+    auto* array         = new ArrowArray{};
+    array->private_data = &releases;
+    array->release      = test::count_array_release;
     {
-        RecordBatchViewImpl view(ArrowArrayPtr(&array), true);
+        RecordBatchViewImpl view(ArrowArrayPtr(array), true);
         EXPECT_TRUE(view.is_end_of_group());
         auto transferred = std::move(view).take_array();
-        EXPECT_EQ(transferred.get(), &array);
+        EXPECT_EQ(transferred.get(), array);
     }
     EXPECT_EQ(releases, 1);
 }
 
 TEST(RecordBatchViewTest, SupportsMoveOnlyArrowOwner)
 {
-    ArrowArray first{};
-    ArrowArray second{};
-    ArrowArrayPtr owner(&first);
-    ArrowArrayPtr replacement(&second);
+    auto* first  = new ArrowArray{};
+    auto* second = new ArrowArray{};
+    ArrowArrayPtr owner(first);
+    ArrowArrayPtr replacement(second);
     owner = std::move(replacement);
-    EXPECT_EQ(owner.get(), &second);
+    EXPECT_EQ(owner.get(), second);
 }
 
 TEST(RecordBatchViewTest, ReleasesArrayWhenOwnerIsDestroyed)
 {
-    int releases = 0;
-    ArrowArray array{};
-    array.private_data = &releases;
-    array.release      = test::count_array_release;
+    int releases        = 0;
+    auto* array         = new ArrowArray{};
+    array->private_data = &releases;
+    array->release      = test::count_array_release;
     {
-        ArrowArrayPtr owner(&array);
+        ArrowArrayPtr owner(array);
         ArrowArray* transferred = owner.release();
         EXPECT_EQ(owner.get(), nullptr);
-        ASSERT_EQ(transferred, &array);
+        ASSERT_EQ(transferred, array);
         transferred->release(transferred);
+        delete transferred;
     }
     EXPECT_EQ(releases, 1);
 }
 
 TEST(RecordBatchViewTest, SupportsEmptyOwner)
 {
-    ArrowArray released_array{};
+    auto* released_array = new ArrowArray{};
     {
-        ArrowArrayPtr owner(&released_array);
-        EXPECT_EQ(owner.get(), &released_array);
+        ArrowArrayPtr owner(released_array);
+        EXPECT_EQ(owner.get(), released_array);
     }
     ArrowArrayPtr empty_array;
     EXPECT_EQ(empty_array.get(), nullptr);

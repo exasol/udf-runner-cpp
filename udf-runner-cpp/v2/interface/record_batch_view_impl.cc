@@ -2,8 +2,8 @@
 #include <utility>
 namespace exasol::udf::v2::internal
 {
-RecordBatchViewImpl::RecordBatchViewImpl(interface::ArrowArrayPtr array, bool end)
-    : array_(std::move(array)), is_end_of_group_(end)
+RecordBatchViewImpl::RecordBatchViewImpl(interface::ArrowArrayPtr array, bool is_end_of_group)
+    : array_(std::move(array)), is_end_of_group_(is_end_of_group)
 {
 } // namespace exasol::udf::v2::internal
 interface::ArrowArrayPtr RecordBatchViewImpl::take_array() &&

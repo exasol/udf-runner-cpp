@@ -33,10 +33,11 @@ struct BackgroundThreadResult
 
 /// A completed builder transferred from the low-level Context for sending.
 /// The background thread owns the builder and does not modify it.
-using OutboundMessage = std::variant<std::unique_ptr<interface::CallMessageBuilder>,
+using OutboundMessage = std::variant<std::unique_ptr<interface::CallMessageBuilderBase>,
                                      std::unique_ptr<interface::ControlMessageBuilder>>;
 
-/// A verified message view transferred from the background thread to the low-level Context.
+/// A verified message view transferred from the background thread to the
+/// low-level Context.
 using InboundMessage = std::variant<std::unique_ptr<interface::CallMessageView>,
                                     std::unique_ptr<interface::ControlMessageView>>;
 
@@ -66,7 +67,8 @@ public:
     [[nodiscard]] virtual BackgroundThreadResult wait_until(
         std::optional<std::chrono::steady_clock::time_point> deadline) = 0;
 
-    /// Transfers complete outbound messages to the background thread without blocking.
+    /// Transfers complete outbound messages to the background thread without
+    /// blocking.
     ///
     /// Returns false without consuming `messages` when the background thread
     /// has stopped accepting work.

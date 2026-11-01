@@ -1,9 +1,11 @@
+#include <exasol/udf/v2/internal/background_thread_interface.hpp>
 #include <exasol/udf/v2/internal/call_message_builder_impl.hpp>
 #include <exasol/udf/v2/internal/message_builder_factory.hpp>
 
 #include <gtest/gtest.h>
 
 #include <type_traits>
+#include <variant>
 
 namespace exasol::udf::v2::internal
 {
@@ -29,14 +31,14 @@ TEST(CallMessageBuilderTest, StoresTextAndBinaryPayloadsInOrder)
 
 TEST(CallMessageBuilderTest, BuildsCompositeMessage)
 {
-    ArrowSchema schema{};
-    ArrowArray array{};
+    auto* schema = new ArrowSchema{};
+    auto* array  = new ArrowArray{};
     auto builder = MessageBuilderFactory::create_opening_call_builder(2);
     builder->open_call("nested")
         .add_payload("request", "{}")
-        .data_schema(interface::ArrowSchemaPtr(&schema), true, true)
+        .data_schema(interface::ArrowSchemaPtr(schema), true, true)
         .reset(42)
-        .record_batch(interface::ArrowArrayPtr(&array), true)
+        .record_batch(interface::ArrowArrayPtr(array), true)
         .error("E_TEST", "failure")
         .close_call();
 
@@ -58,13 +60,13 @@ TEST(CallMessageBuilderTest, BuildsCompositeMessage)
 
 TEST(CallMessageBuilderTest, BuildsMessageWithDefaultOptions)
 {
-    ArrowSchema schema{};
-    ArrowArray array{};
+    auto* schema = new ArrowSchema{};
+    auto* array  = new ArrowArray{};
     auto builder = MessageBuilderFactory::create_call_builder(7);
-    builder->data_schema(interface::ArrowSchemaPtr(&schema))
-        .data_schema(interface::ArrowSchemaPtr(&schema), true)
+    builder->data_schema(interface::ArrowSchemaPtr(schema))
+        .data_schema(interface::ArrowSchemaPtr(new ArrowSchema{}), true)
         .reset(0)
-        .record_batch(interface::ArrowArrayPtr(&array));
+        .record_batch(interface::ArrowArrayPtr(array));
     builder->error("E_TEST", "failure").close_call();
 
     const auto* builder_impl = dynamic_cast<const CallMessageBuilderImpl*>(builder.get());
@@ -82,6 +84,22 @@ TEST(CallMessageBuilderTest, BuildsMessageWithDefaultOptions)
     EXPECT_EQ(message.error()->code(), "E_TEST");
     EXPECT_EQ(message.error()->message(), "failure");
     EXPECT_TRUE(message.is_close_call());
+}
+
+TEST(CallMessageBuilderTest, OutboundMessageAcceptsAllCallBuilderKinds)
+{
+    std::unique_ptr<interface::CallMessageBuilderBase> call_builder =
+        MessageBuilderFactory::create_call_builder(1);
+    std::unique_ptr<interface::CallMessageBuilderBase> opening_builder =
+        MessageBuilderFactory::create_opening_call_builder(1);
+
+    OutboundMessage call_message(std::move(call_builder));
+    OutboundMessage opening_message(std::move(opening_builder));
+
+    EXPECT_TRUE(
+        std::holds_alternative<std::unique_ptr<interface::CallMessageBuilderBase>>(call_message));
+    EXPECT_TRUE(std::holds_alternative<std::unique_ptr<interface::CallMessageBuilderBase>>(
+        opening_message));
 }
 
 } // namespace exasol::udf::v2::internal

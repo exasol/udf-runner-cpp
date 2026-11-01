@@ -9,7 +9,7 @@ class RecordBatchViewImpl final : public interface::RecordBatchView
 public:
     RecordBatchViewImpl(interface::ArrowArrayPtr array, bool is_end_of_group);
     interface::ArrowArrayPtr take_array() && override;
-    bool is_end_of_group() const noexcept override;
+    [[nodiscard]] bool is_end_of_group() const noexcept override;
 
 private:
     interface::ArrowArrayPtr array_;

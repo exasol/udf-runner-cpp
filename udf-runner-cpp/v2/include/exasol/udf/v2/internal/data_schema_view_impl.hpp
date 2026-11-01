@@ -9,8 +9,8 @@ class DataSchemaViewImpl final : public interface::DataSchemaView
 public:
     DataSchemaViewImpl(interface::ArrowSchemaPtr schema, bool has_group_id, bool has_row_id);
     interface::ArrowSchemaPtr take_schema() && override;
-    bool has_group_id() const noexcept override;
-    bool has_row_id() const noexcept override;
+    [[nodiscard]] bool has_group_id() const noexcept override;
+    [[nodiscard]] bool has_row_id() const noexcept override;
 
 private:
     interface::ArrowSchemaPtr schema_;

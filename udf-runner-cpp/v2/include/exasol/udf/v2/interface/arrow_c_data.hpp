@@ -17,6 +17,7 @@ struct ArrowCDataDeleter
         {
             value->release(value);
         }
+        delete value;
     }
 };
 
