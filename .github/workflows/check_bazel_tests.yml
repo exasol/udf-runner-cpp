@@ -139,7 +139,7 @@ jobs:
           name: v2-sonar-coverage
           path: udf-runner-cpp/v2/bazel-out/_coverage
       - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a62315c8296b6ea4fbe28f # v8.2.1
+        uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
         with:
           projectBaseDir: ./udf-runner-cpp/v2
         env:
@@ -165,6 +165,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential clang curl valgrind
+          sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" -- 22
+          sudo apt-get install -y clang-22 libclang-rt-22-dev
+          sudo ln -sf /usr/bin/clang-22 /usr/local/bin/clang
+          sudo ln -sf /usr/bin/clang++-22 /usr/local/bin/clang++
       - name: Install Poetry dependencies
         run: |
           pipx install poetry
