@@ -2,6 +2,26 @@
 common --registry=https://raw.githubusercontent.com/digiboys/bazel-registry/main
 common --registry=https://bcr.bazel.build
 
+# Sanitizer and Valgrind configurations for the regular C++ test suite.
+build:asan --action_env=CC=clang
+build:asan --action_env=CXX=clang++
+build:asan --repo_env=CC=clang
+build:asan --repo_env=CXX=clang++
+build:asan --copt=-fsanitize=address
+build:asan --linkopt=-fsanitize=address
+
+build:ubsan --action_env=CC=clang
+build:ubsan --action_env=CXX=clang++
+build:ubsan --repo_env=CC=clang
+build:ubsan --repo_env=CXX=clang++
+build:ubsan --copt=-fsanitize=undefined
+build:ubsan --linkopt=-fsanitize=undefined
+
+build:valgrind --compilation_mode=dbg
+build:valgrind --copt=-O1
+build:valgrind --copt=-g
+build:valgrind --strip=never
+
 build:asan-libfuzzer --@rules_fuzzing//fuzzing:cc_engine=@rules_fuzzing//fuzzing/engines:libfuzzer
 build:asan-libfuzzer --@rules_fuzzing//fuzzing:cc_engine_instrumentation=libfuzzer
 build:asan-libfuzzer --@rules_fuzzing//fuzzing:cc_engine_sanitizer=asan

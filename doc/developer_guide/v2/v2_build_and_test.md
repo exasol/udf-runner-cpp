@@ -20,6 +20,16 @@ bazel build --verbose_failures //...
 bazel test //...
 ```
 
+The regular suite can also be run through Nox with the sanitizer and memory
+checking modes used in CI:
+
+```bash
+poetry run nox -s v2-tests
+poetry run nox -s v2-tests-asan
+poetry run nox -s v2-tests-ubsan
+poetry run nox -s v2-tests-valgrind
+```
+
 The test suite covers the FlatBuffers protocol, Arrow support, JSON schemas,
 queue implementations, and fuzz-target regression tests. For fuzzing-specific
 commands, see the [v2 fuzzing guide](v2_fuzzing.md).
