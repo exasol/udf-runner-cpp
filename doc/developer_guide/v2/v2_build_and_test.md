@@ -30,6 +30,19 @@ poetry run nox -s v2-tests-ubsan
 poetry run nox -s v2-tests-valgrind
 ```
 
+The CI quality checks are also available as independent Nox sessions:
+
+```bash
+poetry run nox -s v2-clang-tidy
+poetry run nox -s v2-clang-format
+poetry run nox -s v2-coverage
+poetry run nox -s v2-sonar
+```
+
+The Sonar session expects the coverage report from `v2-coverage` to already
+exist and requires a locally installed `sonar-scanner` (or a path supplied via
+the `SONAR_SCANNER` environment variable).
+
 The test suite covers the FlatBuffers protocol, Arrow support, JSON schemas,
 queue implementations, and fuzz-target regression tests. For fuzzing-specific
 commands, see the [v2 fuzzing guide](v2_fuzzing.md).

@@ -26,6 +26,7 @@ n/a
 ## Internal
 
 * #111: Added parallel v2 regular-test Nox and CI runs for ASan, UBSan, and Valgrind
+* #111: Added independent Nox and CI jobs for v2 clang-tidy, clang-format, coverage, and Sonar analysis
 * #111: Fixed Lima Mull provisioning by installing the pinned LLVM 22 package
   directly from its verified release artifact
 * #70: Removed the standalone JSON schema validation script and its dedicated CI workflow

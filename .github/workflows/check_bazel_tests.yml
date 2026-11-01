@@ -35,20 +35,6 @@ jobs:
       - name: Build
         run: bazel build --verbose_failures //...
         working-directory: ./udf-runner-cpp/v2
-      - name: Install clang-tidy
-        run: |
-          sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" -- 22
-          sudo apt-get install -y clang-tidy-22
-      - name: Run clang-tidy
-        run: bazel build --verbose_failures --config clang-tidy //...
-        working-directory: ./udf-runner-cpp/v2
-      - name: Install clang-format
-        run: |
-          sudo apt-get install -y clang-format-22
-          sudo ln -sf /usr/bin/clang-format-22 /usr/local/bin/clang-format
-      - name: Run clang-format
-        run: bazel build --verbose_failures --config clang-format //...
-        working-directory: ./udf-runner-cpp/v2
       - name: Run v2 fuzz regression tests
         run: |
           bazel test --verbose_failures --test_output=errors --config asan-libfuzzer \
@@ -66,18 +52,92 @@ jobs:
           --test_tag_filters=-fuzz-test
           //...
         working-directory: ./udf-runner-cpp/v2
-      - name: Run coverage tests
-        run: >-
-          bazel test --verbose_failures --collect_code_coverage
-          --combined_report=lcov
-          --coverage_report_generator=@bazel_sonarqube//:sonarqube_coverage_generator
-          --build_tag_filters=-fuzz-test
-          --test_tag_filters=-fuzz-test,-no-coverage
-          //...
-        working-directory: ./udf-runner-cpp/v2
+
+  v2_clang_tidy:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang curl
+          sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" -- 22
+          sudo apt-get install -y clang-tidy-22
+      - name: Install Poetry dependencies
+        run: |
+          pipx install poetry
+          poetry install --no-interaction --no-ansi --only main
+      - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
+        with:
+          bazelisk-cache: true
+      - name: Run clang-tidy
+        run: poetry run nox -s v2-clang-tidy
+
+  v2_clang_format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang curl clang-format-22
+          sudo ln -sf /usr/bin/clang-format-22 /usr/local/bin/clang-format
+      - name: Install Poetry dependencies
+        run: |
+          pipx install poetry
+          poetry install --no-interaction --no-ansi --only main
+      - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
+        with:
+          bazelisk-cache: true
+      - name: Run clang-format
+        run: poetry run nox -s v2-clang-format
+
+  v2_coverage:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang curl lcov
+      - name: Install Poetry dependencies
+        run: |
+          pipx install poetry
+          poetry install --no-interaction --no-ansi --only main
+      - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c00bbd7a396a3dc868bb0f86 # 0.19.0
+        with:
+          bazelisk-cache: true
+      - name: Run coverage
+        run: poetry run nox -s v2-coverage
+      - name: Upload Sonar coverage report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: v2-sonar-coverage
+          path: udf-runner-cpp/v2/bazel-out/_coverage/_coverage_report.dat
+          if-no-files-found: error
+
+  v2_sonar:
+    needs: v2_coverage
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Download Sonar coverage report
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          name: v2-sonar-coverage
+          path: udf-runner-cpp/v2/bazel-out/_coverage
       - name: SonarCloud Scan
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-        uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
+        uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a62315c8296b6ea4fbe28f # v8.2.1
         with:
           projectBaseDir: ./udf-runner-cpp/v2
         env:
