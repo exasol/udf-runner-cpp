@@ -30,9 +30,15 @@ public:
     /// Receives the next message for this call, optionally waiting up to `timeout`.
     [[nodiscard]] virtual Result<std::unique_ptr<CallMessageView>> receive(Timeout timeout) = 0;
     /// Sends one composite call message without waiting for flow-control permission.
-    [[nodiscard]] virtual Result<void> send(std::unique_ptr<CallMessageBuilder> message) = 0;
+    /// A successful result means the call accepted the message and ownership transferred. On
+    /// failure, `message` remains non-null and retains ownership of the builder and any Arrow
+    /// objects it owns.
+    [[nodiscard]] virtual Result<void> send(std::unique_ptr<CallMessageBuilder>&& message) = 0;
     /// Sends one composite call message, waiting up to `timeout` for flow-control permission.
-    [[nodiscard]] virtual Result<void> send(std::unique_ptr<CallMessageBuilder> message,
+    /// A successful result means the call accepted the message and ownership transferred. On
+    /// failure, `message` remains non-null and retains ownership of the builder and any Arrow
+    /// objects it owns.
+    [[nodiscard]] virtual Result<void> send(std::unique_ptr<CallMessageBuilder>&& message,
                                             Timeout timeout) = 0;
 
 protected:

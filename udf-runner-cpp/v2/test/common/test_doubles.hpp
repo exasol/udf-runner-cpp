@@ -38,15 +38,16 @@ public:
     }
 
     [[nodiscard]] interface::Result<void> send(
-        std::unique_ptr<interface::CallMessageBuilder> message, interface::Timeout timeout) override
+        std::unique_ptr<interface::CallMessageBuilder>&& message,
+        interface::Timeout timeout) override
     {
-        (void)message;
         (void)timeout;
+        message.reset();
         return interface::Result<void>::success();
     }
 
     [[nodiscard]] interface::Result<void> send(
-        std::unique_ptr<interface::CallMessageBuilder> message) override
+        std::unique_ptr<interface::CallMessageBuilder>&& message) override
     {
         return send(std::move(message), std::nullopt);
     }
@@ -81,9 +82,9 @@ public:
     }
 
     [[nodiscard]] interface::Result<void> send(
-        std::unique_ptr<interface::ControlMessageBuilder> message) override
+        std::unique_ptr<interface::ControlMessageBuilder>&& message) override
     {
-        (void)message;
+        message.reset();
         return interface::Result<void>::success();
     }
 };

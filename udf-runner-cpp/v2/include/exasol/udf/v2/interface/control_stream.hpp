@@ -28,8 +28,10 @@ public:
     [[nodiscard]] virtual Result<std::unique_ptr<ControlMessageView>> receive() = 0;
     /// Receives the next control message, optionally waiting up to `timeout`.
     [[nodiscard]] virtual Result<std::unique_ptr<ControlMessageView>> receive(Timeout timeout) = 0;
-    /// Sends one connection-level message and transfers its builder to the stream.
-    [[nodiscard]] virtual Result<void> send(std::unique_ptr<ControlMessageBuilder> message) = 0;
+    /// Sends one connection-level message.
+    /// A successful result means the stream accepted the message and ownership transferred. On
+    /// failure, `message` remains non-null and the caller retains ownership of the builder.
+    [[nodiscard]] virtual Result<void> send(std::unique_ptr<ControlMessageBuilder>&& message) = 0;
 
 protected:
     ControlStream() = default;

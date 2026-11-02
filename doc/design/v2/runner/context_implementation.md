@@ -185,12 +185,14 @@ it checks the queue again before clearing or blocking, closing the empty-to-wait
 4. For a later batch, consume the worker grant by the whole Arrow buffer-byte size of the submitted batch. A positive
    grant admits the current batch even when that one submission overshoots the grant. The first-batch exemption does
    not consume credit.
-5. Enqueue the owned logical message without blocking.
+5. Attempt to enqueue the logical message without blocking. A successful enqueue accepts the message and transfers
+   ownership. If enqueue fails, return an error without moving from the caller's `unique_ptr`; it remains non-null
+   and retains the builder and its Arrow objects.
 6. Notify the outbound eventfd if this enqueue changed the queue from empty to non-empty.
 7. Return to the worker.
 
-If the context is already terminal, the operation returns the appropriate terminal `Result` and does not transfer
-ownership.
+If the context is already terminal, the operation returns the appropriate terminal `Result` without moving from the
+caller's `unique_ptr`; it remains non-null and retains the builder and its Arrow objects.
 
 ### Worker-side data flow permission
 
@@ -505,10 +507,10 @@ CallMessageBuilder / ControlMessageBuilder
 ```
 
 The builder retains Arrow C-interface ownership until logical finalization and outbound enqueue succeed. On a
-validation, send-grant timeout, terminal-state, or queue failure, ownership remains with the worker or the builder's
-error result according to the interface contract. After successful enqueue, the worker must not mutate or release the
-transferred Arrow objects. The background thread owns any Arrow slices and generated wire frames until the complete
-logical batch has been sent or discarded during shutdown.
+validation, send-grant timeout, terminal-state, or queue failure, the caller's `unique_ptr` remains non-null and
+retains the builder and its Arrow objects. After successful enqueue, ownership transfers and the worker must not
+mutate or release the transferred Arrow objects. The background thread owns any Arrow slices and generated wire
+frames until the complete logical batch has been sent or discarded during shutdown.
 
 The receive handoff is:
 

@@ -117,7 +117,7 @@ Call {
     create_message_builder() -> unique_ptr<CallMessageBuilder>
     receive_status() -> MessageStatus
     receive(optional<Duration> timeout) -> Result<unique_ptr<CallMessageView>>
-    send(unique_ptr<CallMessageBuilder>, optional<Duration> timeout) -> Result<void>
+    send(unique_ptr<CallMessageBuilder>&&, optional<Duration> timeout) -> Result<void>
 }
 ```
 
@@ -140,8 +140,10 @@ to its own stream and the call receive continues waiting. It does not return unr
 
 `Call::send()` waits for the context to grant permission for the next data batch when required by flow control. An
 absent timeout waits indefinitely, a zero timeout does not block, and an expired timeout returns `TimedOut` without
-consuming the builder or its Arrow ownership. The background thread owns the authoritative credit and any internal
-batch splitting; the worker-facing send operation submits one logical batch.
+consuming the builder or its Arrow ownership. Passing the `unique_ptr` by rvalue reference does not itself transfer
+ownership: ownership transfers only when the call accepts the message. On any failure, the `unique_ptr` remains
+non-null and retains the builder and its Arrow objects. The background thread owns the authoritative credit and any
+internal batch splitting; the worker-facing send operation submits one logical batch.
 
 ## Composite call messages
 
@@ -213,11 +215,13 @@ ControlStream {
     create_message_builder() -> unique_ptr<ControlMessageBuilder>
     receive_status() -> MessageStatus
     receive(optional<Duration> timeout) -> Result<unique_ptr<ControlMessageView>>
-    send(unique_ptr<ControlMessageBuilder>) -> Result<void>
+    send(unique_ptr<ControlMessageBuilder>&&) -> Result<void>
 }
 ```
 
-The control stream's status and receive functions observe and consume only stream-0 messages.
+The control stream's status and receive functions observe and consume only stream-0 messages. `ControlStream::send()`
+transfers ownership only when the stream accepts the message. On failure, the caller's `unique_ptr` remains non-null
+and retains ownership of the builder.
 
 `ControlMessage` contains independently optional connection-level fields:
 
@@ -264,8 +268,9 @@ The opening builder adds `open_call` to the shared set of composite fields. Repe
 payloads in order. After `data_schema()` or `record_batch()`, the builder owns the supplied Arrow objects. `Context`
 creates an `OpeningCallMessageBuilder` and binds it to the stream ID it reserves for the new call. After the call is
 opened, `Call` creates ordinary `CallMessageBuilder` instances bound to that call's stream ID. Passing the opening
-builder to `Context::open_call()` or an ordinary builder to `Call::send()` transfers it to that operation, and the
-builder must not be reused.
+builder to `Context::open_call()` submits it to that operation. Passing an ordinary builder to `Call::send()` submits
+it to the call, but ownership transfers only when the operation accepts the message. On failure, the caller's
+`unique_ptr` remains non-null and retains the builder and its Arrow objects.
 
 ### Control message builder
 
@@ -282,7 +287,8 @@ ControlMessageBuilder {
 
 The control builder cannot construct `OpenCall`, `CloseCall`, `Reset`, `DataSchema`, or record-batch fields.
 `ControlStream` creates `ControlMessageBuilder` instances bound to stream 0. Passing its `unique_ptr` to
-`ControlStream::send()` transfers it to that operation, and the builder must not be reused.
+`ControlStream::send()` submits it to the stream. Ownership transfers only when the stream accepts the message; on
+failure, the caller's `unique_ptr` remains non-null and retains ownership of the builder.
 
 ### Call message view
 
@@ -378,8 +384,9 @@ The receive path verifies the complete frame with `flatbuffers::Verifier` before
 verified bytes and any Arrow ownership leases. The view is a view, not a copy, but remains valid independently of
 later receives.
 
-On successful send, the context takes responsibility for the finalized FlatBuffer storage and attached Arrow objects.
-If validation, finalization, or transport acceptance fails before ownership transfer, the builder retains ownership.
+On accepted send, the context takes responsibility for the finalized FlatBuffer storage and attached Arrow objects.
+If validation, finalization, queueing, or transport acceptance fails before acceptance, the caller's `unique_ptr`
+remains non-null and the builder retains ownership of its Arrow objects.
 
 ## Arrow schemas and record batches
 

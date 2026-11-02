@@ -46,8 +46,8 @@ namespace exasol_udf_v2_interface {
         +create_message_builder() unique_ptr~CallMessageBuilder~
         +receive() Result~unique_ptr~CallMessageView~~
         +receive(Timeout) Result~unique_ptr~CallMessageView~~
-        +send(unique_ptr~CallMessageBuilder~) Result~void~
-        +send(unique_ptr~CallMessageBuilder~, Timeout) Result~void~
+        +send(unique_ptr~CallMessageBuilder~&&) Result~void~
+        +send(unique_ptr~CallMessageBuilder~&&, Timeout) Result~void~
     }
     class ControlStream {
         <<abstract>>
@@ -55,7 +55,7 @@ namespace exasol_udf_v2_interface {
         +create_message_builder() unique_ptr~ControlMessageBuilder~
         +receive() Result~unique_ptr~ControlMessageView~~
         +receive(Timeout) Result~unique_ptr~ControlMessageView~~
-        +send(unique_ptr~ControlMessageBuilder~) Result~void~
+        +send(unique_ptr~ControlMessageBuilder~&&) Result~void~
     }
     class CallMessageBuilderBase {
         <<abstract>>
