@@ -5,6 +5,7 @@
 #include <exasol/udf/v2/interface/message_builder/call_message_builder.hpp>
 #include <exasol/udf/v2/internal/payload.hpp>
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>

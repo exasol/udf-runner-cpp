@@ -2,6 +2,7 @@
 
 #include <exasol/udf/v2/interface/arrow_c_data.hpp>
 
+#include <cstdint>
 #include <string_view>
 #include <utility>
 
