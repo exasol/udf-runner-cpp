@@ -27,8 +27,11 @@ ControlMessageViewImpl::ControlMessageViewImpl(std::shared_ptr<const protocol::D
 {
 }
 
-std::uint64_t ControlMessageViewImpl::stream_id() const noexcept
+std::optional<std::uint64_t> ControlMessageViewImpl::stream_id() const noexcept
 {
+    if (decoded_frame_ == nullptr) {
+        return std::nullopt;
+    }
     return decoded_frame_->frame().stream_id();
 }
 

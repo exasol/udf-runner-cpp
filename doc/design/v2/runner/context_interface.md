@@ -288,7 +288,7 @@ The control builder cannot construct `OpenCall`, `CloseCall`, `Reset`, `DataSche
 
 ```text
 CallMessageView {
-    stream_id() -> uint64
+    stream_id() -> optional<uint64>
     open_call() -> std::optional<std::reference_wrapper<const protocol::OpenCall>>
     payloads() -> std::optional<std::reference_wrapper<const protocol::Payloads>>
     data_schema() -> std::unique_ptr<DataSchemaView>
@@ -299,7 +299,8 @@ CallMessageView {
 }
 ```
 
-`stream_id()` identifies the logical stream carrying this message.
+`stream_id()` identifies the logical stream carrying this message. It returns an empty optional when the view has no
+backing decoded frame.
 
 The `open_call()`, `payloads()`, `reset()`, `error()`, and `close_call()` accessors return optional references to
 generated FlatBuffer `protocol` tables. The `data_schema()` and `record_batch()` accessors return owning interface
@@ -340,7 +341,7 @@ thread. The worker-facing builder exposes `reset(row_id)` and does not set a sen
 
 ```text
 ControlMessageView {
-    stream_id() -> uint64
+    stream_id() -> optional<uint64>
     server_capabilities() -> std::optional<std::reference_wrapper<const protocol::ServerCapabilities>>
     keep_alive() -> std::optional<std::reference_wrapper<const protocol::KeepAlive>>
     payloads() -> std::optional<std::reference_wrapper<const protocol::Payloads>>

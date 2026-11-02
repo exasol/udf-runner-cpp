@@ -79,7 +79,8 @@ all currently available inbound views to the context, which then routes them to 
 lifecycle.
 
 Each inbound view exposes its decoded frame's stream ID through `stream_id()`. The low-level context uses that ID to
-route a call view to the matching pending-call sequence; control views identify stream `0`.
+route a call view to the matching pending-call sequence; control views identify stream `0`. A missing ID indicates
+an empty view and cannot be routed.
 
 ### Multiplexing and logical stream dispatch
 

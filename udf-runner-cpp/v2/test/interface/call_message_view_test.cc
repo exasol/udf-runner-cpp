@@ -22,6 +22,7 @@ static_assert(std::is_abstract_v<interface::CallMessageView>);
 TEST(CallMessageViewTest, EmptyViewReportsNoFields)
 {
     CallMessageViewImpl view(nullptr);
+    EXPECT_FALSE(view.stream_id());
     EXPECT_FALSE(view.open_call());
     EXPECT_FALSE(view.payloads());
     EXPECT_FALSE(view.data_schema());

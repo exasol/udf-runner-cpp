@@ -284,7 +284,8 @@ TEST(UdfProtocolTest, FrameBackedCallViewPopulatesHighLevelFields)
     const auto decoded_frame =
         std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded.value()));
     const exasol::udf::v2::internal::CallMessageViewImpl call_view(decoded_frame);
-    EXPECT_EQ(call_view.stream_id(), 7);
+    ASSERT_TRUE(call_view.stream_id());
+    EXPECT_EQ(*call_view.stream_id(), 7);
     EXPECT_TRUE(call_view.open_call());
     EXPECT_EQ(call_view.open_call()->get().call_name()->str(), "example");
     EXPECT_TRUE(call_view.error());
@@ -364,7 +365,8 @@ TEST(UdfProtocolTest, FrameBackedViewsExposeFlatbufferFields)
     EXPECT_EQ(call_view.reset()->get().row_id(), 42);
     EXPECT_EQ(decoded_frame->frame().control_message()->next_send_budget_in_bytes(), 2048);
     const exasol::udf::v2::internal::ControlMessageViewImpl control_view(decoded_frame);
-    EXPECT_EQ(control_view.stream_id(), 7);
+    ASSERT_TRUE(control_view.stream_id());
+    EXPECT_EQ(*control_view.stream_id(), 7);
     EXPECT_TRUE(control_view.payloads());
     EXPECT_EQ(control_view.payloads()->get().payloads()->Get(0)->name()->str(), "name");
     EXPECT_FALSE(control_view.keep_alive());

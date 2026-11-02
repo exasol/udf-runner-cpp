@@ -14,7 +14,7 @@ class ControlMessageViewImpl final : public interface::ControlMessageView
 public:
     explicit ControlMessageViewImpl(std::shared_ptr<const protocol::DecodedFrame> frame);
 
-    [[nodiscard]] std::uint64_t stream_id() const noexcept override;
+    [[nodiscard]] std::optional<std::uint64_t> stream_id() const noexcept override;
     [[nodiscard]] std::optional<std::reference_wrapper<const protocol::ServerCapabilities>>
     server_capabilities() const noexcept override;
     [[nodiscard]] std::optional<std::reference_wrapper<const protocol::KeepAlive>> keep_alive()

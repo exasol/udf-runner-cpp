@@ -73,8 +73,11 @@ std::optional<std::reference_wrapper<const protocol::CloseCall>> CallMessageView
     return optional_reference(close != nullptr ? close->close_call() : nullptr);
 }
 
-std::uint64_t CallMessageViewImpl::stream_id() const noexcept
+std::optional<std::uint64_t> CallMessageViewImpl::stream_id() const noexcept
 {
+    if (decoded_frame_ == nullptr) {
+        return std::nullopt;
+    }
     return decoded_frame_->frame().stream_id();
 }
 

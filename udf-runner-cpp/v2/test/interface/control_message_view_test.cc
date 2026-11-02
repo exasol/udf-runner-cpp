@@ -12,6 +12,7 @@ static_assert(std::is_abstract_v<interface::ControlMessageView>);
 TEST(ControlMessageViewTest, EmptyViewReportsNoFields)
 {
     const ControlMessageViewImpl view(nullptr);
+    EXPECT_FALSE(view.stream_id());
     EXPECT_FALSE(view.server_capabilities());
     EXPECT_FALSE(view.payloads());
     EXPECT_FALSE(view.error());

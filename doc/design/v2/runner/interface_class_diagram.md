@@ -83,7 +83,7 @@ namespace exasol_udf_v2_interface {
     }
     class CallMessageView {
         <<abstract>>
-        +stream_id() uint64_t
+        +stream_id() optional~uint64_t~
         +open_call() optional~ref~protocol::OpenCall~~
         +payloads() optional~ref~protocol::Payloads~~
         +data_schema() unique_ptr~DataSchemaView~
@@ -94,7 +94,7 @@ namespace exasol_udf_v2_interface {
     }
     class ControlMessageView {
         <<abstract>>
-        +stream_id() uint64_t
+        +stream_id() optional~uint64_t~
         +server_capabilities() optional~ref~protocol::ServerCapabilities~~
         +keep_alive() optional~ref~protocol::KeepAlive~~
         +payloads() optional~ref~protocol::Payloads~~

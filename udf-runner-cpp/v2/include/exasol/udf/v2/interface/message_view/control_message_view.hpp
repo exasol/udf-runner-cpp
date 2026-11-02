@@ -19,8 +19,8 @@ public:
     ControlMessageView(ControlMessageView&&)                 = delete;
     ControlMessageView& operator=(ControlMessageView&&)      = delete;
 
-    /// Returns the stream ID of the frame backing this view.
-    [[nodiscard]] virtual std::uint64_t stream_id() const noexcept = 0;
+    /// Returns the stream ID of the frame, or an empty optional when no frame backs this view.
+    [[nodiscard]] virtual std::optional<std::uint64_t> stream_id() const noexcept = 0;
     [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::ServerCapabilities>>
     server_capabilities() const noexcept = 0;
     /// Returns the wire-level FlatBuffer keep-alive table, or an empty optional when absent.
