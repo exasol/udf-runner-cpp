@@ -42,7 +42,7 @@ public:
         interface::Timeout timeout) override
     {
         (void)timeout;
-        message.reset();
+        [[maybe_unused]] auto accepted_message = std::move(message);
         return interface::Result<void>::success();
     }
 
@@ -84,7 +84,7 @@ public:
     [[nodiscard]] interface::Result<void> send(
         std::unique_ptr<interface::ControlMessageBuilder>&& message) override
     {
-        message.reset();
+        [[maybe_unused]] auto accepted_message = std::move(message);
         return interface::Result<void>::success();
     }
 };
