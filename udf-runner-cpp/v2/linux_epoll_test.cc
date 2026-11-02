@@ -22,7 +22,8 @@ using exasol::udf::v2::EpollReadyEvent;
 using exasol::udf::v2::EpollRegistration;
 using exasol::udf::v2::NativeLinuxEpoll;
 
-class MockPosix : public exasol::udf::v2::posix::Posix
+class MockPosix : public exasol::udf::v2::posix::Posix // NOSONAR: GMock mock implements the
+                                                       // complete POSIX interface
 {
 public:
     MOCK_METHOD(int, socket, (int, int, int), (override));
