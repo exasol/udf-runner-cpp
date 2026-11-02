@@ -2,7 +2,6 @@
 
 #include <cerrno>
 #include <chrono>
-#include <limits>
 #include <stdexcept>
 #include <system_error>
 #include <utility>
@@ -98,7 +97,7 @@ namespace
             return -1;
         }
         if (timeout.value() < std::chrono::milliseconds::zero() ||
-            timeout.value().count() > std::numeric_limits<int>::max())
+            !std::in_range<int>(timeout.value().count()))
         {
             throw std::invalid_argument("invalid epoll timeout");
         }
@@ -252,7 +251,7 @@ std::size_t NativeLinuxEpoll::wait(const std::span<EpollReadyEvent> events,
     {
         throw std::invalid_argument("epoll event buffer must not be empty");
     }
-    if (events.size() > static_cast<std::size_t>(std::numeric_limits<int>::max()))
+    if (!std::in_range<int>(events.size()))
     {
         throw std::invalid_argument("epoll event buffer is too large");
     }

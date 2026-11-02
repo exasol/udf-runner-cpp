@@ -174,6 +174,7 @@ TEST(NativeLinuxEpollTest, MapsNativeReadinessEvents)
 
         NativeLinuxEpoll epoll(posix);
         std::array<EpollReadyEvent, 2> events{};
+        events[1].token = 123;
         ASSERT_EQ(epoll.wait(events, std::chrono::milliseconds::zero()), 1);
         EXPECT_EQ(events[0].token, 91);
         EXPECT_TRUE(events[0].readable);
@@ -181,6 +182,7 @@ TEST(NativeLinuxEpollTest, MapsNativeReadinessEvents)
         EXPECT_TRUE(events[0].error);
         EXPECT_TRUE(events[0].hangup);
         EXPECT_TRUE(events[0].peer_closed);
+        EXPECT_EQ(events[1].token, 123);
     }
 }
 
@@ -219,6 +221,25 @@ TEST(NativeLinuxEpollTest, RetriesInterruptedWait)
         NativeLinuxEpoll epoll(posix);
         std::array<EpollReadyEvent, 1> events{};
         EXPECT_EQ(epoll.wait(events, std::nullopt), 0);
+    }
+}
+
+TEST(NativeLinuxEpollTest, TimesOutAfterInterruptedFiniteWait)
+{
+    auto posix = std::make_shared<testing::StrictMock<MockPosix>>();
+    {
+        testing::InSequence sequence;
+        EXPECT_CALL(*posix, epoll_create1(EPOLL_CLOEXEC)).WillOnce(testing::Return(42));
+        EXPECT_CALL(*posix, epoll_wait(42, testing::_, 1, 0))
+            .WillOnce([](int, epoll_event*, int, int) {
+                errno = EINTR;
+                return -1;
+            });
+        EXPECT_CALL(*posix, close(42)).WillOnce(testing::Return(0));
+
+        NativeLinuxEpoll epoll(posix);
+        std::array<EpollReadyEvent, 1> events{};
+        EXPECT_EQ(epoll.wait(events, std::chrono::milliseconds::zero()), 0);
     }
 }
 
