@@ -91,7 +91,7 @@ TEST(NativeLinuxEpollTest, RegistrationDeregistersOnDestruction)
         testing::InSequence sequence;
         EXPECT_CALL(*posix, epoll_create1(EPOLL_CLOEXEC)).WillOnce(testing::Return(42));
         EXPECT_CALL(*posix, epoll_ctl(42, EPOLL_CTL_ADD, 7, testing::_))
-            .WillOnce([](int, int, int, epoll_event* event) {
+            .WillOnce([](int, int, int, const epoll_event* event) {
                 EXPECT_EQ(event->events, EPOLLIN);
                 EXPECT_EQ(event->data.u64, 13);
                 return 0;
@@ -113,7 +113,7 @@ TEST(NativeLinuxEpollTest, RegistersBothReadAndWriteInterest)
         testing::InSequence sequence;
         EXPECT_CALL(*posix, epoll_create1(EPOLL_CLOEXEC)).WillOnce(testing::Return(42));
         EXPECT_CALL(*posix, epoll_ctl(42, EPOLL_CTL_ADD, 7, testing::_))
-            .WillOnce([](int, int, int, epoll_event* event) {
+            .WillOnce([](int, int, int, const epoll_event* event) {
                 EXPECT_EQ(event->events, EPOLLIN | EPOLLOUT);
                 EXPECT_EQ(event->data.u64, 13);
                 return 0;
@@ -137,7 +137,7 @@ TEST(NativeLinuxEpollTest, RegistrationModifiesAndRemovesIdempotently)
         EXPECT_CALL(*posix, epoll_ctl(42, EPOLL_CTL_ADD, 7, testing::_))
             .WillOnce(testing::Return(0));
         EXPECT_CALL(*posix, epoll_ctl(42, EPOLL_CTL_MOD, 7, testing::_))
-            .WillOnce([](int, int, int, epoll_event* event) {
+            .WillOnce([](int, int, int, const epoll_event* event) {
                 EXPECT_EQ(event->events, EPOLLOUT);
                 EXPECT_EQ(event->data.u64, 29);
                 return 0;
@@ -211,7 +211,7 @@ TEST(NativeLinuxEpollTest, RetriesInterruptedWait)
         testing::InSequence sequence;
         EXPECT_CALL(*posix, epoll_create1(EPOLL_CLOEXEC)).WillOnce(testing::Return(42));
         EXPECT_CALL(*posix, epoll_wait(42, testing::_, 1, -1))
-            .WillOnce([](int, epoll_event*, int, int) {
+            .WillOnce([](int, const epoll_event*, int, int) {
                 errno = EINTR;
                 return -1;
             })
@@ -231,7 +231,7 @@ TEST(NativeLinuxEpollTest, TimesOutAfterInterruptedFiniteWait)
         testing::InSequence sequence;
         EXPECT_CALL(*posix, epoll_create1(EPOLL_CLOEXEC)).WillOnce(testing::Return(42));
         EXPECT_CALL(*posix, epoll_wait(42, testing::_, 1, 0))
-            .WillOnce([](int, epoll_event*, int, int) {
+            .WillOnce([](int, const epoll_event*, int, int) {
                 errno = EINTR;
                 return -1;
             });
@@ -250,7 +250,7 @@ TEST(NativeLinuxEpollTest, ReportsWaitFailure)
         testing::InSequence sequence;
         EXPECT_CALL(*posix, epoll_create1(EPOLL_CLOEXEC)).WillOnce(testing::Return(42));
         EXPECT_CALL(*posix, epoll_wait(42, testing::_, 1, -1))
-            .WillOnce([](int, epoll_event*, int, int) {
+            .WillOnce([](int, const epoll_event*, int, int) {
                 errno = EBADF;
                 return -1;
             });
@@ -271,7 +271,7 @@ TEST(NativeLinuxEpollTest, ReportsNativeControlFailures)
         testing::InSequence sequence;
         EXPECT_CALL(*posix, epoll_create1(EPOLL_CLOEXEC)).WillOnce(testing::Return(42));
         EXPECT_CALL(*posix, epoll_ctl(42, EPOLL_CTL_ADD, 7, testing::_))
-            .WillOnce([](int, int, int, epoll_event*) {
+            .WillOnce([](int, int, int, const epoll_event*) {
                 errno = ENOMEM;
                 return -1;
             });

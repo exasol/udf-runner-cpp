@@ -157,8 +157,8 @@ namespace
                 throw std::system_error(EBADF, std::generic_category(), "modify closed epoll");
             }
 
-            epoll_event event = make_native_event(interest, token);
-            if (epoll_state->posix_facade()->epoll_ctl(epoll_state->native_handle(), EPOLL_CTL_MOD,
+            if (epoll_event event = make_native_event(interest, token);
+                epoll_state->posix_facade()->epoll_ctl(epoll_state->native_handle(), EPOLL_CTL_MOD,
                                                        file_descriptor, &event) == -1)
             {
                 throw std::system_error(errno, std::generic_category(),
@@ -172,8 +172,8 @@ namespace
             {
                 return;
             }
-            const std::shared_ptr<detail::NativeEpollState> epoll_state = state.lock();
-            if (epoll_state && epoll_state->is_open())
+            if (const std::shared_ptr<detail::NativeEpollState> epoll_state = state.lock();
+                epoll_state && epoll_state->is_open())
             {
                 static_cast<void>(epoll_state->posix_facade()->epoll_ctl(
                     epoll_state->native_handle(), EPOLL_CTL_DEL, file_descriptor, nullptr));
@@ -234,8 +234,8 @@ std::unique_ptr<EpollRegistration> NativeLinuxEpoll::add(const int file_descript
     }
 
     auto registration = std::make_unique<NativeEpollRegistration>(state, file_descriptor);
-    epoll_event event = make_native_event(interest, token);
-    if (state->posix_facade()->epoll_ctl(state->native_handle(), EPOLL_CTL_ADD, file_descriptor,
+    if (epoll_event event = make_native_event(interest, token);
+        state->posix_facade()->epoll_ctl(state->native_handle(), EPOLL_CTL_ADD, file_descriptor,
                                          &event) == -1)
     {
         throw std::system_error(errno, std::generic_category(), "add epoll registration");
