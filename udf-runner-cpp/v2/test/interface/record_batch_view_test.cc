@@ -48,8 +48,8 @@ TEST(RecordBatchViewTest, ReleasesArrayWhenOwnerIsDestroyed)
         ArrowArray* transferred = owner.release();
         EXPECT_EQ(owner.get(), nullptr);
         ASSERT_EQ(transferred, array);
+        ArrowArrayPtr transferred_owner(transferred);
         transferred->release(transferred);
-        delete transferred;
     }
     EXPECT_EQ(releases, 1);
 }

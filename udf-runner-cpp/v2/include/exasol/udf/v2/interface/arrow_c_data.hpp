@@ -13,11 +13,11 @@ struct ArrowCDataDeleter
 {
     void operator()(T* value) const noexcept
     {
-        if (value != nullptr && value->release != nullptr)
+        std::unique_ptr<T> owner(value);
+        if (owner != nullptr && owner->release != nullptr)
         {
-            value->release(value);
+            owner->release(owner.get());
         }
-        delete value;
     }
 };
 

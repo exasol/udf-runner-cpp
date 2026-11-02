@@ -15,7 +15,7 @@ static_assert(std::is_abstract_v<interface::CallMessageBuilder>);
 TEST(CallMessageBuilderTest, StoresTextAndBinaryPayloadsInOrder)
 {
     auto builder = MessageBuilderFactory::create_call_builder(2);
-    builder->add_payload("text", "value").add_payload("binary", "\x01\x02", true);
+    builder->add_payload("text", "value").add_payload("binary", "\001\002", true);
 
     const auto* builder_impl = dynamic_cast<const CallMessageBuilderImpl*>(builder.get());
     ASSERT_NE(builder_impl, nullptr);
@@ -25,7 +25,7 @@ TEST(CallMessageBuilderTest, StoresTextAndBinaryPayloadsInOrder)
     EXPECT_EQ(payloads[0].value(), "value");
     EXPECT_FALSE(payloads[0].is_binary());
     EXPECT_EQ(payloads[1].name(), "binary");
-    EXPECT_EQ(payloads[1].value(), std::string("\x01\x02", 2));
+    EXPECT_EQ(payloads[1].value(), std::string("\001\002", 2));
     EXPECT_TRUE(payloads[1].is_binary());
 }
 
