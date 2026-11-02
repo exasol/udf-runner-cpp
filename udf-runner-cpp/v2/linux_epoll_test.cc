@@ -6,6 +6,7 @@
 #include <cerrno>
 #include <chrono>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <system_error>
@@ -71,6 +72,13 @@ TEST(NativeLinuxEpollTest, CreatesAndClosesEpollDescriptor)
         EXPECT_TRUE(epoll.is_open());
         EXPECT_EQ(epoll.native_handle(), 42);
     }
+}
+
+TEST(NativeLinuxEpollTest, DefaultConstructorCreatesEpollDescriptor)
+{
+    NativeLinuxEpoll epoll;
+    EXPECT_TRUE(epoll.is_open());
+    EXPECT_NE(epoll.native_handle(), -1);
 }
 
 TEST(NativeLinuxEpollTest, ReportsEpollCreationFailure)
@@ -203,6 +211,38 @@ TEST(NativeLinuxEpollTest, RejectsInvalidRegistrationAndWaitArguments)
     std::array<EpollReadyEvent, 1> events{};
     EXPECT_THROW(static_cast<void>(epoll.wait(events, std::chrono::milliseconds(-1))),
                  std::invalid_argument);
+    EXPECT_THROW(static_cast<void>(epoll.wait(
+                     events, std::chrono::milliseconds(
+                                 static_cast<std::int64_t>(std::numeric_limits<int>::max()) + 1))),
+                 std::invalid_argument);
+}
+
+TEST(NativeLinuxEpollTest, WaitsWithPositiveTimeout)
+{
+    auto posix = std::make_shared<testing::StrictMock<MockPosix>>();
+    {
+        testing::InSequence sequence;
+        EXPECT_CALL(*posix, epoll_create1(EPOLL_CLOEXEC)).WillOnce(testing::Return(42));
+        EXPECT_CALL(*posix, epoll_wait(42, testing::_, 1, testing::_)).WillOnce(testing::Return(0));
+        EXPECT_CALL(*posix, close(42)).WillOnce(testing::Return(0));
+
+        NativeLinuxEpoll epoll(posix);
+        std::array<EpollReadyEvent, 1> events{};
+        EXPECT_EQ(epoll.wait(events, std::chrono::milliseconds(10)), 0);
+    }
+}
+
+TEST(NativeLinuxEpollTest, RejectsWaitAfterEpollCloses)
+{
+    auto posix = std::make_shared<testing::StrictMock<MockPosix>>();
+    EXPECT_CALL(*posix, epoll_create1(EPOLL_CLOEXEC)).WillOnce(testing::Return(42));
+    EXPECT_CALL(*posix, close(42)).WillOnce(testing::Return(0));
+
+    NativeLinuxEpoll epoll(posix);
+    epoll.close();
+    std::array<EpollReadyEvent, 1> events{};
+    expect_system_error([&epoll, &events] { static_cast<void>(epoll.wait(events, std::nullopt)); },
+                        std::errc::bad_file_descriptor);
 }
 
 TEST(NativeLinuxEpollTest, RetriesInterruptedWait)
@@ -285,6 +325,51 @@ TEST(NativeLinuxEpollTest, ReportsNativeControlFailures)
     }
 }
 
+TEST(NativeLinuxEpollTest, ReportsRegistrationModificationFailure)
+{
+    auto posix = std::make_shared<testing::StrictMock<MockPosix>>();
+    {
+        testing::InSequence sequence;
+        EXPECT_CALL(*posix, epoll_create1(EPOLL_CLOEXEC)).WillOnce(testing::Return(42));
+        EXPECT_CALL(*posix, epoll_ctl(42, EPOLL_CTL_ADD, 7, testing::_))
+            .WillOnce(testing::Return(0));
+        EXPECT_CALL(*posix, epoll_ctl(42, EPOLL_CTL_MOD, 7, testing::_))
+            .WillOnce([](int, int, int, const epoll_event*) {
+                errno = ENOMEM;
+                return -1;
+            });
+        EXPECT_CALL(*posix, epoll_ctl(42, EPOLL_CTL_DEL, 7, nullptr)).WillOnce(testing::Return(0));
+        EXPECT_CALL(*posix, close(42)).WillOnce(testing::Return(0));
+
+        NativeLinuxEpoll epoll(posix);
+        const std::unique_ptr<EpollRegistration> registration =
+            epoll.add(7, EpollInterest{.readable = true}, 13);
+        expect_system_error(
+            [&registration] { registration->modify(EpollInterest{.writable = true}, 29); },
+            std::errc::not_enough_memory);
+    }
+}
+
+TEST(NativeLinuxEpollTest, RejectsRegistrationModificationAfterEpollCloses)
+{
+    auto posix = std::make_shared<testing::StrictMock<MockPosix>>();
+    {
+        testing::InSequence sequence;
+        EXPECT_CALL(*posix, epoll_create1(EPOLL_CLOEXEC)).WillOnce(testing::Return(42));
+        EXPECT_CALL(*posix, epoll_ctl(42, EPOLL_CTL_ADD, 7, testing::_))
+            .WillOnce(testing::Return(0));
+        EXPECT_CALL(*posix, close(42)).WillOnce(testing::Return(0));
+
+        NativeLinuxEpoll epoll(posix);
+        const std::unique_ptr<EpollRegistration> registration =
+            epoll.add(7, EpollInterest{.readable = true}, 13);
+        epoll.close();
+        expect_system_error(
+            [&registration] { registration->modify(EpollInterest{.writable = true}, 29); },
+            std::errc::bad_file_descriptor);
+    }
+}
+
 TEST(NativeLinuxEpollTest, MoveAssignmentClosesReplacedEpollDescriptor)
 {
     auto posix = std::make_shared<testing::StrictMock<MockPosix>>();
@@ -298,6 +383,20 @@ TEST(NativeLinuxEpollTest, MoveAssignmentClosesReplacedEpollDescriptor)
         NativeLinuxEpoll source(posix);
         NativeLinuxEpoll destination(posix);
         destination = std::move(source);
+        EXPECT_EQ(destination.native_handle(), 42);
+    }
+}
+
+TEST(NativeLinuxEpollTest, MoveConstructionTransfersEpollDescriptor)
+{
+    auto posix = std::make_shared<testing::StrictMock<MockPosix>>();
+    {
+        testing::InSequence sequence;
+        EXPECT_CALL(*posix, epoll_create1(EPOLL_CLOEXEC)).WillOnce(testing::Return(42));
+        EXPECT_CALL(*posix, close(42)).WillOnce(testing::Return(0));
+
+        NativeLinuxEpoll source(posix);
+        NativeLinuxEpoll destination(std::move(source));
         EXPECT_EQ(destination.native_handle(), 42);
     }
 }
