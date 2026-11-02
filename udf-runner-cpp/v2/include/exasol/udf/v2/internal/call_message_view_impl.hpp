@@ -13,6 +13,7 @@ class CallMessageViewImpl final : public interface::CallMessageView
 {
 public:
     explicit CallMessageViewImpl(std::shared_ptr<const protocol::DecodedFrame> frame);
+    [[nodiscard]] std::uint64_t stream_id() const noexcept override;
     [[nodiscard]] std::optional<std::reference_wrapper<const protocol::OpenCall>> open_call()
         const noexcept override;
     [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Payloads>> payloads()

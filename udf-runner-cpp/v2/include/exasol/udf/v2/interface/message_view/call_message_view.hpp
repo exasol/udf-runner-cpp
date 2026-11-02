@@ -4,6 +4,7 @@
 #include <exasol/udf/v2/interface/message_view/record_batch_view.hpp>
 #include <exasol/udf/v2/udf_protocol.hpp>
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -25,6 +26,8 @@ public:
     CallMessageView& operator=(const CallMessageView&) = delete;
     CallMessageView(CallMessageView&&)                 = delete;
     CallMessageView& operator=(CallMessageView&&)      = delete;
+    /// Returns the stream ID of the frame backing this view.
+    [[nodiscard]] virtual std::uint64_t stream_id() const noexcept = 0;
     /// Returns the wire-level FlatBuffer call-opening table, or an empty optional when absent.
     [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::OpenCall>>
     open_call() const noexcept = 0;

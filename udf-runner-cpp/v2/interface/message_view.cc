@@ -73,4 +73,9 @@ std::optional<std::reference_wrapper<const protocol::CloseCall>> CallMessageView
     return optional_reference(close != nullptr ? close->close_call() : nullptr);
 }
 
+std::uint64_t CallMessageViewImpl::stream_id() const noexcept
+{
+    return decoded_frame_->frame().stream_id();
+}
+
 } // namespace exasol::udf::v2::internal
