@@ -15,6 +15,12 @@ namespace exasol::udf::v2
 namespace
 {
 
+    class EpollWaitResultError final : public std::runtime_error
+    {
+    public:
+        using std::runtime_error::runtime_error;
+    };
+
     [[nodiscard]] int wait_timeout(const std::optional<std::chrono::milliseconds> timeout)
     {
         if (!timeout.has_value())
@@ -114,7 +120,7 @@ void NativeLinuxEpoll::wait(std::vector<EpollReadyEvent>& events,
     }
     if (result > static_cast<int>(native_events.size()))
     {
-        throw std::runtime_error("epoll returned more events than requested");
+        throw EpollWaitResultError("epoll returned more events than requested");
     }
 
     events.clear();
