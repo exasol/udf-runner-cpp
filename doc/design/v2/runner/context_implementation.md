@@ -78,9 +78,11 @@ all currently available inbound views to the context, which then routes them to 
 `request_shutdown()` signals the background work to stop; joining and resource cleanup remain part of the context
 lifecycle.
 
-Each inbound view exposes its decoded frame's stream ID through `stream_id()`. The low-level context uses that ID to
-route a call view to the matching pending-call sequence; control views identify stream `0`. A missing ID indicates
-an empty view and cannot be routed.
+Each inbound view must be backed by a verified decoded frame and exposes its stream ID through `stream_id()`. The
+concrete view asserts that its decoded frame is present when constructed, and the low-level context asserts that the
+inbound view itself is present before routing. It uses the ID to route a call view to the matching pending-call
+sequence; control views identify stream `0`. A missing frame is an internal invariant violation, not a routable
+message state.
 
 ### Multiplexing and logical stream dispatch
 

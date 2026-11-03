@@ -18,6 +18,7 @@
 namespace exasol::udf::protocol
 {
 
+/// Verifies a Frame buffer and requires its stream_id field to be present on the wire.
 bool verify_frame_buffer(const void* data, std::size_t size);
 
 /// Owns a verified FlatBuffer frame and exposes its generated read-only view.

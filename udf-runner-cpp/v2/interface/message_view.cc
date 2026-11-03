@@ -1,6 +1,8 @@
 #include <exasol/udf/v2/internal/call_message_view_impl.hpp>
 #include <exasol/udf/v2/interface/message_view/control_message_view.hpp>
 
+#include <exasol/udf/v2/assert.hpp>
+
 #include <functional>
 #include <optional>
 #include <utility>
@@ -15,9 +17,9 @@ namespace
 {
 
     const protocol::ControlMessage* control_message(
-        const protocol::DecodedFrame* decoded_frame) noexcept
+        const protocol::DecodedFrame& decoded_frame) noexcept
     {
-        return decoded_frame != nullptr ? decoded_frame->frame().control_message() : nullptr;
+        return decoded_frame.frame().control_message();
     }
 
     template <typename T>
@@ -31,13 +33,13 @@ namespace
 std::optional<std::reference_wrapper<const protocol::OpenCall>> CallMessageViewImpl::open_call()
     const noexcept
 {
-    const auto* control = control_message(decoded_frame_.get());
+    const auto* control = control_message(*decoded_frame_);
     return optional_reference(control != nullptr ? control->value_as_OpenCall() : nullptr);
 }
 std::optional<std::reference_wrapper<const protocol::Payloads>> CallMessageViewImpl::payloads()
     const noexcept
 {
-    const auto* control = control_message(decoded_frame_.get());
+    const auto* control = control_message(*decoded_frame_);
     return optional_reference(control != nullptr ? control->payloads() : nullptr);
 }
 std::unique_ptr<DataSchemaView> CallMessageViewImpl::data_schema() noexcept
@@ -47,7 +49,7 @@ std::unique_ptr<DataSchemaView> CallMessageViewImpl::data_schema() noexcept
 std::optional<std::reference_wrapper<const protocol::Reset>> CallMessageViewImpl::reset()
     const noexcept
 {
-    const auto* control = control_message(decoded_frame_.get());
+    const auto* control = control_message(*decoded_frame_);
     return optional_reference(control != nullptr ? control->reset() : nullptr);
 }
 std::unique_ptr<RecordBatchView> CallMessageViewImpl::record_batch() noexcept
@@ -57,29 +59,26 @@ std::unique_ptr<RecordBatchView> CallMessageViewImpl::record_batch() noexcept
 std::optional<std::reference_wrapper<const protocol::Error>> CallMessageViewImpl::error()
     const noexcept
 {
-    const auto* control = control_message(decoded_frame_.get());
+    const auto* control = control_message(*decoded_frame_);
     return optional_reference(control != nullptr ? control->error() : nullptr);
 }
 CallMessageViewImpl::CallMessageViewImpl(std::shared_ptr<const protocol::DecodedFrame> frame)
     : decoded_frame_(std::move(frame))
 {
+    EXASOL_UDF_ASSERT(decoded_frame_ != nullptr);
 }
 
 std::optional<std::reference_wrapper<const protocol::CloseCall>> CallMessageViewImpl::close_call()
     const noexcept
 {
-    const auto* control = control_message(decoded_frame_.get());
+    const auto* control = control_message(*decoded_frame_);
     const auto* close   = control != nullptr ? control->value_as_CloseControlMessage() : nullptr;
     return optional_reference(close != nullptr ? close->close_call() : nullptr);
 }
 
-std::optional<std::uint64_t> CallMessageViewImpl::stream_id() const noexcept
+std::uint64_t CallMessageViewImpl::stream_id() const noexcept
 {
-    if (decoded_frame_ == nullptr)
-    {
-        return std::nullopt;
-    }
-    return decoded_frame_->frame().stream_id();
+    return decoded_frame_->frame().stream_id()->value();
 }
 
 } // namespace exasol::udf::v2::internal

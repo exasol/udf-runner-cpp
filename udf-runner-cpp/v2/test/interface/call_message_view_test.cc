@@ -2,6 +2,7 @@
 #include <exasol/udf/v2/internal/data_schema_view_impl.hpp>
 #include <exasol/udf/v2/internal/message_builder_factory.hpp>
 #include <exasol/udf/v2/internal/record_batch_view_impl.hpp>
+#include "../common/protocol_test_utils.hpp"
 
 #include <gtest/gtest.h>
 
@@ -19,10 +20,10 @@ using interface::ArrowSchemaPtr;
 
 static_assert(std::is_abstract_v<interface::CallMessageView>);
 
-TEST(CallMessageViewTest, EmptyViewReportsNoFields)
+TEST(CallMessageViewTest, FrameWithoutOptionalFieldsStillHasStreamId)
 {
-    CallMessageViewImpl view(nullptr);
-    EXPECT_FALSE(view.stream_id());
+    CallMessageViewImpl view(test::make_empty_decoded_frame(7));
+    EXPECT_EQ(view.stream_id(), 7);
     EXPECT_FALSE(view.open_call());
     EXPECT_FALSE(view.payloads());
     EXPECT_FALSE(view.data_schema());

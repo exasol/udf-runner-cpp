@@ -4,6 +4,7 @@
 #include <exasol/udf/v2/internal/call_message_view_impl.hpp>
 #include <exasol/udf/v2/internal/control_message_view_impl.hpp>
 #include <exasol/udf/v2/internal/message_builder_factory.hpp>
+#include "protocol_test_utils.hpp"
 
 #include <memory>
 
@@ -29,7 +30,7 @@ public:
     {
         (void)timeout;
         return interface::Result<std::unique_ptr<interface::CallMessageView>>::success(
-            std::make_unique<internal::CallMessageViewImpl>(nullptr));
+            std::make_unique<internal::CallMessageViewImpl>(make_empty_decoded_frame(2)));
     }
 
     [[nodiscard]] interface::Result<std::unique_ptr<interface::CallMessageView>> receive() override
@@ -72,7 +73,7 @@ public:
     {
         (void)timeout;
         return interface::Result<std::unique_ptr<interface::ControlMessageView>>::success(
-            std::make_unique<internal::ControlMessageViewImpl>(nullptr));
+            std::make_unique<internal::ControlMessageViewImpl>(make_empty_decoded_frame(0)));
     }
 
     [[nodiscard]] interface::Result<std::unique_ptr<interface::ControlMessageView>> receive()

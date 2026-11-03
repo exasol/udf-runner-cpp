@@ -7,6 +7,8 @@
 #include <cassert>
 #include <cstdint>
 #include <memory>
+#include <span>
+#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -19,6 +21,16 @@ bool verify_frame(const exasol::udf::v2::third_party::flatbuffers::FlatBufferBui
     exasol::udf::v2::third_party::flatbuffers::Verifier verifier(builder.GetBufferPointer(),
                                                                  builder.GetSize());
     return exasol::udf::protocol::VerifyFrameBuffer(verifier);
+}
+
+template <typename... FrameFields>
+auto create_frame(exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder& builder,
+                  const std::uint64_t stream_id,
+                  FrameFields&&... fields)
+{
+    const auto stream_id_table = exasol::udf::protocol::CreateStreamId(builder, stream_id);
+    return exasol::udf::protocol::CreateFrame(builder, stream_id_table,
+                                              std::forward<FrameFields>(fields)...);
 }
 
 } // namespace
@@ -50,14 +62,14 @@ TEST(UdfProtocolTest, EncodesProtocolFrames)
         const auto control_message = exasol::udf::protocol::CreateControlMessage(
             builder, payloads, 0, 0, 0, 0,
             exasol::udf::protocol::ControlMessageValue_ServerCapabilities, capabilities.Union());
-        const auto frame = exasol::udf::protocol::CreateFrame(builder, 0, control_message);
+        const auto frame = create_frame(builder, 0, control_message);
         builder.Finish(frame);
 
         assert(verify_frame(builder));
         const auto* decoded = exasol::udf::protocol::GetFrame(builder.GetBufferPointer());
         const auto* decoded_capabilities =
             decoded->control_message()->value_as_ServerCapabilities();
-        assert(decoded->stream_id() == 0);
+        assert(decoded->stream_id()->value() == 0);
         assert(decoded_capabilities->supported_version()->major() == 2);
         assert(decoded_capabilities->supported_version()->minor() == 0);
         assert(decoded_capabilities->endianness() == exasol::udf::protocol::Endianness_Little);
@@ -91,12 +103,12 @@ TEST(UdfProtocolTest, EncodesProtocolFrames)
         const auto control_message = exasol::udf::protocol::CreateControlMessage(
             builder, 0, 0, 1024, 0, 0, exasol::udf::protocol::ControlMessageValue_OpenCall,
             open_call.Union());
-        const auto frame = exasol::udf::protocol::CreateFrame(builder, 7, control_message);
+        const auto frame = create_frame(builder, 7, control_message);
         builder.Finish(frame);
 
         assert(verify_frame(builder));
         const auto* decoded = exasol::udf::protocol::GetFrame(builder.GetBufferPointer());
-        assert(decoded->stream_id() == 7);
+        assert(decoded->stream_id()->value() == 7);
         assert(decoded->data_record_batch_metadata() == nullptr);
         assert(decoded->control_message()->value_type() ==
                exasol::udf::protocol::ControlMessageValue_OpenCall);
@@ -110,7 +122,7 @@ TEST(UdfProtocolTest, EncodesProtocolFrames)
         const auto reset           = exasol::udf::protocol::CreateReset(builder, 73);
         const auto control_message = exasol::udf::protocol::CreateControlMessage(
             builder, 0, reset, 0, 0, 0, exasol::udf::protocol::ControlMessageValue_NONE, 0);
-        const auto frame = exasol::udf::protocol::CreateFrame(builder, 7, control_message);
+        const auto frame = create_frame(builder, 7, control_message);
         builder.Finish(frame);
 
         assert(verify_frame(builder));
@@ -129,7 +141,7 @@ TEST(UdfProtocolTest, EncodesProtocolFrames)
         const auto batch                  = exasol::udf::protocol::CreateDataRecordBatchMetadata(
             builder, exasol::udf::protocol::BufferTransport_Inline, true, 3, nodes, buffers,
             variadic_buffer_counts);
-        const auto frame = exasol::udf::protocol::CreateFrame(builder, 7, 0, batch);
+        const auto frame = create_frame(builder, 7, 0, batch);
         builder.Finish(frame);
 
         assert(verify_frame(builder));
@@ -151,7 +163,7 @@ TEST(UdfProtocolTest, EncodesProtocolFrames)
             builder, 0, 0, 1024, 0, 0, exasol::udf::protocol::ControlMessageValue_OpenCall,
             open_call.Union());
         const auto batch = exasol::udf::protocol::CreateDataRecordBatchMetadata(builder);
-        const auto frame = exasol::udf::protocol::CreateFrame(builder, 7, control_message, batch);
+        const auto frame = create_frame(builder, 7, control_message, batch);
         builder.Finish(frame);
 
         assert(verify_frame(builder));
@@ -173,7 +185,7 @@ TEST(UdfProtocolTest, EncodesProtocolFrames)
         const auto control_message = exasol::udf::protocol::CreateControlMessage(
             builder, 0, 0, 0, 0, error,
             exasol::udf::protocol::ControlMessageValue_CloseControlMessage, close_control.Union());
-        const auto frame = exasol::udf::protocol::CreateFrame(builder, 7, control_message);
+        const auto frame = create_frame(builder, 7, control_message);
         builder.Finish(frame);
 
         assert(verify_frame(builder));
@@ -206,7 +218,7 @@ TEST(UdfProtocolTest, DecodedFrameOwnsBufferForGeneratedViews)
     const auto control_message = exasol::udf::protocol::CreateControlMessage(
         builder, payloads, 0, 0, 0, error,
         exasol::udf::protocol::ControlMessageValue_ServerCapabilities, capabilities.Union());
-    const auto frame = exasol::udf::protocol::CreateFrame(builder, 0, control_message);
+    const auto frame = create_frame(builder, 0, control_message);
     builder.Finish(frame);
 
     const std::vector<std::uint8_t> encoded(builder.GetBufferPointer(),
@@ -243,8 +255,8 @@ TEST(UdfProtocolTest, ControlViewHandlesMissingErrorStrings)
     const auto control_with_missing_error_fields = exasol::udf::protocol::CreateControlMessage(
         missing_error_fields_builder, 0, 0, 0, 0, missing_error_fields,
         exasol::udf::protocol::ControlMessageValue_KeepAlive, keep_alive.Union());
-    const auto frame_with_missing_error_fields = exasol::udf::protocol::CreateFrame(
-        missing_error_fields_builder, 0, control_with_missing_error_fields);
+    const auto frame_with_missing_error_fields =
+        create_frame(missing_error_fields_builder, 0, control_with_missing_error_fields);
     missing_error_fields_builder.Finish(frame_with_missing_error_fields);
     const std::vector<std::uint8_t> encoded_missing_error_fields(
         missing_error_fields_builder.GetBufferPointer(),
@@ -273,7 +285,7 @@ TEST(UdfProtocolTest, FrameBackedCallViewPopulatesHighLevelFields)
     const auto control_message = exasol::udf::protocol::CreateControlMessage(
         builder, 0, 0, 0, 0, error, exasol::udf::protocol::ControlMessageValue_OpenCall,
         open_call.Union());
-    const auto frame = exasol::udf::protocol::CreateFrame(builder, 7, control_message);
+    const auto frame = create_frame(builder, 7, control_message);
     builder.Finish(frame);
 
     const std::vector<std::uint8_t> encoded(builder.GetBufferPointer(),
@@ -284,8 +296,7 @@ TEST(UdfProtocolTest, FrameBackedCallViewPopulatesHighLevelFields)
     const auto decoded_frame =
         std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded.value()));
     const exasol::udf::v2::internal::CallMessageViewImpl call_view(decoded_frame);
-    ASSERT_TRUE(call_view.stream_id());
-    EXPECT_EQ(*call_view.stream_id(), 7);
+    EXPECT_EQ(call_view.stream_id(), 7);
     EXPECT_TRUE(call_view.open_call());
     EXPECT_EQ(call_view.open_call()->get().call_name()->str(), "example");
     EXPECT_TRUE(call_view.error());
@@ -293,7 +304,7 @@ TEST(UdfProtocolTest, FrameBackedCallViewPopulatesHighLevelFields)
 
     exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder batch_builder;
     const auto batch       = exasol::udf::protocol::CreateDataRecordBatchMetadata(batch_builder);
-    const auto batch_frame = exasol::udf::protocol::CreateFrame(batch_builder, 7, 0, batch);
+    const auto batch_frame = create_frame(batch_builder, 7, 0, batch);
     batch_builder.Finish(batch_frame);
     const std::vector<std::uint8_t> encoded_batch(
         batch_builder.GetBufferPointer(),
@@ -313,7 +324,7 @@ TEST(UdfProtocolTest, FrameBackedCallViewPopulatesHighLevelFields)
     const auto close_message = exasol::udf::protocol::CreateControlMessage(
         close_builder, 0, 0, 0, 0, 0,
         exasol::udf::protocol::ControlMessageValue_CloseControlMessage, close_control.Union());
-    const auto close_frame = exasol::udf::protocol::CreateFrame(close_builder, 7, close_message);
+    const auto close_frame = create_frame(close_builder, 7, close_message);
     close_builder.Finish(close_frame);
     const std::vector<std::uint8_t> encoded_close(
         close_builder.GetBufferPointer(),
@@ -348,7 +359,7 @@ TEST(UdfProtocolTest, FrameBackedViewsExposeFlatbufferFields)
     const auto control_message = exasol::udf::protocol::CreateControlMessage(
         builder, payloads, reset, 2048, 0, error,
         exasol::udf::protocol::ControlMessageValue_OpenCall, open_call.Union());
-    const auto frame = exasol::udf::protocol::CreateFrame(builder, 7, control_message);
+    const auto frame = create_frame(builder, 7, control_message);
     builder.Finish(frame);
 
     const std::vector<std::uint8_t> encoded(builder.GetBufferPointer(),
@@ -365,36 +376,18 @@ TEST(UdfProtocolTest, FrameBackedViewsExposeFlatbufferFields)
     EXPECT_EQ(call_view.reset()->get().row_id(), 42);
     EXPECT_EQ(decoded_frame->frame().control_message()->next_send_budget_in_bytes(), 2048);
     const exasol::udf::v2::internal::ControlMessageViewImpl control_view(decoded_frame);
-    ASSERT_TRUE(control_view.stream_id());
-    EXPECT_EQ(*control_view.stream_id(), 7);
+    EXPECT_EQ(control_view.stream_id(), 7);
     EXPECT_TRUE(control_view.payloads());
     EXPECT_EQ(control_view.payloads()->get().payloads()->Get(0)->name()->str(), "name");
     EXPECT_FALSE(control_view.keep_alive());
     EXPECT_FALSE(control_view.server_capabilities());
 }
 
-TEST(UdfProtocolTest, EmptyAndDataOnlyFramesProduceEmptyViews)
+TEST(UdfProtocolTest, DataOnlyFrameProducesEmptyProtocolViews)
 {
-    exasol::udf::v2::internal::CallMessageViewImpl empty_call_view(
-        std::shared_ptr<const exasol::udf::protocol::DecodedFrame>{});
-    const exasol::udf::v2::internal::ControlMessageViewImpl empty_control_view(
-        std::shared_ptr<const exasol::udf::protocol::DecodedFrame>{});
-    EXPECT_FALSE(empty_call_view.open_call());
-    EXPECT_FALSE(empty_call_view.payloads());
-    EXPECT_FALSE(empty_call_view.reset());
-    EXPECT_FALSE(empty_call_view.data_schema());
-    EXPECT_FALSE(empty_call_view.record_batch());
-    EXPECT_FALSE(empty_call_view.error());
-    EXPECT_FALSE(empty_call_view.close_call());
-    EXPECT_FALSE(empty_control_view.server_capabilities());
-    EXPECT_FALSE(empty_control_view.payloads());
-    EXPECT_FALSE(empty_control_view.error());
-    EXPECT_FALSE(empty_control_view.keep_alive());
-    EXPECT_FALSE(empty_control_view.close_connection());
-
     exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder builder;
     const auto batch = exasol::udf::protocol::CreateDataRecordBatchMetadata(builder);
-    const auto frame = exasol::udf::protocol::CreateFrame(builder, 1, 0, batch);
+    const auto frame = create_frame(builder, 1, 0, batch);
     builder.Finish(frame);
     const std::vector<std::uint8_t> encoded(builder.GetBufferPointer(),
                                             builder.GetBufferPointer() + builder.GetSize());
@@ -404,9 +397,23 @@ TEST(UdfProtocolTest, EmptyAndDataOnlyFramesProduceEmptyViews)
         std::make_shared<exasol::udf::protocol::DecodedFrame>(std::move(decoded.value()));
     const exasol::udf::v2::internal::CallMessageViewImpl call_view(decoded_frame);
     const exasol::udf::v2::internal::ControlMessageViewImpl control_view(decoded_frame);
+    EXPECT_EQ(call_view.stream_id(), 1);
+    EXPECT_EQ(control_view.stream_id(), 1);
     EXPECT_FALSE(call_view.open_call());
     EXPECT_FALSE(control_view.server_capabilities());
     EXPECT_FALSE(control_view.payloads());
+}
+
+TEST(UdfProtocolTest, StreamIdTablePreservesControlStreamZero)
+{
+    exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder builder;
+    const auto frame = create_frame(builder, 0, 0, 0);
+    builder.Finish(frame);
+    const std::span<const std::uint8_t> encoded(builder.GetBufferPointer(), builder.GetSize());
+    auto decoded = exasol::udf::protocol::DecodedFrame::decode(encoded);
+    ASSERT_TRUE(decoded.has_value());
+    ASSERT_NE(decoded->frame().stream_id(), nullptr);
+    EXPECT_EQ(decoded->frame().stream_id()->value(), 0);
 }
 
 TEST(UdfProtocolTest, RejectsEmptyAndInvalidFrames)
@@ -424,7 +431,7 @@ TEST(UdfProtocolTest, ViewsHandleMissingOptionalFlatbufferFields)
     const auto control_message = exasol::udf::protocol::CreateControlMessage(
         call_builder, 0, 0, 0, 0, error, exasol::udf::protocol::ControlMessageValue_OpenCall,
         open_call.Union());
-    const auto frame = exasol::udf::protocol::CreateFrame(call_builder, 0, control_message);
+    const auto frame = create_frame(call_builder, 0, control_message);
     call_builder.Finish(frame);
     const std::vector<std::uint8_t> encoded_call(
         call_builder.GetBufferPointer(), call_builder.GetBufferPointer() + call_builder.GetSize());
@@ -444,8 +451,7 @@ TEST(UdfProtocolTest, ViewsHandleMissingOptionalFlatbufferFields)
     const auto capabilities_control = exasol::udf::protocol::CreateControlMessage(
         capabilities_builder, 0, 0, 0, 0, 0,
         exasol::udf::protocol::ControlMessageValue_ServerCapabilities, capabilities.Union());
-    const auto capabilities_frame =
-        exasol::udf::protocol::CreateFrame(capabilities_builder, 0, capabilities_control);
+    const auto capabilities_frame = create_frame(capabilities_builder, 0, capabilities_control);
     capabilities_builder.Finish(capabilities_frame);
     const std::vector<std::uint8_t> encoded_capabilities(
         capabilities_builder.GetBufferPointer(),
@@ -464,7 +470,7 @@ TEST(UdfProtocolTest, ViewsHandleMissingOptionalFlatbufferFields)
     const auto close_message = exasol::udf::protocol::CreateControlMessage(
         close_builder, 0, 0, 0, 0, 0,
         exasol::udf::protocol::ControlMessageValue_CloseControlMessage, close_control.Union());
-    const auto close_frame = exasol::udf::protocol::CreateFrame(close_builder, 0, close_message);
+    const auto close_frame = create_frame(close_builder, 0, close_message);
     close_builder.Finish(close_frame);
     const std::vector<std::uint8_t> encoded_close(
         close_builder.GetBufferPointer(),
@@ -487,7 +493,7 @@ TEST(UdfProtocolTest, FrameBackedControlViewDecodesCapabilitiesAndKeepAlive)
     const auto control_message = exasol::udf::protocol::CreateControlMessage(
         builder, 0, 0, 0, 0, 0, exasol::udf::protocol::ControlMessageValue_ServerCapabilities,
         capabilities.Union());
-    const auto frame = exasol::udf::protocol::CreateFrame(builder, 0, control_message);
+    const auto frame = create_frame(builder, 0, control_message);
     builder.Finish(frame);
 
     const std::vector<std::uint8_t> encoded(builder.GetBufferPointer(),
@@ -511,8 +517,7 @@ TEST(UdfProtocolTest, FrameBackedControlViewDecodesCapabilitiesAndKeepAlive)
     const auto keep_alive_control = exasol::udf::protocol::CreateControlMessage(
         keep_alive_builder, 0, 0, 0, 0, 0, exasol::udf::protocol::ControlMessageValue_KeepAlive,
         keep_alive.Union());
-    const auto keep_alive_frame =
-        exasol::udf::protocol::CreateFrame(keep_alive_builder, 0, keep_alive_control);
+    const auto keep_alive_frame = create_frame(keep_alive_builder, 0, keep_alive_control);
     keep_alive_builder.Finish(keep_alive_frame);
     const std::vector<std::uint8_t> keep_alive_encoded(
         keep_alive_builder.GetBufferPointer(),

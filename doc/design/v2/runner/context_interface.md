@@ -294,7 +294,7 @@ failure, the caller's `unique_ptr` remains non-null and retains ownership of the
 
 ```text
 CallMessageView {
-    stream_id() -> optional<uint64>
+    stream_id() -> uint64
     open_call() -> std::optional<std::reference_wrapper<const protocol::OpenCall>>
     payloads() -> std::optional<std::reference_wrapper<const protocol::Payloads>>
     data_schema() -> std::unique_ptr<DataSchemaView>
@@ -305,8 +305,8 @@ CallMessageView {
 }
 ```
 
-`stream_id()` identifies the logical stream carrying this message. It returns an empty optional when the view has no
-backing decoded frame.
+`stream_id()` identifies the logical stream carrying this message. Every view is backed by a verified decoded frame,
+so the stream ID is always present. Constructing a view without a decoded frame is an internal invariant violation.
 
 The `open_call()`, `payloads()`, `reset()`, `error()`, and `close_call()` accessors return optional references to
 generated FlatBuffer `protocol` tables. The `data_schema()` and `record_batch()` accessors return owning interface
@@ -347,7 +347,7 @@ thread. The worker-facing builder exposes `reset(row_id)` and does not set a sen
 
 ```text
 ControlMessageView {
-    stream_id() -> optional<uint64>
+    stream_id() -> uint64
     server_capabilities() -> std::optional<std::reference_wrapper<const protocol::ServerCapabilities>>
     keep_alive() -> std::optional<std::reference_wrapper<const protocol::KeepAlive>>
     payloads() -> std::optional<std::reference_wrapper<const protocol::Payloads>>
@@ -357,7 +357,8 @@ ControlMessageView {
 ```
 
 The control view cannot expose call-specific fields. Its `stream_id()` identifies the frame's connection-level
-stream, normally stream `0`.
+stream, normally stream `0`. As with call views, a concrete control view always retains a verified decoded frame, so
+its stream ID is always present.
 
 ### View lifetime and verification
 

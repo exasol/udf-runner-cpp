@@ -1,4 +1,5 @@
 #include <exasol/udf/v2/internal/control_message_view_impl.hpp>
+#include "../common/protocol_test_utils.hpp"
 
 #include <gtest/gtest.h>
 
@@ -9,10 +10,10 @@ namespace exasol::udf::v2::internal
 
 static_assert(std::is_abstract_v<interface::ControlMessageView>);
 
-TEST(ControlMessageViewTest, EmptyViewReportsNoFields)
+TEST(ControlMessageViewTest, FrameWithoutOptionalFieldsStillHasStreamId)
 {
-    const ControlMessageViewImpl view(nullptr);
-    EXPECT_FALSE(view.stream_id());
+    const ControlMessageViewImpl view(test::make_empty_decoded_frame(0));
+    EXPECT_EQ(view.stream_id(), 0);
     EXPECT_FALSE(view.server_capabilities());
     EXPECT_FALSE(view.payloads());
     EXPECT_FALSE(view.error());
