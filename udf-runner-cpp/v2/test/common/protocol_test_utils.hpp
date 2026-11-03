@@ -1,11 +1,11 @@
 #pragma once
 
+#include <exasol/udf/v2/exception.hpp>
 #include <exasol/udf/v2/udf_protocol.hpp>
 
 #include <cstdint>
 #include <memory>
 #include <span>
-#include <stdexcept>
 #include <utility>
 
 namespace exasol::udf::v2::test
@@ -23,7 +23,7 @@ namespace exasol::udf::v2::test
     auto decoded = protocol::DecodedFrame::decode(encoded);
     if (!decoded)
     {
-        throw std::runtime_error("Could not decode a test frame.");
+        throw Exception("Could not decode a test frame.");
     }
     return std::make_shared<const protocol::DecodedFrame>(std::move(*decoded));
 }
