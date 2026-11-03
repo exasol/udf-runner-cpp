@@ -78,6 +78,8 @@ public:
 
     NativeLinuxEpoll(const NativeLinuxEpoll&) = delete;
     NativeLinuxEpoll& operator=(const NativeLinuxEpoll&) = delete;
+    NativeLinuxEpoll(NativeLinuxEpoll&&) = delete;
+    NativeLinuxEpoll& operator=(NativeLinuxEpoll&&) = delete;
     [[nodiscard]] int native_handle() const noexcept;
     [[nodiscard]] bool is_open() const noexcept;
     void close() noexcept;

@@ -96,6 +96,8 @@ public:
 
     NativeLinuxEpoll(const NativeLinuxEpoll&)            = delete;
     NativeLinuxEpoll& operator=(const NativeLinuxEpoll&) = delete;
+    NativeLinuxEpoll(NativeLinuxEpoll&&)                 = delete;
+    NativeLinuxEpoll& operator=(NativeLinuxEpoll&&)      = delete;
 
     [[nodiscard]] std::unique_ptr<EpollRegistration> add(int file_descriptor,
                                                          EpollInterest interest,

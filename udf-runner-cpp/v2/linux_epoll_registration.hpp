@@ -13,7 +13,7 @@ namespace exasol::udf::v2::detail
 class NativeEpollRegistration final : public EpollRegistration
 {
 public:
-    NativeEpollRegistration(std::shared_ptr<NativeEpollState> state,
+    NativeEpollRegistration(const std::shared_ptr<NativeEpollState>& state,
                             int file_descriptor,
                             EpollInterest interest,
                             std::uint64_t token);

@@ -36,7 +36,7 @@ namespace
 
 } // namespace
 
-NativeEpollRegistration::NativeEpollRegistration(const std::shared_ptr<NativeEpollState> state,
+NativeEpollRegistration::NativeEpollRegistration(const std::shared_ptr<NativeEpollState>& state,
                                                  const int file_descriptor,
                                                  const EpollInterest interest,
                                                  const std::uint64_t token)
