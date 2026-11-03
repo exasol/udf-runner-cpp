@@ -37,8 +37,6 @@ public:
     EpollRegistration& operator=(EpollRegistration&&) = delete;
 
     virtual void modify(EpollInterest interest, std::uint64_t token) = 0;
-    virtual void remove() noexcept = 0;
-    [[nodiscard]] virtual bool is_registered() const noexcept = 0;
 
 protected:
     EpollRegistration() = default;
@@ -56,8 +54,10 @@ public:
     [[nodiscard]] virtual std::unique_ptr<EpollRegistration> add(
         int file_descriptor, EpollInterest interest, std::uint64_t token) = 0;
 
-    [[nodiscard]] virtual std::size_t wait(
-        std::span<EpollReadyEvent> events,
+    // The initial size of events is its capacity. On return it contains
+    // exactly the readiness events delivered by epoll.
+    virtual void wait(
+        std::vector<EpollReadyEvent>& events,
         std::optional<std::chrono::milliseconds> timeout) = 0;
 
 protected:
@@ -72,15 +72,12 @@ public:
 
     [[nodiscard]] std::unique_ptr<EpollRegistration> add(
         int file_descriptor, EpollInterest interest, std::uint64_t token) override;
-    [[nodiscard]] std::size_t wait(
-        std::span<EpollReadyEvent> events,
+    void wait(
+        std::vector<EpollReadyEvent>& events,
         std::optional<std::chrono::milliseconds> timeout) override;
 
     NativeLinuxEpoll(const NativeLinuxEpoll&) = delete;
     NativeLinuxEpoll& operator=(const NativeLinuxEpoll&) = delete;
-    NativeLinuxEpoll(NativeLinuxEpoll&&) noexcept;
-    NativeLinuxEpoll& operator=(NativeLinuxEpoll&&) noexcept;
-
     [[nodiscard]] int native_handle() const noexcept;
     [[nodiscard]] bool is_open() const noexcept;
     void close() noexcept;
@@ -88,22 +85,21 @@ public:
 
 } // namespace exasol::udf::v2
 
-LinuxEpoll has no public modify or remove: a registration is the sole lifecycle authority for its descriptor. EpollRegistration::modify() changes both readiness interest and token. remove() is idempotent, noexcept, and marks the registration inactive even if cleanup is already unnecessary.
+LinuxEpoll has no public modify or remove: a registration is the sole lifecycle authority for its descriptor. EpollRegistration::modify() changes both readiness interest and token. Destroying its owning `std::unique_ptr` is the only deregistration operation.
 
 ## RAII and ownership
 
 - NativeLinuxEpoll owns only the epoll descriptor created with EPOLL_CLOEXEC.
 - add() receives a borrowed descriptor and returns std::unique_ptr<EpollRegistration>. The caller retains descriptor ownership.
-- A live registration represents one successful EPOLL_CTL_ADD.
-- Destroying a native registration performs best-effort EPOLL_CTL_DEL if its epoll instance remains open. Explicit remove() performs the same operation early.
+- A live registration represents one successful EPOLL_CTL_ADD. Its constructor performs that call, so construction either returns an object owning a kernel registration or throws without returning one.
+- Destroying a native registration performs best-effort EPOLL_CTL_DEL if its epoll instance remains open.
 - Destroying or closing NativeLinuxEpoll closes only the epoll descriptor. It never closes registered descriptors.
-- Registrations may outlive their NativeLinuxEpoll safely: they retain a std::weak_ptr to internal epoll state. If the state has expired or its epoll descriptor is closed, removal becomes a no-op instead of accessing freed state or a reused descriptor.
-- NativeLinuxEpoll uses std::exchange in its idempotent close() path. Destruction and move assignment both invoke that path. Move construction transfers the state and leaves the source closed.
-- add() first creates an inactive registration object, performs EPOLL_CTL_ADD, then marks it active. Therefore, an allocation failure cannot leave an unowned kernel registration behind.
+- Registrations may outlive their NativeLinuxEpoll safely: they retain a std::weak_ptr to internal epoll state. If the state has expired or its epoll descriptor is closed, destruction becomes a no-op instead of accessing freed state or a reused descriptor.
+- NativeLinuxEpoll uses std::exchange in its idempotent close() path. NativeLinuxEpoll is neither copyable nor movable.
 
 ## Native implementation and POSIX facade
 
-Add public headers for the two interfaces and NativeLinuxEpoll, plus implementation files for the native epoll and registration internals.
+Add public headers for the two interfaces and NativeLinuxEpoll. Keep NativeEpollState and NativeEpollRegistration in separate private implementation header/source pairs.
 
 Extend posix::Posix and posix::Native with:
 
@@ -115,13 +111,13 @@ virtual int epoll_wait(int epoll_fd, epoll_event* events,
 
 The native implementation translates EpollInterest to level-triggered EPOLLIN / EPOLLOUT, stores tokens in data.u64, and maps readable, writable, error, hangup, and peer-close flags into EpollReadyEvent.
 
-wait() rejects an empty result span and invalid finite timeout. It reuses an internal native-event buffer, retries EINTR while preserving a finite deadline, and throws std::system_error for other failures.
+wait() accepts a vector whose initial size specifies the maximum event count. It reuses an internal native-event buffer, shrinks the caller vector to the delivered event count, retries EINTR while preserving a finite deadline, and throws std::system_error for other failures.
 
 ## Tests and integration
 
 - Add mock LinuxEpoll and EpollRegistration tests to prove consumers can be tested without Linux or POSIX.
 - Test native creation, level-trigger mapping, event/token translation, timeout, interrupted wait, and POSIX failures through an injected Posix.
-- Test registration destruction, explicit idempotent removal, modification, move/destroy ordering, and a registration outliving its epoll instance.
+- Test registration construction, destruction, modification, and a registration outliving its epoll instance.
 - Verify epoll destruction never closes registered eventfd or socket descriptors.
 - Extend every existing Posix mock/recording fake with the three epoll methods.
 - Replace raw epoll setup in the waitable-queue integration test with NativeLinuxEpoll; retain raw benchmark epoll calls to preserve the benchmark’s kernel-only measurement.

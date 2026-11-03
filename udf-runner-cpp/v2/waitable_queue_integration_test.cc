@@ -5,7 +5,6 @@
 #include <chrono>
 #include <cstdint>
 #include <memory>
-#include <span>
 #include <utility>
 #include <vector>
 
@@ -81,13 +80,13 @@ TEST_F(SpscEpollTest, ReportsQueueAndSocketReadiness)
     const char byte = 'x';
     ASSERT_EQ(::write(sockets()[0], &byte, sizeof(byte)), sizeof(byte));
 
-    std::array<exasol::udf::v2::EpollReadyEvent, 2> events{};
-    const std::size_t event_count = epoll().wait(events, std::chrono::seconds(1));
-    ASSERT_EQ(event_count, 2);
+    std::vector<exasol::udf::v2::EpollReadyEvent> events(2);
+    epoll().wait(events, std::chrono::seconds(1));
+    ASSERT_EQ(events.size(), 2);
 
     bool queue_ready  = false;
     bool socket_ready = false;
-    for (const auto& event : std::span(events).first(event_count))
+    for (const auto& event : events)
     {
         queue_ready |= event.token == queue_token && event.readable;
         socket_ready |= event.token == socket_token && event.readable;

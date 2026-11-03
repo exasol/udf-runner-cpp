@@ -524,8 +524,16 @@ cc_test(
 
 cc_library(
     name = "linux_epoll",
-    srcs = ["linux_epoll.cc"],
-    hdrs = ["include/exasol/udf/v2/linux_epoll.hpp"],
+    srcs = [
+        "linux_epoll.cc",
+        "linux_epoll_registration.cc",
+        "linux_epoll_state.cc",
+    ],
+    hdrs = [
+        "include/exasol/udf/v2/linux_epoll.hpp",
+        "linux_epoll_registration.hpp",
+        "linux_epoll_state.hpp",
+    ],
     includes = ["include"],
     copts = ["-std=c++23"],
     deps = [":posix"],

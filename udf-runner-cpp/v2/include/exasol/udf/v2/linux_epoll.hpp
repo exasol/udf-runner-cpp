@@ -7,11 +7,9 @@
 #include <sys/epoll.h>
 
 #include <chrono>
-#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <span>
 #include <vector>
 
 #include <exasol/udf/v2/posix/posix.hpp>
@@ -51,12 +49,6 @@ public:
     /** Updates this registration's readiness interest and event token. */
     virtual void modify(EpollInterest interest, std::uint64_t token) = 0;
 
-    /** Deregisters the file descriptor. This operation is idempotent. */
-    virtual void remove() noexcept = 0;
-
-    /** Returns whether this object still owns an active registration. */
-    [[nodiscard]] virtual bool is_registered() const noexcept = 0;
-
 protected:
     EpollRegistration() = default;
 };
@@ -77,9 +69,13 @@ public:
                                                                  EpollInterest interest,
                                                                  std::uint64_t token) = 0;
 
-    /** Waits for readiness events, returning the number written to @p events. */
-    [[nodiscard]] virtual std::size_t wait(std::span<EpollReadyEvent> events,
-                                           std::optional<std::chrono::milliseconds> timeout) = 0;
+    /**
+     * Waits for readiness events, replacing @p events with the events returned.
+     *
+     * The initial size of @p events is the maximum number of events to return.
+     */
+    virtual void wait(std::vector<EpollReadyEvent>& events,
+                      std::optional<std::chrono::milliseconds> timeout) = 0;
 
 protected:
     LinuxEpoll() = default;
@@ -100,14 +96,12 @@ public:
 
     NativeLinuxEpoll(const NativeLinuxEpoll&)            = delete;
     NativeLinuxEpoll& operator=(const NativeLinuxEpoll&) = delete;
-    NativeLinuxEpoll(NativeLinuxEpoll&& other) noexcept;
-    NativeLinuxEpoll& operator=(NativeLinuxEpoll&& other) noexcept;
 
     [[nodiscard]] std::unique_ptr<EpollRegistration> add(int file_descriptor,
                                                          EpollInterest interest,
                                                          std::uint64_t token) override;
-    [[nodiscard]] std::size_t wait(std::span<EpollReadyEvent> events,
-                                   std::optional<std::chrono::milliseconds> timeout) override;
+    void wait(std::vector<EpollReadyEvent>& events,
+              std::optional<std::chrono::milliseconds> timeout) override;
 
     /** Returns the owned epoll descriptor, or -1 when closed. */
     [[nodiscard]] int native_handle() const noexcept;
