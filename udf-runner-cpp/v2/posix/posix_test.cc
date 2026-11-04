@@ -1,5 +1,6 @@
 #include <exasol/udf/v2/posix/posix.hpp>
 
+#include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 
@@ -18,7 +19,7 @@
 namespace
 {
 
-using exasol::udf::v2::posix::Posix;
+using exasol::udf::v2::posix::Native;
 
 class PosixPathTest : public testing::Test
 {
@@ -65,7 +66,7 @@ sockaddr_un make_address(const std::filesystem::path& path, socklen_t& length)
 
 TEST_F(PosixPathTest, CreatesConnectsListensAndAcceptsUnixSocket)
 {
-    Posix posix;
+    Native posix;
     const std::filesystem::path path = socket_path();
     socklen_t address_length         = 0;
     const sockaddr_un address        = make_address(path, address_length);
@@ -90,7 +91,7 @@ TEST_F(PosixPathTest, CreatesConnectsListensAndAcceptsUnixSocket)
 
 TEST(PosixTest, PerformsSocketOptionsShutdownAndVectoredIo)
 {
-    Posix posix;
+    Native posix;
     std::array<int, 2> sockets{};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
 
@@ -118,9 +119,37 @@ TEST(PosixTest, PerformsSocketOptionsShutdownAndVectoredIo)
     EXPECT_EQ(posix.close(sockets[1]), 0);
 }
 
+TEST(PosixTest, CreatesControlsAndWaitsForEpoll)
+{
+    Native posix;
+    std::array<int, 2> sockets{};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
+
+    const int epoll_fd = posix.epoll_create1(EPOLL_CLOEXEC);
+    ASSERT_NE(epoll_fd, -1);
+
+    epoll_event registration{};
+    registration.events   = EPOLLIN;
+    registration.data.u64 = 42;
+    ASSERT_EQ(posix.epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sockets[1], &registration), 0);
+
+    constexpr char signal = 'x';
+    ASSERT_EQ(posix.write(sockets[0], &signal, sizeof(signal)), sizeof(signal));
+
+    epoll_event ready{};
+    ASSERT_EQ(posix.epoll_wait(epoll_fd, &ready, 1, 1000), 1);
+    EXPECT_EQ(ready.data.u64, 42);
+    EXPECT_NE(ready.events & EPOLLIN, 0U);
+
+    EXPECT_EQ(posix.epoll_ctl(epoll_fd, EPOLL_CTL_DEL, sockets[1], nullptr), 0);
+    EXPECT_EQ(posix.close(epoll_fd), 0);
+    EXPECT_EQ(posix.close(sockets[0]), 0);
+    EXPECT_EQ(posix.close(sockets[1]), 0);
+}
+
 TEST(PosixTest, PreservesNativeFailureResults)
 {
-    Posix posix;
+    Native posix;
     errno = 0;
     EXPECT_EQ(posix.close(-1), -1);
     EXPECT_EQ(errno, EBADF);

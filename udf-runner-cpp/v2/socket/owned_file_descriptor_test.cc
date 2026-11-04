@@ -1,6 +1,7 @@
 #include <unistd.h>
 
 #include <array>
+#include <memory>
 #include <cerrno>
 #include <stdexcept>
 #include <utility>
@@ -12,13 +13,15 @@
 namespace
 {
 
+using exasol::udf::v2::posix::Native;
 using exasol::udf::v2::socket::OwnedFileDescriptor;
 
 TEST(OwnedFileDescriptorTest, ClosesExactlyOnceAfterMoveAndRelease)
 {
+    auto posix = std::make_shared<Native>();
     std::array<int, 2> pipe_fds{};
     ASSERT_EQ(::pipe(pipe_fds.data()), 0);
-    OwnedFileDescriptor descriptor = OwnedFileDescriptor::adopt_native_handle(pipe_fds[0]);
+    OwnedFileDescriptor descriptor = OwnedFileDescriptor::adopt_native_handle(pipe_fds[0], posix);
     OwnedFileDescriptor moved(std::move(descriptor));
     // NOLINTBEGIN(bugprone-use-after-move, clang-analyzer-cplusplus.Move): Inspecting the
     // specified moved-from state is intentional.
@@ -34,26 +37,30 @@ TEST(OwnedFileDescriptorTest, ClosesExactlyOnceAfterMoveAndRelease)
 
 TEST(OwnedFileDescriptorTest, RejectsInvalidDescriptorAdoption)
 {
-    EXPECT_THROW(static_cast<void>(OwnedFileDescriptor::adopt_native_handle(-1)),
+    auto posix = std::make_shared<Native>();
+    EXPECT_THROW(static_cast<void>(OwnedFileDescriptor::adopt_native_handle(-1, posix)),
                  std::invalid_argument);
 }
 
 TEST(OwnedFileDescriptorTest, DefaultDescriptorIsClosed)
 {
-    const OwnedFileDescriptor descriptor;
+    auto posix = std::make_shared<Native>();
+    const OwnedFileDescriptor descriptor(posix);
     EXPECT_FALSE(descriptor.is_open());
     EXPECT_EQ(descriptor.native_handle(), -1);
 }
 
 TEST(OwnedFileDescriptorTest, MoveAssignmentClosesReplacedDescriptor)
 {
+    auto posix = std::make_shared<Native>();
     std::array<int, 2> first_pipe{};
     std::array<int, 2> second_pipe{};
     ASSERT_EQ(::pipe(first_pipe.data()), 0);
     ASSERT_EQ(::pipe(second_pipe.data()), 0);
-    OwnedFileDescriptor source      = OwnedFileDescriptor::adopt_native_handle(first_pipe[0]);
-    OwnedFileDescriptor destination = OwnedFileDescriptor::adopt_native_handle(second_pipe[0]);
-    destination                     = std::move(source);
+    OwnedFileDescriptor source = OwnedFileDescriptor::adopt_native_handle(first_pipe[0], posix);
+    OwnedFileDescriptor destination =
+        OwnedFileDescriptor::adopt_native_handle(second_pipe[0], posix);
+    destination = std::move(source);
     // NOLINTBEGIN(bugprone-use-after-move, clang-analyzer-cplusplus.Move): Inspecting the
     // specified moved-from state is intentional.
     EXPECT_EQ(source.release_native_handle(), -1); // NOSONAR

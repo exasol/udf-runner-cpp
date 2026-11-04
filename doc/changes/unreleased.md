@@ -7,6 +7,7 @@ n/a
 
 ## Features / Enhancements
 
+ - #86: Added a RAII Linux epoll abstraction with injectable POSIX operations
  - #90: Added an injectable POSIX API wrapper for Unix-domain socket operations
  - #71: Documented the v2 runner architecture, worker-facing context interface, and background I/O design
  - #70: Added the v2 UDF protocol design and validation artifacts
@@ -22,6 +23,7 @@ n/a
 
 * #111: Simplified v2 message-view presence APIs, split flow-control reset from send budget, removed builder encoding views, and retained control capabilities and call/control payloads in builder messages
 * #44: Extracted WaitableQueue eventfd notifications into a reusable component
+* #95: Routed POSIX APIs of socket-abstraction and Linux eventfd through POSIX facade
 
 ## Internal
 
