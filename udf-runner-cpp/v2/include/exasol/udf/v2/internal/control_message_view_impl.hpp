@@ -1,6 +1,7 @@
 #pragma once
 
 #include <exasol/udf/v2/interface/message_view/control_message_view.hpp>
+#include <exasol/udf/v2/udf_protocol.hpp>
 
 #include <memory>
 #include <optional>
@@ -15,16 +16,12 @@ public:
     explicit ControlMessageViewImpl(std::shared_ptr<const protocol::DecodedFrame> frame);
 
     [[nodiscard]] std::uint64_t stream_id() const noexcept override;
-    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::ServerCapabilities>>
-    server_capabilities() const noexcept override;
-    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::KeepAlive>> keep_alive()
-        const noexcept override;
-    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Payloads>> payloads()
-        const noexcept override;
-    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Error>> error()
-        const noexcept override;
-    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::CloseConnection>>
-    close_connection() const noexcept override;
+    [[nodiscard]] std::unique_ptr<interface::ServerCapabilitiesView> server_capabilities()
+        const override;
+    [[nodiscard]] std::unique_ptr<interface::KeepAliveView> keep_alive() const override;
+    [[nodiscard]] std::unique_ptr<interface::PayloadsView> payloads() const override;
+    [[nodiscard]] std::unique_ptr<interface::ErrorView> error() const override;
+    [[nodiscard]] std::unique_ptr<interface::CloseConnectionView> close_connection() const override;
 
 private:
     std::shared_ptr<const protocol::DecodedFrame> decoded_frame_;

@@ -1,8 +1,8 @@
+#include "../common/protocol_test_utils.hpp"
 #include <exasol/udf/v2/internal/call_message_view_impl.hpp>
 #include <exasol/udf/v2/internal/data_schema_view_impl.hpp>
 #include <exasol/udf/v2/internal/message_builder_factory.hpp>
 #include <exasol/udf/v2/internal/record_batch_view_impl.hpp>
-#include "../common/protocol_test_utils.hpp"
 
 #include <gtest/gtest.h>
 
@@ -19,6 +19,12 @@ using interface::ArrowArrayPtr;
 using interface::ArrowSchemaPtr;
 
 static_assert(std::is_abstract_v<interface::CallMessageView>);
+static_assert(std::is_abstract_v<interface::OpenCallView>);
+static_assert(std::is_abstract_v<interface::PayloadsView>);
+static_assert(std::is_abstract_v<interface::PayloadView>);
+static_assert(std::is_abstract_v<interface::PayloadValueView>);
+static_assert(std::is_abstract_v<interface::ResetView>);
+static_assert(std::is_abstract_v<interface::ErrorView>);
 
 TEST(CallMessageViewTest, FrameWithoutOptionalFieldsStillHasStreamId)
 {

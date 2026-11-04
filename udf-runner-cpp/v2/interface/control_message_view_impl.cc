@@ -1,8 +1,8 @@
 #include <exasol/udf/v2/internal/control_message_view_impl.hpp>
+#include <exasol/udf/v2/internal/flatbuffer_view_impl.hpp>
 
 #include <exasol/udf/v2/assert.hpp>
 
-#include <functional>
 #include <utility>
 
 namespace exasol::udf::v2::internal
@@ -14,12 +14,6 @@ namespace
         const protocol::DecodedFrame& decoded_frame) noexcept
     {
         return decoded_frame.frame().control_message();
-    }
-
-    template <typename T>
-    std::optional<std::reference_wrapper<const T>> optional_reference(const T* value) noexcept
-    {
-        return value != nullptr ? std::optional{std::cref(*value)} : std::nullopt;
     }
 
 } // namespace
@@ -35,41 +29,39 @@ std::uint64_t ControlMessageViewImpl::stream_id() const noexcept
     return decoded_frame_->frame().stream_id();
 }
 
-std::optional<std::reference_wrapper<const protocol::ServerCapabilities>>
-ControlMessageViewImpl::server_capabilities() const noexcept
+std::unique_ptr<interface::ServerCapabilitiesView> ControlMessageViewImpl::server_capabilities()
+    const
 {
     const auto* control = control_message(*decoded_frame_);
-    return optional_reference(control != nullptr ? control->value_as_ServerCapabilities()
-                                                 : nullptr);
+    return make_server_capabilities_view(
+        decoded_frame_, control != nullptr ? control->value_as_ServerCapabilities() : nullptr);
 }
 
-std::optional<std::reference_wrapper<const protocol::KeepAlive>>
-ControlMessageViewImpl::keep_alive() const noexcept
+std::unique_ptr<interface::KeepAliveView> ControlMessageViewImpl::keep_alive() const
 {
     const auto* control = control_message(*decoded_frame_);
-    return optional_reference(control != nullptr ? control->value_as_KeepAlive() : nullptr);
+    return make_keep_alive_view(decoded_frame_,
+                                control != nullptr ? control->value_as_KeepAlive() : nullptr);
 }
 
-std::optional<std::reference_wrapper<const protocol::Payloads>> ControlMessageViewImpl::payloads()
-    const noexcept
+std::unique_ptr<interface::PayloadsView> ControlMessageViewImpl::payloads() const
 {
     const auto* control = control_message(*decoded_frame_);
-    return optional_reference(control != nullptr ? control->payloads() : nullptr);
+    return make_payloads_view(decoded_frame_, control != nullptr ? control->payloads() : nullptr);
 }
 
-std::optional<std::reference_wrapper<const protocol::Error>> ControlMessageViewImpl::error()
-    const noexcept
+std::unique_ptr<interface::ErrorView> ControlMessageViewImpl::error() const
 {
     const auto* control = control_message(*decoded_frame_);
-    return optional_reference(control != nullptr ? control->error() : nullptr);
+    return make_error_view(decoded_frame_, control != nullptr ? control->error() : nullptr);
 }
 
-std::optional<std::reference_wrapper<const protocol::CloseConnection>>
-ControlMessageViewImpl::close_connection() const noexcept
+std::unique_ptr<interface::CloseConnectionView> ControlMessageViewImpl::close_connection() const
 {
     const auto* control = control_message(*decoded_frame_);
     const auto* close   = control != nullptr ? control->value_as_CloseControlMessage() : nullptr;
-    return optional_reference(close != nullptr ? close->close_connection() : nullptr);
+    return make_close_connection_view(decoded_frame_,
+                                      close != nullptr ? close->close_connection() : nullptr);
 }
 
 } // namespace exasol::udf::v2::internal

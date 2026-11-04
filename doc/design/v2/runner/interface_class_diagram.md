@@ -13,8 +13,10 @@ Diagram source: [interface_class_diagram.mmd](interface_class_diagram.mmd). Rend
 - `Context` creates an opening-call builder. `Call` and `ControlStream` create builders bound to their own stream IDs.
 - The concrete message builders retain internal `CallMessage` or `ControlMessage` state and expose it to the encoder.
   These message state classes are internal and are not part of the worker-facing API.
-- Concrete message views keep a shared `DecodedFrame` alive while they expose optional references to generated
-  FlatBuffer tables.
+- Concrete message views and their typed child wrappers keep a shared `DecodedFrame` alive while exposing
+  serialization-independent read-only accessors.
+- FlatBuffer-backed wrappers are internal implementation details. Worker-facing message-view headers do not return
+  generated FlatBuffer types, vectors, unions, or runtime objects.
 - `DataSchemaView` and `RecordBatchView` are abstract ownership interfaces with internal implementations. The
   current `CallMessageViewImpl` does not yet construct them from received Arrow data, so its corresponding accessors
   return `nullptr`.
@@ -84,22 +86,22 @@ namespace exasol_udf_v2_interface {
     class CallMessageView {
         <<abstract>>
         +stream_id() uint64_t
-        +open_call() optional~ref~protocol::OpenCall~~
-        +payloads() optional~ref~protocol::Payloads~~
+        +open_call() unique_ptr~OpenCallView~
+        +payloads() unique_ptr~PayloadsView~
         +data_schema() unique_ptr~DataSchemaView~
-        +reset() optional~ref~protocol::Reset~~
+        +reset() unique_ptr~ResetView~
         +record_batch() unique_ptr~RecordBatchView~
-        +error() optional~ref~protocol::Error~~
-        +close_call() optional~ref~protocol::CloseCall~~
+        +error() unique_ptr~ErrorView~
+        +close_call() unique_ptr~CloseCallView~
     }
     class ControlMessageView {
         <<abstract>>
         +stream_id() uint64_t
-        +server_capabilities() optional~ref~protocol::ServerCapabilities~~
-        +keep_alive() optional~ref~protocol::KeepAlive~~
-        +payloads() optional~ref~protocol::Payloads~~
-        +error() optional~ref~protocol::Error~~
-        +close_connection() optional~ref~protocol::CloseConnection~~
+        +server_capabilities() unique_ptr~ServerCapabilitiesView~
+        +keep_alive() unique_ptr~KeepAliveView~
+        +payloads() unique_ptr~PayloadsView~
+        +error() unique_ptr~ErrorView~
+        +close_connection() unique_ptr~CloseConnectionView~
     }
     class DataSchemaView {
         <<abstract>>
@@ -113,6 +115,17 @@ namespace exasol_udf_v2_interface {
         +is_end_of_group() bool
     }
     class ErrorInfo
+    class OpenCallView
+    class PayloadsView
+    class PayloadView
+    class PayloadValueView
+    class ResetView
+    class ErrorView
+    class CloseCallView
+    class VersionView
+    class ServerCapabilitiesView
+    class KeepAliveView
+    class CloseConnectionView
 }
 
 namespace exasol_udf_v2_internal {
@@ -263,16 +276,27 @@ RecordBatchViewImpl o-- ArrowArrayPtr : owns
 
 CallMessageViewImpl o-- DecodedFrame : shared frame lifetime
 ControlMessageViewImpl o-- DecodedFrame : shared frame lifetime
-CallMessageViewImpl ..> Reset : returns wire view
-CallMessageViewImpl ..> OpenCall : returns wire view
-CallMessageViewImpl ..> Payloads : returns wire view
-CallMessageViewImpl ..> Error : returns wire view
-CallMessageViewImpl ..> CloseCall : returns wire view
-ControlMessageViewImpl ..> ServerCapabilities : returns wire view
-ControlMessageViewImpl ..> KeepAlive : returns wire view
-ControlMessageViewImpl ..> Payloads : returns wire view
-ControlMessageViewImpl ..> Error : returns wire view
-ControlMessageViewImpl ..> CloseConnection : returns wire view
+CallMessageViewImpl ..> OpenCallView : creates nullable wrapper
+CallMessageViewImpl ..> PayloadsView : creates nullable wrapper
+CallMessageViewImpl ..> ResetView : creates nullable wrapper
+CallMessageViewImpl ..> ErrorView : creates nullable wrapper
+CallMessageViewImpl ..> CloseCallView : creates nullable wrapper
+ControlMessageViewImpl ..> ServerCapabilitiesView : creates nullable wrapper
+ControlMessageViewImpl ..> KeepAliveView : creates nullable wrapper
+ControlMessageViewImpl ..> PayloadsView : creates nullable wrapper
+ControlMessageViewImpl ..> ErrorView : creates nullable wrapper
+ControlMessageViewImpl ..> CloseConnectionView : creates nullable wrapper
+PayloadsView ..> PayloadView : exposes items
+PayloadView ..> PayloadValueView : exposes value
+ServerCapabilitiesView ..> VersionView : exposes version
+OpenCallView ..> OpenCall : internal backing type
+PayloadsView ..> Payloads : internal backing type
+ResetView ..> Reset : internal backing type
+ErrorView ..> Error : internal backing type
+CloseCallView ..> CloseCall : internal backing type
+ServerCapabilitiesView ..> ServerCapabilities : internal backing type
+KeepAliveView ..> KeepAlive : internal backing type
+CloseConnectionView ..> CloseConnection : internal backing type
 DecodedFrame --> Frame : exposes verified view
 DecodedFrame *-- "owned bytes" Frame : backs generated objects
 

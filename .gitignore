@@ -14,6 +14,8 @@ bazel-*
 /udf-runner-cpp/v2/.bazel-repository-cache/
 /udf-runner-cpp/v2/.bazelisk/
 /udf-runner-cpp/v2/coverage-html/
+/.podman-runtime/
+/.podman-storage/
 .serena
 # CLion IDE
 .clwb
