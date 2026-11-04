@@ -24,6 +24,9 @@ class MockPosix : public exasol::udf::v2::posix::Posix // NOSONAR: GMock mock im
 public:
     MOCK_METHOD(int, socket, (int, int, int), (override));
     MOCK_METHOD(int, eventfd, (unsigned int, int), (override));
+    MOCK_METHOD(int, epoll_create1, (int), (override));
+    MOCK_METHOD(int, epoll_ctl, (int, int, int, epoll_event*), (override));
+    MOCK_METHOD(int, epoll_wait, (int, epoll_event*, int, int), (override));
     MOCK_METHOD(int, connect, (int, const sockaddr*, socklen_t), (override));
     MOCK_METHOD(int, bind, (int, const sockaddr*, socklen_t), (override));
     MOCK_METHOD(int, listen, (int, int), (override));
@@ -48,6 +51,21 @@ public:
     int socket(int domain, int type, int protocol) override
     {
         return native.socket(domain, type, protocol);
+    }
+
+    int epoll_create1(int flags) override
+    {
+        return native.epoll_create1(flags);
+    }
+
+    int epoll_ctl(int epoll_fd, int operation, int file_descriptor, epoll_event* event) override
+    {
+        return native.epoll_ctl(epoll_fd, operation, file_descriptor, event);
+    }
+
+    int epoll_wait(int epoll_fd, epoll_event* events, int maximum_events, int timeout) override
+    {
+        return native.epoll_wait(epoll_fd, events, maximum_events, timeout);
     }
 
     int connect(int sockfd, const sockaddr* address, socklen_t address_length) override

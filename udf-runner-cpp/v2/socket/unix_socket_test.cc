@@ -88,6 +88,27 @@ public:
         return native.eventfd(initial_value, flags);
     }
 
+    int epoll_create1(const int flags) override
+    {
+        return native.epoll_create1(flags);
+    }
+
+    int epoll_ctl(const int epoll_fd,
+                  const int operation,
+                  const int file_descriptor,
+                  epoll_event* const event) override
+    {
+        return native.epoll_ctl(epoll_fd, operation, file_descriptor, event);
+    }
+
+    int epoll_wait(const int epoll_fd,
+                   epoll_event* const events,
+                   const int maximum_events,
+                   const int timeout) override
+    {
+        return native.epoll_wait(epoll_fd, events, maximum_events, timeout);
+    }
+
     int connect(const int sockfd, const sockaddr* address, const socklen_t address_length) override
     {
         ++connect_calls;
