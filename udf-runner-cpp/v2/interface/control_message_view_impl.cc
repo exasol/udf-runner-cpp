@@ -32,7 +32,7 @@ ControlMessageViewImpl::ControlMessageViewImpl(std::shared_ptr<const protocol::D
 
 std::uint64_t ControlMessageViewImpl::stream_id() const noexcept
 {
-    return decoded_frame_->frame().stream_id()->value();
+    return decoded_frame_->frame().stream_id();
 }
 
 std::optional<std::reference_wrapper<const protocol::ServerCapabilities>>

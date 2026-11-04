@@ -15,8 +15,7 @@ namespace exasol::udf::v2::test
     const std::uint64_t stream_id)
 {
     third_party::flatbuffers::FlatBufferBuilder builder;
-    const auto stream_id_table = protocol::CreateStreamId(builder, stream_id);
-    const auto frame           = protocol::CreateFrame(builder, stream_id_table, 0, 0);
+    const auto frame = protocol::CreateFrame(builder, stream_id, 0, 0);
     builder.Finish(frame);
     const auto encoded =
         std::span<const std::uint8_t>(builder.GetBufferPointer(), builder.GetSize());

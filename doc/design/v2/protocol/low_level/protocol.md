@@ -40,8 +40,8 @@ by the builder ([official FlatBuffers implementation documentation](https://gith
 
 - `Frame` is the length-framed FlatBuffer root object. The frame length must be positive and must not exceed the
   supported 2 GiB FlatBuffers limit.
-- Every `Frame` must contain the required `stream_id` table. Its `value` is a 64-bit stream identifier; `0` denotes
-  the connection-level control stream.
+- `Frame.stream_id` is a 64-bit stream identifier; `0` denotes the connection-level control stream. Senders must set
+  the field on every frame.
 - `control_message` carries control attributes.
 - `data_record_batch_metadata` carries one batch's metadata; its raw buffers follow separately when inline transport is used.
 

@@ -28,8 +28,7 @@ auto create_frame(exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder& 
                   const std::uint64_t stream_id,
                   FrameFields&&... fields)
 {
-    const auto stream_id_table = exasol::udf::protocol::CreateStreamId(builder, stream_id);
-    return exasol::udf::protocol::CreateFrame(builder, stream_id_table,
+    return exasol::udf::protocol::CreateFrame(builder, stream_id,
                                               std::forward<FrameFields>(fields)...);
 }
 
@@ -69,7 +68,7 @@ TEST(UdfProtocolTest, EncodesProtocolFrames)
         const auto* decoded = exasol::udf::protocol::GetFrame(builder.GetBufferPointer());
         const auto* decoded_capabilities =
             decoded->control_message()->value_as_ServerCapabilities();
-        assert(decoded->stream_id()->value() == 0);
+        assert(decoded->stream_id() == 0);
         assert(decoded_capabilities->supported_version()->major() == 2);
         assert(decoded_capabilities->supported_version()->minor() == 0);
         assert(decoded_capabilities->endianness() == exasol::udf::protocol::Endianness_Little);
@@ -108,7 +107,7 @@ TEST(UdfProtocolTest, EncodesProtocolFrames)
 
         assert(verify_frame(builder));
         const auto* decoded = exasol::udf::protocol::GetFrame(builder.GetBufferPointer());
-        assert(decoded->stream_id()->value() == 7);
+        assert(decoded->stream_id() == 7);
         assert(decoded->data_record_batch_metadata() == nullptr);
         assert(decoded->control_message()->value_type() ==
                exasol::udf::protocol::ControlMessageValue_OpenCall);
@@ -404,7 +403,7 @@ TEST(UdfProtocolTest, DataOnlyFrameProducesEmptyProtocolViews)
     EXPECT_FALSE(control_view.payloads());
 }
 
-TEST(UdfProtocolTest, StreamIdTablePreservesControlStreamZero)
+TEST(UdfProtocolTest, FrameScalarStreamIdPreservesControlStreamZero)
 {
     exasol::udf::v2::third_party::flatbuffers::FlatBufferBuilder builder;
     const auto frame = create_frame(builder, 0, 0, 0);
@@ -412,8 +411,7 @@ TEST(UdfProtocolTest, StreamIdTablePreservesControlStreamZero)
     const std::span<const std::uint8_t> encoded(builder.GetBufferPointer(), builder.GetSize());
     auto decoded = exasol::udf::protocol::DecodedFrame::decode(encoded);
     ASSERT_TRUE(decoded.has_value());
-    ASSERT_NE(decoded->frame().stream_id(), nullptr);
-    EXPECT_EQ(decoded->frame().stream_id()->value(), 0);
+    EXPECT_EQ(decoded->frame().stream_id(), 0);
 }
 
 TEST(UdfProtocolTest, RejectsEmptyAndInvalidFrames)

@@ -273,19 +273,15 @@ table ControlMessage {
 // independently of a call. A stream_id is not reused on its connection.
 //
 // Approximate structural sizes, excluding payload and vector contents, are:
-// - control-only frame: 72-104 bytes, depending on the control variant;
-// - batch-only frame: 56 bytes;
-// - frame containing both control message and batch: 84-120 bytes,
+// - control-only frame: 86-98 bytes, depending on the control variant;
+// - batch-only frame: 78 bytes;
+// - frame containing both control message and batch: 130-142 bytes,
 //   depending on the control variant.
 // These are approximate FlatBuffers sizes and vary with alignment and vtable
 // reuse. Batch-only frames are the most compact because they omit the control
 // message and contain record-batch metadata directly.
-table StreamId {
-  value: uint64;
-}
-
 table Frame {
-  stream_id: StreamId (required);
+  stream_id: uint64;
   control_message: ControlMessage;
   data_record_batch_metadata: DataRecordBatchMetadata;
 }
