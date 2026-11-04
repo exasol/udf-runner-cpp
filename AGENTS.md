@@ -80,6 +80,14 @@ unreleased changelog, so update it before the PR is merged.
 
 ## Tool availability and Lima
 
+- When Bazel is available on the host but its default cache is not writable,
+  keep its caches in the workspace instead of using the VM:
+
+  ```bash
+  bazel --output_user_root="$PWD/.bazel-output-root" \
+    --repository_cache="$PWD/.bazel-repository-cache" <command>
+  ```
+
 - When a required development tool is unavailable on the host, use the
   repository's `udf-runner-cpp-dev` Lima VM instead of installing a host-wide
   package.

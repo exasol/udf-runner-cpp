@@ -38,8 +38,8 @@ frames.
 - capacity: logically unbounded; allocation is limited only by available process memory;
 - ownership: successful enqueue transfers the message and its Arrow ownership leases to the queue.
 
-Protocol backpressure is provided by `Next` byte budgets. The worker must not block merely because the background
-thread or socket is temporarily busy. A terminal context state rejects a new enqueue immediately.
+Protocol backpressure is provided by the `next_send_budget_in_bytes` field. The worker must not block merely because
+the background thread or socket is temporarily busy. A terminal context state rejects a new enqueue immediately.
 
 ### Inbound queue
 
@@ -55,6 +55,34 @@ The inbound queue carries verified messages and their storage leases from the ba
 
 The worker may dequeue one message or all currently available messages. Batch dequeue must preserve FIFO order and
 must not hold queue synchronization while the worker processes the views.
+
+### Low-level context boundary
+
+The low-level context depends on the abstract `internal::BackgroundThreadInterface`, rather than directly owning a
+thread or concrete queue implementation. Production supplies the implementation that owns the thread, queue endpoints,
+and notifications; tests can inject a mock. The interface transfers message builders and views without exposing
+socket I/O or frame processing:
+
+```text
+wait_until(optional<steady_clock::time_point>) -> BackgroundThreadResult
+enqueue_outbound_message(OutboundMessage&&) -> bool
+enqueue_outbound_messages(OutboundBatch&&) -> bool
+dequeue_inbound_messages() -> InboundBatch
+request_shutdown() -> void
+```
+
+`wait_until()` reports `InboundAvailable`, `ShutdownRequested`, or `DeadlineExpired`, plus an optional terminal
+`ErrorInfo`. An absent deadline waits indefinitely. Enqueue operations do not block; a failed enqueue leaves the
+message ownership with the context. A successful enqueue transfers it to the background thread. Dequeue transfers
+all currently available inbound views to the context, which then routes them to the appropriate logical stream.
+`request_shutdown()` signals the background work to stop; joining and resource cleanup remain part of the context
+lifecycle.
+
+Each inbound view must be backed by a verified decoded frame and exposes its stream ID through `stream_id()`. The
+concrete view asserts that its decoded frame is present when constructed, and the low-level context asserts that the
+inbound view itself is present before routing. It uses the ID to route a call view to the matching pending-call
+sequence; control views identify stream `0`. A missing frame is an internal invariant violation, not a routable
+message state.
 
 ### Multiplexing and logical stream dispatch
 
@@ -159,23 +187,25 @@ it checks the queue again before clearing or blocking, closing the empty-to-wait
 4. For a later batch, consume the worker grant by the whole Arrow buffer-byte size of the submitted batch. A positive
    grant admits the current batch even when that one submission overshoots the grant. The first-batch exemption does
    not consume credit.
-5. Enqueue the owned logical message without blocking.
+5. Attempt to enqueue the logical message without blocking. A successful enqueue accepts the message and transfers
+   ownership. If enqueue fails, return an error without moving from the caller's `unique_ptr`; it remains non-null
+   and retains the builder and its Arrow objects.
 6. Notify the outbound eventfd if this enqueue changed the queue from empty to non-empty.
 7. Return to the worker.
 
-If the context is already terminal, the operation returns the appropriate terminal `Result` and does not transfer
-ownership.
+If the context is already terminal, the operation returns the appropriate terminal `Result` without moving from the
+caller's `unique_ptr`; it remains non-null and retains the builder and its Arrow objects.
 
 ### Worker-side data flow permission
 
-The background thread owns authoritative `Next` credit and publishes a per-call worker send grant. The grant is a
-shared atomic byte allowance plus a generation used for timed waiting; it is not another queue. The worker-side
+The background thread owns authoritative `next_send_budget_in_bytes` credit and publishes a per-call worker send
+grant. The grant is a shared atomic byte allowance plus a generation used for timed waiting; it is not another queue. The worker-side
 `Call::send()` path behaves as follows:
 
 1. Run synchronous worker-side dispatch before inspecting the grant.
 2. If this is not the first record batch in the direction and the grant is zero, wait for a positive grant, the optional
    send deadline, or terminal state. A timeout returns `TimedOut` without consuming the builder or its Arrow
-   ownership. The first batch does not wait for `Next` credit.
+   ownership. The first batch does not wait for send-budget credit.
 3. Measure the whole unsplit batch's Arrow buffer bytes and consume that amount from the worker grant. A positive grant
    admits the current batch even if this one submission overshoots it.
 4. Enqueue the logical batch. The worker never slices it and does not wait for the background thread to finish
@@ -184,7 +214,7 @@ shared atomic byte allowance plus a generation used for timed waiting; it is not
    another batch may be submitted.
 
 The worker grant is only an admission mechanism. The background thread remains authoritative for actual bytes sent,
-row-boundary splitting, group-end flags, and waiting for additional `Next` credit.
+row-boundary splitting, group-end flags, and waiting for additional `next_send_budget_in_bytes` credit.
 
 The background thread targets approximately 4 MiB (`4 * 1024 * 1024` bytes) of Arrow buffer bytes per generated
 record-batch frame. It accumulates complete rows until the next row would take the frame beyond that target. The next
@@ -203,12 +233,13 @@ worker_send_grant
 first_batch_pending
 ```
 
-The first record batch is admitted without `Next` credit. After that batch is accepted for the direction,
-`first_batch_pending` becomes false. Receiving `Next` then increases `authoritative_remaining_credit` and publishes a
-corresponding positive worker grant. When the background consumes a later logical batch, it charges each generated
-chunk against authoritative credit, not against the worker's coarse reservation. If the logical batch is larger than the
-current credit, the background sends the largest safe row-aligned prefix, permits at most the configured one-row
-oversubscription, and retains the remainder until more credit arrives. The approximately 4 MiB frame target is applied
+The first record batch is admitted without send-budget credit. After that batch is accepted for the direction,
+`first_batch_pending` becomes false. Receiving a non-zero `next_send_budget_in_bytes` value then increases
+`authoritative_remaining_credit` and publishes a corresponding positive worker grant. When the background consumes a
+later logical batch, it charges each generated chunk against authoritative credit, not against the worker's coarse
+reservation. If the logical batch is larger than the current credit, the background sends the largest safe row-aligned
+prefix, permits at most the configured one-row oversubscription, and retains the remainder until more credit arrives.
+The approximately 4 MiB frame target is applied
 while selecting each row-aligned prefix; a row may make a frame exceed the target, but it must not be split. After the
 logical batch is complete, it reconciles unused credit into `worker_send_grant` and notifies the worker. A worker grant
 never authorizes the background to exceed actual protocol credit.
@@ -223,8 +254,8 @@ never authorizes the background to exceed actual protocol credit.
    include the row that crosses the target, and emit an oversized row as its own frame. A group boundary sets
    `is_end_of_group` on the preceding frame.
 5. Send the generated frames in FIFO order.
-6. If the logical batch requires more credit, retain its unsent remainder and continue reading the socket until `Next`
-   arrives.
+6. If the logical batch requires more credit, retain its unsent remainder and continue reading the socket until a
+   non-zero `next_send_budget_in_bytes` update arrives.
 7. Reconcile the call's worker send grant and notify the worker when another logical batch may be submitted.
 8. Release each logical message only after all generated frames and Arrow ownership handoff are complete.
 
@@ -374,7 +405,7 @@ while receive_buffer contains a complete frame:
     validate frame length and protocol version
     verify FlatBuffer structure and required fields
     decode stream id and message kind
-    if the call message contains Next:
+    if the control message contains next_send_budget_in_bytes:
         update authoritative credit and worker send grant before outbound processing
     create verified storage lease
     append InboundEnvelope to current inbound batch
@@ -388,11 +419,11 @@ close/transport error according to the protocol policy.
 The inbound batch is published only after all its envelopes are fully verified. The logically unbounded inbound queue
 accepts the batch without blocking and takes ownership of its storage leases.
 
-`Next` remains visible in the inbound `CallMessageView` through a restricted `NextView` containing `reset` and
-`row_id`, even though the background thread has already consumed `byte_budget` for authoritative credit accounting. If
-a composite message contains both `Next` and other call fields, the credit update occurs before the background thread
-processes pending outbound data, while the complete composite message is still delivered to the worker unchanged
-except that the internal byte budget is not exposed.
+`Reset` remains visible through `CallMessageView::reset()` as an optional reference to the wire-level
+`protocol::Reset` table. The separate `next_send_budget_in_bytes` field is consumed internally for authoritative
+credit accounting and is not exposed through the worker-facing message view. If a composite message contains both a
+send-budget update and other call fields, the credit update occurs before the background thread processes pending
+outbound data, while the complete call message, including any `Reset`, is still delivered to the worker.
 
 ### Send-side socket processing
 
@@ -478,10 +509,10 @@ CallMessageBuilder / ControlMessageBuilder
 ```
 
 The builder retains Arrow C-interface ownership until logical finalization and outbound enqueue succeed. On a
-validation, send-grant timeout, terminal-state, or queue failure, ownership remains with the worker or the builder's
-error result according to the interface contract. After successful enqueue, the worker must not mutate or release the
-transferred Arrow objects. The background thread owns any Arrow slices and generated wire frames until the complete
-logical batch has been sent or discarded during shutdown.
+validation, send-grant timeout, terminal-state, or queue failure, the caller's `unique_ptr` remains non-null and
+retains the builder and its Arrow objects. After successful enqueue, ownership transfers and the worker must not
+mutate or release the transferred Arrow objects. The background thread owns any Arrow slices and generated wire
+frames until the complete logical batch has been sent or discarded during shutdown.
 
 The receive handoff is:
 
@@ -675,6 +706,6 @@ The implementation design must cover:
 - worker close while both queues contain messages;
 - peer close while outbound messages remain queued;
 - context destruction before explicit worker close;
-- first-batch transmission before any `Next` credit;
+- first-batch transmission before any `next_send_budget_in_bytes` credit;
 - waiting for and receiving the peer's `CloseConnection` reply;
 - user code that does not react to a protocol error or close message.

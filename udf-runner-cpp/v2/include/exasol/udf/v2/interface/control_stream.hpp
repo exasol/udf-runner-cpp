@@ -6,6 +6,8 @@
 #include <exasol/udf/v2/interface/status.hpp>
 #include <exasol/udf/v2/interface/timeout.hpp>
 
+#include <memory>
+
 namespace exasol::udf::v2::interface
 {
 /// Provides access to connection-level traffic on protocol stream zero.
@@ -20,16 +22,16 @@ public:
     ControlStream& operator=(ControlStream&&)      = delete;
     /// Returns the non-blocking readiness state for stream zero.
     [[nodiscard]] virtual MessageStatus receive_status() const = 0;
+    /// Creates a builder bound to control stream zero.
+    [[nodiscard]] virtual std::unique_ptr<ControlMessageBuilder> create_message_builder() const = 0;
     /// Receives the next control message without waiting.
-    [[nodiscard]] Result<ControlMessageView> receive()
-    {
-        return receive(std::nullopt);
-    }
+    [[nodiscard]] virtual Result<std::unique_ptr<ControlMessageView>> receive() = 0;
     /// Receives the next control message, optionally waiting up to `timeout`.
-    [[nodiscard]] virtual Result<ControlMessageView> receive(Timeout timeout) = 0;
-    /// Sends one connection-level message and transfers ownership on success.
-    // The by-value parameter is intentional: successful implementations consume the builder.
-    [[nodiscard]] virtual Result<void> send(ControlMessageBuilder message) = 0; // NOSONAR
+    [[nodiscard]] virtual Result<std::unique_ptr<ControlMessageView>> receive(Timeout timeout) = 0;
+    /// Sends one connection-level message.
+    /// A successful result means the stream accepted the message and ownership transferred. On
+    /// failure, `message` remains non-null and the caller retains ownership of the builder.
+    [[nodiscard]] virtual Result<void> send(std::unique_ptr<ControlMessageBuilder>&& message) = 0;
 
 protected:
     ControlStream() = default;

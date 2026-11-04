@@ -39,7 +39,7 @@ The new UDF protocol should satisfy the following requirements.
 - Support metadata exchange for protocol, script, call, and callback interactions.
 - Support DB callback operations such as connection lookup, script lookup, and query execution.
 - Support multiple logical streams per physical connection, with total ordering within a stream and partial ordering across streams.
-- Support flow-controlled table transfer with explicit request semantics such as `Next(...)`.
+- Support flow-controlled table transfer with explicit send budgets and reset requests.
 
 ### Performance Requirements
 
@@ -145,7 +145,7 @@ Exasol should introduce a new UDF protocol with the following high-level propert
 - `DB` acts as the client and `UDFRunner` acts as the server.
 - The protocol supports `Run`, `Function`, and `Script` call types.
 - The protocol supports multiple logical streams with partial ordering across streams and total ordering within each stream.
-- Table transfer is explicitly flow controlled, with `Next(...)`-style requests authorizing batch transfer.
+- Table transfer is explicitly flow controlled, with send budgets authorizing batch transfer.
 - The protocol supports callback interactions from `UDFRunner` to `DB`, including connection lookup, script lookup, and query execution.
 - The protocol includes `ServerCapabilities`, framing, stream identifiers, and keepalive behavior.
 
@@ -199,7 +199,7 @@ The current technical direction from the repo material is:
 - a connection-scoped `stream_id` model where `0` is the per-connection control stream, odd/even ownership is assigned to the generic Client and Server roles, and IDs are not reused per connection
 - composite `StreamMessage` fields so related control data, such as a close and `Error`, can share one frame
 - unilateral `CloseCall` and two-way `CloseConnection` termination, with `Error` indicating abnormal closure
-- explicit control messages for metadata, start/call behavior, `Next`, data, callbacks, and heartbeat
+- explicit control messages for metadata, start/call behavior, send budgets, reset, data, callbacks, and heartbeat
 - table transfer based on Arrow-compatible batch metadata plus inline buffers on all bindings; Unix FD handoff is optional
 
 Detailed technical design is still required for optional Unix FD handoff and final message-format decisions.

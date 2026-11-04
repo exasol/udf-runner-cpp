@@ -3,11 +3,15 @@ cc_library(
     visibility = ["//test/interface:__pkg__"],
     hdrs = [
         "arrow_test_utils.hpp",
+        "protocol_test_utils.hpp",
         "test_doubles.hpp",
     ],
     copts = ["-std=c++23"],
     deps = [
         "//:arrow_core",
+        "//:exception",
+        "//:udf_protocol",
         "//:interface",
+        "//:interface_internal",
     ],
 )

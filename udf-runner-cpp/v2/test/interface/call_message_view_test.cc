@@ -1,37 +1,46 @@
-#include <exasol/udf/v2/interface/message_view/call_message_view.hpp>
-#include <exasol/udf/v2/interface/message_builder/call_message_builder.hpp>
+#include <exasol/udf/v2/internal/call_message_view_impl.hpp>
+#include <exasol/udf/v2/internal/data_schema_view_impl.hpp>
+#include <exasol/udf/v2/internal/message_builder_factory.hpp>
+#include <exasol/udf/v2/internal/record_batch_view_impl.hpp>
+#include "../common/protocol_test_utils.hpp"
 
 #include <gtest/gtest.h>
 
 #include <arrow/api.h>
 #include <arrow/c/bridge.h>
 
+#include <type_traits>
 #include <utility>
 
-namespace exasol::udf::v2::interface
+namespace exasol::udf::v2::internal
 {
 
-TEST(CallMessageViewTest, EmptyViewReportsNoFields)
+using interface::ArrowArrayPtr;
+using interface::ArrowSchemaPtr;
+
+static_assert(std::is_abstract_v<interface::CallMessageView>);
+
+TEST(CallMessageViewTest, FrameWithoutOptionalFieldsStillHasStreamId)
 {
-    CallMessageView view;
-    EXPECT_FALSE(view.has_open_call());
+    CallMessageViewImpl view(test::make_empty_decoded_frame(7));
+    EXPECT_EQ(view.stream_id(), 7);
     EXPECT_FALSE(view.open_call());
-    EXPECT_FALSE(view.has_payloads());
     EXPECT_FALSE(view.payloads());
-    EXPECT_FALSE(view.has_data_schema());
-    EXPECT_EQ(std::move(view.data_schema()).take_schema(), nullptr);
-    EXPECT_FALSE(view.data_schema().has_group_id());
-    EXPECT_FALSE(view.data_schema().has_row_id());
-    EXPECT_FALSE(view.has_next());
-    EXPECT_FALSE(view.next());
-    EXPECT_FALSE(view.has_record_batch());
-    EXPECT_EQ(std::move(view.record_batch()).take_array(), nullptr);
-    EXPECT_FALSE(view.record_batch().is_end_of_group());
-    EXPECT_FALSE(view.has_next());
-    EXPECT_FALSE(view.next());
-    EXPECT_FALSE(view.has_error());
+    EXPECT_FALSE(view.data_schema());
+    EXPECT_FALSE(view.reset());
+    EXPECT_FALSE(view.record_batch());
     EXPECT_FALSE(view.error());
-    EXPECT_FALSE(view.has_close_call());
+    EXPECT_FALSE(view.close_call());
+}
+
+TEST(CallMessageViewTest, RejectsNullDecodedFrame)
+{
+    EXPECT_DEATH(
+        {
+            const CallMessageViewImpl view(nullptr);
+            static_cast<void>(view);
+        },
+        "");
 }
 
 TEST(CallMessageViewTest, ArrowDataCanRoundTripThroughInterface)
@@ -44,11 +53,11 @@ TEST(CallMessageViewTest, ArrowDataCanRoundTripThroughInterface)
     const auto schema = arrow::schema({arrow::field("id", arrow::int64())});
     const auto source = arrow::RecordBatch::Make(schema, 2, {ids});
 
-    ArrowSchema received_schema{};
-    ArrowArray received_array{};
-    ASSERT_TRUE(arrow::ExportRecordBatch(*source, &received_array, &received_schema).ok());
-    DataSchemaView schema_view(DataSchema{ArrowSchemaPtr(&received_schema), false, false});
-    RecordBatchView batch_view(RecordBatch{ArrowArrayPtr(&received_array), true});
+    auto* received_schema = new ArrowSchema{};
+    auto* received_array  = new ArrowArray{};
+    ASSERT_TRUE(arrow::ExportRecordBatch(*source, received_array, received_schema).ok());
+    DataSchemaViewImpl schema_view(ArrowSchemaPtr(received_schema), false, false);
+    RecordBatchViewImpl batch_view(ArrowArrayPtr(received_array), true);
     auto schema_owner = std::move(schema_view).take_schema();
     auto array_owner  = std::move(batch_view).take_array();
     ASSERT_NE(schema_owner, nullptr);
@@ -62,22 +71,14 @@ TEST(CallMessageViewTest, ArrowDataCanRoundTripThroughInterface)
     EXPECT_EQ(imported_ids->Value(0), 7);
     EXPECT_EQ(imported_ids->Value(1), 11);
 
-    ArrowSchema sent_schema{};
-    ArrowArray sent_array{};
-    ASSERT_TRUE(arrow::ExportRecordBatch(*imported.ValueOrDie(), &sent_array, &sent_schema).ok());
+    auto* sent_schema = new ArrowSchema{};
+    auto* sent_array  = new ArrowArray{};
+    ASSERT_TRUE(arrow::ExportRecordBatch(*imported.ValueOrDie(), sent_array, sent_schema).ok());
     {
-        CallMessageBuilder outgoing;
-        outgoing.data_schema(ArrowSchemaPtr(&sent_schema), false, false)
-            .record_batch(ArrowArrayPtr(&sent_array), true);
-        const auto sent = std::move(outgoing).take();
-        ASSERT_TRUE(sent.data_schema.has_value());
-        EXPECT_EQ(sent.data_schema->schema.get(), &sent_schema);
-        ASSERT_TRUE(sent.record_batch.has_value());
-        EXPECT_EQ(sent.record_batch->array.get(), &sent_array);
-        EXPECT_TRUE(sent.record_batch->is_end_of_group);
+        auto outgoing = MessageBuilderFactory::create_call_builder(2);
+        outgoing->data_schema(ArrowSchemaPtr(sent_schema), false, false)
+            .record_batch(ArrowArrayPtr(sent_array), true);
     }
-    EXPECT_EQ(sent_schema.release, nullptr);
-    EXPECT_EQ(sent_array.release, nullptr);
 }
 
-} // namespace exasol::udf::v2::interface
+} // namespace exasol::udf::v2::internal

@@ -2,9 +2,9 @@
 
 #include <exasol/udf/v2/interface/message_view/data_schema_view.hpp>
 #include <exasol/udf/v2/interface/message_view/record_batch_view.hpp>
-#include <exasol/udf/v2/interface/content_types.hpp>
 #include <exasol/udf/v2/udf_protocol.hpp>
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -21,42 +21,35 @@ namespace exasol::udf::v2::interface
 class CallMessageView
 {
 public:
-    CallMessageView() = default;
-    /// Returns whether call-opening metadata is present.
-    [[nodiscard]] bool has_open_call() const noexcept;
+    virtual ~CallMessageView()                         = default;
+    CallMessageView(const CallMessageView&)            = delete;
+    CallMessageView& operator=(const CallMessageView&) = delete;
+    CallMessageView(CallMessageView&&)                 = delete;
+    CallMessageView& operator=(CallMessageView&&)      = delete;
+    /// Returns the stream ID of this view's verified frame.
+    [[nodiscard]] virtual std::uint64_t stream_id() const noexcept = 0;
     /// Returns the wire-level FlatBuffer call-opening table, or an empty optional when absent.
-    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::OpenCall>> open_call()
-        const noexcept;
-    /// Returns whether wire-level payloads are present.
-    [[nodiscard]] bool has_payloads() const noexcept;
+    [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::OpenCall>>
+    open_call() const noexcept = 0;
     /// Returns the wire-level FlatBuffer payload table, or an empty optional when absent.
-    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Payloads>> payloads()
-        const noexcept;
-    /// Returns whether a data schema is present.
-    [[nodiscard]] bool has_data_schema() const noexcept;
-    /// Returns the data-schema view.
-    [[nodiscard]] DataSchemaView data_schema() noexcept;
-    /// Returns whether flow-control information is present.
-    [[nodiscard]] bool has_next() const noexcept;
-    /// Returns flow-control information, or an empty optional when absent.
-    [[nodiscard]] std::optional<std::reference_wrapper<const Next>> next() const noexcept;
-    /// Returns whether a record batch is present.
-    [[nodiscard]] bool has_record_batch() const noexcept;
-    /// Returns the record-batch view.
-    [[nodiscard]] RecordBatchView record_batch() noexcept;
-    /// Returns whether an error is present.
-    [[nodiscard]] bool has_error() const noexcept;
+    [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::Payloads>> payloads()
+        const noexcept = 0;
+    /// Returns the data-schema view, or an empty optional when absent.
+    [[nodiscard]] virtual std::unique_ptr<DataSchemaView> data_schema() noexcept = 0;
+    /// Returns the wire-level FlatBuffer reset table, or an empty optional when absent.
+    [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::Reset>> reset()
+        const noexcept = 0;
+    /// Returns the record-batch view, or an empty optional when absent.
+    [[nodiscard]] virtual std::unique_ptr<RecordBatchView> record_batch() noexcept = 0;
     /// Returns the wire-level FlatBuffer error table, or an empty optional when absent.
-    [[nodiscard]] std::optional<std::reference_wrapper<const protocol::Error>> error()
-        const noexcept;
-    /// Returns whether this message closes the call.
-    [[nodiscard]] bool has_close_call() const noexcept;
+    [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::Error>> error()
+        const noexcept = 0;
+    /// Returns the wire-level FlatBuffer close-call table, or an empty optional when absent.
+    [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::CloseCall>>
+    close_call() const noexcept = 0;
 
-    explicit CallMessageView(std::shared_ptr<const protocol::DecodedFrame> frame);
-
-private:
-    std::optional<CallMessage> call_message_;
-    std::shared_ptr<const protocol::DecodedFrame> decoded_frame_;
+protected:
+    CallMessageView() = default;
 };
 
 } // namespace exasol::udf::v2::interface

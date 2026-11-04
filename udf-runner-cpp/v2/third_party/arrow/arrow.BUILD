@@ -97,8 +97,10 @@ cc_library(
         "cpp/src/arrow/vendored/datetime/tz.cpp",
         "cpp/thirdparty/hadoop/include/hdfs.h",
     ],
-    copts = [
+    cxxopts = [
         "-std=c++20",
+    ],
+    copts = [
         "-pthread",
     ],
     includes = [

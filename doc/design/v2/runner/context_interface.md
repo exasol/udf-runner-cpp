@@ -72,7 +72,8 @@ Context {
     receive_status() -> MessageStatus
     wait_for_message(optional<Duration> timeout) -> MessageStatus
     accept_call() -> Result<unique_ptr<Call>>
-    open_call(CallMessageBuilder) -> Result<unique_ptr<Call>>
+    create_opening_call_message_builder() -> unique_ptr<OpeningCallMessageBuilder>
+    open_call(unique_ptr<OpeningCallMessageBuilder>) -> Result<unique_ptr<Call>>
     control_stream() -> ControlStream&
 }
 ```
@@ -102,15 +103,21 @@ as the first message on a new logical call stream. It may contain any other prot
 successful local registration and transmission, the function returns the `Call` object without waiting for a peer
 response. The peer's response is received through that call's `receive()` operation.
 
+`create_opening_call_message_builder()` reserves a new locally owned stream ID and returns an
+`OpeningCallMessageBuilder`
+bound to it. The worker adds the required `open_call` field and passes that builder to `open_call()`. A reserved stream
+ID is not reused if its builder is abandoned or `open_call()` fails.
+
 ## Call interface
 
 The conceptual call contract is:
 
 ```text
 Call {
+    create_message_builder() -> unique_ptr<CallMessageBuilder>
     receive_status() -> MessageStatus
-    receive(optional<Duration> timeout) -> Result<CallMessageView>
-    send(CallMessageBuilder, optional<Duration> timeout) -> Result<void>
+    receive(optional<Duration> timeout) -> Result<unique_ptr<CallMessageView>>
+    send(unique_ptr<CallMessageBuilder>&&, optional<Duration> timeout) -> Result<void>
 }
 ```
 
@@ -121,62 +128,59 @@ next complete call message, returns `TimedOut` when the timeout expires, and ret
 cancellation, peer closure, or connection failure.
 
 The first successful `Call::receive()` returns the opening `CallMessageView`, including its `open_call` field and any
-payloads, `DataSchema`, `Next`, `RecordBatch`, error, or close fields carried in the same protocol message. Subsequent
+payloads, `DataSchema`, `Reset`, `RecordBatch`, error, or close fields carried in the same protocol message. Subsequent
 messages must not contain `open_call`.
 
 For a call returned by `open_call()`, the opening message has already been sent by the context. Its first successful
-`Call::receive()` returns the peer's first message and must not contain `open_call`. A `CallMessage` containing
-`open_call` is not valid for a `CallMessageBuilder` passed to `Call::send()` after the call object has been created.
+`Call::receive()` returns the peer's first message and must not contain `open_call`. An `open_call` field is not valid
+for a `CallMessageBuilder` passed to `Call::send()` after the call object has been created.
 
 If a control message or another call's message arrives while `Call::receive()` is blocked, the context dispatches it
 to its own stream and the call receive continues waiting. It does not return unrelated traffic.
 
 `Call::send()` waits for the context to grant permission for the next data batch when required by flow control. An
 absent timeout waits indefinitely, a zero timeout does not block, and an expired timeout returns `TimedOut` without
-consuming the builder or its Arrow ownership. The background thread owns the authoritative credit and any internal
-batch splitting; the worker-facing send operation submits one logical batch.
+consuming the builder or its Arrow ownership. Passing the `unique_ptr` by rvalue reference does not itself transfer
+ownership: ownership transfers only when the call accepts the message. On any failure, the `unique_ptr` remains
+non-null and retains the builder and its Arrow objects. The background thread owns the authoritative credit and any
+internal batch splitting; the worker-facing send operation submits one logical batch.
 
 ## Composite call messages
 
-The worker-facing data-schema value is:
+The call-message builder accepts an Arrow schema with its correlation-field flags:
 
 ```text
-DataSchema {
-    ArrowSchemaPtr schema
-    bool has_group_id
-    bool has_row_id
-}
+data_schema(ArrowSchemaPtr schema, bool has_group_id, bool has_row_id)
 ```
 
-This is an interface-level type. It is not the wire-level FlatBuffer `DataSchema` table.
+Inbound schema ownership is exposed through `DataSchemaView`; the wire-level metadata type is
+`protocol::DataSchema`.
 
-The worker-facing record-batch value is:
+The call-message builder accepts a record batch with its group-boundary flag:
 
 ```text
-RecordBatch {
-    ArrowArrayPtr array
-    bool is_end_of_group
-}
+record_batch(ArrowArrayPtr array, bool is_end_of_group)
 ```
 
-This is an interface-level type. It is not the wire-level FlatBuffer `DataRecordBatch` table.
+Inbound record-batch ownership is exposed through `RecordBatchView`; the wire-level metadata type is
+`protocol::DataRecordBatchMetadata`.
 
-`CallMessage` is one composite message whose fields are independently optional:
+Each call message is composite; its fields are independently optional:
 
 ```text
-CallMessage {
+Call message {
     optional open_call
     optional payloads
     optional data_schema: DataSchema
-    optional next
+    optional reset
     optional record_batch: RecordBatch
     optional error
     optional close_call
 }
 ```
 
-The same conceptual type is used for sending and receiving. A single message may contain one or multiple fields. A
-worker sends fields separately by sending separate `CallMessage` values; no field-specific send methods are required.
+A single message may contain one or multiple fields. A worker sends fields separately by submitting separate
+`CallMessageBuilder` instances; no field-specific send methods are required.
 
 For inbound calls, `open_call` is required on the first received message and forbidden on subsequent received messages.
 For outbound calls, `open_call` is required only in the opening message supplied to `Context::open_call()` and is
@@ -187,15 +191,15 @@ The design permits, subject to protocol-state validation:
 
 - payloads alone;
 - `open_call` alone;
-- `open_call` with payloads, `DataSchema`, `Next`, a `RecordBatch`, error, or close;
+- `open_call` with payloads, `DataSchema`, `Reset`, a `RecordBatch`, error, or close;
 - a `DataSchema` alone;
-- `Next` alone;
+- `Reset` alone;
 - a `RecordBatch` alone after its schema has been announced;
 - `DataSchema` and the first `RecordBatch` together;
-- payloads, `DataSchema`, `Next`, and a `RecordBatch` together;
+- payloads, `DataSchema`, `Reset`, and a `RecordBatch` together;
 - an error alone;
 - close alone;
-- close combined with payloads, `DataSchema`, `Next`, a `RecordBatch`, and/or an error.
+- close combined with payloads, `DataSchema`, `Reset`, a `RecordBatch`, and/or an error.
 
 If multiple fields arrive in one protocol message, `Call::receive()` returns them together in one `CallMessageView`.
 
@@ -208,13 +212,16 @@ after the message is processed.
 
 ```text
 ControlStream {
+    create_message_builder() -> unique_ptr<ControlMessageBuilder>
     receive_status() -> MessageStatus
-    receive(optional<Duration> timeout) -> Result<ControlMessageView>
-    send(ControlMessageBuilder) -> Result<void>
+    receive(optional<Duration> timeout) -> Result<unique_ptr<ControlMessageView>>
+    send(unique_ptr<ControlMessageBuilder>&&) -> Result<void>
 }
 ```
 
-The control stream's status and receive functions observe and consume only stream-0 messages.
+The control stream's status and receive functions observe and consume only stream-0 messages. `ControlStream::send()`
+transfers ownership only when the stream accepts the message. On failure, the caller's `unique_ptr` remains non-null
+and retains ownership of the builder.
 
 `ControlMessage` contains independently optional connection-level fields:
 
@@ -229,7 +236,7 @@ ControlMessage {
 ```
 
 The control stream supports capabilities, keepalive, connection-level payloads, errors, and connection close. It must
-not expose `OpenCall`, `CloseCall`, `Next`, `ArrowSchemaPtr`, or `ArrowArrayPtr` objects.
+not expose `OpenCall`, `CloseCall`, `Reset`, `ArrowSchemaPtr`, or `ArrowArrayPtr` objects.
 
 An error without `close_connection` is a non-terminal diagnostic. `CloseConnection` starts or acknowledges connection
 shutdown and may be combined with an error or other permitted connection-level fields.
@@ -242,20 +249,28 @@ and prevents connection-only fields from being sent on a call stream.
 ### Call message builder
 
 ```text
-CallMessageBuilder {
-    open_call(call_name) -> CallMessageBuilder&
-    add_payload(name, value, binary = false) -> CallMessageBuilder&
-    data_schema(ArrowSchemaPtr schema, has_group_id, has_row_id) -> CallMessageBuilder&
-    next(byte_budget, reset, row_id) -> CallMessageBuilder&
-    record_batch(ArrowArrayPtr array, is_end_of_group) -> CallMessageBuilder&
-    error(code, message) -> CallMessageBuilder&
-    close_call() -> CallMessageBuilder&
+CallMessageBuilderBase {
+    add_payload(name, value, binary = false) -> CallMessageBuilderBase&
+    data_schema(ArrowSchemaPtr schema, has_group_id, has_row_id) -> CallMessageBuilderBase&
+    reset(row_id) -> CallMessageBuilderBase&
+    record_batch(ArrowArrayPtr array, is_end_of_group) -> CallMessageBuilderBase&
+    error(code, message) -> CallMessageBuilderBase&
+    close_call() -> CallMessageBuilderBase&
+}
+
+OpeningCallMessageBuilder : CallMessageBuilderBase {
+    open_call(call_name) -> OpeningCallMessageBuilder&
 }
 ```
 
-The call builder describes one composite call message. Repeated `add_payload()` calls append payloads in order. After
-`data_schema()` or `record_batch()`, the builder owns the supplied Arrow objects. Passing the builder to
-`Context::open_call()` or `Call::send()` transfers it to that operation, and the builder must not be reused.
+The ordinary call builder describes one composite message after a call has been opened; it cannot add `open_call`.
+The opening builder adds `open_call` to the shared set of composite fields. Repeated `add_payload()` calls append
+payloads in order. After `data_schema()` or `record_batch()`, the builder owns the supplied Arrow objects. `Context`
+creates an `OpeningCallMessageBuilder` and binds it to the stream ID it reserves for the new call. After the call is
+opened, `Call` creates ordinary `CallMessageBuilder` instances bound to that call's stream ID. Passing the opening
+builder to `Context::open_call()` submits it to that operation. Passing an ordinary builder to `Call::send()` submits
+it to the call, but ownership transfers only when the operation accepts the message. On failure, the caller's
+`unique_ptr` remains non-null and retains the builder and its Arrow objects.
 
 ### Control message builder
 
@@ -270,35 +285,33 @@ ControlMessageBuilder {
 }
 ```
 
-The control builder cannot construct `OpenCall`, `CloseCall`, `Next`, `DataSchema`, or record-batch fields. Passing it
-to `ControlStream::send()` transfers it to that operation, and the builder must not be reused.
+The control builder cannot construct `OpenCall`, `CloseCall`, `Reset`, `DataSchema`, or record-batch fields.
+`ControlStream` creates `ControlMessageBuilder` instances bound to stream 0. Passing its `unique_ptr` to
+`ControlStream::send()` submits it to the stream. Ownership transfers only when the stream accepts the message; on
+failure, the caller's `unique_ptr` remains non-null and retains ownership of the builder.
 
 ### Call message view
 
 ```text
 CallMessageView {
-    has_open_call() -> bool
+    stream_id() -> uint64
     open_call() -> std::optional<std::reference_wrapper<const protocol::OpenCall>>
-    has_payloads() -> bool
     payloads() -> std::optional<std::reference_wrapper<const protocol::Payloads>>
-    has_data_schema() -> bool
-    data_schema() -> DataSchemaView
-    has_next() -> bool
-    next() -> std::optional<std::reference_wrapper<const Next>>
-    has_record_batch() -> bool
-    record_batch() -> RecordBatchView
-    has_error() -> bool
+    data_schema() -> std::unique_ptr<DataSchemaView>
+    reset() -> std::optional<std::reference_wrapper<const protocol::Reset>>
+    record_batch() -> std::unique_ptr<RecordBatchView>
     error() -> std::optional<std::reference_wrapper<const protocol::Error>>
-    has_close_call() -> bool
+    close_call() -> std::optional<std::reference_wrapper<const protocol::CloseCall>>
 }
 ```
 
-`CallMessageView` and `ControlMessageView` expose three distinct layers of accessors. The `open_call()`,
-`server_capabilities()`, `payloads()`, and `error()` accessors return optional references to generated FlatBuffer
-`protocol` tables. The `Next` accessor returns a worker-facing value because the interface intentionally hides the
-wire-level byte budget. The `DataSchemaView` and `RecordBatchView` accessors are Arrow C Data Interface adapters because the wire
-metadata must be converted to Arrow schema/array ownership for the worker. Their `take_schema()` and
-`take_array()` operations explicitly move that ownership out of the view; they are not borrowed raw-pointer
+`stream_id()` identifies the logical stream carrying this message. Every view is backed by a verified decoded frame,
+so the stream ID is always present. Constructing a view without a decoded frame is an internal invariant violation.
+
+The `open_call()`, `payloads()`, `reset()`, `error()`, and `close_call()` accessors return optional references to
+generated FlatBuffer `protocol` tables. The `data_schema()` and `record_batch()` accessors return owning interface
+objects when Arrow data is available, or `nullptr` when it is absent or not yet populated. Their `take_schema()` and
+`take_array()` operations explicitly move Arrow ownership out of those views; they are not borrowed raw-pointer
 accessors.
 
 `DataSchemaView` exposes the Arrow schema ownership and its correlation flags. `RecordBatchView` exposes the Arrow
@@ -320,36 +333,32 @@ RecordBatchView {
 }
 ```
 
-### Received Next value
+### Received Reset value
 
 ```text
-Next {
-    reset() -> bool
-    row_id() -> uint64
-}
+protocol::Reset { row_id: uint64 }
 ```
 
-`Next` does not expose `byte_budget`. The background thread consumes the received wire-level byte budget for
-authoritative flow control before the message is delivered to the worker. The outbound
-`CallMessageBuilder.next(byte_budget, reset, row_id)` operation remains available because the worker may grant credit
-to its peer.
+`Reset` requests that the peer seek to `row_id` for batches that are not already in flight. It is independent of the
+`next_send_budget_in_bytes` field, which carries flow-control credit and is consumed internally by the background
+thread. The worker-facing builder exposes `reset(row_id)` and does not set a send budget.
 
 ### Control message view
 
 ```text
 ControlMessageView {
-    has_server_capabilities() -> bool
+    stream_id() -> uint64
     server_capabilities() -> std::optional<std::reference_wrapper<const protocol::ServerCapabilities>>
-    has_keep_alive() -> bool
-    has_payloads() -> bool
+    keep_alive() -> std::optional<std::reference_wrapper<const protocol::KeepAlive>>
     payloads() -> std::optional<std::reference_wrapper<const protocol::Payloads>>
-    has_error() -> bool
     error() -> std::optional<std::reference_wrapper<const protocol::Error>>
-    has_close_connection() -> bool
+    close_connection() -> std::optional<std::reference_wrapper<const protocol::CloseConnection>>
 }
 ```
 
-The control view cannot expose call-specific fields.
+The control view cannot expose call-specific fields. Its `stream_id()` identifies the frame's connection-level
+stream, normally stream `0`. As with call views, a concrete control view always retains a verified decoded frame, so
+its stream ID is always present.
 
 ### View lifetime and verification
 
@@ -376,8 +385,9 @@ The receive path verifies the complete frame with `flatbuffers::Verifier` before
 verified bytes and any Arrow ownership leases. The view is a view, not a copy, but remains valid independently of
 later receives.
 
-On successful send, the context takes responsibility for the finalized FlatBuffer storage and attached Arrow objects.
-If validation, finalization, or transport acceptance fails before ownership transfer, the builder retains ownership.
+On accepted send, the context takes responsibility for the finalized FlatBuffer storage and attached Arrow objects.
+If validation, finalization, queueing, or transport acceptance fails before acceptance, the caller's `unique_ptr`
+remains non-null and the builder retains ownership of its Arrow objects.
 
 ## Arrow schemas and record batches
 
@@ -408,36 +418,26 @@ The correlation flags describe the reserved prefix of `DataSchema.schema`:
 - user data fields follow the reserved prefix;
 - correlation fields are identified by position, not by field name.
 
-FlatBuffers remain the representation for protocol metadata and control fields, including payloads, `Next`, errors,
+FlatBuffers remain the representation for protocol metadata and control fields, including payloads, `Reset`, errors,
 close messages, capabilities, keepalive, and connection close. Specialized views expose validated field accessors
 without exposing raw frame buffers or requiring workers to manage FlatBuffer view lifetimes.
 
-The context, call, and control-stream contracts expose the Arrow C Data Interface only. A separate public utility may
-consume moved `ArrowArrayPtr` and `ArrowSchemaPtr` objects and return an Arrow C++ `arrow::RecordBatch`; that utility
-is not part of the context interface. Arrow IPC internals and transport-specific buffer handling remain hidden from
-the context contract.
-
-The public conversion utility has the following contract:
-
-```text
-import_record_batch(ArrowArrayPtr array, ArrowSchemaPtr schema)
-    -> arrow::Result<std::shared_ptr<arrow::RecordBatch>>
-```
-
-It takes both smart pointers by value, rejects missing inputs, keeps the owners alive while calling
-`arrow::ImportRecordBatch`, and returns Arrow's conversion status on failure. Callers must not call
-`std::unique_ptr::release()` before invoking it. The Arrow bridge consumes the C Data Interface objects; the custom
-deleters provide cleanup when conversion fails before the bridge takes responsibility.
+The context, call, and control-stream contracts expose the Arrow C Data Interface only. Arrow C++ conversion is left
+to the caller and is not part of these interface declarations. Arrow IPC internals and transport-specific buffer
+handling remain hidden from the context contract.
 
 A typical conversion sequence is:
 
 ```text
 schema_view = call_view.data_schema()
 batch_view = call_view.record_batch()
-schema = move(schema_view).take_schema()
-array = move(batch_view).take_array()
-batch = import_record_batch(move(array), move(schema))
+schema = move(*schema_view).take_schema()
+array = move(*batch_view).take_array()
+batch = arrow::ImportRecordBatch(array.get(), schema.get())
 ```
+
+The specialized accessors return `nullptr` when the message has no corresponding Arrow data. Check both pointers
+before dereferencing them.
 
 The top-level `CallMessageView` must remain alive until both specialized views have extracted their owners. The
 resulting `arrow::RecordBatch` owns the imported Arrow data independently of the protocol view.
@@ -446,7 +446,7 @@ Ownership follows the Arrow release contract:
 
 - received `DataSchema.schema` and `RecordBatch.array` objects remain owned by the view until `take_schema()` or
   `take_array()` moves them to the caller;
-- a moved object is passed to `import_record_batch()` or released by its receiving owner exactly once;
+- a moved object is passed to the caller's Arrow C++ conversion or released by its receiving owner exactly once;
 - sent `ArrowSchemaPtr` and `ArrowArrayPtr` objects remain owned by the builder/caller until the context accepts the
   send;
 - after successful acceptance, the context takes the unique pointers and therefore the release responsibility;
@@ -532,7 +532,7 @@ The context validates, before delivering or sending messages:
 - groups before the final group in a batch end automatically when the group identifier changes;
 - the worker-provided flag controls only the final group in a batch;
 - one data stream per call;
-- `Next` byte-credit rules;
+- `next_send_budget_in_bytes` flow-control rules and `Reset` seek semantics;
 - close and error semantics;
 - Arrow schema and array ownership and release requirements;
 - supported record-batch transport;
@@ -560,8 +560,8 @@ the opening `CallMessageView` containing both `open_call` and `close_call`; the 
 
 ### Separate call messages
 
-The peer may send a `DataSchema`, then a `Next`, then a `RecordBatch` as three separate messages. The worker receives
-three successive `CallMessage` values.
+The peer may send a `DataSchema`, then a `Reset`, then a `RecordBatch` as three separate messages. The worker receives
+three successive call-message views.
 
 ### Error-only message
 
@@ -603,7 +603,7 @@ The design is complete when it is clear that:
 - record batches use an `ArrowArrayPtr` plus `is_end_of_group` metadata;
 - data schemas use an `ArrowSchemaPtr` and preserve `has_group_id` and `has_row_id`;
 - `DataSchemaView::take_schema()` and `RecordBatchView::take_array()` make Arrow ownership transfer explicit;
-- `import_record_batch()` is a separate public utility and is not part of `Context`, `Call`, or `ControlStream`;
+- Arrow C++ conversion is performed by the caller and is not part of `Context`, `Call`, or `ControlStream`;
 - Arrow C++ `RecordBatch` ownership begins only after successful import;
 - Arrow ownership and release responsibility are explicit;
 - cancellation, closure, timeout, and failure behavior is defined;

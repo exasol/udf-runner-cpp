@@ -1,21 +1,34 @@
-#include <exasol/udf/v2/interface/message_view/control_message_view.hpp>
+#include <exasol/udf/v2/internal/control_message_view_impl.hpp>
+#include "../common/protocol_test_utils.hpp"
 
 #include <gtest/gtest.h>
 
-namespace exasol::udf::v2::interface
+#include <type_traits>
+
+namespace exasol::udf::v2::internal
 {
 
-TEST(ControlMessageViewTest, EmptyViewReportsNoFields)
+static_assert(std::is_abstract_v<interface::ControlMessageView>);
+
+TEST(ControlMessageViewTest, FrameWithoutOptionalFieldsStillHasStreamId)
 {
-    const ControlMessageView view;
-    EXPECT_FALSE(view.has_server_capabilities());
+    const ControlMessageViewImpl view(test::make_empty_decoded_frame(0));
+    EXPECT_EQ(view.stream_id(), 0);
     EXPECT_FALSE(view.server_capabilities());
-    EXPECT_FALSE(view.has_payloads());
     EXPECT_FALSE(view.payloads());
-    EXPECT_FALSE(view.has_error());
     EXPECT_FALSE(view.error());
-    EXPECT_FALSE(view.has_keep_alive());
-    EXPECT_FALSE(view.has_close_connection());
+    EXPECT_FALSE(view.keep_alive());
+    EXPECT_FALSE(view.close_connection());
 }
 
-} // namespace exasol::udf::v2::interface
+TEST(ControlMessageViewTest, RejectsNullDecodedFrame)
+{
+    EXPECT_DEATH(
+        {
+            const ControlMessageViewImpl view(nullptr);
+            static_cast<void>(view);
+        },
+        "");
+}
+
+} // namespace exasol::udf::v2::internal
