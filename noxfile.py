@@ -654,6 +654,103 @@ def list_v2_fuzzing_targets(session: nox.Session):
         print(matrix)
 
 
+def _run_v2_tests(
+    session: nox.Session,
+    *,
+    bazel_config: str | None = None,
+    run_under: str | None = None,
+) -> None:
+    """Run the regular v2 test suite, excluding fuzz targets."""
+    bazel_args = [
+        "test",
+        "--verbose_failures",
+        "--test_output=errors",
+        "--build_tag_filters=-fuzz-test",
+        "--test_tag_filters=-fuzz-test",
+    ]
+    if bazel_config:
+        bazel_args.append(f"--config={bazel_config}")
+    if run_under:
+        bazel_args.append(f"--run_under={run_under}")
+    bazel_args.append("//...")
+
+    v2_dir = ROOT / "udf-runner-cpp" / "v2"
+    with session.chdir(v2_dir):
+        session.run("bazel", *bazel_args, external=True)
+
+
+def _run_v2_bazel_check(session: nox.Session, *args: str) -> None:
+    """Run a Bazel command from the v2 module directory."""
+    v2_dir = ROOT / "udf-runner-cpp" / "v2"
+    with session.chdir(v2_dir):
+        session.run("bazel", *args, external=True)
+
+
+@nox.session(name="v2-clang-tidy", python=False)
+def run_v2_clang_tidy(session: nox.Session):
+    """Run clang-tidy for v2."""
+    _run_v2_bazel_check(session, "build", "--verbose_failures", "--config=clang-tidy", "//...")
+
+
+@nox.session(name="v2-clang-format", python=False)
+def run_v2_clang_format(session: nox.Session):
+    """Check v2 formatting with clang-format."""
+    _run_v2_bazel_check(session, "build", "--verbose_failures", "--config=clang-format", "//...")
+
+
+@nox.session(name="v2-coverage", python=False)
+def run_v2_coverage(session: nox.Session):
+    """Generate the generic Sonar coverage report for v2."""
+    _run_v2_bazel_check(
+        session,
+        "test",
+        "--verbose_failures",
+        "--collect_code_coverage",
+        "--combined_report=lcov",
+        "--coverage_report_generator=@bazel_sonarqube//:sonarqube_coverage_generator",
+        "--build_tag_filters=-fuzz-test",
+        "--test_tag_filters=-fuzz-test,-no-coverage",
+        "//...",
+    )
+
+
+@nox.session(name="v2-sonar", python=False)
+def run_v2_sonar(session: nox.Session):
+    """Run the Sonar scanner for v2 using an existing coverage report."""
+    v2_dir = ROOT / "udf-runner-cpp" / "v2"
+    sonar_scanner = os.environ.get("SONAR_SCANNER", "sonar-scanner")
+    with session.chdir(v2_dir):
+        session.run(sonar_scanner, external=True)
+
+
+@nox.session(name="v2-tests", python=False)
+def run_v2_tests(session: nox.Session):
+    """Run the regular v2 test suite."""
+    _run_v2_tests(session)
+
+
+@nox.session(name="v2-tests-asan", python=False)
+def run_v2_tests_asan(session: nox.Session):
+    """Run the regular v2 test suite with AddressSanitizer."""
+    _run_v2_tests(session, bazel_config="asan")
+
+
+@nox.session(name="v2-tests-ubsan", python=False)
+def run_v2_tests_ubsan(session: nox.Session):
+    """Run the regular v2 test suite with UndefinedBehaviorSanitizer."""
+    _run_v2_tests(session, bazel_config="ubsan")
+
+
+@nox.session(name="v2-tests-valgrind", python=False)
+def run_v2_tests_valgrind(session: nox.Session):
+    """Run the regular v2 test suite under Valgrind."""
+    _run_v2_tests(
+        session,
+        bazel_config="valgrind",
+        run_under="valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1",
+    )
+
+
 @nox.session(name="v2-fuzzing", python=False)
 def run_v2_fuzzing(session: nox.Session):
     """Run v2 Bazel fuzzers with configurable sanitizer and output settings."""

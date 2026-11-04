@@ -18,6 +18,7 @@
 namespace exasol::udf::protocol
 {
 
+/// Verifies the structural validity of a Frame buffer.
 bool verify_frame_buffer(const void* data, std::size_t size);
 
 /// Owns a verified FlatBuffer frame and exposes its generated read-only view.

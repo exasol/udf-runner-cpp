@@ -9,7 +9,7 @@ This document covers:
 
 - the one-data-stream-per-call model
 - per-direction schema behavior
-- `Next(byte_budget, reset, row_id)` flow control
+- `next_send_budget_in_bytes` and `Reset(row_id)` flow control
 - `RecordBatch` sequencing rules
 - completion behavior and open questions
 
@@ -66,21 +66,22 @@ independent of field-name or type sorting.
 `has_group_id` and `has_row_id` identify correlation columns at the start of the field list according to the
 call-specific rules. The low-level converter preserves those fields and does not infer or insert them.
 
-## `Next(byte_budget, reset, row_id)`
+## Send budget and `Reset(row_id)`
 
-`Next(...)` is a flow-control hint sent by the receiver of a direction to its sender. It does not select a record
-batch and does not directly pause, cancel, or otherwise control the sender.
+`next_send_budget_in_bytes` is a flow-control hint sent by the receiver of a direction to its sender. `Reset(...)`
+is an independent seek request. Neither field selects a record batch or directly pauses, cancels, or otherwise
+controls the sender.
 
-- `byte_budget` is a preferred maximum byte size for one or multiple record batches
-- the first record batch may be sent without a received `Next(...)`
-- subsequent batches require an available budget from a previously received `Next(...)`
+- `next_send_budget_in_bytes` is a preferred maximum byte size for one or multiple record batches; zero means no new
+  credit
+- the first record batch may be sent without a received send budget
+- subsequent batches require available credit from a previously received non-zero send budget
 - the sender may send less than the hinted budget and may send multiple batches while budget remains
 - an indivisible batch may exceed the remaining budget
-- `reset = true` requests a seek for batches that are not already in flight, and `row_id` identifies the position from
-  which the sender resumes
-- when `reset = false`, `row_id` is ignored; batches already in flight continue unaffected
-- `row_id` is a scalar with schema default `0`, so an omitted value is read as `0` by the generated FlatBuffers
-  accessor; default-valued scalar fields may be omitted from the serialized buffer ([FlatBuffers schema defaults](https://flatbuffers.dev/schema/))
+- a present `Reset` requests a seek for batches that are not already in flight, and `row_id` identifies the position
+  from which the sender resumes
+- an absent `Reset` requests no seek; batches already in flight continue unaffected
+- `Reset.row_id` defaults to `0` when omitted ([FlatBuffers schema defaults](https://flatbuffers.dev/schema/))
 
 This `row_id` usage is distinct from any row correlation carried inside the data itself for high-level call
 semantics such as scalar-return `Run`.
@@ -95,7 +96,7 @@ Client controls Client -> Server output, while the Server controls Server -> Cli
 
 The outbound model tracks data sent by the local endpoint and the latest flow-control hint received from its peer.
 Sending or receiving `CloseCall` makes the local endpoint's outbound direction terminal: it sends no further schema,
-batch, `Next(...)`, or other call-scoped message. A `CloseCall` is not acknowledged. Messages already in flight may
+batch, send budget, `Reset(...)`, or other call-scoped message. A `CloseCall` is not acknowledged. Messages already in flight may
 still arrive after either endpoint sends or receives `CloseCall`; late messages for the closed stream are ignored.
 
 | State | Meaning |
@@ -111,17 +112,17 @@ still arrive after either endpoint sends or receives `CloseCall`; late messages 
 | `OutboundIdle` | Send schema | `SchemaAnnounced` |
 | `OutboundIdle` | Send schema + first batch | `WaitingForNext` |
 | `SchemaAnnounced` | Send first batch | `WaitingForNext` |
-| `OutboundIdle` | Receive `Next(...)` | `BudgetAvailable` |
-| `SchemaAnnounced` | Receive `Next(...)` | `BudgetAvailable` |
+| `OutboundIdle` | Receive send budget | `BudgetAvailable` |
+| `SchemaAnnounced` | Receive send budget | `BudgetAvailable` |
 | `BudgetAvailable` | Send one or more batches while budget remains | `BudgetAvailable` |
 | `BudgetAvailable` | No usable budget remains | `WaitingForNext` |
-| `WaitingForNext` | Receive `Next(...)` | `BudgetAvailable` |
+| `WaitingForNext` | Receive send budget | `BudgetAvailable` |
 | Any outbound state | Send or receive `CloseCall` | `OutboundCompleted` |
 
 ### Inbound Direction
 
-The inbound model tracks data received by the local endpoint and the flow-control hints it sends to its peer. Sending
-`Next(...)` does not make the peer's sender wait, cancel, or select a particular batch.
+The inbound model tracks data received by the local endpoint and the send budgets it grants to its peer. Sending a
+budget does not make the peer's sender wait, cancel, or select a particular batch.
 
 | State | Meaning |
 | --- | --- |
@@ -133,24 +134,24 @@ The inbound model tracks data received by the local endpoint and the flow-contro
 | From | Local event | To |
 | --- | --- | --- |
 | `InboundIdle` | Receive schema | `SchemaReceived` |
-| `InboundIdle` | Send `Next(...)` | `InboundIdle` |
+| `InboundIdle` | Send budget | `InboundIdle` |
 | `InboundIdle` | Receive schema + first batch | `BatchesInFlight` |
 | `SchemaReceived` | Receive first batch | `BatchesInFlight` |
-| `SchemaReceived` | Send `Next(...)` | `SchemaReceived` |
+| `SchemaReceived` | Send budget | `SchemaReceived` |
 | `BatchesInFlight` | Receive batch | `BatchesInFlight` |
-| `BatchesInFlight` | Send `Next(...)` | `BatchesInFlight` |
+| `BatchesInFlight` | Send budget | `BatchesInFlight` |
 | Any inbound state | Receive `CloseCall` | `InboundCompleted` |
 
 ## Rules
 
 1. Each direction sends exactly one `DataSchema`.
 2. A direction sends its schema before, or in the same `Frame` as, its first record batch.
-3. A standalone schema may precede `Next(...)`; no batch may precede its schema.
-4. Only the first batch in a direction may be sent without a previously received `Next(...)`.
-5. A sender may send one or more batches while the current `byte_budget` hint remains usable.
+3. A standalone schema may precede a send budget; no batch may precede its schema.
+4. Only the first batch in a direction may be sent without a previously received non-zero send budget.
+5. A sender may send one or more batches while the current send budget remains usable.
 6. A sender may send less than the hinted budget; an indivisible batch may exceed the remaining budget.
-7. After the current budget is no longer usable, a sender waits for another `Next(...)` before sending a later batch.
-8. `reset` and `row_id` apply only to batches that are not already in flight.
+7. After the current budget is no longer usable, a sender waits for another send budget before sending a later batch.
+8. `Reset.row_id` applies only to batches that are not already in flight.
 9. In-flight batches continue unaffected by a later seek hint and may reference different positions.
 10. Sending or receiving `CloseCall` terminates the local endpoint's participation in the stream; the receiver does
     not send a close acknowledgement, and late messages already in transit are ignored.

@@ -7,6 +7,7 @@ n/a
 
 ## Features / Enhancements
 
+ - #86: Added a RAII Linux epoll abstraction with injectable POSIX operations
  - #90: Added an injectable POSIX API wrapper for Unix-domain socket operations
  - #71: Documented the v2 runner architecture, worker-facing context interface, and background I/O design
  - #70: Added the v2 UDF protocol design and validation artifacts
@@ -20,10 +21,18 @@ n/a
 
 ## Refactorings
 
+* #111: Simplified v2 message-view presence APIs, split flow-control reset from send budget, removed builder encoding views, and retained control capabilities and call/control payloads in builder messages
 * #44: Extracted WaitableQueue eventfd notifications into a reusable component
+* #95: Routed POSIX APIs of socket-abstraction and Linux eventfd through POSIX facade
 
 ## Internal
 
+* #111: Added parallel v2 regular-test Nox and CI runs for ASan, UBSan, and Valgrind
+* #111: Added independent Nox and CI jobs for v2 clang-tidy, clang-format, coverage, and Sonar analysis
+* #111: Split v1 and v2 Bazel checks into dedicated CI workflows
+* #111: Fixed v1 CI to select Bazel 8.8.2 and resolved new Sonar ownership and escape-sequence findings
+* #111: Fixed Lima Mull provisioning by installing the pinned LLVM 22 package
+  directly from its verified release artifact
 * #70: Removed the standalone JSON schema validation script and its dedicated CI workflow
 * #60: Added Mull mutation testing workflow and report-viewing documentation
   for v2; targets without generated mutants now produce warnings instead of

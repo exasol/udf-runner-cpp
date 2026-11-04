@@ -1,66 +1,119 @@
-#include <exasol/udf/v2/interface/message_builder/control_message_builder.hpp>
+#include <exasol/udf/v2/internal/control_message_builder_impl.hpp>
 
-#include <cstdlib>
 #include <string>
 #include <utility>
 
-namespace exasol::udf::v2::interface
+namespace exasol::udf::v2::internal
 {
 
-// LCOV_EXCL_START: capability encoding will be implemented with the protocol codec.
-ControlMessageBuilder& ControlMessageBuilder::server_capabilities( // NOSONAR
+ControlMessage::ControlMessage(const std::uint64_t stream_id) : stream_id_(stream_id)
+{
+}
+
+void ControlMessage::server_capabilities(const std::uint32_t major,
+                                         const std::uint32_t minor,
+                                         const std::endian endianness,
+                                         const std::uint32_t number_of_supported_workers)
+{
+    server_capabilities_ =
+        ServerCapabilities{major, minor, endianness, number_of_supported_workers};
+}
+
+void ControlMessage::keep_alive()
+{
+    keep_alive_ = true;
+}
+
+void ControlMessage::add_payload(std::string_view name, std::string_view value, const bool binary)
+{
+    payloads_.emplace_back(std::string(name), std::string(value), binary);
+}
+
+void ControlMessage::error(std::string_view code, std::string_view text)
+{
+    error_.emplace(std::string(code), std::string(text));
+}
+
+void ControlMessage::close_connection()
+{
+    close_connection_ = true;
+}
+
+std::uint64_t ControlMessage::stream_id() const noexcept
+{
+    return stream_id_;
+}
+
+const std::optional<ServerCapabilities>& ControlMessage::server_capabilities() const noexcept
+{
+    return server_capabilities_;
+}
+
+bool ControlMessage::is_keep_alive() const noexcept
+{
+    return keep_alive_;
+}
+
+const std::vector<Payload>& ControlMessage::payloads() const noexcept
+{
+    return payloads_;
+}
+
+const std::optional<interface::ErrorInfo>& ControlMessage::error() const noexcept
+{
+    return error_;
+}
+
+bool ControlMessage::is_close_connection() const noexcept
+{
+    return close_connection_;
+}
+
+ControlMessageBuilderImpl::ControlMessageBuilderImpl(const std::uint64_t stream_id)
+    : message_(stream_id)
+{
+}
+
+interface::ControlMessageBuilder& ControlMessageBuilderImpl::server_capabilities(
     std::uint32_t major,
     std::uint32_t minor,
     std::endian endianness,
     std::uint32_t number_of_supported_workers)
 {
-    static_cast<void>(major);
-    static_cast<void>(minor);
-    static_cast<void>(endianness);
-    static_cast<void>(number_of_supported_workers);
-    std::abort();
-}
-// LCOV_EXCL_STOP
-
-ControlMessageBuilder& ControlMessageBuilder::keep_alive()
-{
-    message_.keep_alive = true;
+    message_.server_capabilities(major, minor, endianness, number_of_supported_workers);
     return *this;
 }
 
-// LCOV_EXCL_START: payload encoding will be implemented with the protocol codec.
-ControlMessageBuilder& ControlMessageBuilder::add_payload( // NOSONAR
-    std::string_view name,
-    std::string_view value,
-    bool binary)
+interface::ControlMessageBuilder& ControlMessageBuilderImpl::keep_alive()
 {
-    static_cast<void>(name);
-    static_cast<void>(value);
-    static_cast<void>(binary);
-    std::abort();
-}
-// LCOV_EXCL_STOP
-
-ControlMessageBuilder& ControlMessageBuilder::error(std::string_view code, std::string_view text)
-{
-    message_.error.emplace(std::string(code), std::string(text));
+    message_.keep_alive();
     return *this;
 }
 
-ControlMessageBuilder& ControlMessageBuilder::close_connection()
+interface::ControlMessageBuilder& ControlMessageBuilderImpl::add_payload(std::string_view name,
+                                                                         std::string_view value,
+                                                                         bool binary)
 {
-    message_.close_connection = true;
+    message_.add_payload(name, value, binary);
     return *this;
 }
 
-const ControlMessage& ControlMessageBuilder::message() const& noexcept
+interface::ControlMessageBuilder& ControlMessageBuilderImpl::error(std::string_view code,
+                                                                   std::string_view text)
+{
+    message_.error(code, text);
+    return *this;
+}
+
+interface::ControlMessageBuilder& ControlMessageBuilderImpl::close_connection()
+{
+    message_.close_connection();
+    return *this;
+}
+
+const ControlMessage& ControlMessageBuilderImpl::message() const noexcept
 {
     return message_;
 }
 
-ControlMessage ControlMessageBuilder::take() &&
-{
-    return std::move(message_);
-}
-
-} // namespace exasol::udf::v2::interface
+} // namespace exasol::udf::v2::internal

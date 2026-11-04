@@ -1,4 +1,4 @@
-name: Check Bazel Tests
+name: Check Bazel Tests v1
 
 on:
   push:
@@ -18,71 +18,6 @@ env:
   ZMQ_LIBRARY_PREFIX: /usr/lib/x86_64-linux-gnu
   ZMQ_INCLUDE_PREFIX: /usr/include
 jobs:
-  v2:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential clang curl lcov
-      - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
-        with:
-          bazelisk-cache: true
-      - name: Build
-        run: bazel build --verbose_failures //...
-        working-directory: ./udf-runner-cpp/v2
-      - name: Install clang-tidy
-        run: |
-          sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" -- 22
-          sudo apt-get install -y clang-tidy-22
-      - name: Run clang-tidy
-        run: bazel build --verbose_failures --config clang-tidy //...
-        working-directory: ./udf-runner-cpp/v2
-      - name: Install clang-format
-        run: |
-          sudo apt-get install -y clang-format-22
-          sudo ln -sf /usr/bin/clang-format-22 /usr/local/bin/clang-format
-      - name: Run clang-format
-        run: bazel build --verbose_failures --config clang-format //...
-        working-directory: ./udf-runner-cpp/v2
-      - name: Run v2 fuzz regression tests
-        run: |
-          bazel test --verbose_failures --test_output=errors --config asan-libfuzzer \
-            //:frame_fuzz_test \
-            //:call_metadata_fuzz_test \
-            //:connection_information_fuzz_test \
-            //:export_specification_fuzz_test \
-            //:import_specification_fuzz_test \
-            //:queue_fuzz_test
-        working-directory: ./udf-runner-cpp/v2
-      - name: Run tests
-        run: >-
-          bazel test --verbose_failures --test_output=errors
-          --build_tag_filters=-fuzz-test
-          --test_tag_filters=-fuzz-test
-          //...
-        working-directory: ./udf-runner-cpp/v2
-      - name: Run coverage tests
-        run: >-
-          bazel test --verbose_failures --collect_code_coverage
-          --combined_report=lcov
-          --coverage_report_generator=@bazel_sonarqube//:sonarqube_coverage_generator
-          --build_tag_filters=-fuzz-test
-          --test_tag_filters=-fuzz-test,-no-coverage
-          //...
-        working-directory: ./udf-runner-cpp/v2
-      - name: SonarCloud Scan
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-        uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
-        with:
-          projectBaseDir: ./udf-runner-cpp/v2
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
   build:
     runs-on: ubuntu-24.04
     steps:
@@ -162,3 +97,5 @@ jobs:
         with:
           name: "${{ matrix.name }}"
           path: /home/runner/.cache/bazel/_bazel_runner/*/execroot/_main/bazel-out/k8-dbg/testlogs/**/test.log
+
+

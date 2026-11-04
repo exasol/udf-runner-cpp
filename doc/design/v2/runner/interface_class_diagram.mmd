@@ -1,103 +1,173 @@
 classDiagram
 direction TB
 
-namespace exasol_udf_v2 {
+namespace exasol_udf_v2_interface {
     class Context {
         <<abstract>>
         +receive_status() MessageStatus
-        +wait_for_message(timeout) MessageStatus
+        +is_new_inbound_call_available() bool
+        +wait_for_message() MessageStatus
+        +wait_for_message(Timeout) MessageStatus
         +accept_call() Result~unique_ptr~Call~~
-        +open_call(builder) Result~unique_ptr~Call~~
+        +create_opening_call_message_builder() unique_ptr~OpeningCallMessageBuilder~
+        +open_call(unique_ptr~OpeningCallMessageBuilder~) Result~unique_ptr~Call~~
         +control_stream() ControlStream&
     }
     class Call {
         <<abstract>>
         +receive_status() MessageStatus
-        +receive(timeout) Result~CallMessageView~
-        +send(builder, timeout) Result~void~
+        +create_message_builder() unique_ptr~CallMessageBuilder~
+        +receive() Result~unique_ptr~CallMessageView~~
+        +receive(Timeout) Result~unique_ptr~CallMessageView~~
+        +send(unique_ptr~CallMessageBuilder~&&) Result~void~
+        +send(unique_ptr~CallMessageBuilder~&&, Timeout) Result~void~
     }
     class ControlStream {
         <<abstract>>
         +receive_status() MessageStatus
-        +receive(timeout) Result~ControlMessageView~
-        +send(builder) Result~void~
+        +create_message_builder() unique_ptr~ControlMessageBuilder~
+        +receive() Result~unique_ptr~ControlMessageView~~
+        +receive(Timeout) Result~unique_ptr~ControlMessageView~~
+        +send(unique_ptr~ControlMessageBuilder~&&) Result~void~
+    }
+    class CallMessageBuilderBase {
+        <<abstract>>
+        +add_payload(name, value, binary) CallMessageBuilderBase&
+        +data_schema(schema, has_group_id, has_row_id) CallMessageBuilderBase&
+        +reset(row_id) CallMessageBuilderBase&
+        +record_batch(array, is_end_of_group) CallMessageBuilderBase&
+        +error(code, message) CallMessageBuilderBase&
+        +close_call() CallMessageBuilderBase&
     }
     class CallMessageBuilder {
-        -CallMessage message_
-        +open_call(name) CallMessageBuilder&
-        +add_payload(name, value, binary) CallMessageBuilder&
-        +data_schema(schema, flags) CallMessageBuilder&
-        +next(byte_budget, reset, row_id) CallMessageBuilder&
-        +record_batch(array, end_of_group) CallMessageBuilder&
-        +error(code, text) CallMessageBuilder&
-        +close_call() CallMessageBuilder&
-        +message() CallMessage&
-        +take() CallMessage
+        <<abstract>>
+    }
+    class OpeningCallMessageBuilder {
+        <<abstract>>
+        +open_call(name) OpeningCallMessageBuilder&
     }
     class ControlMessageBuilder {
-        -ControlMessage message_
-        +server_capabilities(...) ControlMessageBuilder&
+        <<abstract>>
+        +server_capabilities(major, minor, endianness, workers) ControlMessageBuilder&
         +keep_alive() ControlMessageBuilder&
         +add_payload(name, value, binary) ControlMessageBuilder&
-        +error(code, text) ControlMessageBuilder&
+        +error(code, message) ControlMessageBuilder&
         +close_connection() ControlMessageBuilder&
-        +message() ControlMessage&
-        +take() ControlMessage
     }
     class CallMessageView {
-        -optional~CallMessage~ call_message_
-        -shared_ptr~DecodedFrame~ decoded_frame_
-        +open_call() OpenCall&
-        +payloads() protocol::Payloads&
-        +data_schema() DataSchemaView
-        +next() Next&
-        +record_batch() RecordBatchView
-        +error() ErrorInfo&
+        <<abstract>>
+        +stream_id() uint64_t
+        +open_call() optional~ref~protocol::OpenCall~~
+        +payloads() optional~ref~protocol::Payloads~~
+        +data_schema() unique_ptr~DataSchemaView~
+        +reset() optional~ref~protocol::Reset~~
+        +record_batch() unique_ptr~RecordBatchView~
+        +error() optional~ref~protocol::Error~~
+        +close_call() optional~ref~protocol::CloseCall~~
     }
     class ControlMessageView {
-        -optional~ControlMessage~ control_message_
-        -shared_ptr~DecodedFrame~ decoded_frame_
-        +server_capabilities() protocol::ServerCapabilities&
-        +payloads() protocol::Payloads&
-        +error() ErrorInfo&
+        <<abstract>>
+        +stream_id() uint64_t
+        +server_capabilities() optional~ref~protocol::ServerCapabilities~~
+        +keep_alive() optional~ref~protocol::KeepAlive~~
+        +payloads() optional~ref~protocol::Payloads~~
+        +error() optional~ref~protocol::Error~~
+        +close_connection() optional~ref~protocol::CloseConnection~~
     }
     class DataSchemaView {
-        -reference DataSchema
-        +take_schema() ArrowSchemaPtr
+        <<abstract>>
+        +take_schema() && ArrowSchemaPtr
         +has_group_id() bool
         +has_row_id() bool
     }
     class RecordBatchView {
-        -reference RecordBatch
-        +take_array() ArrowArrayPtr
+        <<abstract>>
+        +take_array() && ArrowArrayPtr
         +is_end_of_group() bool
     }
+    class ErrorInfo
+}
+
+namespace exasol_udf_v2_internal {
+    class CallMessageBuilderImpl {
+        -CallMessage message_
+        +message() CallMessage&
+    }
+    class OpeningCallMessageBuilderImpl {
+        -CallMessage message_
+        +message() CallMessage&
+    }
+    class ControlMessageBuilderImpl {
+        -ControlMessage message_
+        +message() ControlMessage&
+    }
     class CallMessage {
-        +optional~OpenCall~ open_call
-        +optional~Payloads~ payloads
-        +optional~DataSchema~ data_schema
-        +optional~Next~ next
-        +optional~OutboundNext~ outbound_next
-        +optional~RecordBatch~ record_batch
-        +optional~ErrorInfo~ error
-        +bool close_call
+        -uint64 stream_id_
+        -optional open_call_
+        -vector payloads_
+        -optional data_schema_
+        -optional reset_row_id_
+        -optional record_batch_
+        -optional error_
+        -bool close_call_
     }
     class ControlMessage {
-        +optional~ServerCapabilities~ server_capabilities
-        +optional~Payloads~ payloads
-        +optional~ErrorInfo~ error
-        +bool keep_alive
-        +bool close_connection
+        -uint64 stream_id_
+        -optional server_capabilities_
+        -bool keep_alive_
+        -vector payloads_
+        -optional error_
+        -bool close_connection_
     }
-    class Payload
-    class Payloads
-    class OpenCall
-    class Next
-    class OutboundNext
+    class DataSchema {
+        -ArrowSchemaPtr schema_
+        -bool has_group_id_
+        -bool has_row_id_
+    }
+    class RecordBatch {
+        -ArrowArrayPtr array_
+        -bool is_end_of_group_
+    }
     class ServerCapabilities
-    class DataSchema
-    class RecordBatch
-    class ErrorInfo
+    class Payload
+    class CallMessageViewImpl {
+        -shared_ptr~DecodedFrame~ decoded_frame_
+    }
+    class ControlMessageViewImpl {
+        -shared_ptr~DecodedFrame~ decoded_frame_
+    }
+    class DataSchemaViewImpl {
+        -ArrowSchemaPtr schema_
+        -bool has_group_id_
+        -bool has_row_id_
+    }
+    class RecordBatchViewImpl {
+        -ArrowArrayPtr array_
+        -bool is_end_of_group_
+    }
+    class BackgroundThreadInterface {
+        <<abstract>>
+        +wait_until(optional~time_point~) BackgroundThreadResult
+        +enqueue_outbound_message(OutboundMessage&&) bool
+        +enqueue_outbound_messages(OutboundBatch&&) bool
+        +dequeue_inbound_messages() InboundBatch
+        +request_shutdown() void
+    }
+    class Event {
+        <<enumeration>>
+        InboundAvailable
+        ShutdownRequested
+        DeadlineExpired
+    }
+    class BackgroundThreadResult {
+        +Event event
+        +optional~ErrorInfo~ error
+    }
+    class OutboundMessage
+    class InboundMessage
+    class OutboundBatch
+    class InboundBatch
+    class MessageBuilderFactory
 }
 
 namespace exasol_udf_protocol {
@@ -109,45 +179,88 @@ namespace exasol_udf_protocol {
     class Frame {
         <<generated FlatBuffer type>>
     }
-    class WirePayloads {
+    class Reset {
         <<generated FlatBuffer type>>
     }
-    class WireServerCapabilities {
+    class OpenCall {
+        <<generated FlatBuffer type>>
+    }
+    class Payloads {
+        <<generated FlatBuffer type>>
+    }
+    class Error {
+        <<generated FlatBuffer type>>
+    }
+    class CloseCall {
+        <<generated FlatBuffer type>>
+    }
+    class ServerCapabilities {
+        <<generated FlatBuffer type>>
+    }
+    class KeepAlive {
+        <<generated FlatBuffer type>>
+    }
+    class CloseConnection {
         <<generated FlatBuffer type>>
     }
 }
 
-Context --> Call : accepts/opens
+Context --> Call : accepts or opens
 Context --> ControlStream : returns stream zero
-Context --> CallMessageBuilder : opens outbound call
-Call --> CallMessageBuilder : sends
+Context ..> OpeningCallMessageBuilder : creates
+Call --> CallMessageBuilder : creates and sends
+ControlStream --> ControlMessageBuilder : creates and sends
+
+CallMessageBuilder --|> CallMessageBuilderBase
+OpeningCallMessageBuilder --|> CallMessageBuilderBase
+CallMessageBuilderImpl --|> CallMessageBuilder
+OpeningCallMessageBuilderImpl --|> OpeningCallMessageBuilder
+ControlMessageBuilderImpl --|> ControlMessageBuilder
 Call --> CallMessageView : receives
-ControlStream --> ControlMessageBuilder : sends
 ControlStream --> ControlMessageView : receives
-CallMessageBuilder *-- CallMessage : owns
-ControlMessageBuilder *-- ControlMessage : owns
-CallMessage *-- OpenCall : optional
-CallMessage *-- Payloads : optional
+CallMessageViewImpl --|> CallMessageView
+ControlMessageViewImpl --|> ControlMessageView
+DataSchemaViewImpl --|> DataSchemaView
+RecordBatchViewImpl --|> RecordBatchView
+
+CallMessageBuilderImpl *-- CallMessage : owns
+OpeningCallMessageBuilderImpl *-- CallMessage : owns
+ControlMessageBuilderImpl *-- ControlMessage : owns
 CallMessage *-- DataSchema : optional
-CallMessage *-- Next : optional
-CallMessage *-- OutboundNext : optional
 CallMessage *-- RecordBatch : optional
-CallMessage *-- ErrorInfo : optional
+CallMessage *-- Payload : contains
 ControlMessage *-- ServerCapabilities : optional
-ControlMessage *-- Payloads : optional
-ControlMessage *-- ErrorInfo : optional
-Payloads *-- Payload : contains
-CallMessageView *-- CallMessage : decoded snapshot
-ControlMessageView *-- ControlMessage : decoded snapshot
-CallMessageView o-- DecodedFrame : shared lifetime
-ControlMessageView o-- DecodedFrame : shared lifetime
-CallMessageView --> DataSchemaView
-CallMessageView --> RecordBatchView
-DataSchemaView ..> DataSchema : moves schema ownership
-RecordBatchView ..> RecordBatch : moves array ownership
-CallMessageView --> WirePayloads : direct wire view
-ControlMessageView --> WirePayloads : direct wire view
-ControlMessageView --> WireServerCapabilities : direct wire view
-DecodedFrame --> Frame : exposes generated view
+ControlMessage *-- Payload : contains
+DataSchemaViewImpl o-- ArrowSchemaPtr : owns
+RecordBatchViewImpl o-- ArrowArrayPtr : owns
+
+CallMessageViewImpl o-- DecodedFrame : shared frame lifetime
+ControlMessageViewImpl o-- DecodedFrame : shared frame lifetime
+CallMessageViewImpl ..> Reset : returns wire view
+CallMessageViewImpl ..> OpenCall : returns wire view
+CallMessageViewImpl ..> Payloads : returns wire view
+CallMessageViewImpl ..> Error : returns wire view
+CallMessageViewImpl ..> CloseCall : returns wire view
+ControlMessageViewImpl ..> ServerCapabilities : returns wire view
+ControlMessageViewImpl ..> KeepAlive : returns wire view
+ControlMessageViewImpl ..> Payloads : returns wire view
+ControlMessageViewImpl ..> Error : returns wire view
+ControlMessageViewImpl ..> CloseConnection : returns wire view
+DecodedFrame --> Frame : exposes verified view
 DecodedFrame *-- "owned bytes" Frame : backs generated objects
-note for RecordBatchView "Public free function: import_record_batch(ArrowArrayPtr, ArrowSchemaPtr) returns arrow::Result<shared_ptr<arrow::RecordBatch>>"
+
+BackgroundThreadInterface ..> OutboundMessage : accepts
+BackgroundThreadInterface ..> OutboundBatch : accepts
+BackgroundThreadInterface ..> InboundBatch : returns
+BackgroundThreadResult --> Event : reports
+OutboundMessage ..> CallMessageBuilderBase : holds unique_ptr
+OutboundMessage ..> ControlMessageBuilder : holds unique_ptr
+InboundMessage ..> CallMessageView : holds unique_ptr
+InboundMessage ..> ControlMessageView : holds unique_ptr
+MessageBuilderFactory ..> CallMessageBuilderImpl : creates
+MessageBuilderFactory ..> OpeningCallMessageBuilderImpl : creates
+MessageBuilderFactory ..> ControlMessageBuilderImpl : creates
+
+note for BackgroundThreadInterface "Internal low-level Context boundary. Production owns queues and the thread; tests inject a mock."
+note for InboundMessage "The low-level context reads stream identity from the view to demultiplex the shared inbound queue."
+note for CallMessageViewImpl "Arrow DataSchemaView and RecordBatchView are currently null until transport import is implemented."

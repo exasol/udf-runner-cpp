@@ -23,6 +23,9 @@
 
 minimumLimaVersion: 1.1.0
 
+cpus: 12
+memory: 10GiB
+
 base:
 - template://_images/ubuntu-24.04
 - template://_default/mounts
@@ -61,13 +64,18 @@ provision:
    #!/bin/bash
    set -eux -o pipefail
    export DEBIAN_FRONTEND=noninteractive
-   curl -1sLf 'https://dl.cloudsmith.io/public/mull-project/mull-stable/setup.deb.sh' | bash
    apt update && apt install -y protobuf-compiler libprotobuf-dev libzmq3-dev openjdk-17-jdk build-essential git python3.12-dev python3-pip libpcre3-dev lcov shellcheck valgrind wget unzip
    bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" -- 22
    apt install -y clang-22 clang-tidy-22 clang-format-22
    ln -sf /usr/bin/clang-tidy-22 /usr/local/bin/clang-tidy
    ln -sf /usr/bin/clang-format-22 /usr/local/bin/clang-format
-   apt install -y mull-22=0.34.1
+   mull_version=0.34.1
+   mull_package="Mull-22-${mull_version}-LLVM-22.1.2-ubuntu-amd64-26.04.deb"
+   mull_url="https://github.com/mull-project/mull/releases/download/${mull_version}/${mull_package}"
+   curl -fsSL "$mull_url" -o "/tmp/${mull_package}"
+   echo "183568aa32c4fb957aba7f0f204829dd1e08ad98ba9cf706d0d0c83f31172218  /tmp/${mull_package}" | sha256sum --check
+   apt install -y "/tmp/${mull_package}"
+   rm "/tmp/${mull_package}"
    mull-runner-22 --version
    test -x /usr/lib/mull-ir-frontend-22
    sonar_scanner_version=8.1.0.6389

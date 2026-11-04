@@ -118,6 +118,7 @@ cc_test(
     tags = ["no-mull"],
     deps = [
         ":interface",
+        ":interface_internal",
         ":udf_protocol",
         "@googletest//:gtest_main",
     ],
@@ -244,16 +245,29 @@ cc_library(
         "interface/control_stream.cc",
         "interface/call_message_builder.cc",
         "interface/control_message_builder.cc",
+        "interface/control_message_view_impl.cc",
+        "interface/data_schema_view_impl.cc",
+        "interface/record_batch_view_impl.cc",
         "interface/message_view.cc",
+        "include/exasol/udf/v2/internal/background_thread_interface.hpp",
+        "include/exasol/udf/v2/internal/call_message_builder_impl.hpp",
+        "include/exasol/udf/v2/internal/call_message_view_impl.hpp",
+        "include/exasol/udf/v2/internal/control_message_builder_impl.hpp",
+        "include/exasol/udf/v2/internal/control_message_view_impl.hpp",
+        "include/exasol/udf/v2/internal/data_schema_view_impl.hpp",
+        "include/exasol/udf/v2/internal/record_batch_view_impl.hpp",
+        "include/exasol/udf/v2/internal/message_builder_factory.hpp",
+        "include/exasol/udf/v2/internal/payload.hpp",
     ],
     hdrs = [
         "include/exasol/udf/v2/interface/call.hpp",
         "include/exasol/udf/v2/interface/context.hpp",
-        "include/exasol/udf/v2/interface/content_types.hpp",
+        "include/exasol/udf/v2/interface/arrow_c_data.hpp",
         "include/exasol/udf/v2/interface/control_stream.hpp",
         "include/exasol/udf/v2/interface/error_info.hpp",
         "include/exasol/udf/v2/interface/interface.hpp",
         "include/exasol/udf/v2/interface/message_builder/call_message_builder.hpp",
+        "include/exasol/udf/v2/interface/message_builder/call_message_builder_base.hpp",
         "include/exasol/udf/v2/interface/message_builder/control_message_builder.hpp",
         "include/exasol/udf/v2/interface/message_view/call_message_view.hpp",
         "include/exasol/udf/v2/interface/message_view/control_message_view.hpp",
@@ -269,8 +283,30 @@ cc_library(
     copts = ["-std=c++23"],
     deps = [
         ":arrow_core",
+        ":exception",
         ":udf_protocol",
     ],
+)
+
+# Internal headers are available only through this implementation-facing
+# target. Keeping them out of :interface prevents the worker-facing Bazel
+# target from exporting implementation details to its dependents.
+cc_library(
+    name = "interface_internal",
+    hdrs = [
+        "include/exasol/udf/v2/internal/background_thread_interface.hpp",
+        "include/exasol/udf/v2/internal/call_message_builder_impl.hpp",
+        "include/exasol/udf/v2/internal/call_message_view_impl.hpp",
+        "include/exasol/udf/v2/internal/control_message_builder_impl.hpp",
+        "include/exasol/udf/v2/internal/control_message_view_impl.hpp",
+        "include/exasol/udf/v2/internal/data_schema_view_impl.hpp",
+        "include/exasol/udf/v2/internal/record_batch_view_impl.hpp",
+        "include/exasol/udf/v2/internal/message_builder_factory.hpp",
+        "include/exasol/udf/v2/internal/payload.hpp",
+    ],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    deps = [":interface"],
 )
 
 cc_test(
@@ -440,6 +476,7 @@ cc_library(
     ],
     includes = ["include"],
     copts = ["-std=c++23"],
+    deps = [":posix"],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
@@ -451,6 +488,7 @@ cc_test(
     tags = ["no-mull"],
     deps = [
         ":socket",
+        ":posix",
         "@googletest//:gtest_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],
@@ -463,6 +501,7 @@ cc_test(
     tags = ["no-mull"],
     deps = [
         ":socket",
+        ":posix",
         "@googletest//:gtest_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],
@@ -473,7 +512,10 @@ cc_fuzz_test(
     srcs = ["socket/socket_fuzz_test.cc"],
     corpus = glob(["fuzz/corpus/socket/**"]),
     copts = ["-std=c++23"],
-    deps = [":socket"],
+    deps = [
+        ":posix",
+        ":socket",
+    ],
     tags = ["fuzz-test"],
     target_compatible_with = ["@platforms//os:linux"],
 )
@@ -483,7 +525,10 @@ cc_library(
     srcs = ["linux_event_fd.cc"],
     hdrs = ["include/exasol/udf/v2/linux_event_fd.hpp"],
     includes = ["include"],
-    deps = [":event_fd"],
+    deps = [
+        ":event_fd",
+        ":posix",
+    ],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
@@ -492,7 +537,10 @@ cc_library(
     srcs = ["event_fd_factory.cc"],
     hdrs = ["include/exasol/udf/v2/event_fd_factory.hpp"],
     includes = ["include"],
-    deps = [":linux_event_fd"],
+    deps = [
+        ":linux_event_fd",
+        ":posix",
+    ],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
@@ -503,6 +551,38 @@ cc_test(
     deps = [
         ":event_fd_factory",
         ":linux_event_fd",
+        ":posix",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "linux_epoll",
+    srcs = [
+        "linux_epoll.cc",
+        "linux_epoll_registration.cc",
+        "linux_epoll_state.cc",
+    ],
+    hdrs = [
+        "include/exasol/udf/v2/linux_epoll.hpp",
+        "linux_epoll_registration.hpp",
+        "linux_epoll_state.hpp",
+    ],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    deps = [":posix"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_test(
+    name = "linux_epoll_test",
+    srcs = ["linux_epoll_test.cc"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":linux_epoll",
+        "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],
@@ -549,6 +629,7 @@ cc_test(
     srcs = ["waitable_queue_integration_test.cc"],
     copts = ["-std=c++23"],
     deps = [
+        ":linux_epoll",
         ":linux_waitable_queue",
         "@googletest//:gtest_main",
     ],

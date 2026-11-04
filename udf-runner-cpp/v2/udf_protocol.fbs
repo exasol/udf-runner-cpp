@@ -192,13 +192,10 @@ table CloseCall {}
 // then both peers close the underlying transport.
 table CloseConnection {}
 
-// Grants transfer credit for one direction of a call's data stream. size is a
-// byte budget for the permitted transfer window. row_id is the position to
-// resume from when reset is true -- it is a seek position, not a row-
-// correlation field between the two directions.
-table Next {
-  byte_budget: uint32;
-  reset: bool = false;
+// Requests a seek for batches that are not already in flight. row_id is the
+// position from which the sender resumes; it is not a row-correlation field
+// between the two directions.
+table Reset {
   row_id: uint64 = 0;
 }
 
@@ -256,13 +253,14 @@ union ControlMessageValue {
 // The union identifies mutually exclusive message categories. Payloads may be
 // combined with every field or sent alone. In particular, the Server may send
 // capability-identifying payloads alongside ServerCapabilities on stream 0.
-// Next and data_schema may be sent
-// with OpenCall or alone. Error may be sent with CloseControlMessage or alone.
+// Reset, next_send_budget_in_bytes, and data_schema may be sent with OpenCall
+// or alone. Error may be sent with CloseControlMessage or alone.
 // stream_id = 0 is reserved for out-of-call control traffic such as
 // ServerCapabilities, KeepAlive, and CloseConnection.
 table ControlMessage {
   payloads: Payloads;
-  next: Next;
+  reset: Reset;
+  next_send_budget_in_bytes: uint32 = 0;
   data_schema: DataSchema;
   error: Error;
   value: ControlMessageValue;

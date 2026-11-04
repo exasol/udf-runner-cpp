@@ -13,6 +13,12 @@ bazel build --verbose_failures --config clang-tidy //...
 Run clang-tidy on changed `.cpp` files before submitting code for review to
 catch common issues early.
 
+The same check can be run from the repository root through Nox:
+
+```bash
+poetry run nox -s v2-clang-tidy
+```
+
 The Bazel configuration uses `clang-tidy-22` by default. To use another
 installed executable, set `CLANG_TIDY` when invoking Bazel:
 
@@ -51,6 +57,12 @@ formatting with:
 ```bash
 cd udf-runner-cpp/v2
 bazel build --verbose_failures --config clang-format //...
+```
+
+The repository-root Nox equivalent is:
+
+```bash
+poetry run nox -s v2-clang-format
 ```
 
 Apply formatting fixes with:

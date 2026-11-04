@@ -40,6 +40,8 @@ by the builder ([official FlatBuffers implementation documentation](https://gith
 
 - `Frame` is the length-framed FlatBuffer root object. The frame length must be positive and must not exceed the
   supported 2 GiB FlatBuffers limit.
+- `Frame.stream_id` is a 64-bit stream identifier; `0` denotes the connection-level control stream. Senders must set
+  the field on every frame.
 - `control_message` carries control attributes.
 - `data_record_batch_metadata` carries one batch's metadata; its raw buffers follow separately when inline transport is used.
 
@@ -87,7 +89,7 @@ The current control-stream message set is:
 - `CloseConnection` for orderly connection shutdown
 
 `ControlMessage` uses a union for mutually exclusive message categories while keeping compatible attributes such as
-`Payloads`, `Next`, `DataSchema`, and `Error` directly on the control table. `Frame` may contain a control message, a
+`Payloads`, `Reset`, `next_send_budget_in_bytes`, `DataSchema`, and `Error` directly on the control table. `Frame` may contain a control message, a
 record batch, or both. Schema and record-batch encoding, including inline buffer ordering, are defined in
 [data_stream.md](data_stream.md).
 

@@ -1,57 +1,32 @@
 #pragma once
 
-#include <exasol/udf/v2/interface/content_types.hpp>
+#include <exasol/udf/v2/interface/arrow_c_data.hpp>
 
-#include <optional>
 #include <utility>
 
 namespace exasol::udf::v2::interface
 {
 
+/// Arrow schema and correlation-field metadata for one data direction.
 /// Owning view of a received Arrow data schema and its correlation flags.
 class DataSchemaView
 {
 public:
-    DataSchemaView() = default;
-    explicit DataSchemaView(DataSchema value) : data_schema_(std::move(value))
-    {
-    }
-    DataSchemaView(const DataSchemaView&)                = delete;
-    DataSchemaView& operator=(const DataSchemaView&)     = delete;
-    DataSchemaView(DataSchemaView&&) noexcept            = default;
-    DataSchemaView& operator=(DataSchemaView&&) noexcept = default;
-    ~DataSchemaView()                                    = default;
+    virtual ~DataSchemaView()                        = default;
+    DataSchemaView(const DataSchemaView&)            = delete;
+    DataSchemaView& operator=(const DataSchemaView&) = delete;
+    DataSchemaView(DataSchemaView&&)                 = delete;
+    DataSchemaView& operator=(DataSchemaView&&)      = delete;
 
     /// Transfers ownership of the received Arrow schema to the caller.
-    [[nodiscard]] ArrowSchemaPtr take_schema() &&
-    {
-        if (!data_schema_.has_value())
-        {
-            return {};
-        }
-        return std::move(data_schema_.value().schema);
-    }
+    [[nodiscard]] virtual ArrowSchemaPtr take_schema() && = 0;
     /// Returns whether the schema reserves a group-id field.
-    [[nodiscard]] bool has_group_id() const
-    {
-        if (!data_schema_.has_value())
-        {
-            return false;
-        }
-        return data_schema_.value().has_group_id;
-    }
+    [[nodiscard]] virtual bool has_group_id() const noexcept = 0;
     /// Returns whether the schema reserves a row-id field.
-    [[nodiscard]] bool has_row_id() const
-    {
-        if (!data_schema_.has_value())
-        {
-            return false;
-        }
-        return data_schema_.value().has_row_id;
-    }
+    [[nodiscard]] virtual bool has_row_id() const noexcept = 0;
 
-private:
-    std::optional<DataSchema> data_schema_;
+protected:
+    DataSchemaView() = default;
 };
 
 } // namespace exasol::udf::v2::interface
