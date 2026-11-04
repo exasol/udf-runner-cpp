@@ -163,30 +163,41 @@ TEST(NativeLinuxEpollTest, RegistrationModifiesAndDeregistersOnDestruction)
     }
 }
 
-TEST(NativeLinuxEpollTest, MapsNativeReadinessEvents)
+TEST(NativeLinuxEpollTest, MapsPartialNativeReadinessEvents)
 {
     auto posix = std::make_shared<testing::StrictMock<MockPosix>>();
     {
         testing::InSequence sequence;
         EXPECT_CALL(*posix, epoll_create1(EPOLL_CLOEXEC)).WillOnce(testing::Return(42));
-        EXPECT_CALL(*posix, epoll_wait(42, testing::_, 2, 0))
+        // The input vector size is the requested maximum. epoll_wait commonly returns fewer
+        // events when fewer descriptors are ready; only those returned events must remain in the
+        // output vector.
+        EXPECT_CALL(*posix, epoll_wait(42, testing::_, 3, 0))
             .WillOnce([](int, epoll_event* events, int, int) {
                 events[0].events   = EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
                 events[0].data.u64 = 91;
-                return 1;
+                events[1].events   = EPOLLOUT;
+                events[1].data.u64 = 92;
+                return 2;
             });
         EXPECT_CALL(*posix, close(42)).WillOnce(testing::Return(0));
 
         NativeLinuxEpoll epoll(posix);
-        std::vector<EpollReadyEvent> events(2);
+        std::vector<EpollReadyEvent> events(3);
         epoll.wait(events, std::chrono::milliseconds::zero());
-        ASSERT_EQ(events.size(), 1);
+        ASSERT_EQ(events.size(), 2);
         EXPECT_EQ(events[0].token, 91);
         EXPECT_TRUE(events[0].readable);
         EXPECT_FALSE(events[0].writable);
         EXPECT_TRUE(events[0].error);
         EXPECT_TRUE(events[0].hangup);
         EXPECT_TRUE(events[0].peer_closed);
+        EXPECT_EQ(events[1].token, 92);
+        EXPECT_FALSE(events[1].readable);
+        EXPECT_TRUE(events[1].writable);
+        EXPECT_FALSE(events[1].error);
+        EXPECT_FALSE(events[1].hangup);
+        EXPECT_FALSE(events[1].peer_closed);
     }
 }
 
