@@ -21,4 +21,14 @@ TEST(ControlMessageViewTest, FrameWithoutOptionalFieldsStillHasStreamId)
     EXPECT_FALSE(view.close_connection());
 }
 
+TEST(ControlMessageViewTest, RejectsNullDecodedFrame)
+{
+    EXPECT_DEATH(
+        {
+            const ControlMessageViewImpl view(nullptr);
+            static_cast<void>(view);
+        },
+        "");
+}
+
 } // namespace exasol::udf::v2::internal

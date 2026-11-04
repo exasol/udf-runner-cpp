@@ -33,6 +33,16 @@ TEST(CallMessageViewTest, FrameWithoutOptionalFieldsStillHasStreamId)
     EXPECT_FALSE(view.close_call());
 }
 
+TEST(CallMessageViewTest, RejectsNullDecodedFrame)
+{
+    EXPECT_DEATH(
+        {
+            const CallMessageViewImpl view(nullptr);
+            static_cast<void>(view);
+        },
+        "");
+}
+
 TEST(CallMessageViewTest, ArrowDataCanRoundTripThroughInterface)
 {
     arrow::Int64Builder id_builder;
