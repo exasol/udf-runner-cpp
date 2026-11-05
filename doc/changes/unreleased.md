@@ -23,6 +23,7 @@ n/a
 
 * #121: Added a Lima-derived Podman build container for reproducible v2 Bazel builds
 * #121: Replaced direct FlatBuffer types in v2 message views with mockable, serialization-independent typed view wrappers
+* #121: Formatted the v2 message-view refactor and resolved its Clang-tidy findings
 * #111: Simplified v2 message-view presence APIs, split flow-control reset from send budget, removed builder encoding views, and retained control capabilities and call/control payloads in builder messages
 * #44: Extracted WaitableQueue eventfd notifications into a reusable component
 * #95: Routed POSIX APIs of socket-abstraction and Linux eventfd through POSIX facade
