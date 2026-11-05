@@ -153,29 +153,16 @@ envelope metadata. The background thread is the only producer and appends messag
 protocol messages are accepted from the socket. It does not call worker code and does not block waiting for a
 particular call.
 
-The worker-side dispatcher is the only consumer of the physical inbound queue. It drains a batch and routes each
-message as follows:
+The worker-side dispatcher is the only consumer of the physical inbound queue. Its validation, routing, discard, and
+failure behavior is defined in [stream management](stream_management.md#inbound-dispatch).
 
-- stream `0` goes to the context's control-stream pending list;
-- a message for a known active nonzero `stream_id` goes to that stream's pending list;
-- an opening message for a new peer-owned stream creates an inbound-call entry in the context's unaccepted-call list;
-- a message for a call that has not yet been accepted is retained with that stream entry, not returned by another call;
-- a message for a non-active stream at or below its owner's high-water mark is discarded as delayed traffic, unless
-  it contains a new `open_call`, which is prohibited stream-ID reuse and a protocol error;
-- a message for an unknown stream above its owner's high-water mark is a protocol error unless it is a valid first
-  `open_call` message.
+The worker-owned call registry tracks active streams and the high-water state described in
+[stream management](stream_management.md#close-and-id-lifetime). Closing a call releases its active state and pending
+sequence; the context does not need a set of every closed stream ID.
 
-The worker-owned call registry tracks active streams and a high-water mark for each endpoint role. The local mark
-advances when an ID is reserved; the peer mark advances when a valid opening is admitted to the unaccepted-call list.
-Closing a call releases its active state and pending sequence. Later messages
-for a non-active ID at or below the owner's high-water mark are discarded as
-delayed traffic, so the context does not need a set of every closed stream ID.
-Stream IDs are allocated monotonically and never reused on a connection.
-
-The dispatcher validates stream state before routing: `open_call` is legal only in the first call message, stream `0`
-messages are decoded as control messages, and `close_connection` is handled as a context shutdown event rather than
-being placed in the control-stream pending list. `close_call` remains part of the call's pending `CallMessageView`
-so the worker can observe the call's final message before that call is marked closed.
+`close_connection` is handled as a context shutdown event rather than being placed in the control-stream pending list.
+`close_call` remains part of the call's pending `CallMessageView` so the worker can observe the call's final message
+before that call is marked closed.
 
 `accept_call()` removes the next entry from the unaccepted-call list and returns a `Call` bound to its `stream_id`. Its
 already received opening message remains at the head of that call's pending list. `Call::receive()` and

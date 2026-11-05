@@ -85,30 +85,40 @@ from the socket. It does not call worker code and does not block for a
 particular call.
 
 The low-level context's dispatcher is the only consumer of that queue. It
-drains a batch and gets each message's stream ID from its bound builder or
-view, then routes it as follows:
+drains a batch and obtains each message's stream ID from its view. For every
+message, it applies these checks in order:
 
-- stream `0` goes to the control-stream pending list;
-- a message for a known active nonzero stream goes to that stream's pending
-  list;
-- an opening message for a new peer-owned stream creates an inbound-call entry
-  in the unaccepted-call list;
-- a message for a call that has not yet been accepted remains with that stream
-  entry and is not returned by another call;
-- a message for a non-active stream whose ID is at or below that owner's
-  high-water mark is discarded as delayed traffic, unless it contains a new
-  `open_call`, which is a prohibited stream-ID reuse and a protocol error;
-- a message for an unknown stream above its owner's high-water mark is a
-  protocol error unless it is a valid first `open_call` message from the peer.
+1. **Validate the stream ID and ownership parity.** Stream `0` is reserved for
+   control traffic. For a nonzero ID, parity identifies the endpoint that
+   created the stream. An active stream may carry traffic in either direction.
+   An inactive ID with local-endpoint parity is invalid inbound ownership and
+   must fail with a protocol error before consulting either high-water mark.
+2. **Validate message kind.** Stream `0` accepts control messages; nonzero
+   streams accept call messages. Connection-level messages such as
+   `close_connection` are valid only on stream `0`. A new `open_call` is valid
+   only as the first message on a peer-owned stream. For example, a `Server`
+   receiving a call message from the `Client` on inactive stream `2` fails with
+   a protocol error at step 1, even if its local high-water mark is already `2`
+   or higher.
+3. **Check active state and peer high-water mark.** A valid message for an
+   active call continues that call; `open_call` is not valid after the stream's
+   first message. For an inactive peer-owned stream, an ID at or below the
+   peer high-water mark is delayed traffic and is discarded, except that
+   `open_call` there is an attempt to reuse an ID and is a protocol error. An
+   ID above the peer high-water mark can create a stream only with a valid
+   first `open_call`; other unknown-stream traffic is a protocol error. These
+   high-water rules apply only after step 1 has established that the inactive
+   ID has peer-owned parity.
+4. **Route, discard, or fail.** Stream `0` messages go to the control-stream
+   pending list. Active call messages go to that call's pending list. A valid
+   peer opening creates an inbound-call entry in the unaccepted-call list.
+   Delayed messages are discarded; any protocol error fails the connection.
 
-The dispatcher validates stream state before routing. A peer's new `open_call`
-must use the peer-owned parity and an ID above the peer high-water mark;
-`open_call` is legal only in the first call message and can never reopen a
-previous ID. Stream `0` messages are decoded as control messages, and
-`close_connection` is handled as a context shutdown event rather than being
-placed in the control-stream pending list. `close_call` remains in the call's
-pending `CallMessageView` so the worker can observe the final call message
-before that call is marked closed.
+A message for a call that has not yet been accepted remains with that stream
+entry and is not returned by another call. `close_connection` is handled as a
+context shutdown event rather than being placed in the control-stream pending
+list. `close_call` remains in the call's pending `CallMessageView` so the worker
+can observe the final call message before that call is marked closed.
 
 `accept_call()` removes the next entry from the unaccepted-call list and
 returns a `Call` bound to its `stream_id`. Its already received opening message
@@ -139,10 +149,12 @@ The context keeps an active-call registry and one high-water mark for each
 endpoint role. The local high-water mark advances when a stream ID is reserved;
 the peer high-water mark advances when a valid opening is admitted to the
 context's unaccepted-call list. When a call closes, the context releases its
-active state and pending messages but keeps both high-water marks. Later
-traffic for a non-active ID at or below the corresponding high-water mark is
-discarded as delayed traffic. No per-closed-stream ID set is needed, and
-monotonic allocation prevents a closed ID from being reused.
+active state and pending messages but keeps both high-water marks. An inbound
+message on an inactive local-owned ID is a protocol error, including when the
+ID is below the local high-water mark. Delayed traffic on a non-active
+peer-owned ID at or below the peer high-water mark is discarded. No
+per-closed-stream ID set is needed, and monotonic allocation prevents a closed
+ID from being reused.
 
 Connection close transitions every live stream to its terminal result and wakes
 its waiters.
