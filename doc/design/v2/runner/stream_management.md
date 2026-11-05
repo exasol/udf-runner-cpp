@@ -76,6 +76,9 @@ context's call registry.
 
 ## Inbound dispatch
 
+The dispatcher-to-thread wait, drain, and ownership sequence is described in
+[context_implementation.md](context_implementation.md#dispatcher-interaction-with-the-background-thread).
+
 The background thread is the only producer of the physical inbound queue. It
 appends messages in the order in which complete protocol messages are accepted
 from the socket. It does not call worker code and does not block for a

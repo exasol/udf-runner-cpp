@@ -48,13 +48,14 @@ The inbound queue carries verified messages and their storage leases from the ba
 - producer: background I/O thread;
 - consumer: worker thread;
 - background enqueue: non-blocking;
-- worker dequeue: blocking with an optional timeout;
+- `dequeue_inbound_messages()`: non-blocking batch drain;
+- worker receive: waits through `BackgroundThreadInterface::wait_until()` with an optional deadline;
 - order: FIFO within each stream and according to the context dispatcher’s ordering contract;
 - capacity: logically unbounded; the background thread never blocks waiting for worker consumption;
 - ownership: successful enqueue transfers the verified storage lease to the queue.
 
-The worker may dequeue one message or all currently available messages. Batch dequeue must preserve FIFO order and
-must not hold queue synchronization while the worker processes the views.
+The context drains all currently available messages in a batch. The batch must preserve FIFO order and queue
+synchronization must not be held while the context routes the views.
 
 ### Low-level context boundary
 
@@ -77,6 +78,60 @@ message ownership with the context. A successful enqueue transfers it to the bac
 all currently available inbound views to the context, which then routes them to the appropriate logical stream.
 `request_shutdown()` signals the background work to stop; joining and resource cleanup remain part of the context
 lifecycle.
+
+### Dispatcher interaction with the background thread
+
+The dispatcher uses `wait_until()` only when the requested stream has no pending message and a non-blocking drain
+finds no inbound work. `InboundAvailable` signals that the context should drain; it does not identify a stream or
+return a message. The context calls `dequeue_inbound_messages()` to take the entire currently available batch, then
+routes every item in batch order using the view's `stream_id()`. Messages for other streams stay in their respective
+pending lists.
+
+The receive loop is conceptually:
+
+```text
+receive_from(requested_stream, deadline):
+    loop:
+        if context is terminal:
+            return the terminal result
+        if requested_stream has a pending message:
+            return that message
+
+        for message in background_thread.dequeue_inbound_messages():
+            validate and route message, or process a connection-level event
+            if routing made the context terminal:
+                release the rest of the batch and return the terminal result
+
+        if context is terminal:
+            return the terminal result
+        if requested_stream has a pending message:
+            return that message
+
+        result = background_thread.wait_until(deadline)
+        if result.event == InboundAvailable:
+            continue              // drain and route the batch
+        if result.event == DeadlineExpired:
+            return TimedOut
+        if result.event == ShutdownRequested:
+            record result.error, publish terminal state, and wake waiters
+            return the terminal result
+```
+
+`ShutdownRequested` takes precedence if shutdown and inbound work are observed together. Once the context becomes
+terminal, ordinary queued messages are not delivered; remaining views are released during shutdown cleanup. A
+deadline applies to the current worker operation and does not consume a message that arrives later. The inbound
+generation notification ensures a message arriving between the drain and `wait_until()` is still observed. Global
+readiness operations use the same drain-and-route step, but leave all routed messages in their per-stream pending
+lists.
+
+Outbound operations use the matching enqueue methods. `open_call()`, `Call::send()`, and control-stream sends validate
+their builder and context state, then call `enqueue_outbound_message()`; a validated group may use
+`enqueue_outbound_messages()`. A `true` result transfers builder ownership to the background thread, which later
+encodes and writes it. A `false` result leaves ownership with the context so the operation can return an error without
+losing the builder or its Arrow objects. The enqueue result reports queue acceptance, not socket-write completion.
+Context shutdown calls `request_shutdown()` to wake the background work. This requests stop but does not join the
+thread; the context lifecycle remains responsible for waiting for completion before releasing the interface and
+queue-owned state.
 
 Each inbound view must be backed by a verified decoded frame and exposes its stream ID through `stream_id()`. The
 concrete view asserts that its decoded frame is present when constructed, and the low-level context asserts that the
