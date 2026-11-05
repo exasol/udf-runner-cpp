@@ -116,7 +116,8 @@ The stream-ID rules are:
 - odd `stream_id` values belong to the `Client`
 - even `stream_id` values belong to the `Server`
 - `stream_id = 0` is the control stream which can be used by the `Client` and `Server`
-- a `stream_id` is unique for the lifetime of its connection and is not reused after its logical stream closes
+- each endpoint initiates streams with monotonically increasing IDs from its parity; IDs may be skipped, but a
+  reserved ID is never reused during the connection
 - different connections may use the same numeric `stream_id`, including `0`; those pairs identify different
   logical streams
 
