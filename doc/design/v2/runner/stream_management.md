@@ -23,8 +23,8 @@ The low-level context applies the protocol's
 The DB is the transport `Client` and UDFRunner is the transport `Server`:
 
 - `0` is the shared control stream;
-- odd nonzero IDs are owned by the DB/Client;
-- even nonzero IDs are owned by UDFRunner/Server;
+- odd nonzero IDs are owned by the `Client`;
+- even nonzero IDs are owned by the `Server`;
 - IDs are 64-bit and are unique for the lifetime of one connection.
 
 Each context is created with an immutable endpoint role (`Client` or `Server`)
@@ -32,40 +32,43 @@ for the lifetime of its connection. The role determines the locally owned
 stream-ID parity and validation of peer-created streams; it must not change
 while the connection is active. This runner creates only `Server` contexts.
 
-`Context::open_call()` and any UDFRunner-initiated nested call allocate the
-next unused even nonzero ID, beginning at `2` and advancing by `2`. Exhaustion
-or wraparound is a local failure; an ID must never be reused. An inbound call
-opening must use a previously unknown odd ID. A peer attempt to open an even
-ID, or a local attempt to open an odd ID, is a protocol error.
+Each endpoint reserves IDs from its own parity in strictly increasing order,
+starting at `1` for a `Client` and `2` for a `Server`, and advancing each
+reservation by `2`. IDs may be skipped on the wire when a reserved opening
+builder is abandoned or opening fails. Exhaustion or wraparound is a local
+failure, and an ID is never reused. A context allocates from the parity
+assigned to its immutable endpoint role and accepts new peer streams only
+from the opposite parity. Thus a `Client` context opens odd IDs and accepts
+even IDs, while a `Server` context opens even IDs and accepts odd IDs. The
+UDFRunner's `Server` contexts therefore use even IDs for local calls and
+accept odd IDs for inbound call openings. A peer opening a stream with the
+local endpoint's parity is a protocol error.
 
 Parity determines which endpoint creates a stream, not the direction of later
 traffic. Once a call exists, either peer may send permitted call messages on
 that stream. In particular, UDFRunner may send responses on a DB-created odd
 stream, and DB may send responses on a UDFRunner-created even stream.
 
-## Queue envelopes
+## Queue messages and stream identity
 
-The queue boundary preserves the stream ID. A builder or view variant alone is
-insufficient: a call builder has no stream ID, and a received view must be
-routed to its call before it can be returned to the worker. The internal queue
-items are therefore:
+Queue messages do not carry a second, separate `stream_id` field. The outbound
+builder's internal message state is bound to the stream ID when the context,
+call, or control stream creates it; the background thread uses that ID when it
+builds the wire `Frame`. An inbound view exposes the ID from its verified
+frame through `stream_id()`, and the context dispatcher uses that value to
+route it. This keeps one authoritative ID in each message instead of copying
+it into queue metadata.
 
 ```text
-OutboundEnvelope {
-    StreamId stream_id                 // 0 for ControlMessageBuilder
-    CallMessageBuilder | ControlMessageBuilder builder
-}
-
-InboundEnvelope {
-    StreamId stream_id                 // 0 for ControlMessageView
-    CallMessageView | ControlMessageView view
-}
+OutboundMessage = variant<unique_ptr<CallMessageBuilderBase>,
+                          unique_ptr<ControlMessageBuilder>>
+InboundMessage  = variant<unique_ptr<CallMessageView>,
+                          unique_ptr<ControlMessageView>>
 ```
 
-The stream ID and variant must agree. Stream `0` always carries the control
-alternative; a nonzero stream ID always carries the call alternative. A
-mismatch is an internal error on the outbound side and a protocol error on the
-inbound side.
+The message type and its bound stream ID must agree: control messages use
+stream `0`, and call messages use nonzero IDs. A mismatch is an internal error
+on the outbound side and a protocol error on the inbound side.
 
 The background component uses the ID only to encode or decode the wire message
 and select connection-local transport state. It does not need access to the
@@ -74,29 +77,35 @@ context's call registry.
 ## Inbound dispatch
 
 The background thread is the only producer of the physical inbound queue. It
-appends envelopes in the order in which complete protocol messages are
-accepted from the socket. It does not call worker code and does not block for a
+appends messages in the order in which complete protocol messages are accepted
+from the socket. It does not call worker code and does not block for a
 particular call.
 
 The low-level context's dispatcher is the only consumer of that queue. It
-drains a batch and routes each envelope as follows:
+drains a batch and gets each message's stream ID from its bound builder or
+view, then routes it as follows:
 
 - stream `0` goes to the control-stream pending list;
-- an envelope for a known nonzero `stream_id` goes to that stream's pending
+- a message for a known active nonzero stream goes to that stream's pending
   list;
-- an opening message for a never-created odd stream creates an inbound-call
-  entry in the unaccepted-call list;
+- an opening message for a new peer-owned stream creates an inbound-call entry
+  in the unaccepted-call list;
 - a message for a call that has not yet been accepted remains with that stream
   entry and is not returned by another call;
-- a message for an already-closed stream is discarded as delayed traffic;
-- other traffic for a never-created stream is a protocol error.
+- a message for a non-active stream whose ID is at or below that owner's
+  high-water mark is discarded as delayed traffic, unless it contains a new
+  `open_call`, which is a prohibited stream-ID reuse and a protocol error;
+- a message for an unknown stream above its owner's high-water mark is a
+  protocol error unless it is a valid first `open_call` message from the peer.
 
-The dispatcher validates stream state before routing. `open_call` is legal
-only in the first call message, stream `0` messages are decoded as control
-messages, and `close_connection` is handled as a context shutdown event rather
-than being placed in the control-stream pending list. `close_call` remains in
-the call's pending `CallMessageView` so the worker can observe the final call
-message before that call is marked closed.
+The dispatcher validates stream state before routing. A peer's new `open_call`
+must use the peer-owned parity and an ID above the peer high-water mark;
+`open_call` is legal only in the first call message and can never reopen a
+previous ID. Stream `0` messages are decoded as control messages, and
+`close_connection` is handled as a context shutdown event rather than being
+placed in the control-stream pending list. `close_call` remains in the call's
+pending `CallMessageView` so the worker can observe the final call message
+before that call is marked closed.
 
 `accept_call()` removes the next entry from the unaccepted-call list and
 returns a `Call` bound to its `stream_id`. Its already received opening message
@@ -112,20 +121,25 @@ inbound queue or any worker-owned pending list contains an unread message.
 
 ## Outbound routing
 
-`open_call()` allocates the next unused even stream ID, creates and registers
-the `Call` state, and enqueues an outbound envelope containing that ID and the
-opening builder. It rolls back the registration if enqueue fails.
+`open_call()` reserves the next locally owned stream ID, creates and registers
+the `Call` state, and enqueues the opening builder, which is already bound to
+that ID. It rolls back the registration if enqueue fails; the reserved ID is
+still not reused.
 
-`Call::send()` obtains its ID from its context-managed call state and enqueues
-an outbound envelope. `ControlStream` always enqueues with ID `0`; neither
+`Call::send()` creates a builder bound to its context-managed call ID and
+enqueues it. `ControlStream` creates builders bound to ID `0`; neither
 worker-facing abstraction exposes numeric IDs to worker code.
 
 ## Close and ID lifetime
 
-The worker-owned call registry keeps a closed-stream set keyed by `stream_id`.
-A local or peer call close records the stream ID before its pending sequence is
-released. Delayed traffic for that ID can then be discarded without confusing
-it with a new call. Stream IDs are never reused during a connection.
+The context keeps an active-call registry and one high-water mark for each
+endpoint role. The local high-water mark advances when a stream ID is reserved;
+the peer high-water mark advances when a valid opening is admitted to the
+context's unaccepted-call list. When a call closes, the context releases its
+active state and pending messages but keeps both high-water marks. Later
+traffic for a non-active ID at or below the corresponding high-water mark is
+discarded as delayed traffic. No per-closed-stream ID set is needed, and
+monotonic allocation prevents a closed ID from being reused.
 
 Connection close transitions every live stream to its terminal result and wakes
 its waiters.
@@ -134,5 +148,6 @@ its waiters.
 
 This design retains exactly two cross-thread queues: one worker-to-background
 outbound queue and one background-to-worker inbound queue. The call registry,
-unaccepted-call list, closed-stream set, and per-stream pending messages are
-low-level-context-owned dispatch state, not background-thread queues.
+unaccepted-call list, per-role high-water marks, and per-stream pending
+messages are low-level-context-owned dispatch state, not background-thread
+queues.
