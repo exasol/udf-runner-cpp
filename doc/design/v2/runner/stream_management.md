@@ -66,9 +66,9 @@ InboundMessage  = variant<unique_ptr<CallMessageView>,
                           unique_ptr<ControlMessageView>>
 ```
 
-The message type and its bound stream ID must agree: control messages use
-stream `0`, and call messages use nonzero IDs. A mismatch is an internal error
-on the outbound side and a protocol error on the inbound side.
+An outbound builder whose type does not match its bound stream ID is an
+internal error. The inbound message-type and stream-ID requirements are listed
+in the [validation matrix](#message-type-and-stream-id-validation).
 
 The background component uses the ID only to encode or decode the wire message
 and select connection-local transport state. It does not need access to the
@@ -88,18 +88,28 @@ The low-level context's dispatcher is the only consumer of that queue. It
 drains a batch and obtains each message's stream ID from its view. For every
 message, it applies these checks in order:
 
+### Message-type and stream-ID validation
+
+| Inbound message | Valid stream ID | Additional restriction |
+| --- | --- | --- |
+| `ControlMessageView` | Exactly `0` | A control view on a nonzero stream is a protocol error. |
+| `CallMessageView` | Any nonzero ID | A call view on stream `0` is a protocol error. |
+| `CloseConnection` | `0`, inside a `ControlMessageView` | It is invalid in a call message or on a nonzero stream. |
+| `OpenCall` | Nonzero, inside a `CallMessageView` | It is valid only as the first message on a newly created peer-owned stream. |
+
+The view-to-stream mismatches in this table are protocol errors, including a
+`CallMessageView` on stream `0` and a `ControlMessageView` on a nonzero stream.
+
 1. **Validate the stream ID and ownership parity.** Stream `0` is reserved for
    control traffic. For a nonzero ID, parity identifies the endpoint that
    created the stream. An active stream may carry traffic in either direction.
    An inactive ID with local-endpoint parity is invalid inbound ownership and
    must fail with a protocol error before consulting either high-water mark.
-2. **Validate message kind.** Stream `0` accepts control messages; nonzero
-   streams accept call messages. Connection-level messages such as
-   `close_connection` are valid only on stream `0`. A new `open_call` is valid
-   only as the first message on a peer-owned stream. For example, a `Server`
-   receiving a call message from the `Client` on inactive stream `2` fails with
-   a protocol error at step 1, even if its local high-water mark is already `2`
-   or higher.
+2. **Validate message kind.** Apply the message-type and stream-ID matrix above,
+   including the `CloseConnection` and `OpenCall` restrictions. For example, a
+   `Server` receiving a call message from the `Client` on inactive stream `2`
+   fails with a protocol error at step 1, even if its local high-water mark is
+   already `2` or higher.
 3. **Check active state and peer high-water mark.** A valid message for an
    active call continues that call; `open_call` is not valid after the stream's
    first message. For an inactive peer-owned stream, an ID at or below the
