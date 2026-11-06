@@ -31,11 +31,11 @@ public:
     [[nodiscard]] virtual std::unique_ptr<OpenCallView> open_call() const = 0;
     /// Returns the payloads view, or nullptr when absent.
     [[nodiscard]] virtual std::unique_ptr<PayloadsView> payloads() const = 0;
-    /// Returns the data-schema view, or an empty optional when absent.
+    /// Returns the data-schema view, or nullptr when absent.
     [[nodiscard]] virtual std::unique_ptr<DataSchemaView> data_schema() noexcept = 0;
     /// Returns the reset view, or nullptr when absent.
     [[nodiscard]] virtual std::unique_ptr<ResetView> reset() const = 0;
-    /// Returns the record-batch view, or an empty optional when absent.
+    /// Returns the record-batch view, or nullptr when absent.
     [[nodiscard]] virtual std::unique_ptr<RecordBatchView> record_batch() noexcept = 0;
     /// Returns the error view, or nullptr when absent.
     [[nodiscard]] virtual std::unique_ptr<ErrorView> error() const = 0;
