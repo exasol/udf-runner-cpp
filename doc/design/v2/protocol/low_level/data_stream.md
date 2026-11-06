@@ -97,7 +97,9 @@ Client controls Client -> Server output, while the Server controls Server -> Cli
 The outbound model tracks data sent by the local endpoint and the latest flow-control hint received from its peer.
 Sending or receiving `CloseCall` makes the local endpoint's outbound direction terminal: it sends no further schema,
 batch, send budget, `Reset(...)`, or other call-scoped message. A `CloseCall` is not acknowledged. Messages already in flight may
-still arrive after either endpoint sends or receives `CloseCall`; late messages for the closed stream are ignored.
+still arrive after either endpoint sends or receives `CloseCall`. Delayed messages for inactive peer-owned stream IDs
+are discarded under the [stream-management rules](../../runner/stream_management.md); messages for inactive locally
+owned IDs are protocol errors.
 
 | State | Meaning |
 | --- | --- |

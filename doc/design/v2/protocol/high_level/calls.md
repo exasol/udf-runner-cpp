@@ -107,7 +107,8 @@ The current design keeps the high-level sequences intentionally simple:
 - `Run` combines `OpenCall`, `call_metadata`, input schema announcement, and the first input batch when practical
 - `cleanup` is sequenced between calls: the previous call closes, `DB` opens `cleanup`, and the next call starts only
   after the cleanup call closes
-- normal completion of the call's data stream is marked by unilateral `CloseCall`; late in-flight stream messages are ignored
+- normal completion of the call's data stream is marked by unilateral `CloseCall`; late in-flight messages follow the
+  [low-level stream-management rules](../../runner/stream_management.md)
 
 See [nested_calls.svg](nested_calls.svg) and
 [run_sequence.svg](run_sequence.svg).

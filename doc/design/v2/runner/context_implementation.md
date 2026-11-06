@@ -18,9 +18,9 @@ One worker thread is the sole owner of the worker-facing context, its call objec
 concurrent worker operations on one context are outside the contract.
 
 These are exactly two cross-thread queues. They are not one outbound and one inbound queue per call. The inbound
-queue is a multiplexed queue containing envelopes for stream `0`, accepted calls, and calls that have not yet been
-accepted. Per-call pending lists and the call registry described below are worker-owned dispatch state, not additional
-producer/consumer queues.
+queue is multiplexed: it carries control messages, accepted-call messages, and messages for calls that have not yet
+been accepted. Per-call pending lists and the call registry described below are worker-owned dispatch state, not
+additional producer/consumer queues.
 
 ## Queue ownership and direction
 
@@ -48,13 +48,14 @@ The inbound queue carries verified messages and their storage leases from the ba
 - producer: background I/O thread;
 - consumer: worker thread;
 - background enqueue: non-blocking;
-- worker dequeue: blocking with an optional timeout;
+- `dequeue_inbound_messages()`: non-blocking batch drain;
+- worker receive: waits through `BackgroundThreadInterface::wait_until()` with an optional deadline;
 - order: FIFO within each stream and according to the context dispatcher’s ordering contract;
 - capacity: logically unbounded; the background thread never blocks waiting for worker consumption;
 - ownership: successful enqueue transfers the verified storage lease to the queue.
 
-The worker may dequeue one message or all currently available messages. Batch dequeue must preserve FIFO order and
-must not hold queue synchronization while the worker processes the views.
+The context drains all currently available messages in a batch. The batch must preserve FIFO order and queue
+synchronization must not be held while the context routes the views.
 
 ### Low-level context boundary
 
@@ -78,6 +79,60 @@ all currently available inbound views to the context, which then routes them to 
 `request_shutdown()` signals the background work to stop; joining and resource cleanup remain part of the context
 lifecycle.
 
+### Dispatcher interaction with the background thread
+
+The dispatcher uses `wait_until()` only when the requested stream has no pending message and a non-blocking drain
+finds no inbound work. `InboundAvailable` signals that the context should drain; it does not identify a stream or
+return a message. The context calls `dequeue_inbound_messages()` to take the entire currently available batch, then
+routes every item in batch order using the view's `stream_id()`. Messages for other streams stay in their respective
+pending lists.
+
+The receive loop is conceptually:
+
+```text
+receive_from(requested_stream, deadline):
+    loop:
+        if context is terminal:
+            return the terminal result
+        if requested_stream has a pending message:
+            return that message
+
+        for message in background_thread.dequeue_inbound_messages():
+            validate and route message, or process a connection-level event
+            if routing made the context terminal:
+                release the rest of the batch and return the terminal result
+
+        if context is terminal:
+            return the terminal result
+        if requested_stream has a pending message:
+            return that message
+
+        result = background_thread.wait_until(deadline)
+        if result.event == InboundAvailable:
+            continue              // drain and route the batch
+        if result.event == DeadlineExpired:
+            return TimedOut
+        if result.event == ShutdownRequested:
+            record result.error, publish terminal state, and wake waiters
+            return the terminal result
+```
+
+`ShutdownRequested` takes precedence if shutdown and inbound work are observed together. Once the context becomes
+terminal, ordinary queued messages are not delivered; remaining views are released during shutdown cleanup. A
+deadline applies to the current worker operation and does not consume a message that arrives later. The inbound
+generation notification ensures a message arriving between the drain and `wait_until()` is still observed. Global
+readiness operations use the same drain-and-route step, but leave all routed messages in their per-stream pending
+lists.
+
+Outbound operations use the matching enqueue methods. `open_call()`, `Call::send()`, and control-stream sends validate
+their builder and context state, then call `enqueue_outbound_message()`; a validated group may use
+`enqueue_outbound_messages()`. A `true` result transfers builder ownership to the background thread, which later
+encodes and writes it. A `false` result leaves ownership with the context so the operation can return an error without
+losing the builder or its Arrow objects. The enqueue result reports queue acceptance, not socket-write completion.
+Context shutdown calls `request_shutdown()` to wake the background work. This requests stop but does not join the
+thread; the context lifecycle remains responsible for waiting for completion before releasing the interface and
+queue-owned state.
+
 Each inbound view must be backed by a verified decoded frame and exposes its stream ID through `stream_id()`. The
 concrete view asserts that its decoded frame is present when constructed, and the low-level context asserts that the
 inbound view itself is present before routing. It uses the ID to route a call view to the matching pending-call
@@ -86,37 +141,28 @@ message state.
 
 ### Multiplexing and logical stream dispatch
 
-Every inbound queue item is an `InboundEnvelope` with at least:
+Every inbound queue item is a specialized view:
 
 ```text
-InboundEnvelope {
-    StreamClass stream_class       // control or call
-    StreamId stream_id             // 0 for control
-    VerifiedMessage message        // specialized call or control message
-}
+InboundMessage = variant<unique_ptr<CallMessageView>,
+                         unique_ptr<ControlMessageView>>
 ```
 
-The background thread is the only producer and appends envelopes in the order in which complete protocol messages
-are accepted from the socket. It does not call worker code and does not block waiting for a particular call.
+The view exposes `stream_id()` from its verified frame, so the queue item does not duplicate the ID in separate
+envelope metadata. The background thread is the only producer and appends messages in the order in which complete
+protocol messages are accepted from the socket. It does not call worker code and does not block waiting for a
+particular call.
 
-The worker-side dispatcher is the only consumer of the physical inbound queue. It drains a batch and routes each
-envelope as follows:
+The worker-side dispatcher is the only consumer of the physical inbound queue. Its validation, routing, discard, and
+failure behavior is defined in [stream management](stream_management.md#inbound-dispatch).
 
-- stream `0` goes to the context's control-stream pending list;
-- an envelope for a nonzero `stream_id` goes to that stream's pending list;
-- an envelope containing `open_call` creates an inbound-call entry in the context's unaccepted-call list;
-- a message for a call that has not yet been accepted is retained with that stream entry, not returned by another call;
-- a message for an already-closed stream is discarded as delayed traffic;
-- a message for a never-created stream is a protocol error.
+The worker-owned call registry tracks active streams and the high-water state described in
+[stream management](stream_management.md#close-and-id-lifetime). Closing a call releases its active state and pending
+sequence; the context does not need a set of every closed stream ID.
 
-The worker-owned call registry keeps a closed-stream set keyed by `stream_id`. Closing a call records its stream ID
-before releasing its pending sequence, so delayed messages can be discarded without confusing them with a new call;
-stream IDs are never reused on a connection.
-
-The dispatcher validates stream state before routing: `open_call` is legal only in the first call message, stream `0`
-messages are decoded as control messages, and `close_connection` is handled as a context shutdown event rather than
-being placed in the control-stream pending list. `close_call` remains part of the call's pending `CallMessageView`
-so the worker can observe the call's final message before that call is marked closed.
+`close_connection` is handled as a context shutdown event rather than being placed in the control-stream pending list.
+`close_call` remains part of the call's pending `CallMessageView` so the worker can observe the call's final message
+before that call is marked closed.
 
 `accept_call()` removes the next entry from the unaccepted-call list and returns a `Call` bound to its `stream_id`. Its
 already received opening message remains at the head of that call's pending list. `Call::receive()` and
@@ -288,8 +334,8 @@ observed by the changed generation, and a spurious wakeup is harmless.
 
 1. Read and frame all currently available socket messages.
 2. Verify each frame before creating a specialized view.
-3. Build one `InboundEnvelope` per complete message.
-4. Enqueue the envelopes as one batch without blocking.
+3. Build one `InboundMessage` view per complete message.
+4. Enqueue the messages as one batch without blocking.
 5. Increment `inbound_generation` once for the batch.
 6. Notify the worker.
 
@@ -299,7 +345,7 @@ ownership to the queue and continues processing socket readiness.
 ### Worker receive path
 
 1. Check the stream's worker-owned pending list.
-2. Drain all currently available physical inbound envelopes and route them to pending lists.
+2. Drain all currently available physical inbound messages and route them to pending lists.
 3. Check the requested stream's pending list again.
 4. If a message exists, return its specialized view.
 5. If the context is terminal, return the terminal context result.
@@ -408,7 +454,8 @@ while receive_buffer contains a complete frame:
     if the control message contains next_send_budget_in_bytes:
         update authoritative credit and worker send grant before outbound processing
     create verified storage lease
-    append InboundEnvelope to current inbound batch
+    create the specialized view; its stream_id() comes from the verified Frame
+    append InboundMessage to current inbound batch
 ```
 
 If the buffer contains an incomplete frame, the loop retains it without publishing a partial message. A frame-size
@@ -416,7 +463,7 @@ limit, malformed framing, failed FlatBuffer verification, invalid stream transit
 import publishes a protocol error and stops normal I/O. EOF with no protocol close is handled as an unexpected peer
 close/transport error according to the protocol policy.
 
-The inbound batch is published only after all its envelopes are fully verified. The logically unbounded inbound queue
+The inbound batch is published only after all its messages are fully verified. The logically unbounded inbound queue
 accepts the batch without blocking and takes ownership of its storage leases.
 
 `Reset` remains visible through `CallMessageView::reset()` as an optional reference to the wire-level
@@ -491,17 +538,19 @@ outbound queue, and pending partial writes before waiting again. EOF is a peer c
 sequence; a malformed frame is a protocol failure.
 
 The background thread never invokes a worker-facing builder, view, `Call`, or worker callback. It may construct
-internal FlatBuffer frames from logical outbound envelopes after they leave the queue. Views are created only from
-verified bytes and are consumed by the worker after the inbound envelope has crossed the queue boundary.
+internal FlatBuffer frames from logical outbound messages after they leave the queue. Views are created only from
+verified bytes and are consumed by the worker after the inbound message has crossed the queue boundary.
 
 ## Builder, wire-message, and view handoff
 
-The worker-facing specialized builders are not themselves queue items. The handoff is:
+The outbound queue item owns one specialized builder through the
+`OutboundMessage` variant. Each builder's internal message state is already
+bound to its stream ID. The handoff is:
 
 ```text
-CallMessageBuilder / ControlMessageBuilder
+CallMessageBuilderBase | ControlMessageBuilder
     -> validate state and field combinations
-    -> logical OutboundEnvelope
+    -> OutboundMessage (variant owns the builder)
     -> physical outbound queue
     -> background credit accounting and data-batch splitting
     -> finish FlatBuffer StreamMessage frame(s)
@@ -522,7 +571,7 @@ socket bytes
     -> FlatBuffer verification
     -> generated wire view
     -> CallMessageView / ControlMessageView
-    -> InboundEnvelope
+    -> InboundMessage (view exposes its stream ID)
     -> worker dispatcher and logical pending list
 ```
 
