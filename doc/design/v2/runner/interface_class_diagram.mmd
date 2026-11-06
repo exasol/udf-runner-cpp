@@ -100,13 +100,25 @@ namespace exasol_udf_v2_interface {
 
 Context --> Call : accepts or opens
 Context --> ControlStream : returns stream zero
-Context ..> OpeningCallMessageBuilder : creates
+Context ..> OpeningCallMessageBuilder : creates and accepts
 Call --> CallMessageBuilder : creates and sends
 ControlStream --> ControlMessageBuilder : creates and sends
 CallMessageBuilder --|> CallMessageBuilderBase
 OpeningCallMessageBuilder --|> CallMessageBuilderBase
 Call --> CallMessageView : receives
 ControlStream --> ControlMessageView : receives
+CallMessageView ..> OpenCallView : exposes
+CallMessageView ..> PayloadsView : exposes
+CallMessageView ..> DataSchemaView : exposes
+CallMessageView ..> ResetView : exposes
+CallMessageView ..> RecordBatchView : exposes
+CallMessageView ..> ErrorView : exposes
+CallMessageView ..> CloseCallView : exposes
+ControlMessageView ..> ServerCapabilitiesView : exposes
+ControlMessageView ..> KeepAliveView : exposes
+ControlMessageView ..> PayloadsView : exposes
+ControlMessageView ..> ErrorView : exposes
+ControlMessageView ..> CloseConnectionView : exposes
 PayloadsView ..> PayloadView : exposes items
 PayloadView ..> PayloadValueView : exposes value
 ServerCapabilitiesView ..> VersionView : exposes version
