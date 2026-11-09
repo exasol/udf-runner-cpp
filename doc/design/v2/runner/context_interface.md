@@ -140,6 +140,23 @@ for a `CallMessageBuilder` passed to `Call::send()` after the call object has be
 If a control message or another call's message arrives while `Call::receive()` is blocked, the context dispatches it
 to its own stream and the call receive continues waiting. It does not return unrelated traffic.
 
+### CloseCall delivery and receive ordering
+
+A `CallMessageView` containing `close_call` is the call's terminal message. The context queues it after all earlier
+messages for that call and exposes that view exactly once. The `Call` enters `ClosePending` when the dispatcher
+processes the close-bearing view; it enters `Closed` when `Call::receive()` returns that view. A view that combines
+`close_call` with final payload, data, or error fields is returned intact.
+
+Once the dispatcher has processed `close_call`, it discards later messages for that stream, including later messages
+in the same drained batch. It does not discard messages queued before the close-bearing view; those are returned first
+in FIFO order. `accept_call()` still returns an inbound call whose opening view already contains `close_call`; the
+opening-and-close view is then returned exactly once by the accepted call's first `receive()`.
+
+While messages remain queued, including the terminal view, `Call::receive_status()` reports `MessageAvailable`. After
+the close-bearing view has been returned, it reports `PeerClosed`, and a subsequent `Call::receive()` returns `Result`
+with status `PeerClosed` and no value. It does not return the terminal view again. Once the dispatcher has observed
+`close_call`, `Call::send()` also returns `PeerClosed` without accepting a new message.
+
 `Call::send()` waits for the context to grant permission for the next data batch when required by flow control. An
 absent timeout waits indefinitely, a zero timeout does not block, and an expired timeout returns `TimedOut` without
 consuming the builder or its Arrow ownership. Passing the `unique_ptr` by rvalue reference does not itself transfer
@@ -205,8 +222,9 @@ The design permits, subject to protocol-state validation:
 
 If multiple fields arrive in one protocol message, `Call::receive()` returns them together in one `CallMessageView`.
 
-An error without `close_call` is a non-terminal diagnostic. A message containing `close_call` terminates the call
-after the message is processed.
+An error without `close_call` is a non-terminal diagnostic. A message containing `close_call` is the terminal call
+message, with delivery and receive ordering defined in
+[CloseCall delivery and receive ordering](#closecall-delivery-and-receive-ordering).
 
 ## Control stream interface
 

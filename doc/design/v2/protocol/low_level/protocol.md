@@ -142,9 +142,9 @@ See [connection_lifecycle.svg](connection_lifecycle.svg).
 required, and the receiver must not send a reply or any other message on that stream. A `CloseCall` with `Error` is
 an abnormal call termination. Without `Error`, it is normal termination. After sending or receiving `CloseCall`, the
 local endpoint sends no further call-scoped traffic on that stream. Messages already in transit may still arrive after
-either event. The low-level context discards delayed messages for inactive peer-owned stream IDs as described in the
-[stream-management rules](../../runner/stream_management.md); an inbound message for an inactive locally owned ID is
-a protocol error.
+either event. The wire protocol does not define how a runner handles messages for streams that have become inactive;
+that policy is specified by the runner's
+[stream-management rules](../../runner/stream_management.md#inbound-dispatch).
 
 `CloseConnection` closes the entire connection and is valid only on stream `0`. Either peer may initiate shutdown
 by sending it. The receiver sends `CloseConnection` in reply, optionally with its own `Error`, then closes the

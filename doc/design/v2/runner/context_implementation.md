@@ -19,8 +19,8 @@ concurrent worker operations on one context are outside the contract.
 
 These are exactly two cross-thread queues. They are not one outbound and one inbound queue per call. The inbound
 queue is multiplexed: it carries control messages, accepted-call messages, and messages for calls that have not yet
-been accepted. Per-call pending lists and the call registry described below are worker-owned dispatch state, not
-additional producer/consumer queues.
+been accepted. Per-call pending lists and the call registry described below are context-owned dispatch state accessed
+only by the worker thread, not additional producer/consumer queues.
 
 ## Queue ownership and direction
 
@@ -181,13 +181,14 @@ particular call.
 The worker-side dispatcher is the only consumer of the physical inbound queue. Its validation, routing, discard, and
 failure behavior is defined in [stream management](stream_management.md#inbound-dispatch).
 
-The worker-owned call registry tracks active streams and the high-water state described in
-[stream management](stream_management.md#close-and-id-lifetime). Closing a call releases its active state and pending
-sequence; the context does not need a set of every closed stream ID.
+The context-owned call registry tracks active streams and the high-water state described in
+[stream management](stream_management.md#close-and-id-lifetime). The close-pending transition and the point at which
+the registry releases a call are defined in the [call-close rules](stream_management.md#call-close-ordering); no set
+of every closed stream ID is needed.
 
 `close_connection` is handled as a context shutdown event rather than being placed in the control-stream pending list.
-`close_call` remains part of the call's pending `CallMessageView` so the worker can observe the call's final message
-before that call is marked closed.
+`close_call` remains in the call's pending `CallMessageView`; its dispatch and delivery ordering is defined in the
+[stream-management call-close rules](stream_management.md#call-close-ordering).
 
 `accept_call()` removes the next entry from the unaccepted-call list and returns a `Call` bound to its `stream_id`. Its
 already received opening message remains at the head of that call's pending list. `Call::receive()` and
@@ -197,7 +198,7 @@ implementation constraint.
 
 The dispatcher preserves FIFO order for every stream. Messages for different streams may be interleaved in the
 physical queue and must not make an unrelated `receive()` return. A global readiness query is true when either the
-shared inbound queue or any worker-owned pending list contains an unread message.
+shared inbound queue or any context-owned per-stream pending list contains an unread message.
 
 ## Queue operations
 
@@ -369,7 +370,7 @@ ownership to the queue and continues processing socket readiness.
 
 ### Worker receive path
 
-1. Check the stream's worker-owned pending list.
+1. Check the stream's context-owned pending list.
 2. Drain all currently available physical inbound messages and route them to pending lists.
 3. Check the requested stream's pending list again.
 4. If a message exists, return its specialized view.
@@ -378,7 +379,7 @@ ownership to the queue and continues processing socket readiness.
 7. Snapshot `inbound_generation` and wait until it changes or the deadline expires.
 8. Repeat all checks after waking.
 
-The queue, worker-owned pending lists, and terminal state must be checked both before and after waiting. A
+The queue, context-owned pending lists, and terminal state must be checked both before and after waiting. A
 notification is only a hint; the queues and terminal state are authoritative. The same algorithm implements
 `receive_status()` without waiting and `wait_for_message(timeout)` with a deadline. A timeout applies to waiting for
 the requested condition only; it does not remove or discard messages.
@@ -680,7 +681,7 @@ When the worker sends `ControlMessageBuilder.close_connection()` through the con
 
 1. atomically transition to `ClosingByWorker`; only one closer performs the sequence;
 2. reject further worker sends and receives;
-3. drain and release all messages currently present in the physical inbound queue and all worker-owned pending lists;
+3. drain and release all messages currently present in the physical inbound queue and all context-owned pending lists;
 4. enqueue `CloseConnection` as the final outbound message, including any required close/error fields;
 5. allow previously queued outbound messages to send in FIFO order;
 6. send `CloseConnection` completely, including any partial-write continuation;

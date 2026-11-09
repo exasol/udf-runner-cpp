@@ -107,20 +107,22 @@ The view-to-stream mismatches in this table are protocol errors, including a
    created the stream. An active stream may carry traffic in either direction.
    An inactive ID with local-endpoint parity is invalid inbound ownership and
    must fail with a protocol error before consulting either high-water mark.
-2. **Validate message kind.** Apply the message-type and stream-ID matrix above,
-   including the `CloseConnection` and `OpenCall` restrictions. For example, a
-   `Server` receiving a call message from the `Client` on inactive stream `2`
-   fails with a protocol error at step 1, even if its local high-water mark is
-   already `2` or higher.
-3. **Check active state and peer high-water mark.** A valid message for an
-   active call continues that call; `open_call` is not valid after the stream's
-   first message. For an inactive peer-owned stream, an ID at or below the
-   peer high-water mark is delayed traffic and is discarded, except that
-   `open_call` there is an attempt to reuse an ID and is a protocol error. An
-   ID above the peer high-water mark can create a stream only with a valid
-   first `open_call`; other unknown-stream traffic is a protocol error. These
-   high-water rules apply only after step 1 has established that the inactive
-   ID has peer-owned parity.
+2. **Validate message kind.** Apply the view-type, stream-ID, and
+   control-only-field rules in the matrix above. Check the state-dependent
+   `OpenCall` restriction in step 3. For example, a `Server` receiving a call
+   view from the `Client` on inactive stream `2` fails with a protocol error at
+   step 1, even if its local high-water mark is already `2` or higher.
+3. **Check active state and peer high-water mark.** If an active call is
+   already `ClosePending`, discard subsequent call views. Otherwise, an active
+   call accepts the view except that `open_call` after the stream's first
+   message is a protocol error. Enqueue a valid view containing `close_call`
+   and mark the call `ClosePending`. For an inactive peer-owned stream, an ID
+   at or below the peer high-water mark is delayed traffic and is discarded,
+   except that `open_call` there is an attempt to reuse an ID and is a protocol
+   error. An ID above the peer high-water mark can create a stream only with a
+   valid first `open_call`; other unknown-stream traffic is a protocol error.
+   These high-water rules apply only after step 1 has established that the
+   inactive ID has peer-owned parity.
 4. **Route, discard, or fail.** Stream `0` messages go to the control-stream
    pending list. Active call messages go to that call's pending list. A valid
    peer opening creates an inbound-call entry in the unaccepted-call list.
@@ -129,8 +131,23 @@ The view-to-stream mismatches in this table are protocol errors, including a
 A message for a call that has not yet been accepted remains with that stream
 entry and is not returned by another call. `close_connection` is handled as a
 context shutdown event rather than being placed in the control-stream pending
-list. `close_call` remains in the call's pending `CallMessageView` so the worker
-can observe the final call message before that call is marked closed.
+list.
+
+### Call close ordering
+
+When a `CallMessageView` contains `close_call`, the dispatcher appends the
+complete view to that call's pending sequence and marks its state
+`ClosePending`. It discards subsequent call views for that stream, including
+later views in the same drained batch, while preserving messages already
+queued before the close-bearing view. This also applies when the opening view
+contains both `open_call` and `close_call`: the stream remains in the
+unaccepted-call order, and `accept_call()` still returns its `Call` handle.
+
+The call state remains registered until `Call::receive()` returns the queued
+close-bearing view. That return delivers the terminal message once and closes
+the `Call`; the registry then releases the stream state and pending sequence.
+The worker-facing result after that point is defined in
+[context_interface.md](context_interface.md#closecall-delivery-and-receive-ordering).
 
 `accept_call()` removes the next entry from the unaccepted-call list and
 returns a `Call` bound to its `stream_id`. Its already received opening message
@@ -142,7 +159,7 @@ consumer semantics while retaining one shared inbound queue.
 The dispatcher preserves FIFO order within every stream. Messages for distinct
 streams may be interleaved in the physical queue and must not make an unrelated
 `receive()` return. A global readiness query is true when either the shared
-inbound queue or any worker-owned pending list contains an unread message.
+inbound queue or any context-owned pending list contains an unread message.
 
 ## Outbound routing
 
@@ -160,10 +177,11 @@ worker-facing abstraction exposes numeric IDs to worker code.
 The context keeps an active-call registry and one high-water mark for each
 endpoint role. The local high-water mark advances when a stream ID is reserved;
 the peer high-water mark advances when a valid opening is admitted to the
-context's unaccepted-call list. When a call closes, the context releases its
-active state and pending messages but keeps both high-water marks. An inbound
-message on an inactive local-owned ID is a protocol error, including when the
-ID is below the local high-water mark. Delayed traffic on a non-active
+context's unaccepted-call list. On `CloseCall`, the context retains the call
+state as `ClosePending` until the terminal view is returned, then releases its
+active state and pending messages without changing either high-water mark. An
+inbound message on an inactive local-owned ID is a protocol error, including
+when the ID is below the local high-water mark. Delayed traffic on a non-active
 peer-owned ID at or below the peer high-water mark is discarded. No
 per-closed-stream ID set is needed, and monotonic allocation prevents a closed
 ID from being reused.
@@ -231,6 +249,7 @@ class StreamRegistry {
 class CallState {
     -StreamId stream_id_
     -Queue pending_messages_
+    -bool close_pending_
     -optional terminal_result_
 }
 class CallImpl {
@@ -324,7 +343,7 @@ StreamRegistry::dispatch(view):
     if id != 0 and not active and has_local_endpoint_parity(id):
         return ProtocolError
 
-    if not matches_message_type_stream_id_matrix(view, id):
+    if not matches_view_type_and_stream_id_rules(view, id):
         return ProtocolError
 
     if id == 0:
@@ -335,9 +354,14 @@ StreamRegistry::dispatch(view):
         return Routed
 
     if active:
+        if active_calls[id].close_pending:
+            discard(view)  // after CloseCall, including the rest of this batch
+            return Discarded
         if view.contains_open_call():
             return ProtocolError
         active_calls[id].pending.push(view)
+        if view.contains_close_call():
+            active_calls[id].close_pending = true
         return Routed
 
     if id <= peer_high_water_mark:
@@ -350,7 +374,7 @@ StreamRegistry::dispatch(view):
         return ProtocolError
 
     peer_high_water_mark = id
-    active_calls[id] = CallState(pending = [view])
+    active_calls[id] = CallState(pending = [view], close_pending = view.contains_close_call())
     unaccepted_call_ids.push(id)
     return Routed
 ```
