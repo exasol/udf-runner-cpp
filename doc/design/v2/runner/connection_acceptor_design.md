@@ -2,7 +2,7 @@
 
 `ConnectionAcceptor` supplies accepted connections to `Runner` without tying
 the runner to Unix sockets. The first implementation accepts Unix-domain stream
-sockets; TCP and TLS are reserved connection types for future implementations.
+sockets; TCP is reserved connection type for future implementations.
 
 ```text
 client -> ConnectionAcceptor -> Runner -> worker -> ContextManager
@@ -11,7 +11,7 @@ client -> ConnectionAcceptor -> Runner -> worker -> ContextManager
 ## Interfaces and ownership
 
 ```cpp
-enum class ConnectionType { UnixDomainSocket, Tcp, Tls };
+enum class ConnectionType { UnixDomainSocket, Tcp };
 
 class Connection {
 public:

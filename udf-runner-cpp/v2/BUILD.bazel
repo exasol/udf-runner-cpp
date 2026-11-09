@@ -470,6 +470,7 @@ cc_library(
     hdrs = [
         "include/exasol/udf/v2/socket/owned_file_descriptor.hpp",
         "include/exasol/udf/v2/socket/socket.hpp",
+        "include/exasol/udf/v2/socket/socket_listener.hpp",
         "include/exasol/udf/v2/socket/unix_socket.hpp",
         "include/exasol/udf/v2/socket/unix_socket_listener.hpp",
         "socket/unix_socket_detail.hpp",
@@ -477,6 +478,40 @@ cc_library(
     includes = ["include"],
     copts = ["-std=c++23"],
     deps = [":posix"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "connection_acceptor",
+    srcs = [
+        "internal/caller_thread_socket_connection_acceptor.cc",
+        "internal/connection.cc",
+    ],
+    hdrs = [
+        "include/exasol/udf/v2/internal/caller_thread_socket_connection_acceptor.hpp",
+        "include/exasol/udf/v2/internal/connection.hpp",
+        "include/exasol/udf/v2/internal/connection_acceptor.hpp",
+    ],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":event_fd",
+        ":interface",
+        ":linux_epoll",
+        ":socket",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_test(
+    name = "connection_acceptor_test",
+    srcs = ["internal/connection_acceptor_test.cc"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":connection_acceptor",
+        ":posix",
+        "@googletest//:gtest_main",
+    ],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
