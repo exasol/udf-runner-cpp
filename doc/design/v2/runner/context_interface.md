@@ -377,7 +377,8 @@ ControlMessageView {
 ```
 
 The control view cannot expose call-specific fields. Its `stream_id()` identifies the frame's connection-level
-stream, normally stream `0`. Its wrappers are:
+stream and is always `0`; a control message on any other stream ID is a protocol error. As with call views, a concrete
+control view always retains a verified decoded frame, so its stream ID is always present. Its wrappers are:
 
 ```text
 VersionView { major() -> uint32; minor() -> uint32 }
