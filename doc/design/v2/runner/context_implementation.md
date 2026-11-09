@@ -66,16 +66,17 @@ socket I/O or frame processing:
 
 ```text
 wait_until(optional<steady_clock::time_point>) -> BackgroundThreadResult
-enqueue_outbound_message(OutboundMessage&&) -> bool
-enqueue_outbound_messages(OutboundBatch&&) -> bool
+enqueue_outbound_message(OutboundMessage&) -> bool
+enqueue_outbound_messages(OutboundBatch&) -> bool
 dequeue_inbound_messages() -> InboundBatch
 request_shutdown() -> void
 ```
 
 `wait_until()` reports `InboundAvailable`, `ShutdownRequested`, or `DeadlineExpired`, plus an optional terminal
-`ErrorInfo`. An absent deadline waits indefinitely. Enqueue operations do not block; a failed enqueue leaves the
-message ownership with the context. A successful enqueue transfers it to the background thread. Dequeue transfers
-all currently available inbound views to the context, which then routes them to the appropriate logical stream.
+`ErrorInfo`. An absent deadline waits indefinitely. Enqueue operations do not block. On `true`, the background thread
+moves the message or batch from the context's lvalue into its queue. On `false`, it leaves the argument unchanged, so
+the context retains ownership and can recover or report the rejected message. Dequeue transfers all currently
+available inbound views to the context, which then routes them to the appropriate logical stream.
 `request_shutdown()` signals the background work to stop; joining and resource cleanup remain part of the context
 lifecycle.
 

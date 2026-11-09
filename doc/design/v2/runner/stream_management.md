@@ -441,9 +441,9 @@ ContextImpl::send_call_message(stream_id, caller_builder&&):
     closes_call = caller_builder.contains_close_call()
     validate caller_builder is bound to stream_id
     message = wrap_as_outbound_message(move(caller_builder))
-    if not background_thread.enqueue_outbound_message(move(message)):
-        // A rejected enqueue leaves message owned by the context.
-        caller_builder = extract_call_builder(message)
+    if not background_thread.enqueue_outbound_message(message):
+        // false leaves message unchanged; recover the builder for the caller.
+        caller_builder = extract_call_builder(move(message))
         return enqueue_failure
 
     if closes_call:
