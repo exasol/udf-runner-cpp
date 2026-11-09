@@ -2,23 +2,25 @@
 # ---- DO NOT EDIT MANUALLY, BUT USE PYTHON MODULE "exasol.slc_ci_setup" ----
 # ---- from https://github.com/exasol/script-languages-container-ci-setup TO UPDATE ----
 
+
 name: SLC-CI-Flavor
 
 on:
   workflow_call:
     inputs:
       flavor:
-        description: 'A flavor'
-        required: true
-        type: string
+          description: 'A flavor'
+          required: true
+          type: string
     secrets:
       CI4_DOCKERHUB_USERNAME:
-        required: true
+          required: true
       CI4_DOCKERHUB_TOKEN:
-        required: true
+          required: true
 
 permissions:
   contents: read
+
 
 jobs:
   check_for_build:
@@ -32,9 +34,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Print message
-        run: echo skipping build and test for flavor ${INPUTS_FLAVOR}
+        run: echo "skipping build and test for flavor $FLAVOR"
         env:
-          INPUTS_FLAVOR: ${{ inputs.flavor }}
+          FLAVOR: ${{ inputs.flavor }}
 
   build:
     needs: check_for_build
