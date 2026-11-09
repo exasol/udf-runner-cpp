@@ -169,6 +169,234 @@ ID from being reused.
 Connection close transitions every live stream to its terminal result and wakes
 its waiters.
 
+## Implementation sketches
+
+The following pseudocode illustrates how the context can implement the rules
+above. The container types and error-reporting API are illustrative; the
+requirements in the preceding sections remain authoritative.
+
+### Proposed class design
+
+This sketch separates the worker-facing context, its logical stream state, and
+the background-thread boundary. The class names and method placement are
+proposals; the ownership and behavior specified above are normative.
+
+```mermaid
+classDiagram
+direction LR
+
+class Context {
+    <<abstract>>
+}
+class Call {
+    <<abstract>>
+}
+class ControlStream {
+    <<abstract>>
+}
+class ContextImpl {
+    -unique_ptr~BackgroundThreadInterface~ background_thread_
+    -StreamRegistry stream_registry_
+    -ControlStreamImpl control_stream_
+    +accept_call()
+    +open_call(opening_message)
+    +dispatch_inbound_batch()
+    +request_shutdown()
+}
+class StreamRegistry {
+    -EndpointRole endpoint_role_
+    -StreamId next_local_stream_id_
+    -bool local_id_space_exhausted_
+    -StreamId local_high_water_mark_
+    -StreamId peer_high_water_mark_
+    -Map active_calls_
+    -Queue unaccepted_call_ids_
+    -Queue control_pending_
+    +reserve_local_stream_id()
+    +dispatch(view) DispatchResult
+    +accept_next_call()
+    +close_call(stream_id)
+}
+class CallState {
+    -StreamId stream_id_
+    -Queue pending_messages_
+    -optional terminal_result_
+}
+class CallImpl {
+    -ContextImpl& context_
+    -StreamId stream_id_
+    +send(builder)
+    +receive()
+}
+class ControlStreamImpl {
+    -ContextImpl& context_
+    +send(builder)
+    +receive()
+}
+class BackgroundThreadInterface {
+    <<abstract>>
+    +wait_until(deadline)
+    +enqueue_outbound_message(message)
+    +enqueue_outbound_messages(batch)
+    +dequeue_inbound_messages()
+    +request_shutdown()
+}
+class BackgroundThreadImpl {
+    -OutboundQueue outbound_queue_
+    -InboundQueue inbound_queue_
+    -IoThread io_thread_
+    -ConnectionTransport transport_
+}
+class OutboundMessage
+class InboundMessage
+class DispatchResult {
+    <<enumeration>>
+    Routed
+    Discarded
+    ProtocolError
+    ConnectionShutdown
+}
+
+ContextImpl ..|> Context
+CallImpl ..|> Call
+ControlStreamImpl ..|> ControlStream
+ContextImpl *-- StreamRegistry : owns
+ContextImpl *-- ControlStreamImpl : exposes stream 0
+ContextImpl --> BackgroundThreadInterface : uses
+ContextImpl ..> CallImpl : creates handles
+CallImpl --> ContextImpl : delegates using stream ID
+ControlStreamImpl --> ContextImpl : delegates using ID 0
+StreamRegistry *-- "0..*" CallState : tracks active and unaccepted calls
+BackgroundThreadImpl ..|> BackgroundThreadInterface
+BackgroundThreadInterface ..> OutboundMessage : accepts
+BackgroundThreadInterface ..> InboundMessage : returns
+StreamRegistry ..> DispatchResult : reports
+```
+
+`StreamRegistry` owns logical stream IDs, high-water marks, per-call pending
+messages, the unaccepted-call order, and control-stream pending messages. A
+`CallImpl` is a lightweight worker-facing handle: it delegates through
+`ContextImpl` using its ID, while `StreamRegistry` owns its `CallState` before
+and after `accept_call()`. `BackgroundThreadImpl` is the production adapter;
+tests can provide another implementation of `BackgroundThreadInterface`.
+
+Reserve a local ID before creating the opening builder. Once reserved, the ID
+and local high-water mark stay consumed even if builder creation or enqueueing
+fails:
+
+```text
+StreamRegistry::reserve_local_stream_id():
+    if local_id_space_exhausted:
+        return local_failure
+
+    id = next_local_stream_id
+    local_high_water_mark = id
+    if id > UINT64_MAX - 2:
+        local_id_space_exhausted = true
+    else:
+        next_local_stream_id = id + 2
+    return id
+```
+
+The dispatcher first validates ownership parity for an inactive nonzero ID,
+then validates the message/view combination, and only then checks stream state
+and the peer high-water mark. Its decision flow can be sketched as:
+
+```text
+StreamRegistry::dispatch(view):
+    id = view.stream_id()
+    active = active_calls.contains(id)
+
+    if id != 0 and not active and has_local_endpoint_parity(id):
+        return ProtocolError
+
+    if not matches_message_type_stream_id_matrix(view, id):
+        return ProtocolError
+
+    if id == 0:
+        if view.contains_close_connection():
+            return ConnectionShutdown
+        else:
+            control_pending.push(view)
+        return Routed
+
+    if active:
+        if view.contains_open_call():
+            return ProtocolError
+        active_calls[id].pending.push(view)
+        return Routed
+
+    if id <= peer_high_water_mark:
+        if view.contains_open_call():
+            return ProtocolError  // stream ID reuse
+        discard(view)              // delayed peer-owned traffic
+        return Discarded
+
+    if not view.contains_open_call():
+        return ProtocolError
+
+    peer_high_water_mark = id
+    active_calls[id] = CallState(pending = [view])
+    unaccepted_call_ids.push(id)
+    return Routed
+```
+
+### Background-thread handoff
+
+The `BackgroundThreadInterface` methods, ownership results, and wait events
+are defined in
+[context_implementation.md](context_implementation.md#low-level-context-boundary).
+These sketches show where the stream registry participates in that handoff.
+
+The context drains complete inbound batches and applies the dispatcher above;
+the background thread does not inspect the registry or route to worker calls:
+
+```text
+ContextImpl::dispatch_inbound_batch():
+    for view in background_thread.dequeue_inbound_messages():
+        outcome = stream_registry.dispatch(view)
+        if outcome == ProtocolError:
+            fail_connection_and_request_background_shutdown()
+            return
+        if outcome == ConnectionShutdown:
+            publish_terminal_result_and_request_background_shutdown()
+            return
+```
+
+For a blocking receive, the context checks the requested stream's pending list,
+drains and dispatches a batch, and calls `wait_until(deadline)` only if the
+list and inbound queue are empty. `InboundAvailable` restarts the drain;
+`ShutdownRequested` publishes the terminal result; `DeadlineExpired` returns a
+timeout. The complete receive-loop and notification-race behavior is described
+in [context_implementation.md](context_implementation.md#dispatcher-interaction-with-the-background-thread).
+
+An outbound builder already carries the ID assigned by its context object. A
+successful enqueue accepts the logical message, not confirmation that the
+socket has received it:
+
+```text
+enqueue_call_message(call, caller_builder&&, background_thread):
+    validate caller_builder is bound to call.stream_id
+    message = wrap_as_outbound_message(move(caller_builder))
+    if not background_thread.enqueue_outbound_message(move(message)):
+        // A rejected enqueue leaves message owned by the context.
+        caller_builder = extract_call_builder(message)
+        return enqueue_failure
+    return accepted
+```
+
+The production background component consumes accepted messages, uses each
+builder's bound stream ID when encoding its wire frame, and writes frames using
+its connection-owned transport state. In the other direction, it decodes
+complete frames into verified views, appends those views to the inbound queue,
+and signals `InboundAvailable`. This component-level flow is illustrative;
+the low-level context remains responsible for stream validation and routing.
+
+When a call closes, remove its active state and pending sequence without
+changing either high-water mark. This preserves the distinction between an
+inactive local-owned ID, which is an error, and delayed traffic for an
+inactive peer-owned ID, which is handled by the dispatch flow above.
+
 ## Invariants
 
 This design retains exactly two cross-thread queues: one worker-to-background
