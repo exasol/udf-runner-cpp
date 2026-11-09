@@ -79,6 +79,31 @@ all currently available inbound views to the context, which then routes them to 
 `request_shutdown()` signals the background work to stop; joining and resource cleanup remain part of the context
 lifecycle.
 
+#### Endpoint-role configuration
+
+Make the endpoint role a required, strongly typed construction setting rather
+than a worker-facing option or a value inferred from the first message. The
+`Runner` constructs its `ContextManager` with `EndpointRole::Server`, because
+accepted UDFRunner connections always act as the protocol `Server`.
+`ContextManager` passes that value into each `ContextImpl`, which initializes
+its stream registry with the same immutable role:
+
+```text
+Runner
+  -> ContextManager(endpoint_role = Server)
+       -> create(connected_socket)
+            -> ContextImpl(endpoint_role)
+                 -> StreamRegistry(endpoint_role)
+```
+
+Use an internal `enum class EndpointRole { Client, Server }` with no implicit
+default, so every context-construction path states its role. The current
+production setup has one fixed `Server` setting and needs no runtime flag or
+protocol negotiation. Tests can construct contexts for either role to verify
+ID allocation and parity checks. If a future product creates both client and
+server connections, it can configure the corresponding `ContextManager`
+explicitly without changing the worker-facing `Context` API.
+
 ### Dispatcher interaction with the background thread
 
 The dispatcher uses `wait_until()` only when the requested stream has no pending message and a non-blocking drain

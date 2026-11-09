@@ -83,6 +83,9 @@ does not parse protocol messages outside the context boundary.
 construction, protocol dependencies, limits, cancellation, and cleanup. Context creation failure must close or reclaim
 the descriptor according to the documented ownership handoff.
 
+The endpoint role supplied during context construction is described in
+[context_implementation.md](context_implementation.md#endpoint-role-configuration).
+
 ### Context
 
 `Context` is the runner-side interface to protocol v2. It owns one connection and exposes the operations needed by the

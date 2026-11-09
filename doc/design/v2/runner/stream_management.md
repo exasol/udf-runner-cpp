@@ -30,7 +30,9 @@ The DB is the transport `Client` and UDFRunner is the transport `Server`:
 Each context is created with an immutable endpoint role (`Client` or `Server`)
 for the lifetime of its connection. The role determines the locally owned
 stream-ID parity and validation of peer-created streams; it must not change
-while the connection is active. This runner creates only `Server` contexts.
+while the connection is active. The construction path that supplies this role
+is described in
+[context_implementation.md](context_implementation.md#endpoint-role-configuration).
 
 Each endpoint reserves IDs from its own parity in strictly increasing order,
 starting at `1` for a `Client` and `2` for a `Server`, and advancing each
@@ -194,6 +196,15 @@ class Call {
 class ControlStream {
     <<abstract>>
 }
+class EndpointRole {
+    <<enumeration>>
+    Client
+    Server
+}
+class ContextManager {
+    -EndpointRole endpoint_role_
+    +create(connected_socket) Context
+}
 class ContextImpl {
     -unique_ptr~BackgroundThreadInterface~ background_thread_
     -StreamRegistry stream_registry_
@@ -260,7 +271,10 @@ class DispatchResult {
 ContextImpl ..|> Context
 CallImpl ..|> Call
 ControlStreamImpl ..|> ControlStream
+ContextManager --> EndpointRole : configured with
+ContextManager ..> ContextImpl : constructs with role
 ContextImpl *-- StreamRegistry : owns
+ContextImpl --> StreamRegistry : initializes with role
 ContextImpl *-- ControlStreamImpl : exposes stream 0
 ContextImpl --> BackgroundThreadInterface : uses
 ContextImpl ..> CallImpl : creates handles
