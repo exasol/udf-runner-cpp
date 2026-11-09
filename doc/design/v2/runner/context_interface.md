@@ -16,7 +16,9 @@ timeouts reside in the `exasol::udf::v2::interface` namespace. Generated wire-fo
 transport detail in the separate `exasol::udf::protocol` namespace.
 
 The context consumes and dispatches transport messages internally. A worker never receives a socket, file descriptor,
-frame, or numeric stream identifier.
+or wire frame. Message views expose `stream_id()` as read-only metadata: the context uses it to dispatch received
+messages, and a worker may inspect it to identify a message or for diagnostics. Worker-facing operations select
+streams through their `Context`, `Call`, or `ControlStream` object and do not accept a numeric stream ID.
 
 ## Result and status concepts
 
