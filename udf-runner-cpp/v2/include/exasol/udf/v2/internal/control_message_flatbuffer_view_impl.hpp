@@ -1,6 +1,6 @@
 #pragma once
 
-#include <exasol/udf/v2/interface/message_view/control_message_flatbuffer_views.hpp>
+#include <exasol/udf/v2/interface/message_view/control_message_views.hpp>
 #include <exasol/udf/v2/udf_protocol.hpp>
 
 #include <memory>
