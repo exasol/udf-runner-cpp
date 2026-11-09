@@ -112,11 +112,13 @@ The view-to-stream mismatches in this table are protocol errors, including a
    `OpenCall` restriction in step 3. For example, a `Server` receiving a call
    view from the `Client` on inactive stream `2` fails with a protocol error at
    step 1, even if its local high-water mark is already `2` or higher.
-3. **Check active state and peer high-water mark.** If an active call is
-   already `ClosePending`, discard subsequent call views. Otherwise, an active
-   call accepts the view except that `open_call` after the stream's first
-   message is a protocol error. Enqueue a valid view containing `close_call`
-   and mark the call `ClosePending`. For an inactive peer-owned stream, an ID
+3. **Check active state and peer high-water mark.** If an active call has
+   already received `close_call`, discard subsequent call views. Otherwise, an
+   active call accepts the view except that `open_call` after the stream's
+   first message is a protocol error. Enqueue a valid view containing
+   `close_call` and mark that the peer close was received. A local outbound
+   close does not stop the context from receiving already-in-flight peer
+   messages. For an inactive peer-owned stream, an ID
    at or below the peer high-water mark is delayed traffic and is discarded,
    except that `open_call` there is an attempt to reuse an ID and is a protocol
    error. An ID above the peer high-water mark can create a stream only with a
@@ -136,17 +138,20 @@ list.
 ### Call close ordering
 
 When a `CallMessageView` contains `close_call`, the dispatcher appends the
-complete view to that call's pending sequence and marks its state
-`ClosePending`. It discards subsequent call views for that stream, including
-later views in the same drained batch, while preserving messages already
-queued before the close-bearing view. This also applies when the opening view
-contains both `open_call` and `close_call`: the stream remains in the
-unaccepted-call order, and `accept_call()` still returns its `Call` handle.
+complete view to that call's pending sequence and marks `peer_close_received`.
+It discards subsequent call views for that stream, including later views in
+the same drained batch, while preserving messages already queued before the
+close-bearing view. This also applies when the opening view contains both
+`open_call` and `close_call`: the stream remains in the unaccepted-call order,
+and `accept_call()` still returns its `Call` handle.
 
-The call state remains registered until `Call::receive()` returns the queued
-close-bearing view. That return delivers the terminal message once and closes
-the `Call`; the registry then releases the stream state and pending sequence.
-The worker-facing result after that point is defined in
+After a local close is accepted, inbound messages continue to be routed until
+a peer close is received. `Call::receive()` returns those messages in FIFO
+order; when it returns the peer's close-bearing view, the `Call` becomes closed
+and the registry releases the stream state and pending sequence. If no peer
+close arrives, this state remains pending across receive timeouts until
+cancellation or connection termination. Worker-facing send and receive
+results are defined in
 [context_interface.md](context_interface.md#closecall-delivery-and-receive-ordering).
 
 `accept_call()` removes the next entry from the unaccepted-call list and
@@ -170,16 +175,22 @@ still not reused.
 
 `Call::send()` creates a builder bound to its context-managed call ID and
 enqueues it. `ControlStream` creates builders bound to ID `0`; neither
-worker-facing abstraction exposes numeric IDs to worker code.
+worker-facing abstraction exposes numeric IDs to worker code. Outbound
+`close_call` acceptance and its send-side state transition are defined in the
+[worker-facing contract](context_interface.md#outbound-closecall).
+An accepted `open_call()` opening message that also contains `close_call`
+initializes the call with its local send side already closed.
 
 ## Close and ID lifetime
 
 The context keeps an active-call registry and one high-water mark for each
 endpoint role. The local high-water mark advances when a stream ID is reserved;
 the peer high-water mark advances when a valid opening is admitted to the
-context's unaccepted-call list. On `CloseCall`, the context retains the call
-state as `ClosePending` until the terminal view is returned, then releases its
-active state and pending messages without changing either high-water mark. An
+context's unaccepted-call list. An accepted local `CloseCall` marks the state
+`ClosePending` and seals outbound sends but retains the stream for inbound
+traffic until the peer close is received. On peer `CloseCall`, the context
+retains the state until the terminal view is returned, then releases its active
+state and pending messages without changing either high-water mark. An
 inbound message on an inactive local-owned ID is a protocol error, including
 when the ID is below the local high-water mark. Delayed traffic on a non-active
 peer-owned ID at or below the peer high-water mark is discarded. No
@@ -230,6 +241,7 @@ class ContextImpl {
     +accept_call()
     +open_call(opening_message)
     +dispatch_inbound_batch()
+    +send_call_message(stream_id, builder)
     +request_shutdown()
 }
 class StreamRegistry {
@@ -243,13 +255,15 @@ class StreamRegistry {
     -Queue control_pending_
     +reserve_local_stream_id()
     +dispatch(view) DispatchResult
+    +mark_local_close_accepted(stream_id)
     +accept_next_call()
     +close_call(stream_id)
 }
 class CallState {
     -StreamId stream_id_
     -Queue pending_messages_
-    -bool close_pending_
+    -bool local_close_accepted_
+    -bool peer_close_received_
     -optional terminal_result_
 }
 class CallImpl {
@@ -354,14 +368,14 @@ StreamRegistry::dispatch(view):
         return Routed
 
     if active:
-        if active_calls[id].close_pending:
+        if active_calls[id].peer_close_received:
             discard(view)  // after CloseCall, including the rest of this batch
             return Discarded
         if view.contains_open_call():
             return ProtocolError
         active_calls[id].pending.push(view)
         if view.contains_close_call():
-            active_calls[id].close_pending = true
+            active_calls[id].peer_close_received = true
         return Routed
 
     if id <= peer_high_water_mark:
@@ -374,7 +388,10 @@ StreamRegistry::dispatch(view):
         return ProtocolError
 
     peer_high_water_mark = id
-    active_calls[id] = CallState(pending = [view], close_pending = view.contains_close_call())
+    active_calls[id] = CallState(
+        pending = [view],
+        local_close_accepted = false,
+        peer_close_received = view.contains_close_call())
     unaccepted_call_ids.push(id)
     return Routed
 ```
@@ -413,15 +430,32 @@ successful enqueue accepts the logical message, not confirmation that the
 socket has received it:
 
 ```text
-enqueue_call_message(call, caller_builder&&, background_thread):
-    validate caller_builder is bound to call.stream_id
+ContextImpl::send_call_message(stream_id, caller_builder&&):
+    dispatch_available_inbound_messages()
+    state = stream_registry.find(stream_id)
+    if state.peer_close_received:
+        return PeerClosed
+    if state.local_close_accepted:
+        return ProtocolError
+
+    closes_call = caller_builder.contains_close_call()
+    validate caller_builder is bound to stream_id
     message = wrap_as_outbound_message(move(caller_builder))
     if not background_thread.enqueue_outbound_message(move(message)):
         // A rejected enqueue leaves message owned by the context.
         caller_builder = extract_call_builder(message)
         return enqueue_failure
+
+    if closes_call:
+        stream_registry.mark_local_close_accepted(stream_id)
     return accepted
 ```
+
+The close state and queue-acceptance result form one worker-visible acceptance
+transaction. The single worker thread cannot interleave another `Call::send()`
+between successful enqueue and the `local_close_accepted` update. Since the
+outbound queue is FIFO, all messages accepted before the close remain ahead of
+it; the state update rejects every later send.
 
 The production background component consumes accepted messages, uses each
 builder's bound stream ID when encoding its wire frame, and writes frames using

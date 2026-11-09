@@ -142,10 +142,11 @@ to its own stream and the call receive continues waiting. It does not return unr
 
 ### CloseCall delivery and receive ordering
 
-A `CallMessageView` containing `close_call` is the call's terminal message. The context queues it after all earlier
+A `CallMessageView` containing `close_call` is the peer's terminal message. The context queues it after all earlier
 messages for that call and exposes that view exactly once. The `Call` enters `ClosePending` when the dispatcher
-processes the close-bearing view; it enters `Closed` when `Call::receive()` returns that view. A view that combines
-`close_call` with final payload, data, or error fields is returned intact.
+processes the peer's close-bearing view or when `Call::send()` accepts a local close. It enters `Closed` when
+`Call::receive()` returns the peer's close-bearing view. A view that combines `close_call` with final payload, data, or
+error fields is returned intact.
 
 Once the dispatcher has processed `close_call`, it discards later messages for that stream, including later messages
 in the same drained batch. It does not discard messages queued before the close-bearing view; those are returned first
@@ -153,9 +154,33 @@ in FIFO order. `accept_call()` still returns an inbound call whose opening view 
 opening-and-close view is then returned exactly once by the accepted call's first `receive()`.
 
 While messages remain queued, including the terminal view, `Call::receive_status()` reports `MessageAvailable`. After
-the close-bearing view has been returned, it reports `PeerClosed`, and a subsequent `Call::receive()` returns `Result`
-with status `PeerClosed` and no value. It does not return the terminal view again. Once the dispatcher has observed
-`close_call`, `Call::send()` also returns `PeerClosed` without accepting a new message.
+the peer's close-bearing view has been returned, it reports `PeerClosed`, and a subsequent `Call::receive()` returns
+`Result` with status `PeerClosed` and no value. It does not return the terminal view again. Once the dispatcher has
+observed a peer `close_call`, `Call::send()` returns `PeerClosed` without accepting a new message.
+
+### Outbound CloseCall
+
+If `Call::send()` accepts a builder containing `close_call`, that acceptance atomically queues the message and moves
+the call to `ClosePending`. The close-bearing message is enqueued after all previously accepted outbound messages,
+which remain eligible for transmission in FIFO order. No later `Call::send()` is accepted while this local close is
+pending; such an attempt returns `ProtocolError` and retains the builder. A failed enqueue does not change the call
+state or consume the builder. The state transition prevents a second close-bearing message from being accepted, so
+the local `CloseCall` is enqueued at most once.
+
+The same rule applies when `Context::open_call()` accepts an opening builder that also contains `close_call`: the
+returned `Call` is already `ClosePending`, and later `Call::send()` operations are rejected.
+
+`ClosePending` after a local close seals the send side but leaves the receive side available. `Call::receive()` still
+returns inbound call messages in order and returns a peer `close_call` once if one arrives. `receive_status()` reports
+`NoMessage` when no inbound message is queued and the call is only locally `ClosePending`. A timeout returns
+`TimedOut` without changing the state. Because `CloseCall` requires no acknowledgement, a peer close is not
+guaranteed; an untimed receive may wait indefinitely for an inbound message or another terminal condition.
+
+If the peer close is processed before a local close is accepted, the call follows the peer-close path above and no
+outbound close is sent. If the peer close is processed after a local close has been accepted, the context queues and
+returns the peer's terminal view once without enqueueing another close. The already accepted outbound messages,
+including the local close, retain their FIFO order. After the peer close view is returned, the call is `Closed` and
+subsequent receives return `PeerClosed`.
 
 `Call::send()` waits for the context to grant permission for the next data batch when required by flow control. An
 absent timeout waits indefinitely, a zero timeout does not block, and an expired timeout returns `TimedOut` without
