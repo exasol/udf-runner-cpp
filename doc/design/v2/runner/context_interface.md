@@ -329,7 +329,7 @@ ErrorView { code() -> optional<string_view>; message() -> optional<string_view> 
 CloseCallView { }
 ```
 
-`PayloadType` has `String` and `Binary` values. Accessing a value using the wrong representation returns an empty
+`PayloadType` has `String` or `Binary` values. Accessing a value using the wrong representation returns an empty
 optional. Payload indexing outside the available range returns `nullptr`.
 
 `DataSchemaView` exposes the Arrow schema ownership and its correlation flags. `RecordBatchView` exposes the Arrow
