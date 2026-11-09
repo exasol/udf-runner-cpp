@@ -68,8 +68,8 @@ Worker-pool resources may be reused after the worker returns, but connection-sco
 
 Shutdown has three phases:
 
-1. Stop accepting new connections. The caller-thread acceptor destroys its listener before the next acceptance
-   attempt; it is not concurrently shut down while blocked in acceptance.
+1. Mark the acceptor shut down and signal its eventfd. This wakes a blocked epoll wait; the listener remains owned
+   until the acceptor is destroyed after acceptance has stopped.
 2. Stop queueing work and request cancellation for queued and active workers.
 3. Wait for active contexts to close or reach the configured shutdown deadline, then reclaim remaining resources.
 

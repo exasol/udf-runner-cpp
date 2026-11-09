@@ -45,21 +45,25 @@ There is no raw-file-descriptor handoff or socket factory in this path.
 ```cpp
 class SocketListener {
 public:
-    virtual std::unique_ptr<socket::Socket>
-    get_next_socket(interface::Timeout timeout) = 0;
+    virtual int native_handle() const noexcept = 0;
+    virtual std::unique_ptr<socket::Socket> accept_socket() = 0;
 };
 ```
 
-`UnixSocketListener` waits for the listening Unix descriptor, accepts one
-client, and returns it as an owning `socket::Socket`. The
-`CallerThreadSocketConnectionAcceptor` owns that listener and performs waiting
-on the thread calling `get_next_connection`. It wraps an accepted socket in a
+`CallerThreadSocketConnectionAcceptor` owns a `SocketListener`, an epoll
+instance, and a shutdown `EventFd`. During construction it registers the
+listener's borrowed descriptor and the eventfd with epoll. On the caller
+thread, `get_next_connection` waits on epoll for at most the requested timeout.
+Listener readiness causes `accept_socket()` and wraps the result in a
 `SocketConnection` with `ConnectionType::UnixDomainSocket`.
 
-`shutdown()` destroys the owned `SocketListener`. For a Unix listener this
-closes the listener and removes its bound socket path. The caller must not race
-`shutdown()` with `get_next_connection`; shutdown takes effect before the next
-acceptance attempt rather than interrupting an in-progress one.
+`shutdown()` is safe to call while a caller is waiting. It records the shutdown
+state under a mutex and writes to the eventfd; epoll then wakes the waiting
+caller, which returns `nullptr`. A shutdown event takes priority over listener
+readiness, and all later calls return `nullptr` without waiting. Shutdown does
+not close or destroy the listener: the acceptor destructor destroys the
+listener only after its caller has stopped using the acceptor. Concurrent
+`get_next_connection` calls are serialized.
 
 ## Context handoff
 
