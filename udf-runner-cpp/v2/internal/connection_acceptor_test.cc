@@ -56,17 +56,20 @@ public:
         return OwnedFileDescriptor(std::make_shared<exasol::udf::v2::posix::Native>());
     }
 
-    void shutdown(Shutdown) override
+    void shutdown(const Shutdown how) override
     {
+        static_cast<void>(how);
     }
 
-    std::size_t read_some(std::span<const std::span<std::byte>>) override
+    std::size_t read_some(const std::span<const std::span<std::byte>> buffers) override
     {
+        static_cast<void>(buffers);
         return 0;
     }
 
-    std::size_t write_some(std::span<const std::span<const std::byte>>) override
+    std::size_t write_some(const std::span<const std::span<const std::byte>> buffers) override
     {
+        static_cast<void>(buffers);
         return 0;
     }
 };
@@ -83,6 +86,11 @@ public:
     {
         ++*this->destruction_count;
     }
+
+    FakeSocketListener(const FakeSocketListener&)            = delete;
+    FakeSocketListener& operator=(const FakeSocketListener&) = delete;
+    FakeSocketListener(FakeSocketListener&&)                 = delete;
+    FakeSocketListener& operator=(FakeSocketListener&&)      = delete;
 
     [[nodiscard]] int native_handle() const noexcept override
     {
@@ -102,29 +110,39 @@ private:
 class FakeEpollRegistration final : public EpollRegistration
 {
 public:
-    void modify(EpollInterest, std::uint64_t) override
+    void modify(const EpollInterest interest, const std::uint64_t token) override
     {
+        static_cast<void>(interest);
+        static_cast<void>(token);
     }
 };
 
 class FakeEpoll final : public LinuxEpoll
 {
 public:
-    [[nodiscard]] std::unique_ptr<EpollRegistration> add(const int,
-                                                         const EpollInterest,
+    [[nodiscard]] std::unique_ptr<EpollRegistration> add(const int file_descriptor,
+                                                         const EpollInterest interest,
                                                          const std::uint64_t token) override
     {
-        registered_tokens.push_back(token);
+        static_cast<void>(file_descriptor);
+        static_cast<void>(interest);
+        static_cast<void>(token);
         return std::make_unique<FakeEpollRegistration>();
     }
 
     void wait(std::vector<EpollReadyEvent>& target,
-              std::optional<std::chrono::milliseconds>) override
+              const std::optional<std::chrono::milliseconds> timeout) override
     {
+        static_cast<void>(timeout);
         target = std::move(events);
     }
 
-    std::vector<std::uint64_t> registered_tokens;
+    void set_events(std::vector<EpollReadyEvent> ready_events)
+    {
+        events = std::move(ready_events);
+    }
+
+private:
     std::vector<EpollReadyEvent> events;
 };
 
@@ -138,7 +156,6 @@ public:
 
     std::uint64_t read_notification() override
     {
-        ++read_count;
         return 1;
     }
 
@@ -147,23 +164,32 @@ public:
         ++write_count;
     }
 
-    int read_count  = 0;
+    [[nodiscard]] int get_write_count() const noexcept
+    {
+        return write_count;
+    }
+
+private:
     int write_count = 0;
 };
 
 class BlockingEpoll final : public LinuxEpoll
 {
 public:
-    [[nodiscard]] std::unique_ptr<EpollRegistration> add(const int,
-                                                         const EpollInterest,
-                                                         const std::uint64_t) override
+    [[nodiscard]] std::unique_ptr<EpollRegistration> add(const int file_descriptor,
+                                                         const EpollInterest interest,
+                                                         const std::uint64_t token) override
     {
+        static_cast<void>(file_descriptor);
+        static_cast<void>(interest);
+        static_cast<void>(token);
         return std::make_unique<FakeEpollRegistration>();
     }
 
     void wait(std::vector<EpollReadyEvent>& target,
-              std::optional<std::chrono::milliseconds>) override
+              const std::optional<std::chrono::milliseconds> timeout) override
     {
+        static_cast<void>(timeout);
         std::unique_lock lock(this->mutex);
         this->waiting = true;
         this->state_changed.notify_all();
@@ -237,7 +263,7 @@ TEST(CallerThreadSocketConnectionAcceptorTest, WrapsAcceptedSocketAsUnixConnecti
     auto socket                   = std::make_unique<FakeSocket>();
     Socket* const expected_socket = socket.get();
     auto epoll                    = std::make_unique<FakeEpoll>();
-    epoll->events.push_back({.token = 0, .readable = true});
+    epoll->set_events({{.token = 0, .readable = true}});
     auto event = std::make_unique<FakeEventFd>();
     CallerThreadSocketConnectionAcceptor acceptor(
         std::make_unique<FakeSocketListener>(std::move(socket), &destruction_count),
@@ -257,16 +283,16 @@ TEST(CallerThreadSocketConnectionAcceptorTest, WrapsAcceptedSocketAsUnixConnecti
 
 TEST(CallerThreadSocketConnectionAcceptorTest, ShutdownSignalsButDoesNotDestroyListener)
 {
-    int destruction_count            = 0;
-    auto event                       = std::make_unique<FakeEventFd>();
-    FakeEventFd* const event_pointer = event.get();
+    int destruction_count                  = 0;
+    auto event                             = std::make_unique<FakeEventFd>();
+    const FakeEventFd* const event_pointer = event.get();
     {
         CallerThreadSocketConnectionAcceptor acceptor(
             std::make_unique<FakeSocketListener>(nullptr, &destruction_count),
             std::make_unique<FakeEpoll>(), std::move(event));
 
         acceptor.shutdown();
-        EXPECT_EQ(event_pointer->write_count, 1);
+        EXPECT_EQ(event_pointer->get_write_count(), 1);
         EXPECT_EQ(destruction_count, 0);
         EXPECT_EQ(acceptor.get_next_connection(Timeout{}), nullptr);
     }
