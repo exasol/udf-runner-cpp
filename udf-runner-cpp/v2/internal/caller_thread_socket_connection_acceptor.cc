@@ -22,6 +22,12 @@ namespace
     constexpr std::uint64_t listener_token = 0;
     constexpr std::uint64_t shutdown_token = 1;
 
+    class UnexpectedEpollEventError final : public std::runtime_error
+    {
+    public:
+        using std::runtime_error::runtime_error;
+    };
+
     [[nodiscard]] std::optional<std::chrono::milliseconds> to_milliseconds(
         const interface::Timeout timeout)
     {
@@ -90,12 +96,11 @@ std::unique_ptr<Connection> CallerThreadSocketConnectionAcceptor::get_next_conne
         return {};
     }
 
-    const auto listener_event =
-        std::find_if(events.cbegin(), events.cend(),
-                     [](const EpollReadyEvent& event) { return event.token == listener_token; });
-    if (listener_event == events.cend())
+    const auto listener_event = std::ranges::find_if(
+        events, [](const EpollReadyEvent& event) { return event.token == listener_token; });
+    if (listener_event == events.end())
     {
-        throw std::runtime_error("epoll returned an unknown connection acceptor event");
+        throw UnexpectedEpollEventError("epoll returned an unknown connection acceptor event");
     }
     if (!listener_event->readable)
     {

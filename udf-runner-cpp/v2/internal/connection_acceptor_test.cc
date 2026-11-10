@@ -12,6 +12,7 @@
 #include <mutex>
 #include <optional>
 #include <span>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -37,6 +38,9 @@ using exasol::udf::v2::socket::SocketListener;
 class FakeSocket final : public Socket
 {
 public:
+    using Socket::read_some;
+    using Socket::write_some;
+
     [[nodiscard]] int native_handle() const noexcept override
     {
         return -1;
@@ -49,6 +53,7 @@ public:
 
     void close() noexcept override
     {
+        // The fake does not own a native resource.
     }
 
     [[nodiscard]] OwnedFileDescriptor release_native_handle() noexcept override
@@ -308,14 +313,17 @@ TEST(CallerThreadSocketConnectionAcceptorTest, ShutdownWakesAnUnlimitedWait)
         std::make_unique<FakeSocketListener>(nullptr, &destruction_count), std::move(epoll),
         std::make_unique<SignallingEventFd>(*epoll_pointer));
 
-    auto waiting_connection = std::async(
-        std::launch::async, [&acceptor] { return acceptor.get_next_connection(Timeout{}); });
+    std::promise<bool> connection_result;
+    std::future<bool> waiting_connection = connection_result.get_future();
+    std::thread waiting_thread([&acceptor, &connection_result] {
+        connection_result.set_value(acceptor.get_next_connection(Timeout{}) == nullptr);
+    });
     epoll_pointer->wait_until_waiting();
 
     acceptor.shutdown();
 
-    ASSERT_EQ(waiting_connection.wait_for(std::chrono::seconds(1)), std::future_status::ready);
-    EXPECT_EQ(waiting_connection.get(), nullptr);
+    waiting_thread.join();
+    EXPECT_TRUE(waiting_connection.get());
 }
 
 } // namespace
