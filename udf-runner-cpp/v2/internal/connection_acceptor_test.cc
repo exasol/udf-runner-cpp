@@ -134,12 +134,12 @@ public:
     }
 };
 
-class FakeEpoll final : public LinuxEpoll
+class FakeEpollBase : public LinuxEpoll
 {
 public:
     [[nodiscard]] std::unique_ptr<EpollRegistration> add(const int file_descriptor,
                                                          const EpollInterest interest,
-                                                         const std::uint64_t token) override
+                                                         const std::uint64_t token) final
     {
         static_cast<void>(file_descriptor);
         static_cast<void>(interest);
@@ -147,10 +147,20 @@ public:
         return std::make_unique<FakeEpollRegistration>();
     }
 
+protected:
+    static void ignore_timeout(const std::optional<std::chrono::milliseconds> timeout)
+    {
+        static_cast<void>(timeout);
+    }
+};
+
+class FakeEpoll final : public FakeEpollBase
+{
+public:
     void wait(std::vector<EpollReadyEvent>& target,
               const std::optional<std::chrono::milliseconds> timeout) override
     {
-        static_cast<void>(timeout);
+        ignore_timeout(timeout);
         target = std::move(events);
     }
 
@@ -200,23 +210,13 @@ private:
     std::optional<std::errc> write_error;
 };
 
-class BlockingEpoll final : public LinuxEpoll
+class BlockingEpoll final : public FakeEpollBase
 {
 public:
-    [[nodiscard]] std::unique_ptr<EpollRegistration> add(const int file_descriptor,
-                                                         const EpollInterest interest,
-                                                         const std::uint64_t token) override
-    {
-        static_cast<void>(file_descriptor);
-        static_cast<void>(interest);
-        static_cast<void>(token);
-        return std::make_unique<FakeEpollRegistration>();
-    }
-
     void wait(std::vector<EpollReadyEvent>& target,
               const std::optional<std::chrono::milliseconds> timeout) override
     {
-        static_cast<void>(timeout);
+        ignore_timeout(timeout);
         std::unique_lock lock(this->mutex);
         this->waiting = true;
         this->state_changed.notify_all();
