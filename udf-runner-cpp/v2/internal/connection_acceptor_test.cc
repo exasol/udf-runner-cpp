@@ -7,7 +7,9 @@
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <future>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -104,12 +106,22 @@ public:
 
     [[nodiscard]] std::unique_ptr<Socket> accept_socket() override
     {
+        if (this->on_accept)
+        {
+            this->on_accept();
+        }
         return std::move(this->socket);
+    }
+
+    void set_on_accept(std::function<void()> callback)
+    {
+        this->on_accept = std::move(callback);
     }
 
 private:
     std::unique_ptr<Socket> socket;
     int* destruction_count;
+    std::function<void()> on_accept;
 };
 
 class FakeEpollRegistration final : public EpollRegistration
@@ -166,7 +178,16 @@ public:
 
     void write_notification() override
     {
+        if (this->write_error.has_value())
+        {
+            throw std::system_error(std::make_error_code(this->write_error.value()));
+        }
         ++write_count;
+    }
+
+    void set_write_error(const std::errc error)
+    {
+        this->write_error = error;
     }
 
     [[nodiscard]] int get_write_count() const noexcept
@@ -176,6 +197,7 @@ public:
 
 private:
     int write_count = 0;
+    std::optional<std::errc> write_error;
 };
 
 class BlockingEpoll final : public LinuxEpoll
@@ -262,6 +284,12 @@ TEST(SocketConnectionTest, TransfersSocketOwnershipOnce)
     EXPECT_EQ(connection.take_socket(), nullptr);
 }
 
+TEST(SocketConnectionTest, RejectsMissingSocket)
+{
+    EXPECT_THROW(static_cast<void>(SocketConnection(ConnectionType::UnixDomainSocket, nullptr)),
+                 std::invalid_argument);
+}
+
 TEST(CallerThreadSocketConnectionAcceptorTest, WrapsAcceptedSocketAsUnixConnection)
 {
     int destruction_count         = 0;
@@ -298,10 +326,105 @@ TEST(CallerThreadSocketConnectionAcceptorTest, ShutdownSignalsButDoesNotDestroyL
 
         acceptor.shutdown();
         EXPECT_EQ(event_pointer->get_write_count(), 1);
+        acceptor.shutdown();
+        EXPECT_EQ(event_pointer->get_write_count(), 1);
         EXPECT_EQ(destruction_count, 0);
         EXPECT_EQ(acceptor.get_next_connection(Timeout{}), nullptr);
     }
     EXPECT_EQ(destruction_count, 1);
+}
+
+TEST(CallerThreadSocketConnectionAcceptorTest, RejectsMissingDependencies)
+{
+    EXPECT_THROW(CallerThreadSocketConnectionAcceptor(nullptr, nullptr, nullptr),
+                 std::invalid_argument);
+}
+
+TEST(CallerThreadSocketConnectionAcceptorTest, ReturnsNoConnectionWhenEpollTimesOut)
+{
+    int destruction_count = 0;
+    CallerThreadSocketConnectionAcceptor acceptor(
+        std::make_unique<FakeSocketListener>(nullptr, &destruction_count),
+        std::make_unique<FakeEpoll>(), std::make_unique<FakeEventFd>());
+
+    EXPECT_EQ(acceptor.get_next_connection(std::chrono::milliseconds(1)), nullptr);
+}
+
+TEST(CallerThreadSocketConnectionAcceptorTest, RejectsInvalidTimeouts)
+{
+    int destruction_count = 0;
+    CallerThreadSocketConnectionAcceptor acceptor(
+        std::make_unique<FakeSocketListener>(nullptr, &destruction_count),
+        std::make_unique<FakeEpoll>(), std::make_unique<FakeEventFd>());
+
+    EXPECT_THROW(acceptor.get_next_connection(-std::chrono::milliseconds(1)),
+                 std::invalid_argument);
+    EXPECT_THROW(acceptor.get_next_connection(std::chrono::milliseconds(
+                     static_cast<std::int64_t>(std::numeric_limits<int>::max()) + 1)),
+                 std::invalid_argument);
+}
+
+TEST(CallerThreadSocketConnectionAcceptorTest, RejectsUnexpectedEpollEvents)
+{
+    int destruction_count = 0;
+    auto epoll            = std::make_unique<FakeEpoll>();
+    epoll->set_events({{.token = 2, .readable = true}});
+    CallerThreadSocketConnectionAcceptor acceptor(
+        std::make_unique<FakeSocketListener>(nullptr, &destruction_count), std::move(epoll),
+        std::make_unique<FakeEventFd>());
+
+    EXPECT_THROW(acceptor.get_next_connection(Timeout{}), std::runtime_error);
+}
+
+TEST(CallerThreadSocketConnectionAcceptorTest, ReportsUnusableListener)
+{
+    int destruction_count = 0;
+    auto epoll            = std::make_unique<FakeEpoll>();
+    epoll->set_events({{.token = 0, .error = true}});
+    CallerThreadSocketConnectionAcceptor acceptor(
+        std::make_unique<FakeSocketListener>(nullptr, &destruction_count), std::move(epoll),
+        std::make_unique<FakeEventFd>());
+
+    EXPECT_THROW(acceptor.get_next_connection(Timeout{}), std::system_error);
+}
+
+TEST(CallerThreadSocketConnectionAcceptorTest, DropsSocketAcceptedDuringShutdown)
+{
+    int destruction_count = 0;
+    auto listener =
+        std::make_unique<FakeSocketListener>(std::make_unique<FakeSocket>(), &destruction_count);
+    FakeSocketListener* const listener_pointer = listener.get();
+    auto epoll                                 = std::make_unique<FakeEpoll>();
+    epoll->set_events({{.token = 0, .readable = true}});
+    CallerThreadSocketConnectionAcceptor acceptor(std::move(listener), std::move(epoll),
+                                                  std::make_unique<FakeEventFd>());
+    listener_pointer->set_on_accept([&acceptor] { acceptor.shutdown(); });
+
+    EXPECT_EQ(acceptor.get_next_connection(Timeout{}), nullptr);
+}
+
+TEST(CallerThreadSocketConnectionAcceptorTest, SuppressesSaturatedShutdownNotification)
+{
+    int destruction_count = 0;
+    auto event            = std::make_unique<FakeEventFd>();
+    event->set_write_error(std::errc::resource_unavailable_try_again);
+    CallerThreadSocketConnectionAcceptor acceptor(
+        std::make_unique<FakeSocketListener>(nullptr, &destruction_count),
+        std::make_unique<FakeEpoll>(), std::move(event));
+
+    EXPECT_NO_THROW(acceptor.shutdown());
+}
+
+TEST(CallerThreadSocketConnectionAcceptorTest, PropagatesUnexpectedShutdownNotificationFailure)
+{
+    int destruction_count = 0;
+    auto event            = std::make_unique<FakeEventFd>();
+    event->set_write_error(std::errc::io_error);
+    CallerThreadSocketConnectionAcceptor acceptor(
+        std::make_unique<FakeSocketListener>(nullptr, &destruction_count),
+        std::make_unique<FakeEpoll>(), std::move(event));
+
+    EXPECT_THROW(acceptor.shutdown(), std::system_error);
 }
 
 TEST(CallerThreadSocketConnectionAcceptorTest, ShutdownWakesAnUnlimitedWait)
