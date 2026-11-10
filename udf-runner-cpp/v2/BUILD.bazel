@@ -507,6 +507,10 @@ cc_test(
     name = "connection_acceptor_test",
     srcs = ["internal/connection_acceptor_test.cc"],
     copts = ["-std=c++23"],
+    # This composition test uses fakes for its socket, epoll, and eventfd
+    # collaborators. Exclude it until dedicated mutation tests cover those
+    # production implementation units.
+    tags = ["no-mull"],
     deps = [
         ":connection_acceptor",
         ":posix",
