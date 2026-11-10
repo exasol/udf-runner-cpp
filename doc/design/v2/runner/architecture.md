@@ -54,14 +54,9 @@ ownership must not be duplicated implicitly.
 
 ### ConnectionAcceptor
 
-`ConnectionAcceptor` supplies accepted `Connection` objects to the runner. The initial
-`CallerThreadSocketConnectionAcceptor` owns a Unix `SocketListener`, accepts a socket on the calling thread, and
-wraps it in a `SocketConnection`. It waits through epoll on both the listener and a shutdown eventfd, so shutdown
-wakes a blocked acceptance call without closing the listener. It submits each accepted connection to the worker
-scheduler. Accept failures are classified as retryable, shutdown-related, or fatal and must not silently become
-worker failures.
-
-The interface leaves connection creation abstract so TCP, TLS, or non-socket acceptors can be added later.
+`ConnectionAcceptor` supplies accepted `Connection` objects to the runner and submits them to the worker scheduler.
+Its transport-neutral design permits future TCP, TLS, and non-socket acceptors. The detailed interface, ownership,
+and shutdown behavior are defined in [connection_acceptor_design.md](connection_acceptor_design.md).
 
 ### WorkerFactory and worker pool
 

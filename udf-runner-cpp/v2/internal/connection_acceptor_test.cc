@@ -357,10 +357,10 @@ TEST(CallerThreadSocketConnectionAcceptorTest, RejectsInvalidTimeouts)
         std::make_unique<FakeSocketListener>(nullptr, &destruction_count),
         std::make_unique<FakeEpoll>(), std::make_unique<FakeEventFd>());
 
-    EXPECT_THROW(acceptor.get_next_connection(-std::chrono::milliseconds(1)),
+    EXPECT_THROW(static_cast<void>(acceptor.get_next_connection(-std::chrono::milliseconds(1))),
                  std::invalid_argument);
-    EXPECT_THROW(acceptor.get_next_connection(std::chrono::milliseconds(
-                     static_cast<std::int64_t>(std::numeric_limits<int>::max()) + 1)),
+    EXPECT_THROW(static_cast<void>(acceptor.get_next_connection(std::chrono::milliseconds(
+                     static_cast<std::int64_t>(std::numeric_limits<int>::max()) + 1))),
                  std::invalid_argument);
 }
 
@@ -373,7 +373,7 @@ TEST(CallerThreadSocketConnectionAcceptorTest, RejectsUnexpectedEpollEvents)
         std::make_unique<FakeSocketListener>(nullptr, &destruction_count), std::move(epoll),
         std::make_unique<FakeEventFd>());
 
-    EXPECT_THROW(acceptor.get_next_connection(Timeout{}), std::runtime_error);
+    EXPECT_THROW(static_cast<void>(acceptor.get_next_connection(Timeout{})), std::runtime_error);
 }
 
 TEST(CallerThreadSocketConnectionAcceptorTest, ReportsUnusableListener)
@@ -385,7 +385,7 @@ TEST(CallerThreadSocketConnectionAcceptorTest, ReportsUnusableListener)
         std::make_unique<FakeSocketListener>(nullptr, &destruction_count), std::move(epoll),
         std::make_unique<FakeEventFd>());
 
-    EXPECT_THROW(acceptor.get_next_connection(Timeout{}), std::system_error);
+    EXPECT_THROW(static_cast<void>(acceptor.get_next_connection(Timeout{})), std::system_error);
 }
 
 TEST(CallerThreadSocketConnectionAcceptorTest, DropsSocketAcceptedDuringShutdown)
