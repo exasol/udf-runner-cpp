@@ -315,7 +315,7 @@ TEST(CallerThreadSocketConnectionAcceptorTest, ShutdownWakesAnUnlimitedWait)
 
     std::promise<bool> connection_result;
     std::future<bool> waiting_connection = connection_result.get_future();
-    std::thread waiting_thread([&acceptor, &connection_result] {
+    std::jthread waiting_thread([&acceptor, &connection_result] {
         connection_result.set_value(acceptor.get_next_connection(Timeout{}) == nullptr);
     });
     epoll_pointer->wait_until_waiting();
