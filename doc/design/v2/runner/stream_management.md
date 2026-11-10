@@ -10,46 +10,35 @@ cross-thread queues and background I/O loop, and
 `Context`, `Call`, and `ControlStream` contracts.
 
 The low-level context is the sole owner of all logical stream state. It owns
-the control stream on stream ID `0`, allocates its locally owned nonzero stream
-IDs, and maintains a registry from every live call stream ID to its
-worker-visible `Call` state. The background component owns transport work but
-does not own `Call` or `ControlStream` instances and does not dispatch to
-worker-facing objects.
+the control stream, allocates its locally owned nonzero stream IDs, and
+maintains a registry from every live call stream ID to its worker-visible
+`Call` state. The background component owns transport work but does not own
+`Call` or `ControlStream` instances and does not dispatch to worker-facing
+objects.
 
-## Stream-ID ownership and allocation
+## Context role and stream-ID allocation
 
-The low-level context applies the protocol's
-[stream-ownership rules](../protocol/low_level/protocol.md#stream-ownership).
-The DB is the transport `Client` and UDFRunner is the transport `Server`:
+Wire-level stream-ID ownership and allocation rules have one source of truth:
+the protocol's [Stream Ownership section](../protocol/low_level/protocol.md#stream-ownership).
+This section specifies how the runner supplies and uses an endpoint role; it
+does not restate those wire rules.
 
-- `0` is the shared control stream;
-- odd nonzero IDs are owned by the `Client`;
-- even nonzero IDs are owned by the `Server`;
-- IDs are 64-bit and are unique for the lifetime of one connection.
-
-Each context is created with an immutable endpoint role (`Client` or `Server`)
-for the lifetime of its connection. The role determines the locally owned
-stream-ID parity and validation of peer-created streams; it must not change
-while the connection is active. The construction path that supplies this role
-is described in
+`ContextManager` must provide a `Client` or `Server` role when it creates a
+context. `ContextImpl` passes that immutable role to `StreamRegistry`, which
+uses it for local ID allocation and inbound ownership validation. The role is
+fixed for the connection lifetime. The construction path is described in
 [context_implementation.md](context_implementation.md#endpoint-role-configuration).
 
-Each endpoint reserves IDs from its own parity in strictly increasing order,
-starting at `1` for a `Client` and `2` for a `Server`, and advancing each
-reservation by `2`. IDs may be skipped on the wire when a reserved opening
-builder is abandoned or opening fails. Exhaustion or wraparound is a local
-failure, and an ID is never reused. A context allocates from the parity
-assigned to its immutable endpoint role and accepts new peer streams only
-from the opposite parity. Thus a `Client` context opens odd IDs and accepts
-even IDs, while a `Server` context opens even IDs and accepts odd IDs. The
-UDFRunner's `Server` contexts therefore use even IDs for local calls and
-accept odd IDs for inbound call openings. A peer opening a stream with the
-local endpoint's parity is a protocol error.
+When reserving a local ID, `StreamRegistry` advances the sequence assigned to
+its configured role. A reservation remains consumed if its opening builder is
+abandoned or opening fails. If the sequence is exhausted, allocation fails
+locally. During dispatch, the registry uses the role to determine which
+endpoint's high-water mark applies to an inactive ID; the validation order is
+specified below.
 
-Parity determines which endpoint creates a stream, not the direction of later
-traffic. Once a call exists, either peer may send permitted call messages on
-that stream. In particular, UDFRunner may send responses on a DB-created odd
-stream, and DB may send responses on a UDFRunner-created even stream.
+Once a call exists, either peer may send permitted call messages on its
+stream. Stream ownership determines who opens the stream, not who may send
+later messages on it.
 
 ## Queue messages and stream identity
 
@@ -102,32 +91,36 @@ message, it applies these checks in order:
 The view-to-stream mismatches in this table are protocol errors, including a
 `CallMessageView` on stream `0` and a `ControlMessageView` on a nonzero stream.
 
-1. **Validate the stream ID and ownership parity.** Stream `0` is reserved for
-   control traffic. For a nonzero ID, parity identifies the endpoint that
-   created the stream. An active stream may carry traffic in either direction.
-   An inactive ID with local-endpoint parity is invalid inbound ownership and
-   must fail with a protocol error before consulting either high-water mark.
-2. **Validate message kind.** Apply the view-type, stream-ID, and
-   control-only-field rules in the matrix above. Check the state-dependent
-   `OpenCall` restriction in step 3. For example, a `Server` receiving a call
-   view from the `Client` on inactive stream `2` fails with a protocol error at
-   step 1, even if its local high-water mark is already `2` or higher.
-3. **Check active state and peer high-water mark.** If an active call has
-   already received `close_call`, discard subsequent call views. Otherwise, an
-   active call accepts the view except that `open_call` after the stream's
-   first message is a protocol error. Enqueue a valid view containing
-   `close_call` and mark that the peer close was received. A local outbound
-   close does not stop the context from receiving already-in-flight peer
-   messages. For an inactive peer-owned stream, an ID
-   at or below the peer high-water mark is delayed traffic and is discarded,
-   except that `open_call` there is an attempt to reuse an ID and is a protocol
-   error. An ID above the peer high-water mark can create a stream only with a
-   valid first `open_call`; other unknown-stream traffic is a protocol error.
-   These high-water rules apply only after step 1 has established that the
-   inactive ID has peer-owned parity.
-4. **Route, discard, or fail.** Stream `0` messages go to the control-stream
-   pending list. Active call messages go to that call's pending list. A valid
-   peer opening creates an inbound-call entry in the unaccepted-call list.
+1. **Validate the stream ID and message kind.** Apply the view-type,
+   stream-ID, and control-only-field rules in the matrix above. Stream `0` is
+   reserved for control traffic; call views require a nonzero ID.
+2. **Handle control and active streams.** Route valid stream `0` messages to
+   the control pending list. An active call may carry permitted traffic in
+   either direction, regardless of which endpoint opened it. An active call
+   accepts messages except that `open_call` after its first message is a
+   protocol error. Enqueue a valid view containing `close_call` and mark that
+   the peer close was received. Once the peer close has been received, discard
+   later views for that active call, including the rest of the current batch.
+   A local outbound close does not stop delivery of already-in-flight peer
+   messages.
+3. **Classify an inactive nonzero stream using its owner and high-water mark.**
+   The context role identifies whether the ID is local-owned or peer-owned;
+   consult the corresponding high-water mark:
+   - For a local-owned ID at or below the local high-water mark, discard a
+     non-`open_call` view as delayed traffic; it may be debug-logged. An
+     `open_call` on any local-owned ID is a protocol error, and a local-owned
+     ID above the local high-water mark is also a protocol error.
+   - For a peer-owned ID at or below the peer high-water mark, discard a
+     non-`open_call` view as delayed traffic; it may be debug-logged. An
+     `open_call` there is an attempt to reuse an ID and is a protocol error.
+     A peer-owned ID above the peer high-water mark can create a stream only
+     with a valid first `open_call`; other traffic is a protocol error.
+   For example, a `Server` receiving a non-opening view on inactive stream `2`
+   discards it as delayed traffic if its local high-water mark is at least `2`,
+   and fails the connection otherwise. An `open_call` on stream `2` is invalid
+   for a `Server` in either case because that ID is locally owned.
+4. **Route, discard, or fail.** A valid peer opening creates an inbound-call
+   entry in the unaccepted-call list and advances the peer high-water mark.
    Delayed messages are discarded; any protocol error fails the connection.
 
 A message for a call that has not yet been accepted remains with that stream
@@ -190,12 +183,13 @@ context's unaccepted-call list. An accepted local `CloseCall` marks the state
 `ClosePending` and seals outbound sends but retains the stream for inbound
 traffic until the peer close is received. On peer `CloseCall`, the context
 retains the state until the terminal view is returned, then releases its active
-state and pending messages without changing either high-water mark. An
-inbound message on an inactive local-owned ID is a protocol error, including
-when the ID is below the local high-water mark. Delayed traffic on a non-active
-peer-owned ID at or below the peer high-water mark is discarded. No
-per-closed-stream ID set is needed, and monotonic allocation prevents a closed
-ID from being reused.
+state and pending messages without changing either high-water mark. Non-opening
+traffic for an inactive ID at or below its owner's high-water mark is delayed
+traffic and is discarded. An `open_call` on a local-owned ID or on a peer-owned
+ID at or below the peer high-water mark is a protocol error. An inactive ID
+above its owner's high-water mark is also a protocol error unless it is a
+valid opening on a peer-owned ID. No per-closed-stream ID set is needed, and
+monotonic allocation prevents a closed ID from being reused.
 
 Connection close transitions every live stream to its terminal result and wakes
 its waiters.
@@ -241,6 +235,9 @@ class ContextImpl {
     +accept_call()
     +open_call(opening_message)
     +dispatch_inbound_batch()
+    +receive_call_message(stream_id, deadline)
+    +receive_control_message(deadline)
+    +send_control_message(builder)
     +send_call_message(stream_id, builder)
     +request_shutdown()
 }
@@ -255,6 +252,9 @@ class StreamRegistry {
     -Queue control_pending_
     +reserve_local_stream_id()
     +dispatch(view) DispatchResult
+    +find_call_state(stream_id) CallState pointer
+    +take_call_message(stream_id) optional~CallMessageView~
+    +take_control_message() optional~ControlMessageView~
     +mark_local_close_accepted(stream_id)
     +accept_next_call()
     +close_call(stream_id)
@@ -321,10 +321,58 @@ StreamRegistry ..> DispatchResult : reports
 ```
 
 `StreamRegistry` owns logical stream IDs, high-water marks, per-call pending
-messages, the unaccepted-call order, and control-stream pending messages. A
-`CallImpl` is a lightweight worker-facing handle: it delegates through
-`ContextImpl` using its ID, while `StreamRegistry` owns its `CallState` before
-and after `accept_call()`. `BackgroundThreadImpl` is the production adapter;
+messages, the unaccepted-call order, and control-stream pending messages.
+`ContextImpl` owns the registry by value and is its only caller. Registry
+operations run on the context's worker thread; the registry does not wait,
+perform I/O, or access the background-thread interface. The background thread
+only moves complete messages through the two queues; it never reads or mutates
+registry state.
+
+`CallImpl` and `ControlStreamImpl` are non-owning worker-facing handles. A
+`CallImpl` stores a reference to its `ContextImpl` and its stream ID, not a
+pointer or reference to `CallState`. A `ControlStreamImpl` stores only its
+context reference; its stream ID is implicitly `0`. Their operations delegate
+to `ContextImpl`, which resolves the relevant state through `StreamRegistry`:
+
+```text
+CallImpl::receive(timeout):
+    deadline = make_deadline(timeout)
+    return context.receive_call_message(stream_id, deadline)
+
+CallImpl::send(builder, timeout):
+    return context.send_call_message(stream_id, move(builder), timeout)
+
+ControlStreamImpl::receive(timeout):
+    return context.receive_control_message(timeout)
+
+ControlStreamImpl::send(builder):
+    return context.send_control_message(move(builder))
+```
+
+`CallImpl::receive()` passes its stream ID to `ContextImpl`, which looks up the
+corresponding `CallState` and consumes only that call's pending messages.
+`ControlStreamImpl::receive()` follows the same path for the control pending
+queue. If the requested queue is empty, `ContextImpl` dispatches the shared
+inbound queue through `StreamRegistry` and waits through
+`BackgroundThreadInterface`; messages for other streams remain in their own
+queues. The complete worker receive loop, including timeout and notification
+handling, is specified in
+[context_implementation.md](context_implementation.md#worker-receive-path).
+
+The worker-visible opening-message and close-delivery behavior is specified in
+[context_interface.md](context_interface.md#closecall-delivery-and-receive-ordering).
+In particular, a peer-opened call's queued opening view is returned by its
+first receive, while a locally opened call's first receive waits for the peer.
+
+The registry creates `CallState` when `open_call()` registers a local stream or
+when dispatch accepts a peer opening. The state remains in the registry while
+the call is unaccepted and after `accept_call()` creates a `CallImpl` handle.
+Returning a handle does not move state into it. The registry removes the state
+after the peer's terminal close view is delivered, or when connection
+termination cleans up all calls. Consequently, handles must not outlive their
+owning context. If a call handle's state has been released, a later operation
+resolves to `PeerClosed`; once the whole context is terminal, its terminal
+result takes precedence. `BackgroundThreadImpl` is the production adapter;
 tests can provide another implementation of `BackgroundThreadInterface`.
 
 Reserve a local ID before creating the opening builder. Once reserved, the ID
@@ -345,17 +393,16 @@ StreamRegistry::reserve_local_stream_id():
     return id
 ```
 
-The dispatcher first validates ownership parity for an inactive nonzero ID,
-then validates the message/view combination, and only then checks stream state
-and the peer high-water mark. Its decision flow can be sketched as:
+The dispatcher validates the message/view combination first. It then handles
+control and active streams. For an inactive nonzero stream, it selects the
+high-water mark according to the context's endpoint role and distinguishes
+delayed traffic from invalid stream creation. Its decision flow can be
+sketched as:
 
 ```text
 StreamRegistry::dispatch(view):
     id = view.stream_id()
     active = active_calls.contains(id)
-
-    if id != 0 and not active and has_local_endpoint_parity(id):
-        return ProtocolError
 
     if not matches_view_type_and_stream_id_rules(view, id):
         return ProtocolError
@@ -378,9 +425,19 @@ StreamRegistry::dispatch(view):
             active_calls[id].peer_close_received = true
         return Routed
 
+    if has_local_endpoint_parity(id):
+        if view.contains_open_call():
+            return ProtocolError  // peer cannot open a locally owned stream
+        if id <= local_high_water_mark:
+            debug_log_delayed(view)
+            discard(view)
+            return Discarded
+        return ProtocolError  // the local endpoint never reserved this ID
+
     if id <= peer_high_water_mark:
         if view.contains_open_call():
             return ProtocolError  // stream ID reuse
+        debug_log_delayed(view)
         discard(view)              // delayed peer-owned traffic
         return Discarded
 
@@ -465,9 +522,10 @@ and signals `InboundAvailable`. This component-level flow is illustrative;
 the low-level context remains responsible for stream validation and routing.
 
 When a call closes, remove its active state and pending sequence without
-changing either high-water mark. This preserves the distinction between an
-inactive local-owned ID, which is an error, and delayed traffic for an
-inactive peer-owned ID, which is handled by the dispatch flow above.
+changing either high-water mark. Later non-opening traffic for that ID is
+discarded as delayed traffic, regardless of which endpoint originally opened
+the stream. The dispatch flow above rejects invalid openings and IDs beyond
+the high-water mark for their owner.
 
 ## Invariants
 
