@@ -16,27 +16,32 @@ class ArrowDataCodec
 public:
     virtual ~ArrowDataCodec() = default;
 
-    virtual Result<SerializedSchema> serialize_schema(
-        const ArrowSchema& schema,
-        SchemaOptions options) = 0;
+    virtual Result<FlatBufferOffset<protocol::DataSchema>> serialize_schema(
+        const arrow::Schema& schema,
+        bool has_group_id,
+        bool has_row_id,
+        FlatBufferBuilder& builder) = 0;
 
     virtual Result<SerializedBatch> serialize_batch(
-        ArrowArrayPtr&& array,
-        BatchOptions options) = 0;
+        std::shared_ptr<const arrow::RecordBatch> batch,
+        bool has_group_id,
+        bool is_end_of_group,
+        FlatBufferBuilder& builder) = 0;
 
-    virtual Result<DecodedSchema> deserialize_schema(
-        const VerifiedDataSchema& metadata) = 0;
+    virtual Result<std::unique_ptr<interface::DataSchemaView>> deserialize_schema(
+        const protocol::DecodedFrame& frame) = 0;
 
-    virtual Result<DecodedBatch> deserialize_batch(
-        const VerifiedRecordBatchMetadata& metadata,
+    virtual Result<std::unique_ptr<interface::RecordBatchView>> deserialize_batch(
+        const protocol::DecodedFrame& frame,
         BufferReader& buffers,
-        const DecodedSchema& schema) = 0;
+        const arrow::Schema& schema,
+        bool has_group_id) = 0;
 };
 ```
 
-`VerifiedDataSchema` and `VerifiedRecordBatchMetadata` are conceptual internal views produced by the verified-frame dispatcher; the codec does not re-verify or route complete frames.
+Conceptually, `FlatBufferBuilder` aliases `third_party::flatbuffers::FlatBufferBuilder` and `FlatBufferOffset<T>` aliases `third_party::flatbuffers::Offset<T>`. The message composer passes its builder to the codec so the schema and batch metadata offsets can be included in the same composite frame. `DecodedFrame` owns a verified frame; the codec extracts the Arrow metadata from it and does not re-verify or route the frame.
 
-The codec options carry only Arrow-specific inputs. `SchemaOptions` contains `has_group_id` and `has_row_id`; `BatchOptions` contains the matching Arrow schema, `has_group_id`, and `is_end_of_group`. A production codec is configured with `CodecLimits` from runner configuration:
+The background thread imports accepted Arrow C Data objects into normal Arrow C++ objects before outbound codec calls. On receive, the codec converts the verified frame metadata and inline buffers into Arrow C++ objects, then exports them into the worker-facing C Data views. These C++ and FlatBuffers types remain internal and do not cross the public API boundary. A production codec is configured with `CodecLimits` from runner configuration:
 
 ```cpp
 struct CodecLimits
@@ -46,8 +51,6 @@ struct CodecLimits
 };
 ```
 
-`DecodedSchema` owns the imported `ArrowSchemaPtr`, both correlation flags, and the flattened layout information needed to validate batches. Conceptually, `BatchOptions` contains `const ArrowSchema& schema`, `bool has_group_id`, and `bool is_end_of_group`; the exact C++ representation is an implementation choice.
-
 The codec serializes one physical batch. Logical-batch splitting and ordering remain the background-thread responsibilities defined in [context implementation](context_implementation.md#background-send-path).
 
 ## Serialized representations
@@ -55,18 +58,13 @@ The codec serializes one physical batch. Logical-batch splitting and ordering re
 These illustrative result shapes show ownership and buffer relationships; their exact C++ types are implementation choices.
 
 ```cpp
-struct SerializedSchema
-{
-    ProtocolDataSchema metadata;
-};
-
 struct SerializedBatch
 {
-    ProtocolDataRecordBatchMetadata metadata;
+    FlatBufferOffset<protocol::DataRecordBatchMetadata> metadata;
     std::vector<BufferSegment> buffers;
 
-    // Keeps Arrow-owned memory alive until all buffers are written.
-    ArrowArrayPtr ownership;
+    // Keeps Arrow-owned buffers alive until all spans are written.
+    std::shared_ptr<const arrow::RecordBatch> ownership;
 };
 
 struct BufferSegment
@@ -76,62 +74,62 @@ struct BufferSegment
 };
 ```
 
-These are codec results for the outer message composer. The protocol metadata values own their fields; the composer embeds them in the appropriate composite protocol frame and emits batch buffer spans in metadata order. `ownership` remains alive until those spans are fully sent or discarded during shutdown.
+`serialize_schema` returns a builder-owned offset directly. `SerializedBatch` adds the ordered non-owning buffer spans and retains the Arrow `RecordBatch` that owns their storage. The outer composer embeds the returned offsets in the composite protocol frame; the batch owner remains alive until every span is sent or discarded during shutdown.
 
 ## Schema serialization
 
-The codec validates that every field uses a supported layout, then converts the Arrow schema to protocol `DataSchema` metadata while preserving the layout and annotations required by [the data-stream schema rules](../protocol/low_level/data_stream.md#schema-and-first-batch-behavior). The returned metadata owns its fields and is ready for the message composer; the codec does not decide whether it shares a frame with the first batch or other call fields.
+The codec validates that every field uses a supported layout, then converts the Arrow schema to protocol `DataSchema` metadata in the caller's `FlatBufferBuilder`, preserving the layout and annotations required by [the data-stream schema rules](../protocol/low_level/data_stream.md#schema-and-first-batch-behavior). It returns the metadata offset; the composer decides whether it shares a frame with the first batch or other call fields.
 
 ```text
-serialize_schema(schema, options):
+serialize_schema(schema, has_group_id, has_row_id, builder):
     validate schema structure and supported layouts
-    convert fields recursively in Arrow order to owned protocol metadata
+    convert fields recursively in Arrow order using builder
     preserve type parameters, nullability, extension metadata, and correlation flags as supplied
-    return SerializedSchema{metadata}
+    return CreateDataSchema(builder, schema_offset, has_group_id, has_row_id)
 ```
 
 The schema-prefix and flag rules are defined in [the data-stream specification](../protocol/low_level/data_stream.md#schema-and-first-batch-behavior).
 
 ## Batch serialization
 
-The codec validates one physical Arrow array and builds its record-batch metadata and ordered buffer spans. The required field-node order, buffer order, and variadic-buffer semantics are defined in [the data-stream buffer-transfer rules](../protocol/low_level/data_stream.md#buffer-transfer). The initial layout support and rejection behavior are defined below.
+The codec validates one physical Arrow `RecordBatch` and builds its record-batch metadata and ordered buffer spans. The required field-node order, buffer order, and variadic-buffer semantics are defined in [the data-stream buffer-transfer rules](../protocol/low_level/data_stream.md#buffer-transfer). The initial layout support and rejection behavior are defined below.
 
 Illustrative codec pseudocode:
 
 ```text
-serialize_batch(array, options):
-    if array is null:
+serialize_batch(batch, has_group_id, is_end_of_group, builder):
+    if batch is null:
         return InvalidInput
 
-    if options.schema contains an unsupported layout:
+    if batch.schema contains an unsupported layout:
         return UnsupportedArrowLayout
 
-    validate array types, top-level length, child structure, and buffer layout against schema
-    validate is_end_of_group against schema.has_group_id and array.length
+    validate batch arrays against batch.schema
+    validate is_end_of_group against has_group_id and batch.num_rows
 
     nodes = []
     buffers = []
     variable_buffer_counts = []
 
-    visit_field(
-        field = options.schema.root,
-        array = array,
+    visit_batch_columns(
+        batch = batch,
         nodes = nodes,
         buffers = buffers,
         variable_buffer_counts = variable_buffer_counts)
 
-    metadata = FlatBufferBuilder.create_data_record_batch_metadata(
-        length = array.length,
+    metadata = create_data_record_batch_metadata(
+        builder = builder,
+        length = batch.num_rows,
         nodes = nodes,
         buffers = describe(buffers),
         variadic_buffer_counts = variable_buffer_counts,
         buffer_transport = Inline,
-        is_end_of_group = options.is_end_of_group)
+        is_end_of_group = is_end_of_group)
 
     return SerializedBatch{
-        metadata = move(metadata),
+        metadata = metadata,
         buffers = buffers,
-        ownership = move(array)
+        ownership = move(batch)
     }
 ```
 
@@ -139,41 +137,41 @@ The serializer does not copy buffer contents merely to create metadata; its span
 
 ## Serialization ownership
 
-The `ArrowArrayPtr&&` parameter is a reference to the caller's pointer; binding it does not itself move from the
-pointer. The implementation must keep the caller's pointer intact while validating the array and constructing the
-serialized metadata. It moves the pointer into `SerializedBatch::ownership` only after every serialization step has
-succeeded. Thus, a failed `Result` leaves the caller's pointer non-null and owning the original array:
+The codec takes a shared Arrow `RecordBatch` owner by value. On failure, the caller retains its own shared owner; on success, `SerializedBatch` retains the batch while any returned span references its buffers:
 
 ```text
-result = codec.serialize_batch(move(array))
+result = codec.serialize_batch(batch, has_group_id, is_end_of_group, builder)
 
 if result.success:
     background thread owns SerializedBatch
 else:
-    caller receives the original ArrowArrayPtr
+    caller retains its shared_ptr<arrow::RecordBatch>
 ```
 
 Message validation and queue-acceptance ownership remain the [context interface's responsibility](context_interface.md#builder-and-view-implementation-contract).
 
 ## Deserialization
 
-The frame decoder and message dispatcher own framing, FlatBuffer verification, stream routing, and composite-message handling as described in [the low-level protocol](../protocol/low_level/protocol.md#message-layering) and [context implementation](context_implementation.md#builder-wire-message-and-view-handoff). They pass verified Arrow metadata to the codec, which performs only the conversion below.
+The frame decoder and message dispatcher own framing, FlatBuffer verification, stream routing, and composite-message handling as described in [the low-level protocol](../protocol/low_level/protocol.md#message-layering) and [context implementation](context_implementation.md#builder-wire-message-and-view-handoff). They pass the verified `DecodedFrame` to the codec, which performs only the Arrow conversion below.
 
 Schema deserialization:
 
 ```text
-deserialize_schema(verified_schema_metadata):
+deserialize_schema(frame):
+    extract DataSchema from frame
     validate field and child structure
-    create decoded schema state
-    return schema state
+    import protocol schema into arrow::Schema
+    export schema to Arrow C Data
+    return make_unique<DataSchemaViewImpl>(exported_schema, correlation flags)
 ```
 
 Batch deserialization pseudocode:
 
 ```text
-deserialize_batch(metadata, reader, schema):
+deserialize_batch(frame, reader, schema, has_group_id):
+    metadata = frame.frame().data_record_batch_metadata()
 
-    if metadata.nodes.count != schema.flattened_field_count():
+    if metadata.nodes.count != flattened_field_count(schema):
         return SchemaMismatch
 
     if metadata.buffer_transport != Inline:
@@ -182,7 +180,7 @@ deserialize_batch(metadata, reader, schema):
     if schema contains an unsupported layout:
         return UnsupportedArrowLayout
 
-    validate is_end_of_group against schema.has_group_id and metadata.length
+    validate is_end_of_group against has_group_id and metadata.length
 
     validate flattened node order and data types against the schema
     require every node length to be nonnegative and every null count to be in [0, node.length]
@@ -218,19 +216,16 @@ deserialize_batch(metadata, reader, schema):
 
         storage.append_copy(bytes)
 
-    array = import_arrow_array(
+    record_batch = make_arrow_record_batch(
         schema = schema,
         nodes = metadata.nodes,
         buffers = storage)
 
-    return DecodedBatch{
-        array = move(array),
-        storage = move(storage),
-        is_end_of_group = metadata.is_end_of_group
-    }
+    exported_array = export_record_batch_as_arrow_c_array(record_batch)
+    return make_unique<RecordBatchViewImpl>(exported_array, metadata.is_end_of_group)
 ```
 
-The batch is not published to the inbound queue until the outer frame has been verified by the dispatcher, all buffer bytes are received, and the Arrow C Data object is valid.
+The returned view owns an Arrow C Data array whose release state retains the `RecordBatch` and buffer storage. The batch is not published to the inbound queue until the outer frame has been verified by the dispatcher, all buffer bytes are received, and the exported Arrow C Data object is valid.
 
 ## Supported Arrow layouts
 
@@ -255,14 +250,14 @@ The codec validates group-boundary metadata using the [call interface's data-str
 
 ## Decoded buffer lifetime
 
-`DecodedBatch` owns its `BufferStorage`, and the `ArrowArrayPtr` release state retains that storage for as long as any exported buffer pointer may be used. The release callback frees the array and codec storage exactly once. Transfer from the inbound queue to the worker-facing view follows the ownership rules in [context interface](context_interface.md#view-lifetime-and-verification).
+`RecordBatchView` owns the `ArrowArrayPtr`; its release state retains the Arrow `RecordBatch` and `BufferStorage` for as long as any exported buffer pointer may be used. The release callback frees the array and codec storage exactly once. View ownership follows [the context interface](context_interface.md#view-lifetime-and-verification).
 
 ## Buffer reader abstraction
 
 The deserializer must not read directly from the socket. The initial receive implementation copies each returned
 span into `BufferStorage` before requesting another span. `read_exact` returns a borrowed span valid until the next
-call to the reader; the span must not be retained by the decoded array. This makes the decoded array's buffer pointers
-refer only to storage owned by `DecodedBatch`, independently of socket or receive-buffer reuse.
+call to the reader; the span must not be retained by the exported Arrow C Data array. This makes its buffer pointers
+refer only to storage owned by the `RecordBatchView` release state, independently of socket or receive-buffer reuse.
 
 ```cpp
 class BufferReader
