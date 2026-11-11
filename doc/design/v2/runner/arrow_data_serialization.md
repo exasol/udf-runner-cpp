@@ -50,7 +50,10 @@ struct SerializedBatch
 };
 ```
 
-`DecodedSchema` is the retained internal state for one inbound direction. It holds the imported C++ schema and both flags needed to validate every batch. `DeserializedSchema` returns that state together with the worker-facing `DataSchemaView`, so the codec API specifies how the background thread obtains both values.
+`DecodedSchema` is the retained internal state for one inbound direction.
+It holds the imported C++ schema and both flags needed to validate every batch.
+`DeserializedSchema` returns that state together with the worker-facing `DataSchemaView`, so the
+codec API specifies how the background thread obtains both values.
 
 ## Codec interface
 
@@ -82,11 +85,27 @@ public:
 };
 ```
 
-The message composer passes its builder to the codec so schema and batch metadata offsets can be included in one composite frame. `DecodedFrame` owns a verified frame; the codec extracts its Arrow metadata and does not re-verify or route the frame.
+The message composer passes its builder to the codec so schema and batch metadata offsets can be
+included in one composite frame.
+`DecodedFrame` owns a verified frame; the codec extracts its Arrow metadata and does not re-verify
+or route the frame.
 
-The background thread imports accepted Arrow C Data objects into normal Arrow C++ objects before outbound codec calls. On receive, `deserialize_schema` returns both the internal state and the worker-facing `DataSchemaView`. The background thread holds both as pending values while it decodes the complete composite message. If the message contains a first batch, that batch is decoded against the pending `internal_schema`. Only after all components decode successfully does the background thread commit the schema state for the direction and publish the message with its `view`. On failure, it discards the pending values and leaves the retained direction state unchanged. Taking the schema from the published view does not consume the internal state. The state is released when the inbound direction ends. Arrow C++ and FlatBuffers types remain internal and do not cross the public API boundary.
+The background thread imports accepted Arrow C Data objects into normal Arrow C++ objects before
+outbound codec calls.
+On receive, `deserialize_schema` returns both the internal state and the worker-facing
+`DataSchemaView`.
+The background thread holds both as pending values while it decodes the complete composite message.
+If the message contains a first batch, that batch is decoded against the pending `internal_schema`.
+Only after all components decode successfully does the background thread commit the schema state for
+the direction and publish the message with its `view`.
+On failure, it discards the pending values and leaves the retained direction state unchanged.
+Taking the schema from the published view does not consume the internal state.
+The state is released when the inbound direction ends.
+Arrow C++ and FlatBuffers types remain internal and do not cross the public API boundary.
 
-The codec serializes one physical batch. Logical-batch splitting and ordering remain the background-thread responsibilities defined in [context implementation](context_implementation.md#background-send-path).
+The codec serializes one physical batch.
+Logical-batch splitting and ordering remain the background-thread responsibilities defined in
+[context implementation](context_implementation.md#background-send-path).
 
 ## Serialized representations
 
@@ -305,7 +324,11 @@ The initial implementation supports `Inline` only. The sender sets `buffer_trans
 
 ## Integration boundary
 
-Frame composition, call-field combinations, flow control, logical-batch splitting, stream routing, and queue publication remain defined in [context implementation](context_implementation.md#builder-wire-message-and-view-handoff) and [context interface](context_interface.md#composite-call-messages). This table shows where the codec participates in each Arrow-bearing path:
+Frame composition, call-field combinations, flow control, logical-batch splitting, stream routing,
+and queue publication remain defined in
+[context implementation](context_implementation.md#builder-wire-message-and-view-handoff) and
+[context interface](context_interface.md#composite-call-messages).
+This table shows where the codec participates in each Arrow-bearing path:
 
 | Message path | Outbound codec work | Inbound codec work |
 | --- | --- | --- |
@@ -314,7 +337,18 @@ Frame composition, call-field combinations, flow control, logical-batch splittin
 | Batch after schema announcement | Serialize batch metadata and buffers using the established schema | Decode batch using the retained `DecodedSchema` and consume its advertised buffers |
 | Message with no Arrow fields, including control-stream traffic | Bypass the Arrow codec | Bypass the Arrow codec |
 
-The composer preserves any other permitted fields in a composite message. A batch without an accompanying or previously announced schema state is invalid under the [data-stream rules](../protocol/low_level/data_stream.md#schema-and-first-batch-behavior). For a logical batch split into physical frames, the schema accompanies only its first physical frame. A new schema and its view remain pending until the entire composite message, including any co-framed first batch, has decoded successfully. The dispatcher then commits the new direction state together with publishing the message. If any component fails, it discards the pending schema and view, leaves retained state unchanged, and publishes nothing. Duplicate schema messages are rejected. The dispatcher publishes an inbound composite message only after every Arrow component has decoded successfully and all inline buffer bytes have been read.
+The composer preserves any other permitted fields in a composite message.
+A batch without an accompanying or previously announced schema state is invalid under the
+[data-stream rules](../protocol/low_level/data_stream.md#schema-and-first-batch-behavior).
+For a logical batch split into physical frames, the schema accompanies only its first physical frame.
+A new schema and its view remain pending until the entire composite message, including any co-framed
+first batch, has decoded successfully.
+The dispatcher then commits the new direction state together with publishing the message.
+If any component fails, it discards the pending schema and view, leaves retained state unchanged,
+and publishes nothing.
+Duplicate schema messages are rejected.
+The dispatcher publishes an inbound composite message only after every Arrow component has decoded
+successfully and all inline buffer bytes have been read.
 
 ## Error categories
 
