@@ -32,6 +32,7 @@ MessageStatus =
   | Cancelled
   | PeerClosed
   | ConnectionError
+  | ContextClosed
 ```
 
 Consuming operations return either a value or a terminal result:
@@ -44,7 +45,11 @@ OperationStatus =
   | PeerClosed
   | ProtocolError
   | TransportError
+  | ContextClosed
 ```
+
+`ContextClosed` means the associated context state has been closed or destroyed, so the operation cannot access the
+connection. It is distinct from `PeerClosed`, which reports that the peer closed an individual call stream.
 
 The conceptual generic result type is:
 
