@@ -8,6 +8,44 @@ This specification defines an injectable codec for converting Arrow schemas and 
 
 The codec is an internal dependency of the concrete background thread, as described in [context implementation](context_implementation.md). The background thread invokes it for both outbound serialization and inbound deserialization. The codec owns Arrow conversion; the background thread owns transport state. Injection provides a test seam for codec behavior.
 
+## Internal codec values
+
+These types stay in the runner's internal namespace:
+
+```cpp
+using FlatBufferBuilder = third_party::flatbuffers::FlatBufferBuilder;
+template <class T>
+using FlatBufferOffset = third_party::flatbuffers::Offset<T>;
+
+struct CodecLimits
+{
+    std::size_t max_buffer_bytes;
+    std::size_t max_batch_bytes;
+};
+
+struct DecodedSchema
+{
+    std::shared_ptr<const arrow::Schema> schema;
+    bool has_group_id;
+    bool has_row_id;
+};
+
+struct BufferSegment
+{
+    const std::byte* data;
+    std::size_t size;
+};
+
+struct SerializedBatch
+{
+    FlatBufferOffset<protocol::DataRecordBatchMetadata> metadata;
+    std::vector<BufferSegment> buffers;
+    std::shared_ptr<const arrow::RecordBatch> ownership;
+};
+```
+
+`DecodedSchema` is the retained internal state for one inbound direction. It holds the imported C++ schema and both flags needed to validate every batch. It is separate from the worker-facing `DataSchemaView`.
+
 ## Codec interface
 
 ```cpp
@@ -28,53 +66,25 @@ public:
         bool is_end_of_group,
         FlatBufferBuilder& builder) = 0;
 
-    virtual Result<std::unique_ptr<interface::DataSchemaView>> deserialize_schema(
+    virtual Result<DecodedSchema> deserialize_schema(
         const protocol::DecodedFrame& frame) = 0;
 
     virtual Result<std::unique_ptr<interface::RecordBatchView>> deserialize_batch(
         const protocol::DecodedFrame& frame,
         BufferReader& buffers,
-        const arrow::Schema& schema,
-        bool has_group_id) = 0;
+        const DecodedSchema& schema) = 0;
 };
 ```
 
-Conceptually, `FlatBufferBuilder` aliases `third_party::flatbuffers::FlatBufferBuilder` and `FlatBufferOffset<T>` aliases `third_party::flatbuffers::Offset<T>`. The message composer passes its builder to the codec so the schema and batch metadata offsets can be included in the same composite frame. `DecodedFrame` owns a verified frame; the codec extracts the Arrow metadata from it and does not re-verify or route the frame.
+The message composer passes its builder to the codec so schema and batch metadata offsets can be included in one composite frame. `DecodedFrame` owns a verified frame; the codec extracts its Arrow metadata and does not re-verify or route the frame.
 
-The background thread imports accepted Arrow C Data objects into normal Arrow C++ objects before outbound codec calls. On receive, the codec converts the verified frame metadata and inline buffers into Arrow C++ objects, then exports them into the worker-facing C Data views. These C++ and FlatBuffers types remain internal and do not cross the public API boundary. A production codec is configured with `CodecLimits` from runner configuration:
-
-```cpp
-struct CodecLimits
-{
-    std::size_t max_buffer_bytes;
-    std::size_t max_batch_bytes;
-};
-```
+The background thread imports accepted Arrow C Data objects into normal Arrow C++ objects before outbound codec calls. On receive, the codec converts frame metadata and inline buffers into Arrow C++ objects. The background thread retains one `DecodedSchema` per inbound data direction and passes it to subsequent batch decodes. It exports the retained Arrow schema into a separate Arrow C Data object when constructing the worker-facing `DataSchemaView`; `take_schema()` on that view does not consume the internal state. The state is released when the inbound direction ends. Arrow C++ and FlatBuffers types remain internal and do not cross the public API boundary.
 
 The codec serializes one physical batch. Logical-batch splitting and ordering remain the background-thread responsibilities defined in [context implementation](context_implementation.md#background-send-path).
 
 ## Serialized representations
 
-These illustrative result shapes show ownership and buffer relationships; their exact C++ types are implementation choices.
-
-```cpp
-struct SerializedBatch
-{
-    FlatBufferOffset<protocol::DataRecordBatchMetadata> metadata;
-    std::vector<BufferSegment> buffers;
-
-    // Keeps Arrow-owned buffers alive until all spans are written.
-    std::shared_ptr<const arrow::RecordBatch> ownership;
-};
-
-struct BufferSegment
-{
-    const std::byte* data;
-    std::size_t size;
-};
-```
-
-`serialize_schema` returns a builder-owned offset directly. `SerializedBatch` adds the ordered non-owning buffer spans and retains the Arrow `RecordBatch` that owns their storage. The outer composer embeds the returned offsets in the composite protocol frame; the batch owner remains alive until every span is sent or discarded during shutdown.
+`serialize_schema` returns a builder-owned offset directly. `SerializedBatch` contains the metadata offset and ordered non-owning buffer spans, and retains the Arrow `RecordBatch` that owns their storage. The outer composer embeds the returned offsets in the composite protocol frame; the batch owner remains alive until every span is sent or discarded during shutdown.
 
 ## Schema serialization
 
@@ -161,15 +171,26 @@ deserialize_schema(frame):
     extract DataSchema from frame
     validate field and child structure
     import protocol schema into arrow::Schema
-    export schema to Arrow C Data
-    return make_unique<DataSchemaViewImpl>(exported_schema, correlation flags)
+    return DecodedSchema{
+        schema = shared_ptr<const arrow::Schema>(imported schema),
+        has_group_id = frame data_schema.has_group_id,
+        has_row_id = frame data_schema.has_row_id
+    }
+
+make_data_schema_view(decoded_schema):
+    exported_schema = export Arrow C Data from *decoded_schema.schema
+    return make_unique<DataSchemaViewImpl>(
+        exported_schema,
+        decoded_schema.has_group_id,
+        decoded_schema.has_row_id)
 ```
 
 Batch deserialization pseudocode:
 
 ```text
-deserialize_batch(frame, reader, schema, has_group_id):
+deserialize_batch(frame, reader, decoded_schema):
     metadata = frame.frame().data_record_batch_metadata()
+    schema = *decoded_schema.schema
 
     if metadata.nodes.count != flattened_field_count(schema):
         return SchemaMismatch
@@ -180,7 +201,7 @@ deserialize_batch(frame, reader, schema, has_group_id):
     if schema contains an unsupported layout:
         return UnsupportedArrowLayout
 
-    validate is_end_of_group against has_group_id and metadata.length
+    validate is_end_of_group against decoded_schema.has_group_id and metadata.length
 
     validate flattened node order and data types against the schema
     require every node length to be nonnegative and every null count to be in [0, node.length]
@@ -225,7 +246,7 @@ deserialize_batch(frame, reader, schema, has_group_id):
     return make_unique<RecordBatchViewImpl>(exported_array, metadata.is_end_of_group)
 ```
 
-The returned view owns an Arrow C Data array whose release state retains the `RecordBatch` and buffer storage. The batch is not published to the inbound queue until the outer frame has been verified by the dispatcher, all buffer bytes are received, and the exported Arrow C Data object is valid.
+The returned `RecordBatchView` owns an Arrow C Data array whose release state retains the `RecordBatch` and buffer storage. The batch is not published to the inbound queue until the outer frame has been verified by the dispatcher, all buffer bytes are received, and the exported Arrow C Data object is valid.
 
 ## Supported Arrow layouts
 
@@ -280,12 +301,12 @@ Frame composition, call-field combinations, flow control, logical-batch splittin
 
 | Message path | Outbound codec work | Inbound codec work |
 | --- | --- | --- |
-| Schema only | Serialize `DataSchema` metadata; composer emits no batch buffers | Deserialize schema metadata and update that direction's schema state |
-| Schema with first batch | Serialize both components; composer puts them in one frame and emits batch buffers | Decode schema before the batch, then consume that batch's advertised buffers |
-| Batch after schema announcement | Serialize batch metadata and buffers using the established schema | Decode batch using the established schema and consume its advertised buffers |
+| Schema only | Serialize `DataSchema` metadata; composer emits no batch buffers | Decode and retain `DecodedSchema`; export a separate `DataSchemaView` for the worker |
+| Schema with first batch | Serialize both components; composer puts them in one frame and emits batch buffers | Decode and retain `DecodedSchema` first, then decode the batch against that state |
+| Batch after schema announcement | Serialize batch metadata and buffers using the established schema | Decode batch using the retained `DecodedSchema` and consume its advertised buffers |
 | Message with no Arrow fields, including control-stream traffic | Bypass the Arrow codec | Bypass the Arrow codec |
 
-The composer preserves any other permitted fields in a composite message. A batch without an accompanying or previously announced schema is invalid under the [data-stream rules](../protocol/low_level/data_stream.md#schema-and-first-batch-behavior). For a logical batch split into physical frames, the schema accompanies only its first physical frame. The dispatcher publishes an inbound composite message only after every Arrow component has decoded successfully and all inline buffer bytes have been read.
+The composer preserves any other permitted fields in a composite message. A batch without an accompanying or previously announced schema state is invalid under the [data-stream rules](../protocol/low_level/data_stream.md#schema-and-first-batch-behavior). For a logical batch split into physical frames, the schema accompanies only its first physical frame. The direction stores a schema only after successful decoding; duplicate schema messages are rejected, and failed decoding never replaces retained state. The dispatcher publishes an inbound composite message only after every Arrow component has decoded successfully and all inline buffer bytes have been read.
 
 ## Error categories
 
