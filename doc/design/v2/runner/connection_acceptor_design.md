@@ -56,7 +56,8 @@ instance, and a shutdown `EventFd`. During construction it registers the
 listener's borrowed descriptor and the eventfd with epoll. On the caller
 thread, `get_next_connection` waits on epoll for at most the requested timeout.
 Listener readiness causes `accept_socket()` and wraps the result in a
-`SocketConnection` with `ConnectionType::UnixDomainSocket`.
+`SocketConnection` with the `ConnectionType` supplied when the acceptor is
+constructed (currently `ConnectionType::UnixDomainSocket`).
 
 `shutdown()` is safe to call while a caller is waiting. It records the shutdown
 state under a mutex and writes to the eventfd; epoll then wakes the waiting

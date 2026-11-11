@@ -1,6 +1,6 @@
 #include <exasol/udf/v2/internal/caller_thread_socket_connection_acceptor.hpp>
 
-#include <exasol/udf/v2/internal/connection.hpp>
+#include <exasol/udf/v2/assert.hpp>
 
 #include <algorithm>
 #include <cerrno>
@@ -50,18 +50,18 @@ namespace
 } // namespace
 
 CallerThreadSocketConnectionAcceptor::CallerThreadSocketConnectionAcceptor(
+    const ConnectionType connection_type,
     std::unique_ptr<socket::SocketListener> listener,
     std::unique_ptr<LinuxEpoll> epoll,
     std::unique_ptr<EventFd> shutdown_event)
-    : listener(std::move(listener)),
+    : connection_type(connection_type),
+      listener(std::move(listener)),
       epoll(std::move(epoll)),
       shutdown_event(std::move(shutdown_event))
 {
-    if (!this->listener || !this->epoll || !this->shutdown_event)
-    {
-        throw std::invalid_argument("CallerThreadSocketConnectionAcceptor requires "
-                                    "listener, epoll, and eventfd");
-    }
+    EXASOL_UDF_ASSERT(this->listener);
+    EXASOL_UDF_ASSERT(this->epoll);
+    EXASOL_UDF_ASSERT(this->shutdown_event);
     this->listener_registration = this->epoll->add(this->listener->native_handle(),
                                                    EpollInterest{.readable = true}, listener_token);
     this->shutdown_registration = this->epoll->add(this->shutdown_event->native_handle(),
@@ -115,7 +115,7 @@ std::unique_ptr<Connection> CallerThreadSocketConnectionAcceptor::get_next_conne
             return {};
         }
     }
-    return std::make_unique<SocketConnection>(ConnectionType::UnixDomainSocket, std::move(socket));
+    return std::make_unique<SocketConnection>(this->connection_type, std::move(socket));
 }
 
 void CallerThreadSocketConnectionAcceptor::shutdown()
@@ -138,6 +138,7 @@ void CallerThreadSocketConnectionAcceptor::shutdown()
         {
             throw;
         }
+        // A saturated eventfd is already readable, so a shutdown wake-up is pending.
     }
 }
 
