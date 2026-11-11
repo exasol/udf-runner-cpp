@@ -96,8 +96,9 @@ On receive, `deserialize_schema` returns both the internal state and the worker-
 `DataSchemaView`.
 The background thread holds both as pending values while it decodes the complete composite message.
 If the message contains a first batch, that batch is decoded against the pending `internal_schema`.
-Only after all components decode successfully does the background thread commit the schema state for
-the direction and publish the message with its `view`.
+Only after all components decode successfully does the background thread attempt to enqueue the
+complete inbound message batch.
+It commits the pending schema state only after that enqueue succeeds, before notifying the worker.
 On failure, it discards the pending values and leaves the retained direction state unchanged.
 Taking the schema from the published view does not consume the internal state.
 The exported Arrow C schema's release state retains a shared owner of the imported `arrow::Schema`.
@@ -337,8 +338,8 @@ This table shows where the codec participates in each Arrow-bearing path:
 
 | Message path | Outbound codec work | Inbound codec work |
 | --- | --- | --- |
-| Schema only | Serialize `DataSchema` metadata; composer emits no batch buffers | Decode to a pending `DeserializedSchema`; after the complete message succeeds, retain its internal state and publish its view |
-| Schema with first batch | Serialize both components; composer puts them in one frame and emits batch buffers | Decode schema to a pending `DeserializedSchema`, decode the batch against its pending state, then retain the state and publish the view and batch only after the complete message succeeds |
+| Schema only | Serialize `DataSchema` metadata; composer emits no batch buffers | Decode to a pending `DeserializedSchema`; after the complete message succeeds and its enqueue is accepted, retain its internal state and publish its view |
+| Schema with first batch | Serialize both components; composer puts them in one frame and emits batch buffers | Decode schema to a pending `DeserializedSchema`, decode the batch against its pending state, then retain the state and publish the view and batch only after the complete message succeeds and its enqueue is accepted |
 | Batch after schema announcement | Serialize batch metadata and buffers using the established schema | Decode batch using the retained `DecodedSchema` and consume its advertised buffers |
 | Message with no Arrow fields, including control-stream traffic | Bypass the Arrow codec | Bypass the Arrow codec |
 
@@ -348,9 +349,15 @@ A batch without an accompanying or previously announced schema state is invalid 
 For a logical batch split into physical frames, the schema accompanies only its first physical frame.
 A new schema and its view remain pending until the entire composite message, including any co-framed
 first batch, has decoded successfully.
-The dispatcher then commits the new direction state together with publishing the message.
-If any component fails, it discards the pending schema and view, leaves retained state unchanged,
-and publishes nothing.
+The dispatcher then attempts to enqueue the complete inbound batch, whose queue operation accepts all
+items or none, as specified in [context implementation](context_implementation.md#queue-operations).
+After successful enqueue, it commits the new direction state before notifying the worker.
+If decoding or enqueue fails, it does not commit the pending state.
+On enqueue failure, ownership remains with the background thread; it releases the staged message,
+schema view, and storage leases, then records a terminal queue-publication failure and wakes the worker
+through the out-of-band terminal state described in
+[context implementation](context_implementation.md#terminal-state).
+It stops normal I/O because the already-consumed message cannot be safely skipped or retried.
 Duplicate schema messages are rejected.
 The dispatcher publishes an inbound composite message only after every Arrow component has decoded
 successfully and all inline buffer bytes have been read.
