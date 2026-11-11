@@ -229,17 +229,23 @@ class ContextManager {
     +create(connected_socket) Context
 }
 class ContextImpl {
-    -unique_ptr~BackgroundThreadInterface~ background_thread_
-    -StreamRegistry stream_registry_
+    -shared_ptr~ContextState~ state_
     -ControlStreamImpl control_stream_
     +accept_call()
     +open_call(opening_message)
-    +dispatch_inbound_batch()
+}
+class ContextState {
+    -unique_ptr~BackgroundThreadInterface~ background_thread_
+    -StreamRegistry stream_registry_
+    -ContextLifecycle lifecycle_
+    +accept_call()
+    +open_call(opening_message)
     +receive_call_message(stream_id, deadline)
     +receive_control_message(deadline)
-    +send_control_message(builder)
     +send_call_message(stream_id, builder)
-    +request_shutdown()
+    +send_control_message(builder)
+    +dispatch_inbound_batch()
+    +shutdown()
 }
 class StreamRegistry {
     -EndpointRole endpoint_role_
@@ -267,13 +273,13 @@ class CallState {
     -optional terminal_result_
 }
 class CallImpl {
-    -ContextImpl& context_
+    -weak_ptr~ContextState~ state_
     -StreamId stream_id_
     +send(builder)
     +receive()
 }
 class ControlStreamImpl {
-    -ContextImpl& context_
+    -weak_ptr~ContextState~ state_
     +send(builder)
     +receive()
 }
@@ -306,13 +312,14 @@ CallImpl ..|> Call
 ControlStreamImpl ..|> ControlStream
 ContextManager --> EndpointRole : configured with
 ContextManager ..> ContextImpl : constructs with role
-ContextImpl *-- StreamRegistry : owns
-ContextImpl --> StreamRegistry : initializes with role
+ContextImpl *-- ContextState : owns strong reference
+ContextState *-- StreamRegistry : owns
+ContextState --> StreamRegistry : initializes with role
 ContextImpl *-- ControlStreamImpl : exposes stream 0
-ContextImpl --> BackgroundThreadInterface : uses
-ContextImpl ..> CallImpl : creates handles
-CallImpl --> ContextImpl : delegates using stream ID
-ControlStreamImpl --> ContextImpl : delegates using ID 0
+ContextState --> BackgroundThreadInterface : owns
+ContextState ..> CallImpl : creates handles
+CallImpl ..> ContextState : weak reference; delegates using stream ID
+ControlStreamImpl ..> ContextState : weak reference; delegates using ID 0
 StreamRegistry *-- "0..*" CallState : tracks active and unaccepted calls
 BackgroundThreadImpl ..|> BackgroundThreadInterface
 BackgroundThreadInterface ..> OutboundMessage : accepts
@@ -322,34 +329,50 @@ StreamRegistry ..> DispatchResult : reports
 
 `StreamRegistry` owns logical stream IDs, high-water marks, per-call pending
 messages, the unaccepted-call order, and control-stream pending messages.
-`ContextImpl` owns the registry by value and is its only caller. Registry
-operations run on the context's worker thread; the registry does not wait,
-perform I/O, or access the background-thread interface. The background thread
-only moves complete messages through the two queues; it never reads or mutates
-registry state.
+`ContextImpl` owns a strong reference to `ContextState`. `ContextState` owns
+the registry and background-thread interface and is the registry's only
+caller. Registry operations run on the context's worker thread; the registry
+does not wait, perform I/O, or access the background-thread interface. The
+background thread only moves complete messages through the two queues; it
+never reads or mutates registry state.
 
-`CallImpl` and `ControlStreamImpl` are non-owning worker-facing handles. A
-`CallImpl` stores a reference to its `ContextImpl` and its stream ID, not a
-pointer or reference to `CallState`. A `ControlStreamImpl` stores only its
-context reference; its stream ID is implicitly `0`. Their operations delegate
-to `ContextImpl`, which resolves the relevant state through `StreamRegistry`:
+`CallImpl` and `ControlStreamImpl` store `weak_ptr<ContextState>` handles; a
+call also stores its stream ID, while the control stream uses ID `0`. They do
+not retain `ContextImpl` or `CallState`. This prevents a call handle from
+keeping the connection alive or dereferencing a destroyed context. Each
+operation locks the weak pointer and delegates to `ContextState`; if the state
+has expired or is closed, it returns the existing `ContextClosed` result.
+`ContextState` resolves stream state through `StreamRegistry` and performs the
+send, receive, and dispatch operations:
 
 ```text
 CallImpl::receive(timeout):
+    state = state_.lock()
+    if state is absent or closed:
+        return ContextClosed
     deadline = make_deadline(timeout)
-    return context.receive_call_message(stream_id, deadline)
+    return state.receive_call_message(stream_id, deadline)
 
 CallImpl::send(builder, timeout):
-    return context.send_call_message(stream_id, move(builder), timeout)
+    state = state_.lock()
+    if state is absent or closed:
+        return ContextClosed
+    return state.send_call_message(stream_id, move(builder), timeout)
 
 ControlStreamImpl::receive(timeout):
-    return context.receive_control_message(timeout)
+    state = state_.lock()
+    if state is absent or closed:
+        return ContextClosed
+    return state.receive_control_message(timeout)
 
 ControlStreamImpl::send(builder):
-    return context.send_control_message(move(builder))
+    state = state_.lock()
+    if state is absent or closed:
+        return ContextClosed
+    return state.send_control_message(move(builder))
 ```
 
-`CallImpl::receive()` passes its stream ID to `ContextImpl`, which looks up the
+`CallImpl::receive()` passes its stream ID to `ContextState`, which looks up the
 corresponding `CallState` and consumes only that call's pending messages.
 `ControlStreamImpl::receive()` follows the same path for the control pending
 queue. If the requested queue is empty, `ContextImpl` dispatches the shared
@@ -364,16 +387,19 @@ The worker-visible opening-message and close-delivery behavior is specified in
 In particular, a peer-opened call's queued opening view is returned by its
 first receive, while a locally opened call's first receive waits for the peer.
 
-The registry creates `CallState` when `open_call()` registers a local stream or
-when dispatch accepts a peer opening. The state remains in the registry while
+`ContextImpl` creates `ContextState` and passes it to `CallImpl` as a weak
+reference whenever it creates a call handle. The registry creates `CallState`
+when `open_call()` registers a local stream or when dispatch accepts a peer
+opening. The state remains in the registry while
 the call is unaccepted and after `accept_call()` creates a `CallImpl` handle.
 Returning a handle does not move state into it. The registry removes the state
 after the peer's terminal close view is delivered, or when connection
-termination cleans up all calls. Consequently, handles must not outlive their
-owning context. If a call handle's state has been released, a later operation
-resolves to `PeerClosed`; once the whole context is terminal, its terminal
-result takes precedence. `BackgroundThreadImpl` is the production adapter;
-tests can provide another implementation of `BackgroundThreadInterface`.
+termination cleans up all calls. After a peer close, a still-live call handle
+resolves to `PeerClosed`; after context shutdown or destruction, locking its
+weak state fails or finds a closed state and returns `ContextClosed`. Handles
+therefore may outlive the context as inert objects without extending the
+connection lifetime. `BackgroundThreadImpl` is the production adapter; tests
+can provide another implementation of `BackgroundThreadInterface`.
 
 Reserve a local ID before creating the opening builder. Once reserved, the ID
 and local high-water mark stay consumed even if builder creation or enqueueing

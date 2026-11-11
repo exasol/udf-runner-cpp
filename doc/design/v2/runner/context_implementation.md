@@ -704,6 +704,17 @@ drain is a final cleanup drain, not an opportunity to deliver more messages.
 
 ## Context destruction
 
+The proposed lifetime anchor is a shared internal `ContextState`. `ContextImpl`
+owns it strongly; `CallImpl` handles hold weak references to it. The state owns
+the `StreamRegistry`, background-thread interface, and terminal lifecycle
+state. Thus a `Call` object may remain allocated after its `Context` is
+destroyed without retaining the connection or dereferencing freed memory.
+`ContextImpl` shuts the state down and joins its background thread before
+releasing its strong reference. A later call operation whose weak reference
+cannot be locked, or whose state is already closed, returns `ContextClosed`.
+The worker-thread contract still requires context destruction to be serialized
+with operations on that context.
+
 If the context lifetime ends before the worker explicitly sends `CloseConnection`:
 
 1. atomically transition to `ClosingByWorker` if still `Active`;
@@ -718,6 +729,13 @@ If the context lifetime ends before the worker explicitly sends `CloseConnection
 
 If the socket has already failed, the close attempt is skipped and the recorded transport failure is retained for
 diagnostics.
+
+`Context::control_stream()` returns a reference to a context-owned
+`ControlStream` object, so that reference is valid only while the `Context`
+object exists. Its implementation also uses a weak `ContextState` reference;
+changing the public method to return an independently owned handle would be
+required if a caller must retain the `ControlStream` object beyond the
+`Context` lifetime.
 
 ## Peer-initiated close
 

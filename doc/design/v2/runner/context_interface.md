@@ -568,7 +568,10 @@ sent opening message is not returned by `Call::receive()`.
 ## Lifecycle and terminal behavior
 
 The context owns the connection after successful context creation. A call object represents one logical call and is
-valid until call close, connection close, internal cancellation, peer disconnect, or fatal error.
+usable until call close, connection close, internal cancellation, peer disconnect, or fatal error. The `Call` handle
+may remain allocated after its `Context` is destroyed, but it is then inert: it does not keep the connection alive and
+subsequent operations return `ContextClosed`. The reference returned by `Context::control_stream()` is valid only
+while its `Context` remains alive.
 
 Internal cancellation, peer disconnect, connection close, and fatal errors wake all affected blocked operations. After
 connection close begins:
