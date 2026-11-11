@@ -1,12 +1,12 @@
 #include <exasol/udf/v2/internal/caller_thread_socket_connection_acceptor.hpp>
 #include <exasol/udf/v2/internal/connection.hpp>
 #include <exasol/udf/v2/linux_epoll.hpp>
-#include <exasol/udf/v2/posix/posix.hpp>
 
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <functional>
 #include <future>
 #include <limits>
@@ -60,7 +60,7 @@ public:
 
     [[nodiscard]] OwnedFileDescriptor release_native_handle() noexcept override
     {
-        return OwnedFileDescriptor(std::make_shared<exasol::udf::v2::posix::Native>());
+        std::terminate();
     }
 
     void shutdown(const Shutdown how) override
