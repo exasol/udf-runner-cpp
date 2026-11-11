@@ -25,8 +25,8 @@ Arrow C Data Interface.
   contract.
 - [context_implementation.md](context_implementation.md) defines the internal queues, background I/O thread,
   notification, batching, and shutdown design.
-- [interface_class_diagram.md](interface_class_diagram.md) documents the worker-facing interfaces, internal message
-  implementations, background-thread boundary, interface dependencies, and Arrow ownership transfer.
+- [interface_class_diagram.md](interface_class_diagram.md) documents the abstract worker-facing interfaces and the
+  high-level relationship between those interfaces, their implementations, and generated FlatBuffer objects.
 - [arrow_data_serialization.md](arrow_data_serialization.md) defines Arrow schema and record-batch serialization,
   buffer transport, ownership, and deserialization.
 - [epoll_design.md](epoll_design.md) defines the Linux epoll abstraction and its registration ownership model.

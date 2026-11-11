@@ -1,0 +1,36 @@
+flowchart LR
+    subgraph API[Abstract worker-facing interfaces]
+        Context[Context]
+        Call[Call]
+        ControlStream[ControlStream]
+        Builders[Message builder interfaces]
+        MessageViews[CallMessageView / ControlMessageView]
+        TypedViews[Typed child view interfaces]
+        ArrowViews[DataSchemaView / RecordBatchView]
+    end
+
+    subgraph INTERNAL[Internal implementations]
+        BuilderImpls[Builder implementations]
+        MessageViewImpls[CallMessageViewImpl / ControlMessageViewImpl]
+        FlatbufferWrappers[FlatBuffer-backed typed view wrappers]
+        ArrowViewImpls[DataSchemaViewImpl / RecordBatchViewImpl]
+    end
+
+    subgraph PROTOCOL[Verified protocol representation]
+        FrameLease[DecodedFrame\nverified frame and owned bytes]
+        FlatbufferObjects[Generated FlatBuffer objects\nFrame, OpenCall, Payloads, Error, and control objects]
+    end
+
+    Context --> Call
+    Context --> ControlStream
+    Call --> Builders
+    ControlStream --> Builders
+    Call --> MessageViews
+    ControlStream --> MessageViews
+    Builders -. implemented by .-> BuilderImpls
+    MessageViews -. implemented by .-> MessageViewImpls
+    TypedViews -. wrapped by .-> FlatbufferWrappers
+    ArrowViews -. implemented by .-> ArrowViewImpls
+    MessageViewImpls --> FrameLease
+    FlatbufferWrappers --> FrameLease
+    FrameLease --> FlatbufferObjects

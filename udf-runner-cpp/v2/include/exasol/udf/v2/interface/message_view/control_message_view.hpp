@@ -1,10 +1,10 @@
 #pragma once
 
-#include <exasol/udf/v2/udf_protocol.hpp>
+#include <exasol/udf/v2/interface/message_view/common_views.hpp>
+#include <exasol/udf/v2/interface/message_view/control_message_views.hpp>
 
 #include <cstdint>
-#include <functional>
-#include <optional>
+#include <memory>
 
 namespace exasol::udf::v2::interface
 {
@@ -20,21 +20,16 @@ public:
     ControlMessageView& operator=(ControlMessageView&&)      = delete;
 
     /// Returns the stream ID of this view's verified frame.
-    [[nodiscard]] virtual std::uint64_t stream_id() const noexcept = 0;
-    [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::ServerCapabilities>>
-    server_capabilities() const noexcept = 0;
-    /// Returns the wire-level FlatBuffer keep-alive table, or an empty optional when absent.
-    [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::KeepAlive>>
-    keep_alive() const noexcept = 0;
-    /// Returns the wire-level FlatBuffer payload table, or an empty optional when absent.
-    [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::Payloads>> payloads()
-        const noexcept = 0;
-    /// Returns the wire-level FlatBuffer error table, or an empty optional when absent.
-    [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::Error>> error()
-        const noexcept = 0;
-    /// Returns the wire-level FlatBuffer close-connection table, or an empty optional when absent.
-    [[nodiscard]] virtual std::optional<std::reference_wrapper<const protocol::CloseConnection>>
-    close_connection() const noexcept = 0;
+    [[nodiscard]] virtual std::uint64_t stream_id() const noexcept                            = 0;
+    [[nodiscard]] virtual std::unique_ptr<ServerCapabilitiesView> server_capabilities() const = 0;
+    /// Returns the keep-alive view, or nullptr when absent.
+    [[nodiscard]] virtual std::unique_ptr<KeepAliveView> keep_alive() const = 0;
+    /// Returns the payloads view, or nullptr when absent.
+    [[nodiscard]] virtual std::unique_ptr<PayloadsView> payloads() const = 0;
+    /// Returns the error view, or nullptr when absent.
+    [[nodiscard]] virtual std::unique_ptr<ErrorView> error() const = 0;
+    /// Returns the close-connection view, or nullptr when absent.
+    [[nodiscard]] virtual std::unique_ptr<CloseConnectionView> close_connection() const = 0;
 
 protected:
     ControlMessageView() = default;
