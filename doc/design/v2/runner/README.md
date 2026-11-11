@@ -27,6 +27,8 @@ Arrow C Data Interface.
   notification, batching, and shutdown design.
 - [interface_class_diagram.md](interface_class_diagram.md) documents the worker-facing interfaces, internal message
   implementations, background-thread boundary, interface dependencies, and Arrow ownership transfer.
+- [arrow_data_serialization.md](arrow_data_serialization.md) defines Arrow schema and record-batch serialization,
+  buffer transport, ownership, and deserialization.
 - [epoll_design.md](epoll_design.md) defines the Linux epoll abstraction and its registration ownership model.
 
 Mermaid `.mmd` files are the diagram sources of truth. Matching `.svg` files are rendered views linked from the
