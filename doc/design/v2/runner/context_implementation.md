@@ -419,11 +419,11 @@ close/transport error according to the protocol policy.
 The inbound batch is published only after all its envelopes are fully verified. The logically unbounded inbound queue
 accepts the batch without blocking and takes ownership of its storage leases.
 
-`Reset` remains visible through `CallMessageView::reset()` as an optional reference to the wire-level
-`protocol::Reset` table. The separate `next_send_budget_in_bytes` field is consumed internally for authoritative
-credit accounting and is not exposed through the worker-facing message view. If a composite message contains both a
-send-budget update and other call fields, the credit update occurs before the background thread processes pending
-outbound data, while the complete call message, including any `Reset`, is still delivered to the worker.
+`Reset` remains visible through `CallMessageView::reset()` as a nullable `ResetView` wrapper. The separate
+`next_send_budget_in_bytes` field is consumed internally for authoritative credit accounting and is not exposed through
+the worker-facing message view. If a composite message contains both a send-budget update and other call fields, the
+credit update occurs before the background thread processes pending outbound data, while the complete call message,
+including any `ResetView`, is still delivered to the worker.
 
 ### Send-side socket processing
 
@@ -520,7 +520,7 @@ The receive handoff is:
 socket bytes
     -> frame boundary and size checks
     -> FlatBuffer verification
-    -> generated wire view
+    -> internal FlatBuffer-backed wrapper views
     -> CallMessageView / ControlMessageView
     -> InboundEnvelope
     -> worker dispatcher and logical pending list
@@ -539,8 +539,9 @@ The receive path creates a verified immutable storage lease for each received fr
 - the generated FlatBuffer `Frame` and `StreamMessage` views;
 - any Arrow schema and array ownership leases attached to the message.
 
-`CallMessageView` and `ControlMessageView` retain this lease. Receiving later messages does not invalidate an earlier
-view. The inbound queue owns the lease until dequeue; the worker-owned view owns it afterward.
+`CallMessageView` and `ControlMessageView` retain this lease, and every typed wrapper returned from them retains the
+same lease while it is alive. Receiving later messages does not invalidate an earlier view or wrapper. The inbound
+queue owns the lease until dequeue; the worker-owned view and its wrappers own it afterward.
 
 Malformed FlatBuffers are never placed in the inbound queue. They publish a protocol error and transition the context
 to a terminal state.

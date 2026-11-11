@@ -10,6 +10,52 @@ The v2 module is built independently with Bazel 8.8.2 in CI.
 v2 is currently validated by the native Bazel workflow and is not included in
 the checked-in `test-udf-runner-cpp-v1` SLC flavor.
 
+## Podman build container
+
+For a reproducible containerized v2 build on a host without a usable rootless
+Podman runtime, use the Dockerfile derived from the development Lima template:
+
+```bash
+podman build \
+  --userns=host \
+  --isolation=chroot \
+  --network=host \
+  --tag udf-runner-cpp-v2-build \
+  --file ext/lima_vm_templates/udf-runner-cpp-v2.Dockerfile \
+  .
+```
+
+If the host runtime directory is read-only, provide temporary Podman roots and
+runtime state explicitly:
+
+```bash
+podman_runtime_dir="$(mktemp -d)"
+podman_storage_dir="$(mktemp -d)"
+chmod 700 "$podman_runtime_dir" "$podman_storage_dir"
+
+XDG_RUNTIME_DIR="$podman_runtime_dir" podman \
+  --runroot "$podman_runtime_dir/libpod" \
+  --root "$podman_storage_dir/libpod" \
+  build --userns=host --isolation=chroot --network=host \
+  --tag udf-runner-cpp-v2-build \
+  --file ext/lima_vm_templates/udf-runner-cpp-v2.Dockerfile \
+  .
+```
+
+Build the current working tree inside the image by mounting the repository:
+
+```bash
+XDG_RUNTIME_DIR="$podman_runtime_dir" podman \
+  --runroot "$podman_runtime_dir/libpod" \
+  --root "$podman_storage_dir/libpod" \
+  run --rm --userns=host --network=host --security-opt label=disable \
+  --volume "$PWD:/workspace:Z" \
+  udf-runner-cpp-v2-build build --verbose_failures //...
+```
+
+The same container can run the full v2 test suite by replacing `build` with
+`test`.
+
 ## Build and test
 
 Run the v2 tests from the v2 module directory:

@@ -12,8 +12,8 @@ The worker sees three abstractions:
 - `ControlStream` for connection-level traffic on stream `0`.
 
 The C++ declarations for these abstractions and their related builders, views, content types, results, statuses, and
-timeouts reside in the `exasol::udf::v2::interface` namespace. Generated wire-format types remain in the separate
-`exasol::udf::protocol` namespace.
+timeouts reside in the `exasol::udf::v2::interface` namespace. Generated wire-format types remain an internal
+transport detail in the separate `exasol::udf::protocol` namespace.
 
 The context consumes and dispatches transport messages internally. A worker never receives a socket, file descriptor,
 frame, or numeric stream identifier.
@@ -295,24 +295,42 @@ failure, the caller's `unique_ptr` remains non-null and retains ownership of the
 ```text
 CallMessageView {
     stream_id() -> uint64
-    open_call() -> std::optional<std::reference_wrapper<const protocol::OpenCall>>
-    payloads() -> std::optional<std::reference_wrapper<const protocol::Payloads>>
+    open_call() -> std::unique_ptr<OpenCallView>
+    payloads() -> std::unique_ptr<PayloadsView>
     data_schema() -> std::unique_ptr<DataSchemaView>
-    reset() -> std::optional<std::reference_wrapper<const protocol::Reset>>
+    reset() -> std::unique_ptr<ResetView>
     record_batch() -> std::unique_ptr<RecordBatchView>
-    error() -> std::optional<std::reference_wrapper<const protocol::Error>>
-    close_call() -> std::optional<std::reference_wrapper<const protocol::CloseCall>>
+    error() -> std::unique_ptr<ErrorView>
+    close_call() -> std::unique_ptr<CloseCallView>
 }
 ```
 
 `stream_id()` identifies the logical stream carrying this message. Every view is backed by a verified decoded frame,
 so the stream ID is always present. Constructing a view without a decoded frame is an internal invariant violation.
 
-The `open_call()`, `payloads()`, `reset()`, `error()`, and `close_call()` accessors return optional references to
-generated FlatBuffer `protocol` tables. The `data_schema()` and `record_batch()` accessors return owning interface
-objects when Arrow data is available, or `nullptr` when it is absent or not yet populated. Their `take_schema()` and
-`take_array()` operations explicitly move Arrow ownership out of those views; they are not borrowed raw-pointer
-accessors.
+The `open_call()`, `payloads()`, `reset()`, `error()`, and `close_call()` accessors return typed, read-only interface
+wrappers, or `nullptr` when the field is absent. The wrappers expose semantic values and never expose generated
+FlatBuffer tables, vectors, unions, or runtime types. This keeps message consumers mockable and independent of wire
+serialization changes.
+
+The wrapper contracts are:
+
+```text
+OpenCallView { call_name() -> optional<string_view> }
+PayloadsView { size() -> size_t; at(index) -> unique_ptr<PayloadView> }
+PayloadView { name() -> optional<string_view>; value() -> unique_ptr<PayloadValueView> }
+PayloadValueView {
+    type() -> PayloadType
+    string_value() -> optional<string_view>
+    binary_value() -> optional<span<const uint8_t>>
+}
+ResetView { row_id() -> uint64 }
+ErrorView { code() -> optional<string_view>; message() -> optional<string_view> }
+CloseCallView { }
+```
+
+`PayloadType` has `String` or `Binary` values. Accessing a value using the wrong representation returns an empty
+optional. Payload indexing outside the available range returns `nullptr`.
 
 `DataSchemaView` exposes the Arrow schema ownership and its correlation flags. `RecordBatchView` exposes the Arrow
 array ownership and `is_end_of_group`. The move operations are rvalue-qualified and leave the corresponding message
@@ -336,7 +354,7 @@ RecordBatchView {
 ### Received Reset value
 
 ```text
-protocol::Reset { row_id: uint64 }
+ResetView { row_id() -> uint64 }
 ```
 
 `Reset` requests that the peer seek to `row_id` for batches that are not already in flight. It is independent of the
@@ -348,23 +366,36 @@ thread. The worker-facing builder exposes `reset(row_id)` and does not set a sen
 ```text
 ControlMessageView {
     stream_id() -> uint64
-    server_capabilities() -> std::optional<std::reference_wrapper<const protocol::ServerCapabilities>>
-    keep_alive() -> std::optional<std::reference_wrapper<const protocol::KeepAlive>>
-    payloads() -> std::optional<std::reference_wrapper<const protocol::Payloads>>
-    error() -> std::optional<std::reference_wrapper<const protocol::Error>>
-    close_connection() -> std::optional<std::reference_wrapper<const protocol::CloseConnection>>
+    server_capabilities() -> std::unique_ptr<ServerCapabilitiesView>
+    keep_alive() -> std::unique_ptr<KeepAliveView>
+    payloads() -> std::unique_ptr<PayloadsView>
+    error() -> std::unique_ptr<ErrorView>
+    close_connection() -> std::unique_ptr<CloseConnectionView>
 }
 ```
 
 The control view cannot expose call-specific fields. Its `stream_id()` identifies the frame's connection-level
-stream, normally stream `0`. As with call views, a concrete control view always retains a verified decoded frame, so
-its stream ID is always present.
+stream, normally stream `0`. Its wrappers are:
+
+```text
+VersionView { major() -> uint32; minor() -> uint32 }
+ServerCapabilitiesView {
+    supported_version() -> unique_ptr<VersionView>
+    endianness() -> Endianness
+    number_of_supported_workers() -> uint32
+}
+KeepAliveView { }
+CloseConnectionView { }
+```
+
+`Endianness` is an interface-level enum with `Little` and `Big` values.
 
 ### View lifetime and verification
 
-Each top-level specialized view retains a verified, immutable storage lease for the received frame. Generated
-FlatBuffer accessors point into that storage and remain valid until the top-level view is destroyed. Receiving another
-message does not invalidate an existing view. Malformed FlatBuffer data produces an error rather than a view.
+Each top-level specialized view and every wrapper it creates retains a verified, immutable storage lease for the
+received frame. Internal generated FlatBuffer accessors point into that storage and remain valid while their wrapper
+is alive. Receiving another message does not invalidate an existing view or wrapper. Malformed FlatBuffer data
+produces an error rather than a view.
 
 Where a view exposes Arrow data, it retains the Arrow schema and array ownership until the caller invokes the matching
 move operation. Arrow release callbacks are invoked exactly once. A frame that contains only wire-level data metadata
@@ -418,9 +449,9 @@ The correlation flags describe the reserved prefix of `DataSchema.schema`:
 - user data fields follow the reserved prefix;
 - correlation fields are identified by position, not by field name.
 
-FlatBuffers remain the representation for protocol metadata and control fields, including payloads, `Reset`, errors,
-close messages, capabilities, keepalive, and connection close. Specialized views expose validated field accessors
-without exposing raw frame buffers or requiring workers to manage FlatBuffer view lifetimes.
+FlatBuffers remain the internal representation for protocol metadata and control fields, including payloads, `Reset`,
+errors, close messages, capabilities, keepalive, and connection close. Specialized views expose validated semantic
+accessors without exposing raw frame buffers or requiring workers to manage FlatBuffer view lifetimes.
 
 The context, call, and control-stream contracts expose the Arrow C Data Interface only. Arrow C++ conversion is left
 to the caller and is not part of these interface declarations. Arrow IPC internals and transport-specific buffer

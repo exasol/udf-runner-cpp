@@ -1,5 +1,5 @@
-#include <exasol/udf/v2/internal/control_message_view_impl.hpp>
 #include "../common/protocol_test_utils.hpp"
+#include <exasol/udf/v2/internal/control_message_view_impl.hpp>
 
 #include <gtest/gtest.h>
 
@@ -9,6 +9,8 @@ namespace exasol::udf::v2::internal
 {
 
 static_assert(std::is_abstract_v<interface::ControlMessageView>);
+static_assert(std::is_abstract_v<interface::ServerCapabilitiesView>);
+static_assert(std::is_abstract_v<interface::VersionView>);
 
 TEST(ControlMessageViewTest, FrameWithoutOptionalFieldsStillHasStreamId)
 {
