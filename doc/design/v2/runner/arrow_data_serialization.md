@@ -100,7 +100,11 @@ Only after all components decode successfully does the background thread commit 
 the direction and publish the message with its `view`.
 On failure, it discards the pending values and leaves the retained direction state unchanged.
 Taking the schema from the published view does not consume the internal state.
-The state is released when the inbound direction ends.
+The exported Arrow C schema's release state retains a shared owner of the imported `arrow::Schema`.
+That owner travels with the `ArrowSchemaPtr` if `take_schema()` transfers it out of the view, and is
+released with the Arrow C schema.
+Ending the inbound direction releases only that direction's reference; a worker-held view or schema
+pointer remains valid for its own lifetime.
 Arrow C++ and FlatBuffers types remain internal and do not cross the public API boundary.
 
 The codec serializes one physical batch.
@@ -201,7 +205,8 @@ deserialize_schema(frame):
         has_group_id = frame data_schema.has_group_id,
         has_row_id = frame data_schema.has_row_id
     }
-    exported_schema = export Arrow C Data from *decoded_schema.schema
+    exported_schema = export Arrow C Data from *decoded_schema.schema,
+        retaining decoded_schema.schema in the ArrowSchema release state
     view = make_unique<DataSchemaViewImpl>(
         exported_schema,
         decoded_schema.has_group_id,
