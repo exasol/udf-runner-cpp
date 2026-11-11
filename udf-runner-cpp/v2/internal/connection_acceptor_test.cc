@@ -28,8 +28,8 @@ using exasol::udf::v2::EpollReadyEvent;
 using exasol::udf::v2::EpollRegistration;
 using exasol::udf::v2::EventFd;
 using exasol::udf::v2::LinuxEpoll;
-using exasol::udf::v2::interface::Timeout;
 using exasol::udf::v2::internal::CallerThreadSocketConnectionAcceptor;
+using exasol::udf::v2::internal::ConnectionTimeout;
 using exasol::udf::v2::internal::ConnectionType;
 using exasol::udf::v2::internal::SocketConnection;
 using exasol::udf::v2::socket::OwnedFileDescriptor;
@@ -303,7 +303,7 @@ TEST(CallerThreadSocketConnectionAcceptorTest, WrapsAcceptedSocketAsUnixConnecti
         std::move(epoll), std::move(event));
 
     std::unique_ptr<exasol::udf::v2::internal::Connection> connection =
-        acceptor.get_next_connection(Timeout{});
+        acceptor.get_next_connection(ConnectionTimeout{});
 
     ASSERT_NE(connection, nullptr);
     EXPECT_EQ(connection->get_type(), ConnectionType::UnixDomainSocket);
@@ -329,7 +329,7 @@ TEST(CallerThreadSocketConnectionAcceptorTest, ShutdownSignalsButDoesNotDestroyL
         acceptor.shutdown();
         EXPECT_EQ(event_pointer->get_write_count(), 1);
         EXPECT_EQ(destruction_count, 0);
-        EXPECT_EQ(acceptor.get_next_connection(Timeout{}), nullptr);
+        EXPECT_EQ(acceptor.get_next_connection(ConnectionTimeout{}), nullptr);
     }
     EXPECT_EQ(destruction_count, 1);
 }
@@ -373,7 +373,8 @@ TEST(CallerThreadSocketConnectionAcceptorTest, RejectsUnexpectedEpollEvents)
         std::make_unique<FakeSocketListener>(nullptr, &destruction_count), std::move(epoll),
         std::make_unique<FakeEventFd>());
 
-    EXPECT_THROW(static_cast<void>(acceptor.get_next_connection(Timeout{})), std::runtime_error);
+    EXPECT_THROW(static_cast<void>(acceptor.get_next_connection(ConnectionTimeout{})),
+                 std::runtime_error);
 }
 
 TEST(CallerThreadSocketConnectionAcceptorTest, ReportsUnusableListener)
@@ -385,7 +386,8 @@ TEST(CallerThreadSocketConnectionAcceptorTest, ReportsUnusableListener)
         std::make_unique<FakeSocketListener>(nullptr, &destruction_count), std::move(epoll),
         std::make_unique<FakeEventFd>());
 
-    EXPECT_THROW(static_cast<void>(acceptor.get_next_connection(Timeout{})), std::system_error);
+    EXPECT_THROW(static_cast<void>(acceptor.get_next_connection(ConnectionTimeout{})),
+                 std::system_error);
 }
 
 TEST(CallerThreadSocketConnectionAcceptorTest, DropsSocketAcceptedDuringShutdown)
@@ -400,7 +402,7 @@ TEST(CallerThreadSocketConnectionAcceptorTest, DropsSocketAcceptedDuringShutdown
                                                   std::make_unique<FakeEventFd>());
     listener_pointer->set_on_accept([&acceptor] { acceptor.shutdown(); });
 
-    EXPECT_EQ(acceptor.get_next_connection(Timeout{}), nullptr);
+    EXPECT_EQ(acceptor.get_next_connection(ConnectionTimeout{}), nullptr);
 }
 
 TEST(CallerThreadSocketConnectionAcceptorTest, SuppressesSaturatedShutdownNotification)
@@ -439,7 +441,7 @@ TEST(CallerThreadSocketConnectionAcceptorTest, ShutdownWakesAnUnlimitedWait)
     std::promise<bool> connection_result;
     std::future<bool> waiting_connection = connection_result.get_future();
     std::jthread waiting_thread([&acceptor, &connection_result] {
-        connection_result.set_value(acceptor.get_next_connection(Timeout{}) == nullptr);
+        connection_result.set_value(acceptor.get_next_connection(ConnectionTimeout{}) == nullptr);
     });
     epoll_pointer->wait_until_waiting();
 

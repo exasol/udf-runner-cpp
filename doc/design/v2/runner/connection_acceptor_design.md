@@ -12,6 +12,7 @@ client -> ConnectionAcceptor -> Runner -> worker -> ContextManager
 
 ```cpp
 enum class ConnectionType { UnixDomainSocket, Tcp };
+using ConnectionTimeout = std::optional<std::chrono::steady_clock::duration>;
 
 class Connection {
 public:
@@ -21,8 +22,8 @@ public:
 class ConnectionAcceptor {
 public:
     virtual std::unique_ptr<Connection>
-    get_next_connection(interface::Timeout timeout) = 0;
-    virtual void shutdown() noexcept = 0;
+    get_next_connection(ConnectionTimeout timeout) = 0;
+    virtual void shutdown() = 0;
 };
 ```
 

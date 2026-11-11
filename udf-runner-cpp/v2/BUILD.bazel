@@ -496,7 +496,6 @@ cc_library(
     copts = ["-std=c++23"],
     deps = [
         ":event_fd",
-        ":interface",
         ":linux_epoll",
         ":socket",
     ],

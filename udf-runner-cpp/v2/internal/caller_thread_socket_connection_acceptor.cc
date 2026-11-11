@@ -29,7 +29,7 @@ namespace
     };
 
     [[nodiscard]] std::optional<std::chrono::milliseconds> to_milliseconds(
-        const interface::Timeout timeout)
+        const ConnectionTimeout timeout)
     {
         if (!timeout.has_value())
         {
@@ -69,7 +69,7 @@ CallerThreadSocketConnectionAcceptor::CallerThreadSocketConnectionAcceptor(
 }
 
 std::unique_ptr<Connection> CallerThreadSocketConnectionAcceptor::get_next_connection(
-    const interface::Timeout timeout)
+    const ConnectionTimeout timeout)
 {
     std::lock_guard acceptance_lock(this->acceptance_mutex);
     {

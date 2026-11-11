@@ -20,7 +20,7 @@ public:
                                          std::unique_ptr<EventFd> shutdown_event);
 
     [[nodiscard]] std::unique_ptr<Connection> get_next_connection(
-        interface::Timeout timeout) override;
+        ConnectionTimeout timeout) override;
     void shutdown() override;
 
 private:
