@@ -30,6 +30,12 @@ struct DecodedSchema
     bool has_row_id;
 };
 
+struct DeserializedSchema
+{
+    DecodedSchema internal_schema;
+    std::unique_ptr<interface::DataSchemaView> view;
+};
+
 struct BufferSegment
 {
     const std::byte* data;
@@ -44,7 +50,7 @@ struct SerializedBatch
 };
 ```
 
-`DecodedSchema` is the retained internal state for one inbound direction. It holds the imported C++ schema and both flags needed to validate every batch. It is separate from the worker-facing `DataSchemaView`.
+`DecodedSchema` is the retained internal state for one inbound direction. It holds the imported C++ schema and both flags needed to validate every batch. `DeserializedSchema` returns that state together with the worker-facing `DataSchemaView`, so the codec API specifies how the background thread obtains both values.
 
 ## Codec interface
 
@@ -66,7 +72,7 @@ public:
         bool is_end_of_group,
         FlatBufferBuilder& builder) = 0;
 
-    virtual Result<DecodedSchema> deserialize_schema(
+    virtual Result<DeserializedSchema> deserialize_schema(
         const protocol::DecodedFrame& frame) = 0;
 
     virtual Result<std::unique_ptr<interface::RecordBatchView>> deserialize_batch(
@@ -78,7 +84,7 @@ public:
 
 The message composer passes its builder to the codec so schema and batch metadata offsets can be included in one composite frame. `DecodedFrame` owns a verified frame; the codec extracts its Arrow metadata and does not re-verify or route the frame.
 
-The background thread imports accepted Arrow C Data objects into normal Arrow C++ objects before outbound codec calls. On receive, the codec converts frame metadata and inline buffers into Arrow C++ objects. The background thread retains one `DecodedSchema` per inbound data direction and passes it to subsequent batch decodes. It exports the retained Arrow schema into a separate Arrow C Data object when constructing the worker-facing `DataSchemaView`; `take_schema()` on that view does not consume the internal state. The state is released when the inbound direction ends. Arrow C++ and FlatBuffers types remain internal and do not cross the public API boundary.
+The background thread imports accepted Arrow C Data objects into normal Arrow C++ objects before outbound codec calls. On receive, `deserialize_schema` returns both the internal state and the worker-facing `DataSchemaView`. The background thread retains `internal_schema` per inbound data direction and passes it to subsequent batch decodes; it publishes `view` to the worker-facing message. Taking the schema from that view does not consume the internal state. The state is released when the inbound direction ends. Arrow C++ and FlatBuffers types remain internal and do not cross the public API boundary.
 
 The codec serializes one physical batch. Logical-batch splitting and ordering remain the background-thread responsibilities defined in [context implementation](context_implementation.md#background-send-path).
 
@@ -171,18 +177,20 @@ deserialize_schema(frame):
     extract DataSchema from frame
     validate field and child structure
     import protocol schema into arrow::Schema
-    return DecodedSchema{
+    decoded_schema = DecodedSchema{
         schema = shared_ptr<const arrow::Schema>(imported schema),
         has_group_id = frame data_schema.has_group_id,
         has_row_id = frame data_schema.has_row_id
     }
-
-make_data_schema_view(decoded_schema):
     exported_schema = export Arrow C Data from *decoded_schema.schema
-    return make_unique<DataSchemaViewImpl>(
+    view = make_unique<DataSchemaViewImpl>(
         exported_schema,
         decoded_schema.has_group_id,
         decoded_schema.has_row_id)
+    return DeserializedSchema{
+        internal_schema = decoded_schema,
+        view = move(view)
+    }
 ```
 
 Batch deserialization pseudocode:
@@ -301,8 +309,8 @@ Frame composition, call-field combinations, flow control, logical-batch splittin
 
 | Message path | Outbound codec work | Inbound codec work |
 | --- | --- | --- |
-| Schema only | Serialize `DataSchema` metadata; composer emits no batch buffers | Decode and retain `DecodedSchema`; export a separate `DataSchemaView` for the worker |
-| Schema with first batch | Serialize both components; composer puts them in one frame and emits batch buffers | Decode and retain `DecodedSchema` first, then decode the batch against that state |
+| Schema only | Serialize `DataSchema` metadata; composer emits no batch buffers | Decode to `DeserializedSchema`; retain its internal state and publish its view |
+| Schema with first batch | Serialize both components; composer puts them in one frame and emits batch buffers | Decode schema to `DeserializedSchema`, retain its internal state and publish its view, then decode the batch against that state |
 | Batch after schema announcement | Serialize batch metadata and buffers using the established schema | Decode batch using the retained `DecodedSchema` and consume its advertised buffers |
 | Message with no Arrow fields, including control-stream traffic | Bypass the Arrow codec | Bypass the Arrow codec |
 
