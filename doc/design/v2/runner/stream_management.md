@@ -518,7 +518,7 @@ successful enqueue accepts the logical message, not confirmation that the
 socket has received it:
 
 ```text
-ContextImpl::send_call_message(stream_id, caller_builder&&):
+ContextState::send_call_message(stream_id, caller_builder&&):
     dispatch_available_inbound_messages()
     state = stream_registry.find(stream_id)
     if state.peer_close_received:
