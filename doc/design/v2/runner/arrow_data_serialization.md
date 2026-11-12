@@ -109,8 +109,13 @@ pointer remains valid for its own lifetime.
 Arrow C++ and FlatBuffers types remain internal and do not cross the public API boundary.
 
 The codec serializes one physical batch.
-Logical-batch splitting and ordering remain the background-thread responsibilities defined in
-[context implementation](context_implementation.md#background-send-path).
+For a logical batch split into row-aligned physical slices, the background thread calls
+`serialize_batch` once per slice; it chooses the slice boundaries and applies send credit as defined
+in [context implementation](context_implementation.md#background-send-path).
+`is_end_of_group` is true only on the final physical frame, and only when the logical batch ends a
+group.
+The background thread preserves physical-frame order and retains the logical batch until all of its
+frames are sent or discarded during shutdown.
 
 ## Serialized representations
 
