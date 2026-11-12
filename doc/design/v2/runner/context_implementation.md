@@ -233,8 +233,9 @@ worker_send_grant
 first_batch_pending
 ```
 
-The first record batch is admitted without send-budget credit. After that batch is accepted for the direction,
-`first_batch_pending` becomes false. Receiving a non-zero `next_send_budget_in_bytes` value then increases
+The first logical record batch is admitted without send-budget credit. The background thread may emit it as multiple
+row-aligned slices; `first_batch_pending` becomes false only after its final slice is dequeued. Receiving a non-zero
+`next_send_budget_in_bytes` value then increases
 `authoritative_remaining_credit` and publishes a corresponding positive worker grant. When the background consumes a
 later logical batch, it charges each generated chunk against authoritative credit, not against the worker's coarse
 reservation. If the logical batch is larger than the current credit, the background sends the largest safe row-aligned
@@ -243,6 +244,19 @@ The approximately 4 MiB frame target is applied
 while selecting each row-aligned prefix; a row may make a frame exceed the target, but it must not be split. After the
 logical batch is complete, it reconciles unused credit into `worker_send_grant` and notifies the worker. A worker grant
 never authorizes the background to exceed actual protocol credit.
+
+`RecordBatchSendQueueInterface` abstracts this per-direction queue, and
+`RecordBatchSendQueueImpl` provides its FIFO implementation. Each entry retains a shared Arrow `RecordBatch`, the
+serialized Arrow buffer byte count for each row, its current row offset, and its group-end flag. The enqueue operation
+validates that one byte count is provided per row. The caller obtains those row sizes from the Arrow serialization
+sizing pass; the queue does not serialize the batch or inspect the socket.
+
+`add_send_budget()` accumulates peer-granted credit. `dequeue_slice(max_frame_buffer_bytes)` returns a zero-copy
+`RecordBatch::Slice` bounded by both the frame target and available credit. If the next indivisible row crosses either
+limit, the queue includes that one row and clamps consumed credit at zero. The first logical batch can be sliced
+without credit; subsequent batches wait until positive credit is available. Only the final slice carries the logical
+batch's `is_end_of_group` flag. The background thread owns one queue per call data direction and accesses it from its
+single event-loop thread; tests can depend on the interface or exercise the concrete implementation directly.
 
 ### Background send path
 
