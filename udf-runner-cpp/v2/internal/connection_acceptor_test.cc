@@ -344,7 +344,7 @@ TEST(CallerThreadSocketConnectionAcceptorTest, TerminatesForMissingDependencies)
                                                           nullptr, nullptr);
             static_cast<void>(acceptor);
         },
-        "");
+        "  #1 ");
 }
 
 TEST(CallerThreadSocketConnectionAcceptorTest, ReturnsNoConnectionWhenEpollTimesOut)
