@@ -302,6 +302,7 @@ cc_library(
 # target from exporting implementation details to its dependents.
 cc_library(
     name = "interface_internal",
+    srcs = ["internal/record_batch_send_queue.cc"],
     hdrs = [
         "include/exasol/udf/v2/internal/background_thread_interface.hpp",
         "include/exasol/udf/v2/internal/call_message_builder_impl.hpp",
@@ -310,12 +311,17 @@ cc_library(
         "include/exasol/udf/v2/internal/control_message_view_impl.hpp",
         "include/exasol/udf/v2/internal/data_schema_view_impl.hpp",
         "include/exasol/udf/v2/internal/record_batch_view_impl.hpp",
+        "include/exasol/udf/v2/internal/record_batch_send_queue_impl.hpp",
+        "include/exasol/udf/v2/internal/record_batch_send_queue_interface.hpp",
         "include/exasol/udf/v2/internal/message_builder_factory.hpp",
         "include/exasol/udf/v2/internal/payload.hpp",
     ],
     includes = ["include"],
     copts = ["-std=c++23"],
-    deps = [":interface"],
+    deps = [
+        ":arrow_core",
+        ":interface",
+    ],
 )
 
 cc_test(
