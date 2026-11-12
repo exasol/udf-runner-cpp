@@ -100,7 +100,7 @@ The view-to-stream mismatches in this table are protocol errors, including a
    accepts messages except that `open_call` after its first message is a
    protocol error. Enqueue a valid view containing `close_call` and mark that
    the peer close was received. Once the peer close has been received, discard
-   later views for that active call, including the rest of the current batch.
+   later views for that active call, including the messages for that active call in the rest of the current batch.
    A local outbound close does not stop delivery of already-in-flight peer
    messages.
 3. **Classify an inactive nonzero stream using its owner and high-water mark.**
