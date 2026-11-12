@@ -58,7 +58,7 @@ public:
         // The fake does not own a native resource.
     }
 
-    [[nodiscard]] OwnedFileDescriptor release_native_handle() noexcept override
+    [[noreturn]] [[nodiscard]] OwnedFileDescriptor release_native_handle() noexcept override
     {
         std::terminate();
     }
