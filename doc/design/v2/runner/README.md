@@ -28,6 +28,8 @@ Arrow C Data Interface.
 - [interface_class_diagram.md](interface_class_diagram.md) documents the abstract worker-facing interfaces and the
   high-level relationship between those interfaces, their implementations, and generated FlatBuffer objects.
 - [epoll_design.md](epoll_design.md) defines the Linux epoll abstraction and its registration ownership model.
+- [connection_acceptor_design.md](connection_acceptor_design.md) defines transport-neutral connection acceptance
+  and socket ownership handoff.
 
 Mermaid `.mmd` files are the diagram sources of truth. Matching `.svg` files are rendered views linked from the
 documents.

@@ -35,7 +35,7 @@ interface remains independent of Arrow C++ types.
 ### Runner
 
 `Runner` is the composition root. A runner user transfers ownership of a `WorkerFactory` to a production factory.
-The production factory constructs a `Runner` with that factory, transport configuration, limits, a `SocketAcceptor`,
+The production factory constructs a `Runner` with that factory, transport configuration, limits, a `ConnectionAcceptor`,
 a worker pool, and a `ContextManager`. `Runner` validates and connects those components, starts and stops them, and
 destroys them in dependency-safe order after all work has completed.
 
@@ -52,14 +52,11 @@ Unix-domain stream descriptor. The abstraction must not expose Unix-specific add
 The socket owns its descriptor after construction. Closing or destroying the socket makes the descriptor unusable;
 ownership must not be duplicated implicitly.
 
-### SocketAcceptor
+### ConnectionAcceptor
 
-`SocketAcceptor` owns the listening endpoint, performs bind/listen setup, and accepts connected sockets. It submits
-each accepted descriptor to the worker scheduler. Accept failures are classified as retryable, shutdown-related, or
-fatal and must not silently become worker failures.
-
-The initial acceptor listens on a Unix-domain socket. The interface leaves endpoint configuration and accepted-socket
-creation abstract so a TCP/TLS acceptor can be added later.
+`ConnectionAcceptor` supplies accepted `Connection` objects to the runner and submits them to the worker scheduler.
+Its transport-neutral design permits future TCP, TLS, and non-socket acceptors. The detailed interface, ownership,
+and shutdown behavior are defined in [connection_acceptor_design.md](connection_acceptor_design.md).
 
 ### WorkerFactory and worker pool
 
@@ -106,7 +103,7 @@ runner user --moves WorkerFactory--> production factory
                                       v
                          Runner owns factory, acceptor, pool, and context manager
                                       |
-SocketAcceptor -> worker pool -> Worker(fd) -> ContextManager.create(fd) -> protocol Context
+ConnectionAcceptor -> worker pool -> Worker(connection) -> ContextManager.create(connection) -> protocol Context
                                                                          |
                                                           Socket bytes + Arrow C data values
 ```

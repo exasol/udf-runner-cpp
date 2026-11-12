@@ -2,7 +2,7 @@ sequenceDiagram
     participant User as Runner user
     participant Production as Production factory
     participant Runner
-    participant Acceptor as SocketAcceptor
+    participant Acceptor as ConnectionAcceptor
     participant Pool as Worker pool
     participant Factory as WorkerFactory
     participant Worker
@@ -13,11 +13,11 @@ sequenceDiagram
     Production->>Runner: construct with owned components
     Runner->>Acceptor: configure and listen
     Acceptor->>Acceptor: accept connection
-    Acceptor->>Pool: enqueue owned fd
-    Pool->>Factory: create worker for fd
+    Acceptor->>Pool: enqueue owned Connection
+    Pool->>Factory: create worker for Connection
     Factory-->>Pool: worker callable
-    Pool->>Worker: invoke(fd)
-    Worker->>Manager: create_context(fd)
+    Pool->>Worker: invoke(connection)
+    Worker->>Manager: create_context(connection)
     Manager-->>Worker: Context(connection)
     Worker->>Context: run protocol v2
     Context-->>Context: close / disconnect / cancel / error
@@ -25,5 +25,5 @@ sequenceDiagram
     Worker-->>Pool: invocation complete
 
     alt queue, worker, or context creation failure
-        Acceptor-->>Acceptor: close fd exactly once
+    Acceptor-->>Acceptor: release Connection exactly once
     end

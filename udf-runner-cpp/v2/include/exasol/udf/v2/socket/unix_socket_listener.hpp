@@ -5,16 +5,17 @@
 #include <filesystem>
 #include <memory>
 
+#include <exasol/udf/v2/socket/socket_listener.hpp>
 #include <exasol/udf/v2/socket/unix_socket.hpp>
 
 namespace exasol::udf::v2::socket
 {
 
 /** Owns a Unix-domain stream listener. */
-class UnixSocketListener
+class UnixSocketListener final : public SocketListener
 {
 public:
-    ~UnixSocketListener() noexcept;
+    ~UnixSocketListener() noexcept override;
 
     UnixSocketListener(const UnixSocketListener&)            = delete;
     UnixSocketListener& operator=(const UnixSocketListener&) = delete;
@@ -27,7 +28,7 @@ public:
                                                  int backlog = SOMAXCONN);
 
     /** Returns the native listener descriptor, or -1 when closed. */
-    [[nodiscard]] int native_handle() const noexcept;
+    [[nodiscard]] int native_handle() const noexcept override;
 
     /** Returns whether the listener owns an open native descriptor. */
     [[nodiscard]] bool is_open() const noexcept;
@@ -35,14 +36,19 @@ public:
     /** Closes the listener and removes its filesystem path. */
     void close() noexcept;
 
-    /** Releases the native descriptor and removes the listener's filesystem path. */
+    /** Releases the native descriptor and removes the listener's filesystem path.
+     */
     [[nodiscard]] OwnedFileDescriptor release_native_handle() noexcept;
 
     /** Accepts one connection from the listener.
      *
-     * @param flags Zero or a bitwise combination of SOCK_NONBLOCK and SOCK_CLOEXEC.
+     * @param flags Zero or a bitwise combination of SOCK_NONBLOCK and
+     * SOCK_CLOEXEC.
      */
     [[nodiscard]] UnixSocket accept(int flags = SOCK_CLOEXEC) const;
+
+    /** Accepts one connection as a transport-neutral socket. */
+    [[nodiscard]] std::unique_ptr<Socket> accept_socket() override;
 
 private:
     UnixSocketListener(OwnedFileDescriptor owned_fd,
