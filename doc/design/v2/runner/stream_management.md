@@ -495,7 +495,7 @@ The context drains complete inbound batches and applies the dispatcher above;
 the background thread does not inspect the registry or route to worker calls:
 
 ```text
-ContextImpl::dispatch_inbound_batch():
+ContextState::dispatch_inbound_batch():
     for view in background_thread.dequeue_inbound_messages():
         outcome = stream_registry.dispatch(view)
         if outcome == ProtocolError:
