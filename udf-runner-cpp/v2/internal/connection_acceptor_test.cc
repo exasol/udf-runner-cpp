@@ -2,6 +2,7 @@
 #include <exasol/udf/v2/internal/connection.hpp>
 #include <exasol/udf/v2/linux_epoll.hpp>
 
+#include <array>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
@@ -387,18 +388,27 @@ TEST(CallerThreadSocketConnectionAcceptorTest, RejectsUnexpectedEpollEvents)
                  std::runtime_error);
 }
 
-TEST(CallerThreadSocketConnectionAcceptorTest, ReportsUnusableListener)
+TEST(CallerThreadSocketConnectionAcceptorTest, ReportsUnusableListenerEvents)
 {
-    int destruction_count = 0;
-    auto epoll            = std::make_unique<FakeEpoll>();
-    epoll->set_events({{.token = 0, .error = true}});
-    CallerThreadSocketConnectionAcceptor acceptor(
-        ConnectionType::UnixDomainSocket,
-        std::make_unique<FakeSocketListener>(nullptr, &destruction_count), std::move(epoll),
-        std::make_unique<FakeEventFd>());
+    const std::array unusable_events{
+        EpollReadyEvent{.token = 0},
+        EpollReadyEvent{.token = 0, .readable = true, .error = true},
+        EpollReadyEvent{.token = 0, .readable = true, .hangup = true},
+        EpollReadyEvent{.token = 0, .readable = true, .peer_closed = true},
+    };
+    for (const EpollReadyEvent& event : unusable_events)
+    {
+        int destruction_count = 0;
+        auto epoll            = std::make_unique<FakeEpoll>();
+        epoll->set_events({event});
+        CallerThreadSocketConnectionAcceptor acceptor(
+            ConnectionType::UnixDomainSocket,
+            std::make_unique<FakeSocketListener>(nullptr, &destruction_count), std::move(epoll),
+            std::make_unique<FakeEventFd>());
 
-    EXPECT_THROW(static_cast<void>(acceptor.get_next_connection(ConnectionTimeout{})),
-                 std::system_error);
+        EXPECT_THROW(static_cast<void>(acceptor.get_next_connection(ConnectionTimeout{})),
+                     std::system_error);
+    }
 }
 
 TEST(CallerThreadSocketConnectionAcceptorTest, DropsSocketAcceptedDuringShutdown)

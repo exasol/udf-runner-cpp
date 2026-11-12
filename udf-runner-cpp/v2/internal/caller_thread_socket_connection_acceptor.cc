@@ -47,6 +47,11 @@ namespace
         return milliseconds;
     }
 
+    [[nodiscard]] bool is_usable_listener_event(const EpollReadyEvent& event) noexcept
+    {
+        return event.readable && !event.error && !event.hangup && !event.peer_closed;
+    }
+
 } // namespace
 
 CallerThreadSocketConnectionAcceptor::CallerThreadSocketConnectionAcceptor(
@@ -102,7 +107,7 @@ std::unique_ptr<Connection> CallerThreadSocketConnectionAcceptor::get_next_conne
     {
         throw UnexpectedEpollEventError("epoll returned an unknown connection acceptor event");
     }
-    if (!listener_event->readable)
+    if (!is_usable_listener_event(*listener_event))
     {
         throw std::system_error(EIO, std::generic_category(), "listen socket became unusable");
     }

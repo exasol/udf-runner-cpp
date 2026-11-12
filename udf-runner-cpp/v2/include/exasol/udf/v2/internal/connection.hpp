@@ -11,8 +11,7 @@ namespace exasol::udf::v2::internal
 enum class ConnectionType
 {
     UnixDomainSocket,
-    Tcp,
-    Tls,
+    Tcp
 };
 
 /** Common ownership boundary for an accepted runner connection. */
