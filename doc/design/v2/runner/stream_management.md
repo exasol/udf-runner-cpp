@@ -200,6 +200,9 @@ The following pseudocode illustrates how the context can implement the rules
 above. The container types and error-reporting API are illustrative; the
 requirements in the preceding sections remain authoritative.
 
+`ContextManager::create()` receives the accepted `Connection` abstraction
+from the connection acceptor, rather than a raw connected socket.
+
 ### Proposed class design
 
 This sketch separates the worker-facing context, its logical stream state, and
@@ -224,9 +227,10 @@ class EndpointRole {
     Client
     Server
 }
+class Connection
 class ContextManager {
     -EndpointRole endpoint_role_
-    +create(connected_socket) Context
+    +create(connection: Connection) Context
 }
 class ContextImpl {
     -shared_ptr~ContextState~ state_
@@ -310,6 +314,7 @@ class DispatchResult {
 ContextImpl ..|> Context
 CallImpl ..|> Call
 ControlStreamImpl ..|> ControlStream
+ContextManager ..> Connection : accepts
 ContextManager --> EndpointRole : configured with
 ContextManager ..> ContextImpl : constructs with role
 ContextImpl *-- ContextState : owns strong reference
