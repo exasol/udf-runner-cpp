@@ -16,7 +16,9 @@ timeouts reside in the `exasol::udf::v2::interface` namespace. Generated wire-fo
 transport detail in the separate `exasol::udf::protocol` namespace.
 
 The context consumes and dispatches transport messages internally. A worker never receives a socket, file descriptor,
-frame, or numeric stream identifier.
+or wire frame. Message views expose `stream_id()` as read-only metadata: the context uses it to dispatch received
+messages, and a worker may inspect it to identify a message or for diagnostics. Worker-facing operations select
+streams through their `Context`, `Call`, or `ControlStream` object and do not accept a numeric stream ID.
 
 ## Result and status concepts
 
@@ -30,6 +32,7 @@ MessageStatus =
   | Cancelled
   | PeerClosed
   | ConnectionError
+  | ContextClosed
 ```
 
 Consuming operations return either a value or a terminal result:
@@ -42,7 +45,11 @@ OperationStatus =
   | PeerClosed
   | ProtocolError
   | TransportError
+  | ContextClosed
 ```
+
+`ContextClosed` means the associated context state has been closed or destroyed, so the operation cannot access the
+connection. It is distinct from `PeerClosed`, which reports that the peer closed an individual call stream.
 
 The conceptual generic result type is:
 
@@ -138,6 +145,48 @@ for a `CallMessageBuilder` passed to `Call::send()` after the call object has be
 If a control message or another call's message arrives while `Call::receive()` is blocked, the context dispatches it
 to its own stream and the call receive continues waiting. It does not return unrelated traffic.
 
+### CloseCall delivery and receive ordering
+
+A `CallMessageView` containing `close_call` is the peer's terminal message. The context queues it after all earlier
+messages for that call and exposes that view exactly once. The `Call` enters `ClosePending` when the dispatcher
+processes the peer's close-bearing view or when `Call::send()` accepts a local close. It enters `Closed` when
+`Call::receive()` returns the peer's close-bearing view. A view that combines `close_call` with final payload, data, or
+error fields is returned intact.
+
+Once the dispatcher has processed `close_call`, it discards later messages for that stream, including later messages
+in the same drained batch. It does not discard messages queued before the close-bearing view; those are returned first
+in FIFO order. `accept_call()` still returns an inbound call whose opening view already contains `close_call`; the
+opening-and-close view is then returned exactly once by the accepted call's first `receive()`.
+
+While messages remain queued, including the terminal view, `Call::receive_status()` reports `MessageAvailable`. After
+the peer's close-bearing view has been returned, it reports `PeerClosed`, and a subsequent `Call::receive()` returns
+`Result` with status `PeerClosed` and no value. It does not return the terminal view again. Once the dispatcher has
+observed a peer `close_call`, `Call::send()` returns `PeerClosed` without accepting a new message.
+
+### Outbound CloseCall
+
+If `Call::send()` accepts a builder containing `close_call`, that acceptance atomically queues the message and moves
+the call to `ClosePending`. The close-bearing message is enqueued after all previously accepted outbound messages,
+which remain eligible for transmission in FIFO order. No later `Call::send()` is accepted while this local close is
+pending; such an attempt returns `ProtocolError` and retains the builder. A failed enqueue does not change the call
+state or consume the builder. The state transition prevents a second close-bearing message from being accepted, so
+the local `CloseCall` is enqueued at most once.
+
+The same rule applies when `Context::open_call()` accepts an opening builder that also contains `close_call`: the
+returned `Call` is already `ClosePending`, and later `Call::send()` operations are rejected.
+
+`ClosePending` after a local close seals the send side but leaves the receive side available. `Call::receive()` still
+returns inbound call messages in order and returns a peer `close_call` once if one arrives. `receive_status()` reports
+`NoMessage` when no inbound message is queued and the call is only locally `ClosePending`. A timeout returns
+`TimedOut` without changing the state. Because `CloseCall` requires no acknowledgement, a peer close is not
+guaranteed; an untimed receive may wait indefinitely for an inbound message or another terminal condition.
+
+If the peer close is processed before a local close is accepted, the call follows the peer-close path above and no
+outbound close is sent. If the peer close is processed after a local close has been accepted, the context queues and
+returns the peer's terminal view once without enqueueing another close. The already accepted outbound messages,
+including the local close, retain their FIFO order. After the peer close view is returned, the call is `Closed` and
+subsequent receives return `PeerClosed`.
+
 `Call::send()` waits for the context to grant permission for the next data batch when required by flow control. An
 absent timeout waits indefinitely, a zero timeout does not block, and an expired timeout returns `TimedOut` without
 consuming the builder or its Arrow ownership. Passing the `unique_ptr` by rvalue reference does not itself transfer
@@ -203,8 +252,9 @@ The design permits, subject to protocol-state validation:
 
 If multiple fields arrive in one protocol message, `Call::receive()` returns them together in one `CallMessageView`.
 
-An error without `close_call` is a non-terminal diagnostic. A message containing `close_call` terminates the call
-after the message is processed.
+An error without `close_call` is a non-terminal diagnostic. A message containing `close_call` is the terminal call
+message, with delivery and receive ordering defined in
+[CloseCall delivery and receive ordering](#closecall-delivery-and-receive-ordering).
 
 ## Control stream interface
 
@@ -375,7 +425,8 @@ ControlMessageView {
 ```
 
 The control view cannot expose call-specific fields. Its `stream_id()` identifies the frame's connection-level
-stream, normally stream `0`. Its wrappers are:
+stream and is always `0`; a control message on any other stream ID is a protocol error. As with call views, a concrete
+control view always retains a verified decoded frame, so its stream ID is always present. Its wrappers are:
 
 ```text
 VersionView { major() -> uint32; minor() -> uint32 }
@@ -522,7 +573,10 @@ sent opening message is not returned by `Call::receive()`.
 ## Lifecycle and terminal behavior
 
 The context owns the connection after successful context creation. A call object represents one logical call and is
-valid until call close, connection close, internal cancellation, peer disconnect, or fatal error.
+usable until call close, connection close, internal cancellation, peer disconnect, or fatal error. The `Call` handle
+may remain allocated after its `Context` is destroyed, but it is then inert: it does not keep the connection alive and
+subsequent operations return `ContextClosed`. The reference returned by `Context::control_stream()` is valid only
+while its `Context` remains alive.
 
 Internal cancellation, peer disconnect, connection close, and fatal errors wake all affected blocked operations. After
 connection close begins:

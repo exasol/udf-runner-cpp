@@ -70,15 +70,17 @@ public:
     /// Transfers complete outbound messages to the background thread without
     /// blocking.
     ///
-    /// Returns false without consuming `messages` when the background thread
-    /// has stopped accepting work.
-    virtual bool enqueue_outbound_messages(OutboundBatch&& messages) = 0;
+    /// Returns true after moving `messages` into the outbound queue. Returns
+    /// false without modifying `messages` when the background thread has
+    /// stopped accepting work.
+    virtual bool enqueue_outbound_messages(OutboundBatch& messages) = 0;
 
     /// Transfers one outbound message to the background thread without blocking.
     ///
-    /// Returns false without consuming `message` when the background thread
-    /// has stopped accepting work.
-    virtual bool enqueue_outbound_message(OutboundMessage&& message) = 0;
+    /// Returns true after moving `message` into the outbound queue. Returns
+    /// false without modifying `message` when the background thread has
+    /// stopped accepting work.
+    virtual bool enqueue_outbound_message(OutboundMessage& message) = 0;
 
     /// Removes all currently available verified messages from the inbound queue.
     [[nodiscard]] virtual InboundBatch dequeue_inbound_messages() = 0;
