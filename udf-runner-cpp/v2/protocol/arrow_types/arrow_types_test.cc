@@ -39,7 +39,9 @@ namespace
     TEST(RunEndEncodedTest, EncodesAndDecodesRepeatedIds)
     {
         const std::vector<std::uint64_t> ids{10, 10, 20, 20};
-        auto result = create_run_end_encoded_correlation_ids(ids);
+        const std::vector<std::uint64_t> run_values{10, 20};
+        const std::vector<std::uint64_t> counts{2, 2};
+        auto result = create_run_end(run_values, counts);
         ASSERT_TRUE(result.ok()) << result.status();
         const auto& encoded = result.ValueOrDie();
         const auto ends     = std::static_pointer_cast<arrow::Int64Array>(encoded->run_ends());
@@ -50,21 +52,22 @@ namespace
         EXPECT_EQ(values->Value(0), 10);
         EXPECT_EQ(values->Value(1), 20);
 
-        auto decoded = decode_run_end_encoded_correlation_ids(*encoded);
+        auto decoded = decode_run_end(*encoded);
         ASSERT_TRUE(decoded.ok()) << decoded.status();
         EXPECT_EQ(decoded.ValueOrDie(), ids);
     }
 
     TEST(RunEndEncodedTest, SupportsEmptyAndPlainColumns)
     {
-        auto empty = create_run_end_encoded_correlation_ids({});
+        const std::vector<std::uint64_t> no_values;
+        auto empty = create_run_end(no_values, no_values);
         ASSERT_TRUE(empty.ok()) << empty.status();
-        auto decoded_empty = decode_run_end_encoded_correlation_ids(*empty.ValueOrDie());
+        auto decoded_empty = decode_run_end(*empty.ValueOrDie());
         ASSERT_TRUE(decoded_empty.ok()) << decoded_empty.status();
         EXPECT_TRUE(decoded_empty.ValueOrDie().empty());
 
         const std::vector<std::uint64_t> ids{1, 2, 3};
-        auto decoded_plain = decode_run_end_encoded_correlation_ids(*make_uint64(ids));
+        auto decoded_plain = decode_run_end(*make_uint64(ids));
         ASSERT_TRUE(decoded_plain.ok()) << decoded_plain.status();
         EXPECT_EQ(decoded_plain.ValueOrDie(), ids);
     }
@@ -74,18 +77,41 @@ namespace
         const auto malformed = std::make_shared<arrow::RunEndEncodedArray>(
             arrow::run_end_encoded(arrow::int64(), arrow::uint64()), 3, make_int64({2, 2}),
             make_uint64({10, 20}));
-        EXPECT_FALSE(decode_run_end_encoded_correlation_ids(*malformed).ok());
+        EXPECT_FALSE(decode_run_end(*malformed).ok());
 
         auto wrong_values = arrow::RunEndEncodedArray::Make(2, make_int64({2}), make_int64({10}));
         ASSERT_TRUE(wrong_values.ok()) << wrong_values.status();
-        EXPECT_FALSE(decode_run_end_encoded_correlation_ids(*wrong_values.ValueOrDie()).ok());
+        EXPECT_FALSE(decode_run_end(*wrong_values.ValueOrDie()).ok());
     }
 
-    TEST(RangeRunTest, SplitsConsecutiveRowsAtGroupBoundaries)
+    TEST(RunEndEncodedTest, PreservesExplicitRunsAndRejectsInvalidCounts)
+    {
+        const std::vector<std::uint64_t> values{10, 10};
+        const std::vector<std::uint64_t> counts{1, 2};
+        auto result = create_run_end(values, counts);
+        ASSERT_TRUE(result.ok()) << result.status();
+        const auto ends =
+            std::static_pointer_cast<arrow::Int64Array>(result.ValueOrDie()->run_ends());
+        EXPECT_EQ(ends->Value(0), 1);
+        EXPECT_EQ(ends->Value(1), 3);
+        EXPECT_EQ(decode_run_end(*result.ValueOrDie()).ValueOrDie(),
+                  (std::vector<std::uint64_t>{10, 10, 10}));
+
+        const std::vector<std::uint64_t> mismatched{1};
+        const std::vector<std::uint64_t> zero_count{1, 0};
+        const std::vector<std::uint64_t> excessive{
+            static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()), 1};
+        EXPECT_FALSE(create_run_end(values, mismatched).ok());
+        EXPECT_FALSE(create_run_end(values, zero_count).ok());
+        EXPECT_FALSE(create_run_end(values, excessive).ok());
+    }
+
+    TEST(RangeRunTest, PreservesExplicitBoundaries)
     {
         const std::vector<std::uint64_t> ids{101, 102, 103, 104};
-        const std::vector<std::uint64_t> group_ids{10, 10, 20, 20};
-        auto result = create_row_id_range_run(ids, group_ids);
+        const std::vector<std::uint64_t> run_values{101, 103};
+        const std::vector<std::uint64_t> counts{2, 2};
+        auto result = create_range_run(run_values, counts);
         ASSERT_TRUE(result.ok()) << result.status();
         const auto& encoded = result.ValueOrDie();
         const auto storage =
@@ -98,41 +124,67 @@ namespace
         EXPECT_EQ(values->Value(0), 101);
         EXPECT_EQ(values->Value(1), 103);
 
-        auto decoded = decode_row_id_range_run(*encoded);
+        auto decoded = decode_range_run(*encoded);
         ASSERT_TRUE(decoded.ok()) << decoded.status();
         EXPECT_EQ(decoded.ValueOrDie(), ids);
     }
 
-    TEST(RangeRunTest, AcceptsPlainFallbackAndRejectsMismatchedGroupIds)
+    TEST(RangeRunTest, ExpandsOverlappingConsecutiveRanges)
+    {
+        const std::vector<std::uint64_t> values{1, 3};
+        const std::vector<std::uint64_t> counts{3, 4};
+        auto result = create_range_run(values, counts);
+        ASSERT_TRUE(result.ok()) << result.status();
+        const auto storage =
+            std::static_pointer_cast<arrow::RunEndEncodedArray>(result.ValueOrDie()->storage());
+        const auto ends = std::static_pointer_cast<arrow::Int64Array>(storage->run_ends());
+        ASSERT_EQ(ends->length(), 2);
+        EXPECT_EQ(ends->Value(0), 3);
+        EXPECT_EQ(ends->Value(1), 7);
+        auto decoded = decode_range_run(*result.ValueOrDie());
+        ASSERT_TRUE(decoded.ok()) << decoded.status();
+        EXPECT_EQ(decoded.ValueOrDie(), (std::vector<std::uint64_t>{1, 2, 3, 3, 4, 5, 6}));
+    }
+
+    TEST(RangeRunTest, AcceptsPlainFallbackAndRejectsInvalidCounts)
     {
         const std::vector<std::uint64_t> ids{1, 2, 3};
-        auto decoded = decode_row_id_range_run(*make_uint64(ids));
+        auto decoded = decode_range_run(*make_uint64(ids));
         ASSERT_TRUE(decoded.ok()) << decoded.status();
         EXPECT_EQ(decoded.ValueOrDie(), ids);
 
-        const std::vector<std::uint64_t> too_few_group_ids{10, 10};
-        EXPECT_FALSE(create_row_id_range_run(ids, too_few_group_ids).ok());
-        const std::vector<std::uint64_t> too_many_group_ids{10, 10, 20, 20};
-        EXPECT_FALSE(create_row_id_range_run(ids, too_many_group_ids).ok());
+        const std::vector<std::uint64_t> mismatched{1, 1};
+        const std::vector<std::uint64_t> zero_count{1, 1, 0};
+        const std::vector<std::uint64_t> excessive{
+            static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()), 1, 1};
+        const std::vector<std::uint64_t> max_value{std::numeric_limits<std::uint64_t>::max()};
+        const std::vector<std::uint64_t> two{2};
+        EXPECT_FALSE(create_range_run(ids, mismatched).ok());
+        EXPECT_FALSE(create_range_run(ids, zero_count).ok());
+        EXPECT_FALSE(create_range_run(ids, excessive).ok());
+        EXPECT_FALSE(create_range_run(max_value, two).ok());
     }
 
     TEST(RangeRunTest, SupportsEmptyAndSingleRange)
     {
-        auto empty = create_row_id_range_run({});
+        const std::vector<std::uint64_t> no_values;
+        auto empty = create_range_run(no_values, no_values);
         ASSERT_TRUE(empty.ok()) << empty.status();
-        auto decoded_empty = decode_row_id_range_run(*empty.ValueOrDie());
+        auto decoded_empty = decode_range_run(*empty.ValueOrDie());
         ASSERT_TRUE(decoded_empty.ok()) << decoded_empty.status();
         EXPECT_TRUE(decoded_empty.ValueOrDie().empty());
 
         const std::vector<std::uint64_t> ids{42, 43, 44};
-        auto encoded = create_row_id_range_run(ids);
+        const std::vector<std::uint64_t> start{42};
+        const std::vector<std::uint64_t> count{3};
+        auto encoded = create_range_run(start, count);
         ASSERT_TRUE(encoded.ok()) << encoded.status();
         const auto storage =
             std::static_pointer_cast<arrow::RunEndEncodedArray>(encoded.ValueOrDie()->storage());
         const auto ends = std::static_pointer_cast<arrow::Int64Array>(storage->run_ends());
         ASSERT_EQ(ends->length(), 1);
         EXPECT_EQ(ends->Value(0), 3);
-        auto decoded = decode_row_id_range_run(*encoded.ValueOrDie());
+        auto decoded = decode_range_run(*encoded.ValueOrDie());
         ASSERT_TRUE(decoded.ok()) << decoded.status();
         EXPECT_EQ(decoded.ValueOrDie(), ids);
     }
@@ -144,7 +196,7 @@ namespace
             make_uint64({10, 20}));
         const auto encoded =
             arrow::ExtensionType::WrapArray(std::make_shared<RangeRunType>(), malformed);
-        EXPECT_FALSE(decode_row_id_range_run(*encoded).ok());
+        EXPECT_FALSE(decode_range_run(*encoded).ok());
 
         RangeRunType type;
         EXPECT_FALSE(
@@ -159,14 +211,14 @@ namespace
         ASSERT_TRUE(storage.ok()) << storage.status();
         const auto encoded =
             arrow::ExtensionType::WrapArray(std::make_shared<RangeRunType>(), storage.ValueOrDie());
-        EXPECT_FALSE(decode_row_id_range_run(*encoded).ok());
+        EXPECT_FALSE(decode_range_run(*encoded).ok());
 
         arrow::UInt64Builder builder;
         ASSERT_TRUE(builder.AppendNull().ok());
         std::shared_ptr<arrow::Array> nullable;
         ASSERT_TRUE(builder.Finish(&nullable).ok());
-        EXPECT_FALSE(decode_row_id_range_run(*nullable).ok());
-        EXPECT_FALSE(decode_run_end_encoded_correlation_ids(*nullable).ok());
+        EXPECT_FALSE(decode_range_run(*nullable).ok());
+        EXPECT_FALSE(decode_run_end(*nullable).ok());
     }
 
     TEST(RangeRunTest, RoundTripsThroughArrowCData)
@@ -174,7 +226,9 @@ namespace
         ASSERT_TRUE(register_range_run_type().ok());
         ASSERT_TRUE(register_range_run_type().ok());
         const std::vector<std::uint64_t> ids{1, 2, 3, 7, 8};
-        auto encoded = create_row_id_range_run(ids);
+        const std::vector<std::uint64_t> starts{1, 7};
+        const std::vector<std::uint64_t> counts{3, 2};
+        auto encoded = create_range_run(starts, counts);
         ASSERT_TRUE(encoded.ok()) << encoded.status();
 
         ArrowArray c_array{};
@@ -192,7 +246,7 @@ namespace
         const auto& extension = dynamic_cast<const arrow::ExtensionArray&>(*array);
         EXPECT_EQ(extension.extension_type()->extension_name(), "exasol.udf.range_run");
         EXPECT_EQ(extension.extension_type()->storage_type()->id(), arrow::Type::RUN_END_ENCODED);
-        auto decoded = decode_row_id_range_run(*array);
+        auto decoded = decode_range_run(*array);
         ASSERT_TRUE(decoded.ok()) << decoded.status();
         EXPECT_EQ(decoded.ValueOrDie(), ids);
     }

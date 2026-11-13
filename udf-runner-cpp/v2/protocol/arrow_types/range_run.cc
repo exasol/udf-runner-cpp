@@ -82,61 +82,53 @@ arrow::Status register_range_run_type()
     return arrow::RegisterExtensionType(std::make_shared<RangeRunType>());
 }
 
-arrow::Result<std::shared_ptr<RangeRunArray>> create_row_id_range_run(
-    std::span<const std::uint64_t> ids, std::span<const std::uint64_t> group_ids)
+arrow::Result<std::shared_ptr<RangeRunArray>> create_range_run(
+    std::span<const std::uint64_t> values, std::span<const std::uint64_t> counts)
 {
-    if (ids.size() > static_cast<std::size_t>(std::numeric_limits<std::int64_t>::max()))
+    if (values.size() != counts.size())
     {
-        return arrow::Status::Invalid("row ID array exceeds int64 length");
-    }
-    if (!group_ids.empty() && group_ids.size() != ids.size())
-    {
-        return arrow::Status::Invalid("group IDs must match row ID array length");
+        return arrow::Status::Invalid("range_run values and counts must have equal length");
     }
 
     arrow::Int64Builder run_ends_builder;
     arrow::UInt64Builder values_builder;
-    for (std::size_t start = 0; start < ids.size();)
+    std::int64_t total = 0;
+    for (std::size_t run = 0; run < values.size(); ++run)
     {
-        std::size_t end = start + 1;
-        while (end < ids.size())
+        const auto count = counts[run];
+        if (count == 0 ||
+            count > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max() - total))
         {
-            if (!group_ids.empty() && group_ids[end] != group_ids[end - 1])
-            {
-                break;
-            }
-            if (ids[end - 1] == std::numeric_limits<std::uint64_t>::max() ||
-                ids[end] != ids[end - 1] + 1)
-            {
-                break;
-            }
-            ++end;
+            return arrow::Status::Invalid("range_run count is zero or total exceeds int64 length");
         }
-        ARROW_RETURN_NOT_OK(run_ends_builder.Append(static_cast<std::int64_t>(end)));
-        ARROW_RETURN_NOT_OK(values_builder.Append(ids[start]));
-        start = end;
+        if (values[run] > std::numeric_limits<std::uint64_t>::max() - (count - 1))
+        {
+            return arrow::Status::Invalid("range_run exceeds uint64 values");
+        }
+        total += static_cast<std::int64_t>(count);
+        ARROW_RETURN_NOT_OK(run_ends_builder.Append(total));
+        ARROW_RETURN_NOT_OK(values_builder.Append(values[run]));
     }
 
     std::shared_ptr<arrow::Array> run_ends;
-    std::shared_ptr<arrow::Array> values;
+    std::shared_ptr<arrow::Array> value_array;
     ARROW_RETURN_NOT_OK(run_ends_builder.Finish(&run_ends));
-    ARROW_RETURN_NOT_OK(values_builder.Finish(&values));
-    ARROW_ASSIGN_OR_RAISE(
-        auto storage,
-        arrow::RunEndEncodedArray::Make(static_cast<std::int64_t>(ids.size()), run_ends, values));
+    ARROW_RETURN_NOT_OK(values_builder.Finish(&value_array));
+    ARROW_ASSIGN_OR_RAISE(auto storage,
+                          arrow::RunEndEncodedArray::Make(total, run_ends, value_array));
     return std::static_pointer_cast<RangeRunArray>(
         arrow::ExtensionType::WrapArray(std::make_shared<RangeRunType>(), storage));
 }
 
-arrow::Result<std::vector<std::uint64_t>> decode_row_id_range_run(const arrow::Array& array)
+arrow::Result<std::vector<std::uint64_t>> decode_range_run(const arrow::Array& array)
 {
     if (array.type_id() == arrow::Type::UINT64)
     {
-        return decode_run_end_encoded_correlation_ids(array);
+        return decode_run_end(array);
     }
     if (array.type_id() != arrow::Type::EXTENSION)
     {
-        return arrow::Status::TypeError("expected range_run or uint64 row IDs");
+        return arrow::Status::TypeError("expected range_run or uint64 values");
     }
     const auto& extension = dynamic_cast<const arrow::ExtensionArray&>(array);
     if (extension.extension_type()->extension_name() != range_run_name ||
@@ -172,7 +164,7 @@ arrow::Result<std::vector<std::uint64_t>> decode_row_id_range_run(const arrow::A
         const auto first      = values->Value(run);
         if (first > std::numeric_limits<std::uint64_t>::max() - (run_length - 1))
         {
-            return arrow::Status::Invalid("range_run exceeds uint64 row IDs");
+            return arrow::Status::Invalid("range_run exceeds uint64 values");
         }
         for (std::uint64_t offset = 0; offset < run_length; ++offset)
         {

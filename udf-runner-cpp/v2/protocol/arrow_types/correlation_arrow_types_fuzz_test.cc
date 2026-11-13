@@ -100,57 +100,74 @@ std::shared_ptr<arrow::Array> make_values(const std::vector<std::uint64_t>& valu
 
 void fuzz_valid_round_trip(Input& input)
 {
-    const auto count = static_cast<std::size_t>(input.read_byte()) % (max_rows + 1);
-    std::vector<std::uint64_t> row_ids;
-    std::vector<std::uint64_t> group_ids;
-    row_ids.reserve(count);
-    group_ids.reserve(count);
-    for (std::size_t index = 0; index < count; ++index)
+    const auto run_count = static_cast<std::size_t>(input.read_byte()) % (max_rows + 1);
+    std::vector<std::uint64_t> range_values;
+    std::vector<std::uint64_t> range_counts;
+    std::vector<std::uint64_t> repeated_values;
+    std::vector<std::uint64_t> repeated_counts;
+    std::vector<std::uint64_t> expected_ranges;
+    std::vector<std::uint64_t> expected_repeated;
+    for (std::size_t run = 0; run < run_count; ++run)
     {
-        row_ids.push_back(input.read_uint64());
-        group_ids.push_back(input.read_uint64());
+        const auto range_value    = input.read_uint64();
+        const auto repeated_value = input.read_uint64();
+        auto range_count          = static_cast<std::uint64_t>(input.read_byte() % 4) + 1;
+        const auto repeated_count = static_cast<std::uint64_t>(input.read_byte() % 4) + 1;
+        if (range_value > std::numeric_limits<std::uint64_t>::max() - (range_count - 1))
+        {
+            range_count = 1;
+        }
+        range_values.push_back(range_value);
+        range_counts.push_back(range_count);
+        repeated_values.push_back(repeated_value);
+        repeated_counts.push_back(repeated_count);
+        for (std::uint64_t offset = 0; offset < range_count; ++offset)
+        {
+            expected_ranges.push_back(range_value + offset);
+        }
+        expected_repeated.insert(expected_repeated.end(), repeated_count, repeated_value);
     }
 
-    auto groups = correlation::create_run_end_encoded_correlation_ids(group_ids);
-    auto rows   = correlation::create_row_id_range_run(row_ids, group_ids);
-    if (!groups.ok() || !rows.ok())
+    auto repeated = correlation::create_run_end(repeated_values, repeated_counts);
+    auto ranges   = correlation::create_range_run(range_values, range_counts);
+    if (!repeated.ok() || !ranges.ok())
     {
         fuzz_failure();
     }
-    auto decoded_groups = correlation::decode_run_end_encoded_correlation_ids(*groups.ValueOrDie());
-    auto decoded_rows   = correlation::decode_row_id_range_run(*rows.ValueOrDie());
-    if (!decoded_groups.ok() || decoded_groups.ValueOrDie() != group_ids || !decoded_rows.ok() ||
-        decoded_rows.ValueOrDie() != row_ids)
+    auto decoded_repeated = correlation::decode_run_end(*repeated.ValueOrDie());
+    auto decoded_ranges   = correlation::decode_range_run(*ranges.ValueOrDie());
+    if (!decoded_repeated.ok() || decoded_repeated.ValueOrDie() != expected_repeated ||
+        !decoded_ranges.ok() || decoded_ranges.ValueOrDie() != expected_ranges)
     {
         fuzz_failure();
     }
 
     const auto storage =
-        std::static_pointer_cast<arrow::RunEndEncodedArray>(rows.ValueOrDie()->storage());
-    const auto ends           = std::static_pointer_cast<arrow::Int64Array>(storage->run_ends());
-    const auto values         = std::static_pointer_cast<arrow::UInt64Array>(storage->values());
-    std::int64_t previous_end = 0;
-    for (std::int64_t run = 0; run < ends->length(); ++run)
+        std::static_pointer_cast<arrow::RunEndEncodedArray>(ranges.ValueOrDie()->storage());
+    const auto range_ends   = std::static_pointer_cast<arrow::Int64Array>(storage->run_ends());
+    const auto range_starts = std::static_pointer_cast<arrow::UInt64Array>(storage->values());
+    const auto repeated_ends =
+        std::static_pointer_cast<arrow::Int64Array>(repeated.ValueOrDie()->run_ends());
+    const auto repeated_starts =
+        std::static_pointer_cast<arrow::UInt64Array>(repeated.ValueOrDie()->values());
+    if (range_ends->length() != static_cast<std::int64_t>(run_count) ||
+        repeated_ends->length() != static_cast<std::int64_t>(run_count))
     {
-        const auto end = ends->Value(run);
-        if (end <= previous_end || end > static_cast<std::int64_t>(count) ||
-            values->Value(run) != row_ids[static_cast<std::size_t>(previous_end)])
+        fuzz_failure();
+    }
+    std::int64_t range_total    = 0;
+    std::int64_t repeated_total = 0;
+    for (std::size_t run = 0; run < run_count; ++run)
+    {
+        range_total += static_cast<std::int64_t>(range_counts[run]);
+        repeated_total += static_cast<std::int64_t>(repeated_counts[run]);
+        if (range_ends->Value(static_cast<std::int64_t>(run)) != range_total ||
+            range_starts->Value(static_cast<std::int64_t>(run)) != range_values[run] ||
+            repeated_ends->Value(static_cast<std::int64_t>(run)) != repeated_total ||
+            repeated_starts->Value(static_cast<std::int64_t>(run)) != repeated_values[run])
         {
             fuzz_failure();
         }
-        for (auto index = previous_end + 1; index < end; ++index)
-        {
-            const auto current = static_cast<std::size_t>(index);
-            if (group_ids[current] != group_ids[current - 1])
-            {
-                fuzz_failure();
-            }
-        }
-        previous_end = end;
-    }
-    if (previous_end != static_cast<std::int64_t>(count))
-    {
-        fuzz_failure();
     }
 }
 
@@ -174,10 +191,10 @@ void fuzz_malformed_runs(Input& input)
     auto storage = std::make_shared<arrow::RunEndEncodedArray>(
         arrow::run_end_encoded(arrow::int64(), arrow::uint64()), logical_length,
         make_run_ends(ends), make_values(values, nulls));
-    auto repeated = correlation::decode_run_end_encoded_correlation_ids(*storage);
+    auto repeated = correlation::decode_run_end(*storage);
     auto extension =
         arrow::ExtensionType::WrapArray(std::make_shared<correlation::RangeRunType>(), storage);
-    auto ranges = correlation::decode_row_id_range_run(*extension);
+    auto ranges = correlation::decode_range_run(*extension);
 
     std::vector<std::uint64_t> expected_repeated;
     std::vector<std::uint64_t> expected_ranges;

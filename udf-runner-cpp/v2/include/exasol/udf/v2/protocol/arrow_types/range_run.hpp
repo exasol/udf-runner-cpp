@@ -38,15 +38,12 @@ public:
 /// Registers the extension for Arrow C Data imports; repeated calls are safe.
 arrow::Status register_range_run_type();
 
-/// Encodes consecutive row IDs, starting a new run whenever the group ID
-/// changes. For example, row IDs [101, 102, 103, 104] and group IDs
-/// [10, 10, 20, 20] produce run ends [2, 4] and starting values [101, 103].
-/// `group_ids` must have one value per row ID. Omit it when there is no
-/// group-ID column.
-arrow::Result<std::shared_ptr<RangeRunArray>> create_row_id_range_run(
-    std::span<const std::uint64_t> ids, std::span<const std::uint64_t> group_ids = {});
+/// Encodes consecutive uint64 ranges from their starting values and lengths.
+/// Callers choose run boundaries, including any required group boundaries.
+arrow::Result<std::shared_ptr<RangeRunArray>> create_range_run(
+    std::span<const std::uint64_t> values, std::span<const std::uint64_t> counts);
 
-/// Decodes range_run or plain uint64 row IDs.
-arrow::Result<std::vector<std::uint64_t>> decode_row_id_range_run(const arrow::Array& array);
+/// Decodes range_run or plain uint64 values.
+arrow::Result<std::vector<std::uint64_t>> decode_range_run(const arrow::Array& array);
 
 } // namespace exasol::udf::v2::protocol::arrow_types::correlation

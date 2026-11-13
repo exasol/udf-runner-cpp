@@ -12,48 +12,45 @@
 namespace exasol::udf::v2::protocol::arrow_types::correlation
 {
 
-arrow::Result<std::shared_ptr<arrow::RunEndEncodedArray>> create_run_end_encoded_correlation_ids(
-    std::span<const std::uint64_t> ids)
+arrow::Result<std::shared_ptr<arrow::RunEndEncodedArray>> create_run_end(
+    std::span<const std::uint64_t> values, std::span<const std::uint64_t> counts)
 {
-    if (ids.size() > static_cast<std::size_t>(std::numeric_limits<std::int64_t>::max()))
+    if (values.size() != counts.size())
     {
-        return arrow::Status::Invalid("correlation array exceeds int64 length");
+        return arrow::Status::Invalid("run-end values and counts must have equal length");
     }
 
     arrow::Int64Builder run_ends_builder;
     arrow::UInt64Builder values_builder;
-    for (std::size_t index = 0; index < ids.size(); ++index)
+    std::int64_t total = 0;
+    for (std::size_t run = 0; run < values.size(); ++run)
     {
-        if (index == 0 || ids[index] != ids[index - 1])
+        const auto count = counts[run];
+        if (count == 0 ||
+            count > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max() - total))
         {
-            if (index != 0)
-            {
-                ARROW_RETURN_NOT_OK(run_ends_builder.Append(static_cast<std::int64_t>(index)));
-            }
-            ARROW_RETURN_NOT_OK(values_builder.Append(ids[index]));
+            return arrow::Status::Invalid("run-end count is zero or total exceeds int64 length");
         }
-    }
-    if (!ids.empty())
-    {
-        ARROW_RETURN_NOT_OK(run_ends_builder.Append(static_cast<std::int64_t>(ids.size())));
+        total += static_cast<std::int64_t>(count);
+        ARROW_RETURN_NOT_OK(run_ends_builder.Append(total));
+        ARROW_RETURN_NOT_OK(values_builder.Append(values[run]));
     }
 
     std::shared_ptr<arrow::Array> run_ends;
-    std::shared_ptr<arrow::Array> values;
+    std::shared_ptr<arrow::Array> value_array;
     ARROW_RETURN_NOT_OK(run_ends_builder.Finish(&run_ends));
-    ARROW_RETURN_NOT_OK(values_builder.Finish(&values));
-    return arrow::RunEndEncodedArray::Make(static_cast<std::int64_t>(ids.size()), run_ends, values);
+    ARROW_RETURN_NOT_OK(values_builder.Finish(&value_array));
+    return arrow::RunEndEncodedArray::Make(total, run_ends, value_array);
 }
 
-arrow::Result<std::vector<std::uint64_t>> decode_run_end_encoded_correlation_ids(
-    const arrow::Array& array)
+arrow::Result<std::vector<std::uint64_t>> decode_run_end(const arrow::Array& array)
 {
     if (array.type_id() == arrow::Type::UINT64)
     {
         ARROW_RETURN_NOT_OK(array.ValidateFull());
         if (array.null_count() != 0)
         {
-            return arrow::Status::Invalid("correlation IDs must not be null");
+            return arrow::Status::Invalid("uint64 values must not be null");
         }
         const auto& plain = dynamic_cast<const arrow::UInt64Array&>(array);
         std::vector<std::uint64_t> ids;
@@ -66,7 +63,7 @@ arrow::Result<std::vector<std::uint64_t>> decode_run_end_encoded_correlation_ids
     }
     if (array.type_id() != arrow::Type::RUN_END_ENCODED)
     {
-        return arrow::Status::TypeError("expected RunEndEncoded or uint64 correlation IDs");
+        return arrow::Status::TypeError("expected RunEndEncoded or uint64 values");
     }
     ARROW_RETURN_NOT_OK(array.ValidateFull());
     const auto& encoded = dynamic_cast<const arrow::RunEndEncodedArray&>(array);
@@ -83,7 +80,7 @@ arrow::Result<std::vector<std::uint64_t>> decode_run_end_encoded_correlation_ids
     if (run_ends->null_count() != 0 || values->null_count() != 0 ||
         run_ends->length() != values->length())
     {
-        return arrow::Status::Invalid("invalid correlation runs");
+        return arrow::Status::Invalid("invalid run-end runs");
     }
 
     std::vector<std::uint64_t> ids;
@@ -94,7 +91,7 @@ arrow::Result<std::vector<std::uint64_t>> decode_run_end_encoded_correlation_ids
         const auto end = run_ends->Value(run);
         if (end <= previous_end || end > encoded.length())
         {
-            return arrow::Status::Invalid("invalid correlation run end");
+            return arrow::Status::Invalid("invalid run end");
         }
         ids.insert(ids.end(), static_cast<std::size_t>(end - previous_end), values->Value(run));
         previous_end = end;
