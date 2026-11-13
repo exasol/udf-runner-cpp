@@ -11,7 +11,8 @@ enum class MessageStatus
     TimedOut,
     Cancelled,
     PeerClosed,
-    ConnectionError
+    ConnectionError,
+    ContextClosed
 };
 
 /// Result status of a consuming or sending operation.
@@ -22,7 +23,8 @@ enum class OperationStatus
     Cancelled,
     PeerClosed,
     ProtocolError,
-    TransportError
+    TransportError,
+    ContextClosed
 };
 
 } // namespace exasol::udf::v2::interface

@@ -85,7 +85,9 @@ bool CallMessage::is_close_call() const noexcept
     return close_call_;
 }
 
-CallMessageBuilderImpl::CallMessageBuilderImpl(const std::uint64_t stream_id) : message_(stream_id)
+CallMessageBuilderImpl::CallMessageBuilderImpl(const std::uint64_t stream_id,
+                                               std::weak_ptr<const void> owner)
+    : message_(stream_id), owner_(std::move(owner))
 {
 }
 
@@ -136,8 +138,15 @@ const CallMessage& CallMessageBuilderImpl::message() const noexcept
     return message_;
 }
 
-OpeningCallMessageBuilderImpl::OpeningCallMessageBuilderImpl(const std::uint64_t stream_id)
-    : message_(stream_id)
+bool CallMessageBuilderImpl::belongs_to(const std::shared_ptr<const void>& owner) const noexcept
+{
+    const auto builder_owner = owner_.lock();
+    return builder_owner != nullptr && builder_owner == owner;
+}
+
+OpeningCallMessageBuilderImpl::OpeningCallMessageBuilderImpl(const std::uint64_t stream_id,
+                                                             std::weak_ptr<const void> owner)
+    : message_(stream_id), owner_(std::move(owner))
 {
 }
 
@@ -191,6 +200,13 @@ interface::OpeningCallMessageBuilder& OpeningCallMessageBuilderImpl::close_call(
 const CallMessage& OpeningCallMessageBuilderImpl::message() const noexcept
 {
     return message_;
+}
+
+bool OpeningCallMessageBuilderImpl::belongs_to(
+    const std::shared_ptr<const void>& owner) const noexcept
+{
+    const auto builder_owner = owner_.lock();
+    return builder_owner != nullptr && builder_owner == owner;
 }
 
 } // namespace exasol::udf::v2::internal

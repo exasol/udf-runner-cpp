@@ -7,6 +7,7 @@ n/a
 
 ## Features / Enhancements
 
+ - #132: Implemented v2 stream registry, context dispatch, and call/control stream state
  - #119: Added transport-neutral v2 connection acceptance with Unix socket support
  - #86: Added a RAII Linux epoll abstraction with injectable POSIX operations
  - #90: Added an injectable POSIX API wrapper for Unix-domain socket operations
@@ -17,7 +18,7 @@ n/a
  - #75: Added the v2 Unix-domain stream socket library
  - #32: Added clang tidy to v2
  - #36: Added developer guide for clang-tidy and clang-format
- - #38: Added Sonar Qube Public
+ - #38: Added SonarQube Public
  - #49: Added Bazel-based fuzzing for v2
 
 ## Refactorings

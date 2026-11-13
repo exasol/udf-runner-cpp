@@ -69,8 +69,9 @@ bool ControlMessage::is_close_connection() const noexcept
     return close_connection_;
 }
 
-ControlMessageBuilderImpl::ControlMessageBuilderImpl(const std::uint64_t stream_id)
-    : message_(stream_id)
+ControlMessageBuilderImpl::ControlMessageBuilderImpl(const std::uint64_t stream_id,
+                                                     std::weak_ptr<const void> owner)
+    : message_(stream_id), owner_(std::move(owner))
 {
 }
 
@@ -114,6 +115,12 @@ interface::ControlMessageBuilder& ControlMessageBuilderImpl::close_connection()
 const ControlMessage& ControlMessageBuilderImpl::message() const noexcept
 {
     return message_;
+}
+
+bool ControlMessageBuilderImpl::belongs_to(const std::shared_ptr<const void>& owner) const noexcept
+{
+    const auto builder_owner = owner_.lock();
+    return builder_owner != nullptr && builder_owner == owner;
 }
 
 } // namespace exasol::udf::v2::internal

@@ -30,6 +30,7 @@ MessageStatus =
   | Cancelled
   | PeerClosed
   | ConnectionError
+  | ContextClosed
 ```
 
 Consuming operations return either a value or a terminal result:
@@ -42,6 +43,7 @@ OperationStatus =
   | PeerClosed
   | ProtocolError
   | TransportError
+  | ContextClosed
 ```
 
 The conceptual generic result type is:
@@ -53,6 +55,9 @@ Result<T> {
     optional<ErrorInfo> error
 }
 ```
+
+`ContextClosed` means the connection context is no longer available to the operation, including when a `Call` or
+`ControlStream` handle outlives its context.
 
 `Result<void>` represents an operation that has no value on success. A successful result has `status == Ok` and a
 value where applicable. A failed result has no value and may include an error code and message.
