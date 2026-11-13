@@ -30,6 +30,7 @@ MessageStatus =
   | Cancelled
   | PeerClosed
   | ConnectionError
+  | ContextClosed
 ```
 
 Consuming operations return either a value or a terminal result:
@@ -42,6 +43,7 @@ OperationStatus =
   | PeerClosed
   | ProtocolError
   | TransportError
+  | ContextClosed
 ```
 
 The conceptual generic result type is:
@@ -53,6 +55,9 @@ Result<T> {
     optional<ErrorInfo> error
 }
 ```
+
+`ContextClosed` means the connection context is no longer available to the operation, including when a `Call` or
+`ControlStream` handle outlives its context.
 
 `Result<void>` represents an operation that has no value on success. A successful result has `status == Ok` and a
 value where applicable. A failed result has no value and may include an error code and message.
@@ -73,7 +78,7 @@ Context {
     wait_for_message(optional<Duration> timeout) -> MessageStatus
     accept_call() -> Result<unique_ptr<Call>>
     create_opening_call_message_builder() -> unique_ptr<OpeningCallMessageBuilder>
-    open_call(unique_ptr<OpeningCallMessageBuilder>) -> Result<unique_ptr<Call>>
+    open_call(unique_ptr<OpeningCallMessageBuilder>&&) -> Result<unique_ptr<Call>>
     control_stream() -> ControlStream&
 }
 ```
@@ -107,6 +112,9 @@ response. The peer's response is received through that call's `receive()` operat
 `OpeningCallMessageBuilder`
 bound to it. The worker adds the required `open_call` field and passes that builder to `open_call()`. A reserved stream
 ID is not reused if its builder is abandoned or `open_call()` fails.
+
+`Context::open_call()` transfers builder ownership only when the opening message is accepted. On failure, the caller's
+`unique_ptr` remains non-null and retains the builder and any Arrow objects it owns.
 
 ## Call interface
 

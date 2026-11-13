@@ -39,8 +39,10 @@ public:
     [[nodiscard]] virtual std::unique_ptr<OpeningCallMessageBuilder>
     create_opening_call_message_builder() = 0;
     /// Opens an outbound call using `opening_message` as its first message.
+    /// Ownership transfers only when the call is accepted. On failure,
+    /// `opening_message` remains non-null and retains its builder and Arrow objects.
     [[nodiscard]] virtual Result<std::unique_ptr<Call>> open_call(
-        std::unique_ptr<OpeningCallMessageBuilder> opening_message) = 0;
+        std::unique_ptr<OpeningCallMessageBuilder>&& opening_message) = 0;
     /// Returns the connection-level stream-zero interface.
     [[nodiscard]] virtual ControlStream& control_stream() = 0;
 

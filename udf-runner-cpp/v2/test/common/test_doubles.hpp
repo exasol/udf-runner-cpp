@@ -127,7 +127,7 @@ public:
     }
 
     [[nodiscard]] interface::Result<std::unique_ptr<interface::Call>> open_call(
-        std::unique_ptr<interface::OpeningCallMessageBuilder> opening_message) override
+        std::unique_ptr<interface::OpeningCallMessageBuilder>&& opening_message) override
     {
         (void)opening_message;
         return interface::Result<std::unique_ptr<interface::Call>>::failure(

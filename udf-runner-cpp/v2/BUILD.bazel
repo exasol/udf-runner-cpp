@@ -302,16 +302,28 @@ cc_library(
 # target from exporting implementation details to its dependents.
 cc_library(
     name = "interface_internal",
+    srcs = [
+        "internal/call_impl.cc",
+        "internal/context_impl.cc",
+        "internal/context_state.cc",
+        "internal/control_stream_impl.cc",
+        "internal/stream_registry.cc",
+    ],
     hdrs = [
         "include/exasol/udf/v2/internal/background_thread_interface.hpp",
+        "include/exasol/udf/v2/internal/call_impl.hpp",
         "include/exasol/udf/v2/internal/call_message_builder_impl.hpp",
         "include/exasol/udf/v2/internal/call_message_view_impl.hpp",
         "include/exasol/udf/v2/internal/control_message_builder_impl.hpp",
         "include/exasol/udf/v2/internal/control_message_view_impl.hpp",
+        "include/exasol/udf/v2/internal/control_stream_impl.hpp",
+        "include/exasol/udf/v2/internal/context_impl.hpp",
+        "include/exasol/udf/v2/internal/context_state.hpp",
         "include/exasol/udf/v2/internal/data_schema_view_impl.hpp",
         "include/exasol/udf/v2/internal/record_batch_view_impl.hpp",
         "include/exasol/udf/v2/internal/message_builder_factory.hpp",
         "include/exasol/udf/v2/internal/payload.hpp",
+        "include/exasol/udf/v2/internal/stream_registry.hpp",
     ],
     includes = ["include"],
     copts = ["-std=c++23"],

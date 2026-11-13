@@ -6,6 +6,7 @@
 
 #include <bit>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string_view>
 #include <vector>
@@ -87,7 +88,8 @@ class ControlMessageBuilderImpl final : public interface::ControlMessageBuilder
 public:
     using interface::ControlMessageBuilder::add_payload;
 
-    explicit ControlMessageBuilderImpl(std::uint64_t stream_id);
+    explicit ControlMessageBuilderImpl(std::uint64_t stream_id,
+                                       std::weak_ptr<const void> owner = {});
 
     interface::ControlMessageBuilder& server_capabilities(
         std::uint32_t major,
@@ -102,9 +104,11 @@ public:
     interface::ControlMessageBuilder& close_connection() override;
 
     [[nodiscard]] const ControlMessage& message() const noexcept;
+    [[nodiscard]] bool belongs_to(const std::shared_ptr<const void>& owner) const noexcept;
 
 private:
     ControlMessage message_;
+    std::weak_ptr<const void> owner_;
 };
 
 } // namespace exasol::udf::v2::internal

@@ -6,6 +6,7 @@
 #include <exasol/udf/v2/internal/payload.hpp>
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -101,7 +102,7 @@ public:
     using interface::CallMessageBuilderBase::record_batch;
     using interface::CallMessageBuilderBase::reset;
 
-    explicit CallMessageBuilderImpl(std::uint64_t stream_id);
+    explicit CallMessageBuilderImpl(std::uint64_t stream_id, std::weak_ptr<const void> owner = {});
 
     interface::CallMessageBuilder& add_payload(std::string_view name,
                                                std::string_view value,
@@ -115,9 +116,11 @@ public:
     interface::CallMessageBuilder& error(std::string_view code, std::string_view text) override;
     interface::CallMessageBuilder& close_call() override;
     [[nodiscard]] const CallMessage& message() const noexcept;
+    [[nodiscard]] bool belongs_to(const std::shared_ptr<const void>& owner) const noexcept;
 
 private:
     CallMessage message_;
+    std::weak_ptr<const void> owner_;
 };
 
 class OpeningCallMessageBuilderImpl final : public interface::OpeningCallMessageBuilder
@@ -128,7 +131,8 @@ public:
     using interface::CallMessageBuilderBase::record_batch;
     using interface::CallMessageBuilderBase::reset;
 
-    explicit OpeningCallMessageBuilderImpl(std::uint64_t stream_id);
+    explicit OpeningCallMessageBuilderImpl(std::uint64_t stream_id,
+                                           std::weak_ptr<const void> owner = {});
 
     interface::OpeningCallMessageBuilder& open_call(std::string_view name) override;
     interface::OpeningCallMessageBuilder& add_payload(std::string_view name,
@@ -144,9 +148,11 @@ public:
                                                 std::string_view text) override;
     interface::OpeningCallMessageBuilder& close_call() override;
     [[nodiscard]] const CallMessage& message() const noexcept;
+    [[nodiscard]] bool belongs_to(const std::shared_ptr<const void>& owner) const noexcept;
 
 private:
     CallMessage message_;
+    std::weak_ptr<const void> owner_;
 };
 
 } // namespace exasol::udf::v2::internal
