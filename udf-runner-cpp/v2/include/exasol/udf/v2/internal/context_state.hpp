@@ -35,7 +35,7 @@ public:
 
     [[nodiscard]] interface::Result<std::uint64_t> accept_call();
     [[nodiscard]] interface::Result<std::uint64_t> open_call(
-        std::unique_ptr<interface::OpeningCallMessageBuilder> opening_message);
+        std::unique_ptr<interface::OpeningCallMessageBuilder>&& opening_message);
 
     [[nodiscard]] interface::MessageStatus receive_status();
     [[nodiscard]] bool is_new_inbound_call_available();

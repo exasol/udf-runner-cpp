@@ -324,6 +324,22 @@ namespace
         EXPECT_NE(builder, nullptr);
     }
 
+    TEST(ContextImplTest, RetainsOpeningBuilderWhenBackgroundRejectsIt)
+    {
+        auto background      = std::make_unique<FakeBackgroundThread>();
+        auto* background_ptr = background.get();
+        ContextImpl context{EndpointRole::Client, std::move(background)};
+        auto opening = context.create_opening_call_message_builder();
+        ASSERT_NE(opening, nullptr);
+        opening->open_call("test");
+        background_ptr->reject_outbound = true;
+
+        const auto result = context.open_call(std::move(opening));
+
+        EXPECT_EQ(result.status, interface::OperationStatus::TransportError);
+        EXPECT_NE(opening, nullptr);
+    }
+
     TEST(ContextImplTest, HandlesPeerConnectionCloseAsContextClosed)
     {
         auto background = std::make_unique<FakeBackgroundThread>();

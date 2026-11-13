@@ -58,7 +58,7 @@ ContextImpl::create_opening_call_message_builder()
 }
 
 interface::Result<std::unique_ptr<interface::Call>> ContextImpl::open_call(
-    std::unique_ptr<interface::OpeningCallMessageBuilder> opening_message)
+    std::unique_ptr<interface::OpeningCallMessageBuilder>&& opening_message)
 {
     auto result = state_->open_call(std::move(opening_message));
     if (!result)

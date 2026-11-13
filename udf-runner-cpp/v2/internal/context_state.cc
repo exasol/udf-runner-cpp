@@ -79,7 +79,7 @@ interface::Result<std::uint64_t> ContextState::accept_call()
 }
 
 interface::Result<std::uint64_t> ContextState::open_call(
-    std::unique_ptr<interface::OpeningCallMessageBuilder> opening_message)
+    std::unique_ptr<interface::OpeningCallMessageBuilder>&& opening_message)
 {
     if (is_closed())
     {
@@ -120,6 +120,10 @@ interface::Result<std::uint64_t> ContextState::open_call(
     OutboundMessage outbound{std::move(base_builder)};
     if (!background_thread_->enqueue_outbound_message(std::move(outbound)))
     {
+        auto rejected =
+            std::move(std::get<std::unique_ptr<interface::CallMessageBuilderBase>>(outbound));
+        opening_message.reset(
+            dynamic_cast<interface::OpeningCallMessageBuilder*>(rejected.release()));
         stream_registry_.rollback_local_call(stream_id);
         auto error = interface::ErrorInfo("OUTBOUND_REJECTED",
                                           "Background thread rejected the opening message");

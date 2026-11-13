@@ -26,7 +26,7 @@ public:
     [[nodiscard]] std::unique_ptr<interface::OpeningCallMessageBuilder>
     create_opening_call_message_builder() override;
     [[nodiscard]] interface::Result<std::unique_ptr<interface::Call>> open_call(
-        std::unique_ptr<interface::OpeningCallMessageBuilder> opening_message) override;
+        std::unique_ptr<interface::OpeningCallMessageBuilder>&& opening_message) override;
     [[nodiscard]] interface::ControlStream& control_stream() override;
 
 private:
