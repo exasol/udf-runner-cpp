@@ -289,6 +289,8 @@ interface::Result<void> ContextState::send_call_message(
     std::unique_ptr<interface::CallMessageBuilder>&& message,
     const interface::Timeout timeout)
 {
+    // BackgroundThreadInterface does not yet expose per-call send credit. Until that boundary is
+    // extended, the send timeout cannot be applied to flow-control waiting.
     static_cast<void>(timeout);
     if (is_closed())
     {

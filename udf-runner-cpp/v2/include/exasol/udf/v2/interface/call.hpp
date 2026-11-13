@@ -35,6 +35,8 @@ public:
     /// objects it owns.
     [[nodiscard]] virtual Result<void> send(std::unique_ptr<CallMessageBuilder>&& message) = 0;
     /// Sends one composite call message, waiting up to `timeout` for flow-control permission.
+    /// Current implementation limitation: sending is enqueued immediately, so `timeout` does not
+    /// wait for flow-control credit or produce `TimedOut` for lack of credit.
     /// A successful result means the call accepted the message and ownership transferred. On
     /// failure, `message` remains non-null and retains ownership of the builder and any Arrow
     /// objects it owns.
