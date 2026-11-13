@@ -1,0 +1,15 @@
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_test(
+    name = "stream_management_test",
+    srcs = ["stream_management_test.cc"],
+    copts = ["-std=c++23"],
+    tags = ["no-mull"],
+    deps = [
+        "//:interface",
+        "//:interface_internal",
+        "@googletest//:gtest_main",
+    ],
+)
