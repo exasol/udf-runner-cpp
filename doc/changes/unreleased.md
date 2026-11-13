@@ -7,6 +7,7 @@ n/a
 
 ## Features / Enhancements
 
+ - #134: Added v2 Arrow correlation helpers and fuzz regressions for run-end encoded IDs and range-run row IDs
  - #119: Added transport-neutral v2 connection acceptance with Unix socket support
  - #86: Added a RAII Linux epoll abstraction with injectable POSIX operations
  - #90: Added an injectable POSIX API wrapper for Unix-domain socket operations

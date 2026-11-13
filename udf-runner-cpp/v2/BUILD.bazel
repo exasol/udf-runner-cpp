@@ -183,6 +183,41 @@ alias(
     tags = ["noclangtidy"],
 )
 
+cc_library(
+    name = "arrow_types",
+    srcs = [
+        "protocol/arrow_types/range_run.cc",
+        "protocol/arrow_types/run_end_encoded.cc",
+    ],
+    hdrs = [
+        "include/exasol/udf/v2/protocol/arrow_types/range_run.hpp",
+        "include/exasol/udf/v2/protocol/arrow_types/run_end_encoded.hpp",
+    ],
+    copts = ["-std=c++23"],
+    includes = ["include"],
+    deps = [":arrow_core"],
+)
+
+cc_test(
+    name = "arrow_types_test",
+    srcs = ["protocol/arrow_types/arrow_types_test.cc"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":arrow_core",
+        ":arrow_types",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_fuzz_test(
+    name = "correlation_arrow_types_fuzz_test",
+    srcs = ["protocol/arrow_types/correlation_arrow_types_fuzz_test.cc"],
+    corpus = glob(["fuzz/corpus/correlation_arrow_types/**"]),
+    copts = ["-std=c++23"],
+    deps = [":arrow_types"],
+    tags = ["fuzz-test"],
+)
+
 filegroup(
     name = "arrow_c_data_demo_exports",
     srcs = ["arrow_c_data_demo.exports.map"],

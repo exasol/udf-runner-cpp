@@ -1,8 +1,9 @@
 # v2 Bazel Fuzzing
 
 The v2 package contains libFuzzer targets for the FlatBuffers frame verifier,
-each JSON schema, and queue behavior. Invalid input is a normal fuzzing
-outcome; memory-safety and undefined-behavior findings remain fatal.
+JSON schemas, queue behavior, and correlation Arrow types. Invalid input is a
+normal fuzzing outcome; memory-safety and undefined-behavior findings remain
+fatal.
 
 ## Build instrumented targets
 
@@ -14,7 +15,8 @@ bazel build --config=asan-libfuzzer \
   //:connection_information_fuzz_test_bin \
   //:export_specification_fuzz_test_bin \
   //:import_specification_fuzz_test_bin \
-  //:queue_fuzz_test_bin
+  //:queue_fuzz_test_bin \
+  //:correlation_arrow_types_fuzz_test_bin
 ```
 
 ## Run a fuzzing campaign
@@ -58,7 +60,8 @@ bazel test --config=asan-libfuzzer --test_output=errors \
   //:connection_information_fuzz_test \
   //:export_specification_fuzz_test \
   //:import_specification_fuzz_test \
-  //:queue_fuzz_test
+  //:queue_fuzz_test \
+  //:correlation_arrow_types_fuzz_test
 ```
 
 Use `--config=asan-ubsan-libfuzzer` for combined sanitizer coverage. Use
