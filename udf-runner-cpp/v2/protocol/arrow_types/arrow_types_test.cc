@@ -57,34 +57,51 @@ namespace
         EXPECT_EQ(decoded.ValueOrDie(), ids);
     }
 
-    TEST(RunEndEncodedTest, SupportsEmptyAndPlainColumns)
+    TEST(RunEndEncodedTest, SupportsEmptyRuns)
     {
         const std::vector<std::uint64_t> no_values;
         auto empty = create_run_end(no_values, no_values);
         ASSERT_TRUE(empty.ok()) << empty.status();
+        EXPECT_EQ(empty.ValueOrDie()->run_ends()->length(), 0);
+        EXPECT_EQ(empty.ValueOrDie()->values()->length(), 0);
         auto decoded_empty = decode_run_end(*empty.ValueOrDie());
         ASSERT_TRUE(decoded_empty.ok()) << decoded_empty.status();
         EXPECT_TRUE(decoded_empty.ValueOrDie().empty());
+    }
 
+    TEST(RunEndEncodedTest, DecodesPlainColumns)
+    {
         const std::vector<std::uint64_t> ids{1, 2, 3};
         auto decoded_plain = decode_run_end(*make_uint64(ids));
         ASSERT_TRUE(decoded_plain.ok()) << decoded_plain.status();
         EXPECT_EQ(decoded_plain.ValueOrDie(), ids);
     }
 
-    TEST(RunEndEncodedTest, RejectsMalformedRunsAndWrongValueType)
+    TEST(RunEndEncodedTest, RejectsMalformedRuns)
     {
         const auto malformed = std::make_shared<arrow::RunEndEncodedArray>(
             arrow::run_end_encoded(arrow::int64(), arrow::uint64()), 3, make_int64({2, 2}),
             make_uint64({10, 20}));
         EXPECT_FALSE(decode_run_end(*malformed).ok());
+    }
 
+    TEST(RunEndEncodedTest, RejectsWrongValueType)
+    {
         auto wrong_values = arrow::RunEndEncodedArray::Make(2, make_int64({2}), make_int64({10}));
         ASSERT_TRUE(wrong_values.ok()) << wrong_values.status();
         EXPECT_FALSE(decode_run_end(*wrong_values.ValueOrDie()).ok());
     }
 
-    TEST(RunEndEncodedTest, PreservesExplicitRunsAndRejectsInvalidCounts)
+    TEST(RunEndEncodedTest, RejectsNullPlainValues)
+    {
+        arrow::UInt64Builder builder;
+        ASSERT_TRUE(builder.AppendNull().ok());
+        std::shared_ptr<arrow::Array> nullable;
+        ASSERT_TRUE(builder.Finish(&nullable).ok());
+        EXPECT_FALSE(decode_run_end(*nullable).ok());
+    }
+
+    TEST(RunEndEncodedTest, PreservesExplicitRuns)
     {
         const std::vector<std::uint64_t> values{10, 10};
         const std::vector<std::uint64_t> counts{1, 2};
@@ -92,17 +109,37 @@ namespace
         ASSERT_TRUE(result.ok()) << result.status();
         const auto ends =
             std::static_pointer_cast<arrow::Int64Array>(result.ValueOrDie()->run_ends());
+        const auto encoded_values =
+            std::static_pointer_cast<arrow::UInt64Array>(result.ValueOrDie()->values());
+        ASSERT_EQ(ends->length(), 2);
+        ASSERT_EQ(encoded_values->length(), 2);
         EXPECT_EQ(ends->Value(0), 1);
         EXPECT_EQ(ends->Value(1), 3);
+        EXPECT_EQ(encoded_values->Value(0), 10);
+        EXPECT_EQ(encoded_values->Value(1), 10);
         EXPECT_EQ(decode_run_end(*result.ValueOrDie()).ValueOrDie(),
                   (std::vector<std::uint64_t>{10, 10, 10}));
+    }
 
+    TEST(RunEndEncodedTest, RejectsMismatchedLengths)
+    {
+        const std::vector<std::uint64_t> values{10, 10};
         const std::vector<std::uint64_t> mismatched{1};
+        EXPECT_FALSE(create_run_end(values, mismatched).ok());
+    }
+
+    TEST(RunEndEncodedTest, RejectsZeroCount)
+    {
+        const std::vector<std::uint64_t> values{10, 10};
         const std::vector<std::uint64_t> zero_count{1, 0};
+        EXPECT_FALSE(create_run_end(values, zero_count).ok());
+    }
+
+    TEST(RunEndEncodedTest, RejectsTotalLengthOverflow)
+    {
+        const std::vector<std::uint64_t> values{10, 10};
         const std::vector<std::uint64_t> excessive{
             static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()), 1};
-        EXPECT_FALSE(create_run_end(values, mismatched).ok());
-        EXPECT_FALSE(create_run_end(values, zero_count).ok());
         EXPECT_FALSE(create_run_end(values, excessive).ok());
     }
 
@@ -138,42 +175,71 @@ namespace
         const auto storage =
             std::static_pointer_cast<arrow::RunEndEncodedArray>(result.ValueOrDie()->storage());
         const auto ends = std::static_pointer_cast<arrow::Int64Array>(storage->run_ends());
+        const auto encoded_values = std::static_pointer_cast<arrow::UInt64Array>(storage->values());
         ASSERT_EQ(ends->length(), 2);
+        ASSERT_EQ(encoded_values->length(), 2);
         EXPECT_EQ(ends->Value(0), 3);
         EXPECT_EQ(ends->Value(1), 7);
+        EXPECT_EQ(encoded_values->Value(0), 1);
+        EXPECT_EQ(encoded_values->Value(1), 3);
         auto decoded = decode_range_run(*result.ValueOrDie());
         ASSERT_TRUE(decoded.ok()) << decoded.status();
         EXPECT_EQ(decoded.ValueOrDie(), (std::vector<std::uint64_t>{1, 2, 3, 3, 4, 5, 6}));
     }
 
-    TEST(RangeRunTest, AcceptsPlainFallbackAndRejectsInvalidCounts)
+    TEST(RangeRunTest, DecodesPlainColumns)
     {
         const std::vector<std::uint64_t> ids{1, 2, 3};
         auto decoded = decode_range_run(*make_uint64(ids));
         ASSERT_TRUE(decoded.ok()) << decoded.status();
         EXPECT_EQ(decoded.ValueOrDie(), ids);
+    }
 
+    TEST(RangeRunTest, RejectsMismatchedLengths)
+    {
+        const std::vector<std::uint64_t> ids{1, 2, 3};
         const std::vector<std::uint64_t> mismatched{1, 1};
+        EXPECT_FALSE(create_range_run(ids, mismatched).ok());
+    }
+
+    TEST(RangeRunTest, RejectsZeroCount)
+    {
+        const std::vector<std::uint64_t> ids{1, 2, 3};
         const std::vector<std::uint64_t> zero_count{1, 1, 0};
+        EXPECT_FALSE(create_range_run(ids, zero_count).ok());
+    }
+
+    TEST(RangeRunTest, RejectsTotalLengthOverflow)
+    {
+        const std::vector<std::uint64_t> ids{1, 2, 3};
         const std::vector<std::uint64_t> excessive{
             static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()), 1, 1};
+        EXPECT_FALSE(create_range_run(ids, excessive).ok());
+    }
+
+    TEST(RangeRunTest, RejectsValueOverflow)
+    {
         const std::vector<std::uint64_t> max_value{std::numeric_limits<std::uint64_t>::max()};
         const std::vector<std::uint64_t> two{2};
-        EXPECT_FALSE(create_range_run(ids, mismatched).ok());
-        EXPECT_FALSE(create_range_run(ids, zero_count).ok());
-        EXPECT_FALSE(create_range_run(ids, excessive).ok());
         EXPECT_FALSE(create_range_run(max_value, two).ok());
     }
 
-    TEST(RangeRunTest, SupportsEmptyAndSingleRange)
+    TEST(RangeRunTest, SupportsEmptyRuns)
     {
         const std::vector<std::uint64_t> no_values;
         auto empty = create_range_run(no_values, no_values);
         ASSERT_TRUE(empty.ok()) << empty.status();
+        const auto empty_storage =
+            std::static_pointer_cast<arrow::RunEndEncodedArray>(empty.ValueOrDie()->storage());
+        EXPECT_EQ(empty_storage->run_ends()->length(), 0);
+        EXPECT_EQ(empty_storage->values()->length(), 0);
         auto decoded_empty = decode_range_run(*empty.ValueOrDie());
         ASSERT_TRUE(decoded_empty.ok()) << decoded_empty.status();
         EXPECT_TRUE(decoded_empty.ValueOrDie().empty());
+    }
 
+    TEST(RangeRunTest, SupportsSingleRange)
+    {
         const std::vector<std::uint64_t> ids{42, 43, 44};
         const std::vector<std::uint64_t> start{42};
         const std::vector<std::uint64_t> count{3};
@@ -181,15 +247,18 @@ namespace
         ASSERT_TRUE(encoded.ok()) << encoded.status();
         const auto storage =
             std::static_pointer_cast<arrow::RunEndEncodedArray>(encoded.ValueOrDie()->storage());
-        const auto ends = std::static_pointer_cast<arrow::Int64Array>(storage->run_ends());
+        const auto ends   = std::static_pointer_cast<arrow::Int64Array>(storage->run_ends());
+        const auto values = std::static_pointer_cast<arrow::UInt64Array>(storage->values());
         ASSERT_EQ(ends->length(), 1);
+        ASSERT_EQ(values->length(), 1);
         EXPECT_EQ(ends->Value(0), 3);
+        EXPECT_EQ(values->Value(0), 42);
         auto decoded = decode_range_run(*encoded.ValueOrDie());
         ASSERT_TRUE(decoded.ok()) << decoded.status();
         EXPECT_EQ(decoded.ValueOrDie(), ids);
     }
 
-    TEST(RangeRunTest, RejectsMalformedRunsAndExtensionStorage)
+    TEST(RangeRunTest, RejectsMalformedRuns)
     {
         const auto malformed = std::make_shared<arrow::RunEndEncodedArray>(
             arrow::run_end_encoded(arrow::int64(), arrow::uint64()), 3, make_int64({2, 2}),
@@ -197,14 +266,22 @@ namespace
         const auto encoded =
             arrow::ExtensionType::WrapArray(std::make_shared<RangeRunType>(), malformed);
         EXPECT_FALSE(decode_range_run(*encoded).ok());
+    }
 
+    TEST(RangeRunTest, RejectsWrongExtensionStorage)
+    {
         RangeRunType type;
         EXPECT_FALSE(
             type.Deserialize(arrow::run_end_encoded(arrow::int32(), arrow::uint64()), "").ok());
+    }
+
+    TEST(RangeRunTest, RejectsUnexpectedExtensionMetadata)
+    {
+        RangeRunType type;
         EXPECT_FALSE(type.Deserialize(type.storage_type(), "unexpected").ok());
     }
 
-    TEST(RangeRunTest, RejectsOverflowAndNullIds)
+    TEST(RangeRunTest, RejectsDecodedValueOverflow)
     {
         auto storage = arrow::RunEndEncodedArray::Make(
             2, make_int64({2}), make_uint64({std::numeric_limits<std::uint64_t>::max()}));
@@ -212,18 +289,25 @@ namespace
         const auto encoded =
             arrow::ExtensionType::WrapArray(std::make_shared<RangeRunType>(), storage.ValueOrDie());
         EXPECT_FALSE(decode_range_run(*encoded).ok());
+    }
 
+    TEST(RangeRunTest, RejectsNullPlainValues)
+    {
         arrow::UInt64Builder builder;
         ASSERT_TRUE(builder.AppendNull().ok());
         std::shared_ptr<arrow::Array> nullable;
         ASSERT_TRUE(builder.Finish(&nullable).ok());
         EXPECT_FALSE(decode_range_run(*nullable).ok());
-        EXPECT_FALSE(decode_run_end(*nullable).ok());
+    }
+
+    TEST(RangeRunTest, RegistersExtensionIdempotently)
+    {
+        ASSERT_TRUE(register_range_run_type().ok());
+        EXPECT_TRUE(register_range_run_type().ok());
     }
 
     TEST(RangeRunTest, RoundTripsThroughArrowCData)
     {
-        ASSERT_TRUE(register_range_run_type().ok());
         ASSERT_TRUE(register_range_run_type().ok());
         const std::vector<std::uint64_t> ids{1, 2, 3, 7, 8};
         const std::vector<std::uint64_t> starts{1, 7};
