@@ -76,7 +76,8 @@ request_shutdown() -> void
 message ownership with the context. A successful enqueue transfers it to the background thread. Dequeue transfers
 all currently available inbound views to the context, which then routes them to the appropriate logical stream.
 `request_shutdown()` signals the background work to stop; joining and resource cleanup remain part of the context
-lifecycle.
+lifecycle. The context creates and owns that work through the Internal
+[thread factory](thread_factory_design.md); it does not depend directly on a native thread implementation.
 
 Each inbound view must be backed by a verified decoded frame and exposes its stream ID through `stream_id()`. The
 concrete view asserts that its decoded frame is present when constructed, and the low-level context asserts that the
@@ -483,7 +484,9 @@ mark background thread stopped
 ```
 
 The context destructor joins this thread before destroying either physical queue or any storage arena used by queued
-messages.
+messages. The thread is created through the Internal
+[thread factory](thread_factory_design.md), which keeps this lifecycle independent of the selected native threading
+runtime.
 
 When socket input and outbound work are ready simultaneously, terminal socket errors take precedence, then inbound
 messages are framed and published, then outbound messages are sent. The loop must recheck the close state, the
