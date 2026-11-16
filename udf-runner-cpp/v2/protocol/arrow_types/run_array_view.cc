@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <numeric>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -47,12 +48,6 @@ namespace
         {
             throw std::invalid_argument("expected RunEndEncoded<int64, uint64> storage");
         }
-        const auto status = array.ValidateFull();
-        if (!status.ok())
-        {
-            throw std::invalid_argument(status.ToString());
-        }
-
         const auto& ends   = static_cast<const arrow::Int64Array&>(*encoded.run_ends());
         const auto& values = static_cast<const arrow::UInt64Array&>(*encoded.values());
         if (ends.length() != values.length() || ends.null_count() != 0 || values.null_count() != 0)
@@ -84,9 +79,15 @@ namespace
             previous_end = ends.Value(ends.length() - 1);
         }
 #endif
-        if (array.offset() > previous_end || array.length() > previous_end - array.offset())
+        if (array.offset() < 0 || array.length() < 0 || array.offset() > previous_end ||
+            array.length() > previous_end - array.offset())
         {
             throw std::invalid_argument("run ends do not cover the logical array");
+        }
+        const auto status = array.ValidateFull();
+        if (!status.ok())
+        {
+            throw std::invalid_argument(status.ToString());
         }
     }
 
@@ -99,7 +100,7 @@ namespace
         std::int64_t high            = ends.length();
         while (low < high)
         {
-            const auto middle = low + (high - low) / 2;
+            const auto middle = std::midpoint(low, high);
             if (ends.Value(middle) <= absolute_position)
             {
                 low = middle + 1;

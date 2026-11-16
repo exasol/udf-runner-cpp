@@ -1,8 +1,6 @@
 #include <exasol/udf/v2/protocol/arrow_types/range_run.hpp>
+#include <exasol/udf/v2/protocol/arrow_types/run_end_encoded.hpp>
 
-#include <arrow/array/array_primitive.h>
-#include <arrow/array/array_run_end.h>
-#include <arrow/array/builder_primitive.h>
 #include <arrow/type.h>
 
 #include <cstdint>
@@ -87,32 +85,15 @@ arrow::Result<std::shared_ptr<RangeRunArray>> make_range_run(std::span<const std
         return arrow::Status::Invalid("range_run values and counts must have equal length");
     }
 
-    arrow::Int64Builder run_ends_builder;
-    arrow::UInt64Builder values_builder;
-    std::int64_t total = 0;
+    ARROW_ASSIGN_OR_RAISE(auto storage, make_run_end(values, counts));
     for (std::size_t run = 0; run < values.size(); ++run)
     {
         const auto count = counts[run];
-        if (count == 0 ||
-            count > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max() - total))
-        {
-            return arrow::Status::Invalid("range_run count is zero or total exceeds int64 length");
-        }
         if (values[run] > std::numeric_limits<std::uint64_t>::max() - (count - 1))
         {
             return arrow::Status::Invalid("range_run exceeds uint64 values");
         }
-        total += static_cast<std::int64_t>(count);
-        ARROW_RETURN_NOT_OK(run_ends_builder.Append(total));
-        ARROW_RETURN_NOT_OK(values_builder.Append(values[run]));
     }
-
-    std::shared_ptr<arrow::Array> run_ends;
-    std::shared_ptr<arrow::Array> value_array;
-    ARROW_RETURN_NOT_OK(run_ends_builder.Finish(&run_ends));
-    ARROW_RETURN_NOT_OK(values_builder.Finish(&value_array));
-    ARROW_ASSIGN_OR_RAISE(auto storage,
-                          arrow::RunEndEncodedArray::Make(total, run_ends, value_array));
     return std::static_pointer_cast<RangeRunArray>(
         arrow::ExtensionType::WrapArray(std::make_shared<RangeRunType>(), storage));
 }

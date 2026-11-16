@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <vector>
 
@@ -98,6 +99,21 @@ std::shared_ptr<arrow::Array> make_values(const std::vector<std::uint64_t>& valu
         fuzz_failure();
     }
     return array;
+}
+
+template <typename ArrayType>
+std::optional<std::vector<std::uint64_t>> read_values(const std::shared_ptr<ArrayType>& array)
+{
+    try
+    {
+        correlation::RunArrayView<ArrayType> view(array);
+        return std::vector<std::uint64_t>(view.begin(), view.end());
+    }
+    catch (const std::invalid_argument&)
+    {
+        // Rejecting malformed input is an expected fuzz outcome.
+        return std::nullopt;
+    }
 }
 
 void fuzz_valid_round_trip(Input& input)
@@ -197,7 +213,7 @@ void fuzz_valid_round_trip(Input& input)
 void fuzz_malformed_runs(Input& input)
 {
     const auto logical_length = static_cast<std::int64_t>(input.read_byte() % (max_rows + 1));
-    const auto count          = static_cast<std::size_t>(input.read_byte() % (max_rows + 1));
+    const auto count          = input.read_byte() % (max_rows + 1);
     std::vector<std::int64_t> ends;
     std::vector<std::uint64_t> values;
     std::vector<bool> nulls;
@@ -208,7 +224,7 @@ void fuzz_malformed_runs(Input& input)
     {
         ends.push_back(input.read_int64());
         values.push_back(input.read_uint64());
-        nulls.push_back((input.read_byte() & 1U) != 0);
+        nulls.push_back(input.read_byte() % 2U != 0);
     }
 
     auto storage = std::make_shared<arrow::RunEndEncodedArray>(
@@ -268,30 +284,16 @@ void fuzz_malformed_runs(Input& input)
     {
         valid_ranges = false;
     }
-    try
+    const auto repeated = read_values(storage);
+    if (repeated.has_value() && (!valid_repeated || repeated.value() != expected_repeated))
     {
-        correlation::RunArrayView<arrow::RunEndEncodedArray> view(storage);
-        if (!valid_repeated ||
-            std::vector<std::uint64_t>(view.begin(), view.end()) != expected_repeated)
-        {
-            fuzz_failure();
-        }
+        fuzz_failure();
     }
-    catch (const std::invalid_argument&)
+    const auto ranges =
+        read_values(std::static_pointer_cast<correlation::RangeRunArray>(extension));
+    if (ranges.has_value() && (!valid_ranges || ranges.value() != expected_ranges))
     {
-    }
-    try
-    {
-        correlation::RunArrayView<correlation::RangeRunArray> view(
-            std::static_pointer_cast<correlation::RangeRunArray>(extension));
-        if (!valid_ranges ||
-            std::vector<std::uint64_t>(view.begin(), view.end()) != expected_ranges)
-        {
-            fuzz_failure();
-        }
-    }
-    catch (const std::invalid_argument&)
-    {
+        fuzz_failure();
     }
 }
 
@@ -300,7 +302,7 @@ void fuzz_malformed_runs(Input& input)
 extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size)
 {
     Input input(data, size);
-    if ((input.read_byte() & 1U) == 0)
+    if (input.read_byte() % 2U == 0)
     {
         fuzz_valid_round_trip(input);
     }
