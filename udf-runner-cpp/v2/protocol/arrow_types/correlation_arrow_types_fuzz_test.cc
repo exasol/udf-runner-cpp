@@ -6,6 +6,7 @@
 #include <arrow/array/builder_primitive.h>
 #include <arrow/type.h>
 
+#include <algorithm>
 #include <bit>
 #include <cstddef>
 #include <cstdint>
@@ -144,6 +145,26 @@ void fuzz_valid_round_trip(Input& input)
         fuzz_failure();
     }
 
+    const auto slice_offset =
+        static_cast<std::size_t>(input.read_byte()) % (expected_ranges.size() + 1);
+    const auto slice_length =
+        static_cast<std::size_t>(input.read_byte()) % (expected_ranges.size() - slice_offset + 1);
+    auto sliced = std::static_pointer_cast<correlation::RangeRunArray>(ranges.ValueOrDie()->Slice(
+        static_cast<std::int64_t>(slice_offset), static_cast<std::int64_t>(slice_length)));
+    correlation::RunArrayView<correlation::RangeRunArray> sliced_view(sliced);
+    for (std::size_t position = 0; position < slice_length; ++position)
+    {
+        if (*sliced_view.find(static_cast<std::int64_t>(position)) !=
+            expected_ranges[slice_offset + position])
+        {
+            fuzz_failure();
+        }
+    }
+    if (sliced_view.find(static_cast<std::int64_t>(slice_length)) != sliced_view.end())
+    {
+        fuzz_failure();
+    }
+
     const auto storage =
         std::static_pointer_cast<arrow::RunEndEncodedArray>(ranges.ValueOrDie()->storage());
     const auto range_ends   = std::static_pointer_cast<arrow::Int64Array>(storage->run_ends());
@@ -219,13 +240,13 @@ void fuzz_malformed_runs(Input& input)
     for (std::size_t run = 0; run < count; ++run)
     {
         const auto end = ends[run];
-        if (nulls[run] || end <= previous_end || end > logical_length)
+        if (nulls[run] || end <= previous_end)
         {
             valid_ranges = false;
             break;
         }
-        const auto length = static_cast<std::uint64_t>(end - previous_end);
 #ifndef NDEBUG
+        const auto length = static_cast<std::uint64_t>(end - previous_end);
         if (values[run] > std::numeric_limits<std::uint64_t>::max() - (length - 1))
         {
             valid_ranges = false;
@@ -233,14 +254,17 @@ void fuzz_malformed_runs(Input& input)
 #endif
         if (valid_ranges)
         {
-            for (std::uint64_t offset = 0; offset < length; ++offset)
+            const auto visible_start = std::min(previous_end, logical_length);
+            const auto visible_end   = std::min(end, logical_length);
+            for (auto position = visible_start; position < visible_end; ++position)
             {
-                expected_ranges.push_back(values[run] + offset);
+                expected_ranges.push_back(values[run] +
+                                          static_cast<std::uint64_t>(position - previous_end));
             }
         }
         previous_end = end;
     }
-    if (previous_end != logical_length)
+    if (previous_end < logical_length)
     {
         valid_ranges = false;
     }

@@ -274,13 +274,27 @@ namespace
         expect_all_values(view, ids);
     }
 
-    TEST(RangeRunTest, RejectsSlicedArray)
+    TEST(RangeRunTest, IteratesSlicedRuns)
     {
         auto encoded =
-            make_range_run(std::vector<std::uint64_t>{42}, std::vector<std::uint64_t>{3});
+            make_range_run(std::vector<std::uint64_t>{42, 100}, std::vector<std::uint64_t>{3, 3});
         ASSERT_TRUE(encoded.ok()) << encoded.status();
-        auto sliced = std::static_pointer_cast<RangeRunArray>(encoded.ValueOrDie()->Slice(1, 2));
-        EXPECT_THROW((RunArrayView<RangeRunArray>(sliced)), std::invalid_argument);
+        const auto& array = encoded.ValueOrDie();
+        RunArrayView<RangeRunArray> within_run(
+            std::static_pointer_cast<RangeRunArray>(array->Slice(1, 2)));
+        expect_all_values(within_run, {43, 44});
+
+        RunArrayView<RangeRunArray> across_runs(
+            std::static_pointer_cast<RangeRunArray>(array->Slice(2, 3)));
+        expect_all_values(across_runs, {44, 100, 101});
+
+        RunArrayView<RangeRunArray> from_zero(
+            std::static_pointer_cast<RangeRunArray>(array->Slice(0, 2)));
+        expect_all_values(from_zero, {42, 43});
+
+        RunArrayView<RangeRunArray> empty(
+            std::static_pointer_cast<RangeRunArray>(array->Slice(3, 0)));
+        expect_all_values(empty, {});
     }
 
     TEST(RangeRunTest, RejectsMalformedRuns)

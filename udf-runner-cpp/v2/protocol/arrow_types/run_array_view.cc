@@ -34,9 +34,9 @@ namespace
         if constexpr (std::is_same_v<ArrayType, RangeRunArray>)
         {
             if (array.extension_type()->extension_name() != "exasol.udf.range_run" ||
-                array.offset() != 0 || array.storage()->type_id() != arrow::Type::RUN_END_ENCODED)
+                array.storage()->type_id() != arrow::Type::RUN_END_ENCODED)
             {
-                throw std::invalid_argument("expected an unsliced exasol.udf.range_run array");
+                throw std::invalid_argument("expected exasol.udf.range_run storage");
             }
         }
 
@@ -71,10 +71,9 @@ namespace
             if constexpr (std::is_same_v<ArrayType, RangeRunArray>)
             {
                 const auto count = static_cast<std::uint64_t>(end - previous_end);
-                if (end > array.length() ||
-                    values.Value(run) > std::numeric_limits<std::uint64_t>::max() - (count - 1))
+                if (values.Value(run) > std::numeric_limits<std::uint64_t>::max() - (count - 1))
                 {
-                    throw std::invalid_argument("invalid range_run end or value overflow");
+                    throw std::invalid_argument("range_run value overflow");
                 }
             }
             previous_end = end;
@@ -85,14 +84,7 @@ namespace
             previous_end = ends.Value(ends.length() - 1);
         }
 #endif
-        if constexpr (std::is_same_v<ArrayType, RangeRunArray>)
-        {
-            if (previous_end != array.length())
-            {
-                throw std::invalid_argument("final range_run end must equal logical length");
-            }
-        }
-        else if (array.offset() > previous_end || array.length() > previous_end - array.offset())
+        if (array.offset() > previous_end || array.length() > previous_end - array.offset())
         {
             throw std::invalid_argument("run ends do not cover the logical array");
         }
@@ -143,7 +135,8 @@ std::uint64_t RunArrayView<ArrayType>::Iterator::operator*() const
     {
         const auto& ends        = static_cast<const arrow::Int64Array&>(*encoded.run_ends());
         const auto previous_end = this->run == 0 ? 0 : ends.Value(this->run - 1);
-        return value + static_cast<std::uint64_t>(this->position - previous_end);
+        return value +
+               static_cast<std::uint64_t>(this->array->offset() + this->position - previous_end);
     }
     return value;
 }
