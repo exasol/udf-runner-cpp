@@ -3,11 +3,12 @@
 #include <arrow/extension_type.h>
 #include <arrow/result.h>
 
+#include <exasol/udf/v2/protocol/arrow_types/run_array_view.hpp>
+
 #include <cstdint>
 #include <memory>
 #include <span>
 #include <string>
-#include <vector>
 
 namespace exasol::udf::v2::protocol::arrow_types::correlation
 {
@@ -42,8 +43,5 @@ arrow::Status register_range_run_type();
 /// Callers choose run boundaries, including any required group boundaries.
 arrow::Result<std::shared_ptr<RangeRunArray>> create_range_run(
     std::span<const std::uint64_t> values, std::span<const std::uint64_t> counts);
-
-/// Decodes range_run or plain uint64 values.
-arrow::Result<std::vector<std::uint64_t>> decode_range_run(const arrow::Array& array);
 
 } // namespace exasol::udf::v2::protocol::arrow_types::correlation

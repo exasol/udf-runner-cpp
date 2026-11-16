@@ -1,7 +1,5 @@
 #include <exasol/udf/v2/protocol/arrow_types/range_run.hpp>
 
-#include <exasol/udf/v2/protocol/arrow_types/run_end_encoded.hpp>
-
 #include <arrow/array/array_primitive.h>
 #include <arrow/array/array_run_end.h>
 #include <arrow/array/builder_primitive.h>
@@ -11,7 +9,6 @@
 #include <limits>
 #include <memory>
 #include <utility>
-#include <vector>
 
 namespace exasol::udf::v2::protocol::arrow_types::correlation
 {
@@ -118,65 +115,6 @@ arrow::Result<std::shared_ptr<RangeRunArray>> create_range_run(
                           arrow::RunEndEncodedArray::Make(total, run_ends, value_array));
     return std::static_pointer_cast<RangeRunArray>(
         arrow::ExtensionType::WrapArray(std::make_shared<RangeRunType>(), storage));
-}
-
-arrow::Result<std::vector<std::uint64_t>> decode_range_run(const arrow::Array& array)
-{
-    if (array.type_id() == arrow::Type::UINT64)
-    {
-        return decode_run_end(array);
-    }
-    if (array.type_id() != arrow::Type::EXTENSION)
-    {
-        return arrow::Status::TypeError("expected range_run or uint64 values");
-    }
-    const auto& extension = dynamic_cast<const arrow::ExtensionArray&>(array);
-    if (extension.extension_type()->extension_name() != range_run_name ||
-        !has_range_run_storage(*extension.extension_type()->storage_type()))
-    {
-        return arrow::Status::TypeError("expected exasol.udf.range_run");
-    }
-    if (array.offset() != 0)
-    {
-        return arrow::Status::Invalid("sliced range_run arrays are unsupported");
-    }
-    ARROW_RETURN_NOT_OK(array.ValidateFull());
-    const auto& storage = dynamic_cast<const arrow::RunEndEncodedArray&>(*extension.storage());
-    const auto run_ends = std::static_pointer_cast<arrow::Int64Array>(storage.run_ends());
-    const auto values   = std::static_pointer_cast<arrow::UInt64Array>(storage.values());
-    if (run_ends->length() != values->length() || run_ends->null_count() != 0 ||
-        values->null_count() != 0)
-    {
-        return arrow::Status::Invalid("invalid range_run children");
-    }
-
-    std::vector<std::uint64_t> ids;
-    ids.reserve(static_cast<std::size_t>(array.length()));
-    std::int64_t previous_end = 0;
-    for (std::int64_t run = 0; run < run_ends->length(); ++run)
-    {
-        const auto end = run_ends->Value(run);
-        if (end <= previous_end || end > array.length())
-        {
-            return arrow::Status::Invalid("invalid range_run end");
-        }
-        const auto run_length = static_cast<std::uint64_t>(end - previous_end);
-        const auto first      = values->Value(run);
-        if (first > std::numeric_limits<std::uint64_t>::max() - (run_length - 1))
-        {
-            return arrow::Status::Invalid("range_run exceeds uint64 values");
-        }
-        for (std::uint64_t offset = 0; offset < run_length; ++offset)
-        {
-            ids.push_back(first + offset);
-        }
-        previous_end = end;
-    }
-    if (previous_end != array.length())
-    {
-        return arrow::Status::Invalid("final range_run end does not equal logical length");
-    }
-    return ids;
 }
 
 } // namespace exasol::udf::v2::protocol::arrow_types::correlation

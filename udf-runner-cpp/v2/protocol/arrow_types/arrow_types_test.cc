@@ -8,9 +8,11 @@
 #include <arrow/type.h>
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <stdexcept>
 #include <vector>
 
 namespace exasol::udf::v2::protocol::arrow_types::correlation
@@ -36,6 +38,19 @@ namespace
         return array;
     }
 
+    template <typename ArrayType>
+    void expect_all_values(const RunArrayView<ArrayType>& view,
+                           const std::vector<std::uint64_t>& expected)
+    {
+        EXPECT_EQ((std::vector<std::uint64_t>(view.begin(), view.end())), expected);
+        for (std::size_t position = 0; position < expected.size(); ++position)
+        {
+            SCOPED_TRACE(position);
+            EXPECT_EQ(*view.find(static_cast<std::int64_t>(position)), expected[position]);
+        }
+        EXPECT_EQ(view.find(static_cast<std::int64_t>(expected.size())), view.end());
+    }
+
     TEST(RunEndEncodedTest, EncodesAndDecodesRepeatedIds)
     {
         const std::vector<std::uint64_t> ids{10, 10, 20, 20};
@@ -52,9 +67,10 @@ namespace
         EXPECT_EQ(values->Value(0), 10);
         EXPECT_EQ(values->Value(1), 20);
 
-        auto decoded = decode_run_end(*encoded);
-        ASSERT_TRUE(decoded.ok()) << decoded.status();
-        EXPECT_EQ(decoded.ValueOrDie(), ids);
+        RunArrayView<arrow::RunEndEncodedArray> view(encoded);
+        expect_all_values(view, ids);
+        EXPECT_THROW(static_cast<void>(view.find(-1)), std::out_of_range);
+        EXPECT_THROW(static_cast<void>(view.find(5)), std::out_of_range);
     }
 
     TEST(RunEndEncodedTest, SupportsEmptyRuns)
@@ -64,17 +80,19 @@ namespace
         ASSERT_TRUE(empty.ok()) << empty.status();
         EXPECT_EQ(empty.ValueOrDie()->run_ends()->length(), 0);
         EXPECT_EQ(empty.ValueOrDie()->values()->length(), 0);
-        auto decoded_empty = decode_run_end(*empty.ValueOrDie());
-        ASSERT_TRUE(decoded_empty.ok()) << decoded_empty.status();
-        EXPECT_TRUE(decoded_empty.ValueOrDie().empty());
+        RunArrayView<arrow::RunEndEncodedArray> view(empty.ValueOrDie());
+        expect_all_values(view, no_values);
     }
 
-    TEST(RunEndEncodedTest, DecodesPlainColumns)
+    TEST(RunEndEncodedTest, IteratesSlicedRuns)
     {
-        const std::vector<std::uint64_t> ids{1, 2, 3};
-        auto decoded_plain = decode_run_end(*make_uint64(ids));
-        ASSERT_TRUE(decoded_plain.ok()) << decoded_plain.status();
-        EXPECT_EQ(decoded_plain.ValueOrDie(), ids);
+        auto encoded = create_run_end(std::vector<std::uint64_t>{10, 20, 30},
+                                      std::vector<std::uint64_t>{2, 3, 2});
+        ASSERT_TRUE(encoded.ok()) << encoded.status();
+        auto sliced =
+            std::static_pointer_cast<arrow::RunEndEncodedArray>(encoded.ValueOrDie()->Slice(1, 5));
+        RunArrayView<arrow::RunEndEncodedArray> view(sliced);
+        expect_all_values(view, {10, 20, 20, 20, 30});
     }
 
     TEST(RunEndEncodedTest, RejectsMalformedRuns)
@@ -82,23 +100,31 @@ namespace
         const auto malformed = std::make_shared<arrow::RunEndEncodedArray>(
             arrow::run_end_encoded(arrow::int64(), arrow::uint64()), 3, make_int64({2, 2}),
             make_uint64({10, 20}));
-        EXPECT_FALSE(decode_run_end(*malformed).ok());
+        EXPECT_THROW((RunArrayView<arrow::RunEndEncodedArray>(malformed)), std::invalid_argument);
     }
 
     TEST(RunEndEncodedTest, RejectsWrongValueType)
     {
         auto wrong_values = arrow::RunEndEncodedArray::Make(2, make_int64({2}), make_int64({10}));
         ASSERT_TRUE(wrong_values.ok()) << wrong_values.status();
-        EXPECT_FALSE(decode_run_end(*wrong_values.ValueOrDie()).ok());
+        EXPECT_THROW((RunArrayView<arrow::RunEndEncodedArray>(wrong_values.ValueOrDie())),
+                     std::invalid_argument);
     }
 
-    TEST(RunEndEncodedTest, RejectsNullPlainValues)
+    TEST(RunEndEncodedTest, RejectsNullEncodedValues)
     {
         arrow::UInt64Builder builder;
         ASSERT_TRUE(builder.AppendNull().ok());
-        std::shared_ptr<arrow::Array> nullable;
-        ASSERT_TRUE(builder.Finish(&nullable).ok());
-        EXPECT_FALSE(decode_run_end(*nullable).ok());
+        std::shared_ptr<arrow::Array> values;
+        ASSERT_TRUE(builder.Finish(&values).ok());
+        auto encoded = std::make_shared<arrow::RunEndEncodedArray>(
+            arrow::run_end_encoded(arrow::int64(), arrow::uint64()), 1, make_int64({1}), values);
+        EXPECT_THROW((RunArrayView<arrow::RunEndEncodedArray>(encoded)), std::invalid_argument);
+    }
+
+    TEST(RunEndEncodedTest, RejectsNullArray)
+    {
+        EXPECT_THROW((RunArrayView<arrow::RunEndEncodedArray>(nullptr)), std::invalid_argument);
     }
 
     TEST(RunEndEncodedTest, PreservesExplicitRuns)
@@ -117,8 +143,8 @@ namespace
         EXPECT_EQ(ends->Value(1), 3);
         EXPECT_EQ(encoded_values->Value(0), 10);
         EXPECT_EQ(encoded_values->Value(1), 10);
-        EXPECT_EQ(decode_run_end(*result.ValueOrDie()).ValueOrDie(),
-                  (std::vector<std::uint64_t>{10, 10, 10}));
+        RunArrayView<arrow::RunEndEncodedArray> view(result.ValueOrDie());
+        expect_all_values(view, {10, 10, 10});
     }
 
     TEST(RunEndEncodedTest, RejectsMismatchedLengths)
@@ -161,9 +187,10 @@ namespace
         EXPECT_EQ(values->Value(0), 101);
         EXPECT_EQ(values->Value(1), 103);
 
-        auto decoded = decode_range_run(*encoded);
-        ASSERT_TRUE(decoded.ok()) << decoded.status();
-        EXPECT_EQ(decoded.ValueOrDie(), ids);
+        RunArrayView<RangeRunArray> view(encoded);
+        expect_all_values(view, ids);
+        EXPECT_THROW(static_cast<void>(view.find(-1)), std::out_of_range);
+        EXPECT_THROW(static_cast<void>(view.find(5)), std::out_of_range);
     }
 
     TEST(RangeRunTest, ExpandsOverlappingConsecutiveRanges)
@@ -182,17 +209,8 @@ namespace
         EXPECT_EQ(ends->Value(1), 7);
         EXPECT_EQ(encoded_values->Value(0), 1);
         EXPECT_EQ(encoded_values->Value(1), 3);
-        auto decoded = decode_range_run(*result.ValueOrDie());
-        ASSERT_TRUE(decoded.ok()) << decoded.status();
-        EXPECT_EQ(decoded.ValueOrDie(), (std::vector<std::uint64_t>{1, 2, 3, 3, 4, 5, 6}));
-    }
-
-    TEST(RangeRunTest, DecodesPlainColumns)
-    {
-        const std::vector<std::uint64_t> ids{1, 2, 3};
-        auto decoded = decode_range_run(*make_uint64(ids));
-        ASSERT_TRUE(decoded.ok()) << decoded.status();
-        EXPECT_EQ(decoded.ValueOrDie(), ids);
+        RunArrayView<RangeRunArray> view(result.ValueOrDie());
+        expect_all_values(view, {1, 2, 3, 3, 4, 5, 6});
     }
 
     TEST(RangeRunTest, RejectsMismatchedLengths)
@@ -233,9 +251,8 @@ namespace
             std::static_pointer_cast<arrow::RunEndEncodedArray>(empty.ValueOrDie()->storage());
         EXPECT_EQ(empty_storage->run_ends()->length(), 0);
         EXPECT_EQ(empty_storage->values()->length(), 0);
-        auto decoded_empty = decode_range_run(*empty.ValueOrDie());
-        ASSERT_TRUE(decoded_empty.ok()) << decoded_empty.status();
-        EXPECT_TRUE(decoded_empty.ValueOrDie().empty());
+        RunArrayView<RangeRunArray> view(empty.ValueOrDie());
+        expect_all_values(view, no_values);
     }
 
     TEST(RangeRunTest, SupportsSingleRange)
@@ -253,9 +270,17 @@ namespace
         ASSERT_EQ(values->length(), 1);
         EXPECT_EQ(ends->Value(0), 3);
         EXPECT_EQ(values->Value(0), 42);
-        auto decoded = decode_range_run(*encoded.ValueOrDie());
-        ASSERT_TRUE(decoded.ok()) << decoded.status();
-        EXPECT_EQ(decoded.ValueOrDie(), ids);
+        RunArrayView<RangeRunArray> view(encoded.ValueOrDie());
+        expect_all_values(view, ids);
+    }
+
+    TEST(RangeRunTest, RejectsSlicedArray)
+    {
+        auto encoded =
+            create_range_run(std::vector<std::uint64_t>{42}, std::vector<std::uint64_t>{3});
+        ASSERT_TRUE(encoded.ok()) << encoded.status();
+        auto sliced = std::static_pointer_cast<RangeRunArray>(encoded.ValueOrDie()->Slice(1, 2));
+        EXPECT_THROW((RunArrayView<RangeRunArray>(sliced)), std::invalid_argument);
     }
 
     TEST(RangeRunTest, RejectsMalformedRuns)
@@ -265,7 +290,9 @@ namespace
             make_uint64({10, 20}));
         const auto encoded =
             arrow::ExtensionType::WrapArray(std::make_shared<RangeRunType>(), malformed);
-        EXPECT_FALSE(decode_range_run(*encoded).ok());
+        EXPECT_THROW(
+            (RunArrayView<RangeRunArray>(std::static_pointer_cast<RangeRunArray>(encoded))),
+            std::invalid_argument);
     }
 
     TEST(RangeRunTest, RejectsWrongExtensionStorage)
@@ -281,6 +308,7 @@ namespace
         EXPECT_FALSE(type.Deserialize(type.storage_type(), "unexpected").ok());
     }
 
+#ifndef NDEBUG
     TEST(RangeRunTest, RejectsDecodedValueOverflow)
     {
         auto storage = arrow::RunEndEncodedArray::Make(
@@ -288,17 +316,11 @@ namespace
         ASSERT_TRUE(storage.ok()) << storage.status();
         const auto encoded =
             arrow::ExtensionType::WrapArray(std::make_shared<RangeRunType>(), storage.ValueOrDie());
-        EXPECT_FALSE(decode_range_run(*encoded).ok());
+        EXPECT_THROW(
+            (RunArrayView<RangeRunArray>(std::static_pointer_cast<RangeRunArray>(encoded))),
+            std::invalid_argument);
     }
-
-    TEST(RangeRunTest, RejectsNullPlainValues)
-    {
-        arrow::UInt64Builder builder;
-        ASSERT_TRUE(builder.AppendNull().ok());
-        std::shared_ptr<arrow::Array> nullable;
-        ASSERT_TRUE(builder.Finish(&nullable).ok());
-        EXPECT_FALSE(decode_range_run(*nullable).ok());
-    }
+#endif
 
     TEST(RangeRunTest, RegistersExtensionIdempotently)
     {
@@ -330,9 +352,8 @@ namespace
         const auto& extension = dynamic_cast<const arrow::ExtensionArray&>(*array);
         EXPECT_EQ(extension.extension_type()->extension_name(), "exasol.udf.range_run");
         EXPECT_EQ(extension.extension_type()->storage_type()->id(), arrow::Type::RUN_END_ENCODED);
-        auto decoded = decode_range_run(*array);
-        ASSERT_TRUE(decoded.ok()) << decoded.status();
-        EXPECT_EQ(decoded.ValueOrDie(), ids);
+        RunArrayView<RangeRunArray> view(std::static_pointer_cast<RangeRunArray>(array));
+        expect_all_values(view, ids);
     }
 
 } // namespace

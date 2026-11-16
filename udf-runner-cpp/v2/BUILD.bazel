@@ -187,10 +187,12 @@ cc_library(
     name = "arrow_types",
     srcs = [
         "protocol/arrow_types/range_run.cc",
+        "protocol/arrow_types/run_array_view.cc",
         "protocol/arrow_types/run_end_encoded.cc",
     ],
     hdrs = [
         "include/exasol/udf/v2/protocol/arrow_types/range_run.hpp",
+        "include/exasol/udf/v2/protocol/arrow_types/run_array_view.hpp",
         "include/exasol/udf/v2/protocol/arrow_types/run_end_encoded.hpp",
     ],
     copts = ["-std=c++23"],

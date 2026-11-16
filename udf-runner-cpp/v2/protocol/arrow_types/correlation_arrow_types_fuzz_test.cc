@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <limits>
 #include <memory>
+#include <stdexcept>
 #include <vector>
 
 namespace
@@ -134,10 +135,11 @@ void fuzz_valid_round_trip(Input& input)
     {
         fuzz_failure();
     }
-    auto decoded_repeated = correlation::decode_run_end(*repeated.ValueOrDie());
-    auto decoded_ranges   = correlation::decode_range_run(*ranges.ValueOrDie());
-    if (!decoded_repeated.ok() || decoded_repeated.ValueOrDie() != expected_repeated ||
-        !decoded_ranges.ok() || decoded_ranges.ValueOrDie() != expected_ranges)
+    correlation::RunArrayView<arrow::RunEndEncodedArray> repeated_view(repeated.ValueOrDie());
+    correlation::RunArrayView<correlation::RangeRunArray> range_view(ranges.ValueOrDie());
+    if (std::vector<std::uint64_t>(repeated_view.begin(), repeated_view.end()) !=
+            expected_repeated ||
+        std::vector<std::uint64_t>(range_view.begin(), range_view.end()) != expected_ranges)
     {
         fuzz_failure();
     }
@@ -191,10 +193,8 @@ void fuzz_malformed_runs(Input& input)
     auto storage = std::make_shared<arrow::RunEndEncodedArray>(
         arrow::run_end_encoded(arrow::int64(), arrow::uint64()), logical_length,
         make_run_ends(ends), make_values(values, nulls));
-    auto repeated = correlation::decode_run_end(*storage);
     auto extension =
         arrow::ExtensionType::WrapArray(std::make_shared<correlation::RangeRunType>(), storage);
-    auto ranges = correlation::decode_range_run(*extension);
 
     std::vector<std::uint64_t> expected_repeated;
     std::vector<std::uint64_t> expected_ranges;
@@ -225,10 +225,12 @@ void fuzz_malformed_runs(Input& input)
             break;
         }
         const auto length = static_cast<std::uint64_t>(end - previous_end);
+#ifndef NDEBUG
         if (values[run] > std::numeric_limits<std::uint64_t>::max() - (length - 1))
         {
             valid_ranges = false;
         }
+#endif
         if (valid_ranges)
         {
             for (std::uint64_t offset = 0; offset < length; ++offset)
@@ -242,13 +244,30 @@ void fuzz_malformed_runs(Input& input)
     {
         valid_ranges = false;
     }
-    if (repeated.ok() && (!valid_repeated || repeated.ValueOrDie() != expected_repeated))
+    try
     {
-        fuzz_failure();
+        correlation::RunArrayView<arrow::RunEndEncodedArray> view(storage);
+        if (!valid_repeated ||
+            std::vector<std::uint64_t>(view.begin(), view.end()) != expected_repeated)
+        {
+            fuzz_failure();
+        }
     }
-    if (ranges.ok() && (!valid_ranges || ranges.ValueOrDie() != expected_ranges))
+    catch (const std::invalid_argument&)
     {
-        fuzz_failure();
+    }
+    try
+    {
+        correlation::RunArrayView<correlation::RangeRunArray> view(
+            std::static_pointer_cast<correlation::RangeRunArray>(extension));
+        if (!valid_ranges ||
+            std::vector<std::uint64_t>(view.begin(), view.end()) != expected_ranges)
+        {
+            fuzz_failure();
+        }
+    }
+    catch (const std::invalid_argument&)
+    {
     }
 }
 
