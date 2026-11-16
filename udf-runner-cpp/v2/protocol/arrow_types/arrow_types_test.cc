@@ -77,7 +77,8 @@ namespace
         }
 
         arrow::Result<std::shared_ptr<arrow::DataType>> Deserialize(
-            std::shared_ptr<arrow::DataType>, const std::string&) const override
+            [[maybe_unused]] std::shared_ptr<arrow::DataType> storage_type,
+            [[maybe_unused]] const std::string& serialized_data) const override
         {
             return arrow::Status::NotImplemented("test extension type cannot be deserialized");
         }
@@ -338,6 +339,77 @@ namespace
         expect_all_values(view, ids);
         EXPECT_THROW(static_cast<void>(view.find(-1)), std::out_of_range);
         EXPECT_THROW(static_cast<void>(view.find(5)), std::out_of_range);
+    }
+
+    TEST(RangeRunTest, MakesArrayWithInferredStorageType)
+    {
+        auto array = RangeRunType::Make(5, make_int64({3, 5}), make_uint64({10, 20}));
+        ASSERT_TRUE(array.ok()) << array.status();
+        RunArrayView<RangeRunArray> view(array.ValueOrDie());
+        expect_all_values(view, {10, 11, 12, 20, 21});
+    }
+
+    TEST(RangeRunTest, MakesArrayWithExplicitStorageTypeAndOffset)
+    {
+        RangeRunType type;
+        auto array = RangeRunType::Make(type.storage_type(), 4, make_int64({3, 5}),
+                                        make_uint64({10, 20}), 1);
+        ASSERT_TRUE(array.ok()) << array.status();
+        RunArrayView<RangeRunArray> view(array.ValueOrDie());
+        expect_all_values(view, {11, 12, 20, 21});
+    }
+
+    TEST(RangeRunTest, MakesEmptyArray)
+    {
+        auto array = RangeRunType::Make(0, make_int64({}), make_uint64({}));
+        ASSERT_TRUE(array.ok()) << array.status();
+        RunArrayView<RangeRunArray> view(array.ValueOrDie());
+        expect_all_values(view, {});
+    }
+
+    TEST(RangeRunTest, MakeRejectsWrongStorageType)
+    {
+        RangeRunType type;
+        EXPECT_FALSE(
+            RangeRunType::Make(arrow::uint64(), 1, make_int64({1}), make_uint64({10})).ok());
+        EXPECT_FALSE(RangeRunType::Make(arrow::run_end_encoded(arrow::int32(), arrow::uint64()), 1,
+                                        make_int32({1}), make_uint64({10}))
+                         .ok());
+        EXPECT_FALSE(RangeRunType::Make(arrow::run_end_encoded(arrow::int64(), arrow::int64()), 1,
+                                        make_int64({1}), make_int64({10}))
+                         .ok());
+        EXPECT_FALSE(RangeRunType::Make(1, make_int32({1}), make_uint64({10})).ok());
+        EXPECT_FALSE(RangeRunType::Make(1, make_int64({1}), make_int64({10})).ok());
+        EXPECT_FALSE(
+            RangeRunType::Make(type.storage_type(), 1, make_int32({1}), make_uint64({10})).ok());
+    }
+
+    TEST(RangeRunTest, MakeRejectsInvalidChildren)
+    {
+        const auto ends   = make_int64({2});
+        const auto values = make_uint64({10});
+        EXPECT_FALSE(RangeRunType::Make(2, nullptr, values).ok());
+        EXPECT_FALSE(RangeRunType::Make(2, ends, nullptr).ok());
+        EXPECT_FALSE(RangeRunType::Make(nullptr, 2, ends, values).ok());
+        RangeRunType type;
+        EXPECT_FALSE(RangeRunType::Make(type.storage_type(), 2, nullptr, values).ok());
+        EXPECT_FALSE(RangeRunType::Make(type.storage_type(), 2, ends, nullptr).ok());
+        EXPECT_FALSE(RangeRunType::Make(2, make_int64({2, 2}), make_uint64({10, 20})).ok());
+        EXPECT_FALSE(
+            RangeRunType::Make(2, ends, make_uint64({std::numeric_limits<std::uint64_t>::max()}))
+                .ok());
+
+        arrow::UInt64Builder builder;
+        ASSERT_TRUE(builder.AppendNull().ok());
+        std::shared_ptr<arrow::Array> null_value;
+        ASSERT_TRUE(builder.Finish(&null_value).ok());
+        EXPECT_FALSE(RangeRunType::Make(1, make_int64({1}), null_value).ok());
+
+        arrow::Int64Builder ends_builder;
+        ASSERT_TRUE(ends_builder.AppendNull().ok());
+        std::shared_ptr<arrow::Array> null_end;
+        ASSERT_TRUE(ends_builder.Finish(&null_end).ok());
+        EXPECT_FALSE(RangeRunType::Make(1, null_end, make_uint64({10})).ok());
     }
 
     TEST(RangeRunTest, ExpandsOverlappingConsecutiveRanges)

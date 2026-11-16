@@ -1,6 +1,8 @@
 #include <exasol/udf/v2/protocol/arrow_types/range_run.hpp>
 #include <exasol/udf/v2/protocol/arrow_types/run_end_encoded.hpp>
 
+#include <arrow/array/array_primitive.h>
+#include <arrow/array/array_run_end.h>
 #include <arrow/type.h>
 
 #include <cstdint>
@@ -24,6 +26,39 @@ namespace
         const auto& encoded = dynamic_cast<const arrow::RunEndEncodedType&>(type);
         return encoded.run_end_type()->id() == arrow::Type::INT64 &&
                encoded.value_type()->id() == arrow::Type::UINT64;
+    }
+
+    arrow::Result<std::shared_ptr<RangeRunArray>> wrap_range_run(
+        const std::shared_ptr<arrow::RunEndEncodedArray>& storage)
+    {
+        if (!has_range_run_storage(*storage->type()))
+        {
+            return arrow::Status::Invalid("expected RunEndEncoded<int64, uint64> storage");
+        }
+        ARROW_RETURN_NOT_OK(storage->ValidateFull());
+        if (storage->run_ends()->null_count() != 0 || storage->values()->null_count() != 0)
+        {
+            return arrow::Status::Invalid("range_run children must not contain nulls");
+        }
+        const auto& ends          = dynamic_cast<const arrow::Int64Array&>(*storage->run_ends());
+        const auto& starts        = dynamic_cast<const arrow::UInt64Array&>(*storage->values());
+        std::int64_t previous_end = 0;
+        for (std::int64_t run = 0; run < ends.length(); ++run)
+        {
+            const auto end = ends.Value(run);
+            if (end <= previous_end)
+            {
+                return arrow::Status::Invalid("range_run ends must increase");
+            }
+            const auto count = static_cast<std::uint64_t>(end - previous_end);
+            if (starts.Value(run) > std::numeric_limits<std::uint64_t>::max() - (count - 1))
+            {
+                return arrow::Status::Invalid("range_run exceeds uint64 values");
+            }
+            previous_end = end;
+        }
+        return std::static_pointer_cast<RangeRunArray>(
+            arrow::ExtensionType::WrapArray(std::make_shared<RangeRunType>(), storage));
     }
 } // namespace
 
@@ -63,6 +98,42 @@ std::string RangeRunType::Serialize() const
     return {};
 }
 
+arrow::Result<std::shared_ptr<RangeRunArray>> RangeRunType::Make(
+    const std::shared_ptr<arrow::DataType>& type,
+    std::int64_t logical_length,
+    const std::shared_ptr<arrow::Array>& run_ends,
+    const std::shared_ptr<arrow::Array>& values,
+    std::int64_t logical_offset)
+{
+    if (type == nullptr || run_ends == nullptr || values == nullptr)
+    {
+        return arrow::Status::Invalid("range_run type and children must not be null");
+    }
+    if (!has_range_run_storage(*type))
+    {
+        return arrow::Status::Invalid("expected RunEndEncoded<int64, uint64> storage");
+    }
+    ARROW_ASSIGN_OR_RAISE(
+        auto storage,
+        arrow::RunEndEncodedArray::Make(type, logical_length, run_ends, values, logical_offset));
+    return wrap_range_run(storage);
+}
+
+arrow::Result<std::shared_ptr<RangeRunArray>> RangeRunType::Make(
+    std::int64_t logical_length,
+    const std::shared_ptr<arrow::Array>& run_ends,
+    const std::shared_ptr<arrow::Array>& values,
+    std::int64_t logical_offset)
+{
+    if (run_ends == nullptr || values == nullptr)
+    {
+        return arrow::Status::Invalid("range_run children must not be null");
+    }
+    ARROW_ASSIGN_OR_RAISE(auto storage, arrow::RunEndEncodedArray::Make(logical_length, run_ends,
+                                                                        values, logical_offset));
+    return wrap_range_run(storage);
+}
+
 arrow::Status register_range_run_type()
 {
     const auto existing = arrow::GetExtensionType(range_run_name);
@@ -86,16 +157,7 @@ arrow::Result<std::shared_ptr<RangeRunArray>> make_range_run(std::span<const std
     }
 
     ARROW_ASSIGN_OR_RAISE(auto storage, make_run_end(values, counts));
-    for (std::size_t run = 0; run < values.size(); ++run)
-    {
-        const auto count = counts[run];
-        if (values[run] > std::numeric_limits<std::uint64_t>::max() - (count - 1))
-        {
-            return arrow::Status::Invalid("range_run exceeds uint64 values");
-        }
-    }
-    return std::static_pointer_cast<RangeRunArray>(
-        arrow::ExtensionType::WrapArray(std::make_shared<RangeRunType>(), storage));
+    return wrap_range_run(storage);
 }
 
 } // namespace exasol::udf::v2::protocol::arrow_types::correlation
