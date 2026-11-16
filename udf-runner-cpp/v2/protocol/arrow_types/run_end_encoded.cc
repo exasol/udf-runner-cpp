@@ -10,7 +10,7 @@
 namespace exasol::udf::v2::protocol::arrow_types::correlation
 {
 
-arrow::Result<std::shared_ptr<arrow::RunEndEncodedArray>> create_run_end(
+arrow::Result<std::shared_ptr<arrow::RunEndEncodedArray>> make_run_end(
     std::span<const std::uint64_t> values, std::span<const std::uint64_t> counts)
 {
     if (values.size() != counts.size())

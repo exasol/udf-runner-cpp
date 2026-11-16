@@ -79,8 +79,8 @@ arrow::Status register_range_run_type()
     return arrow::RegisterExtensionType(std::make_shared<RangeRunType>());
 }
 
-arrow::Result<std::shared_ptr<RangeRunArray>> create_range_run(
-    std::span<const std::uint64_t> values, std::span<const std::uint64_t> counts)
+arrow::Result<std::shared_ptr<RangeRunArray>> make_range_run(std::span<const std::uint64_t> values,
+                                                             std::span<const std::uint64_t> counts)
 {
     if (values.size() != counts.size())
     {

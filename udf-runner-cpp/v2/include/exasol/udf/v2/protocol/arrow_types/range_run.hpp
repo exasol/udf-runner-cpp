@@ -41,7 +41,7 @@ arrow::Status register_range_run_type();
 
 /// Encodes consecutive uint64 ranges from their starting values and lengths.
 /// Callers choose run boundaries, including any required group boundaries.
-arrow::Result<std::shared_ptr<RangeRunArray>> create_range_run(
-    std::span<const std::uint64_t> values, std::span<const std::uint64_t> counts);
+arrow::Result<std::shared_ptr<RangeRunArray>> make_range_run(std::span<const std::uint64_t> values,
+                                                             std::span<const std::uint64_t> counts);
 
 } // namespace exasol::udf::v2::protocol::arrow_types::correlation

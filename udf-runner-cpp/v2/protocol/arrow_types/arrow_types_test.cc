@@ -56,7 +56,7 @@ namespace
         const std::vector<std::uint64_t> ids{10, 10, 20, 20};
         const std::vector<std::uint64_t> run_values{10, 20};
         const std::vector<std::uint64_t> counts{2, 2};
-        auto result = create_run_end(run_values, counts);
+        auto result = make_run_end(run_values, counts);
         ASSERT_TRUE(result.ok()) << result.status();
         const auto& encoded = result.ValueOrDie();
         const auto ends     = std::static_pointer_cast<arrow::Int64Array>(encoded->run_ends());
@@ -76,7 +76,7 @@ namespace
     TEST(RunEndEncodedTest, SupportsEmptyRuns)
     {
         const std::vector<std::uint64_t> no_values;
-        auto empty = create_run_end(no_values, no_values);
+        auto empty = make_run_end(no_values, no_values);
         ASSERT_TRUE(empty.ok()) << empty.status();
         EXPECT_EQ(empty.ValueOrDie()->run_ends()->length(), 0);
         EXPECT_EQ(empty.ValueOrDie()->values()->length(), 0);
@@ -86,8 +86,8 @@ namespace
 
     TEST(RunEndEncodedTest, IteratesSlicedRuns)
     {
-        auto encoded = create_run_end(std::vector<std::uint64_t>{10, 20, 30},
-                                      std::vector<std::uint64_t>{2, 3, 2});
+        auto encoded = make_run_end(std::vector<std::uint64_t>{10, 20, 30},
+                                    std::vector<std::uint64_t>{2, 3, 2});
         ASSERT_TRUE(encoded.ok()) << encoded.status();
         auto sliced =
             std::static_pointer_cast<arrow::RunEndEncodedArray>(encoded.ValueOrDie()->Slice(1, 5));
@@ -131,7 +131,7 @@ namespace
     {
         const std::vector<std::uint64_t> values{10, 10};
         const std::vector<std::uint64_t> counts{1, 2};
-        auto result = create_run_end(values, counts);
+        auto result = make_run_end(values, counts);
         ASSERT_TRUE(result.ok()) << result.status();
         const auto ends =
             std::static_pointer_cast<arrow::Int64Array>(result.ValueOrDie()->run_ends());
@@ -151,14 +151,14 @@ namespace
     {
         const std::vector<std::uint64_t> values{10, 10};
         const std::vector<std::uint64_t> mismatched{1};
-        EXPECT_FALSE(create_run_end(values, mismatched).ok());
+        EXPECT_FALSE(make_run_end(values, mismatched).ok());
     }
 
     TEST(RunEndEncodedTest, RejectsZeroCount)
     {
         const std::vector<std::uint64_t> values{10, 10};
         const std::vector<std::uint64_t> zero_count{1, 0};
-        EXPECT_FALSE(create_run_end(values, zero_count).ok());
+        EXPECT_FALSE(make_run_end(values, zero_count).ok());
     }
 
     TEST(RunEndEncodedTest, RejectsTotalLengthOverflow)
@@ -166,7 +166,7 @@ namespace
         const std::vector<std::uint64_t> values{10, 10};
         const std::vector<std::uint64_t> excessive{
             static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()), 1};
-        EXPECT_FALSE(create_run_end(values, excessive).ok());
+        EXPECT_FALSE(make_run_end(values, excessive).ok());
     }
 
     TEST(RangeRunTest, PreservesExplicitBoundaries)
@@ -174,7 +174,7 @@ namespace
         const std::vector<std::uint64_t> ids{101, 102, 103, 104};
         const std::vector<std::uint64_t> run_values{101, 103};
         const std::vector<std::uint64_t> counts{2, 2};
-        auto result = create_range_run(run_values, counts);
+        auto result = make_range_run(run_values, counts);
         ASSERT_TRUE(result.ok()) << result.status();
         const auto& encoded = result.ValueOrDie();
         const auto storage =
@@ -197,7 +197,7 @@ namespace
     {
         const std::vector<std::uint64_t> values{1, 3};
         const std::vector<std::uint64_t> counts{3, 4};
-        auto result = create_range_run(values, counts);
+        auto result = make_range_run(values, counts);
         ASSERT_TRUE(result.ok()) << result.status();
         const auto storage =
             std::static_pointer_cast<arrow::RunEndEncodedArray>(result.ValueOrDie()->storage());
@@ -217,14 +217,14 @@ namespace
     {
         const std::vector<std::uint64_t> ids{1, 2, 3};
         const std::vector<std::uint64_t> mismatched{1, 1};
-        EXPECT_FALSE(create_range_run(ids, mismatched).ok());
+        EXPECT_FALSE(make_range_run(ids, mismatched).ok());
     }
 
     TEST(RangeRunTest, RejectsZeroCount)
     {
         const std::vector<std::uint64_t> ids{1, 2, 3};
         const std::vector<std::uint64_t> zero_count{1, 1, 0};
-        EXPECT_FALSE(create_range_run(ids, zero_count).ok());
+        EXPECT_FALSE(make_range_run(ids, zero_count).ok());
     }
 
     TEST(RangeRunTest, RejectsTotalLengthOverflow)
@@ -232,20 +232,20 @@ namespace
         const std::vector<std::uint64_t> ids{1, 2, 3};
         const std::vector<std::uint64_t> excessive{
             static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()), 1, 1};
-        EXPECT_FALSE(create_range_run(ids, excessive).ok());
+        EXPECT_FALSE(make_range_run(ids, excessive).ok());
     }
 
     TEST(RangeRunTest, RejectsValueOverflow)
     {
         const std::vector<std::uint64_t> max_value{std::numeric_limits<std::uint64_t>::max()};
         const std::vector<std::uint64_t> two{2};
-        EXPECT_FALSE(create_range_run(max_value, two).ok());
+        EXPECT_FALSE(make_range_run(max_value, two).ok());
     }
 
     TEST(RangeRunTest, SupportsEmptyRuns)
     {
         const std::vector<std::uint64_t> no_values;
-        auto empty = create_range_run(no_values, no_values);
+        auto empty = make_range_run(no_values, no_values);
         ASSERT_TRUE(empty.ok()) << empty.status();
         const auto empty_storage =
             std::static_pointer_cast<arrow::RunEndEncodedArray>(empty.ValueOrDie()->storage());
@@ -260,7 +260,7 @@ namespace
         const std::vector<std::uint64_t> ids{42, 43, 44};
         const std::vector<std::uint64_t> start{42};
         const std::vector<std::uint64_t> count{3};
-        auto encoded = create_range_run(start, count);
+        auto encoded = make_range_run(start, count);
         ASSERT_TRUE(encoded.ok()) << encoded.status();
         const auto storage =
             std::static_pointer_cast<arrow::RunEndEncodedArray>(encoded.ValueOrDie()->storage());
@@ -277,7 +277,7 @@ namespace
     TEST(RangeRunTest, RejectsSlicedArray)
     {
         auto encoded =
-            create_range_run(std::vector<std::uint64_t>{42}, std::vector<std::uint64_t>{3});
+            make_range_run(std::vector<std::uint64_t>{42}, std::vector<std::uint64_t>{3});
         ASSERT_TRUE(encoded.ok()) << encoded.status();
         auto sliced = std::static_pointer_cast<RangeRunArray>(encoded.ValueOrDie()->Slice(1, 2));
         EXPECT_THROW((RunArrayView<RangeRunArray>(sliced)), std::invalid_argument);
@@ -334,7 +334,7 @@ namespace
         const std::vector<std::uint64_t> ids{1, 2, 3, 7, 8};
         const std::vector<std::uint64_t> starts{1, 7};
         const std::vector<std::uint64_t> counts{3, 2};
-        auto encoded = create_range_run(starts, counts);
+        auto encoded = make_range_run(starts, counts);
         ASSERT_TRUE(encoded.ok()) << encoded.status();
 
         ArrowArray c_array{};

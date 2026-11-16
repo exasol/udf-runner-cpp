@@ -129,8 +129,8 @@ void fuzz_valid_round_trip(Input& input)
         expected_repeated.insert(expected_repeated.end(), repeated_count, repeated_value);
     }
 
-    auto repeated = correlation::create_run_end(repeated_values, repeated_counts);
-    auto ranges   = correlation::create_range_run(range_values, range_counts);
+    auto repeated = correlation::make_run_end(repeated_values, repeated_counts);
+    auto ranges   = correlation::make_range_run(range_values, range_counts);
     if (!repeated.ok() || !ranges.ok())
     {
         fuzz_failure();

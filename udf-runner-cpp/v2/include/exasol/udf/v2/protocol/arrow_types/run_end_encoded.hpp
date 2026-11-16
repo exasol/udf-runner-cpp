@@ -13,7 +13,7 @@ namespace exasol::udf::v2::protocol::arrow_types::correlation
 {
 
 /// Encodes repeated uint64 values from their values and run lengths.
-arrow::Result<std::shared_ptr<arrow::RunEndEncodedArray>> create_run_end(
+arrow::Result<std::shared_ptr<arrow::RunEndEncodedArray>> make_run_end(
     std::span<const std::uint64_t> values, std::span<const std::uint64_t> counts);
 
 } // namespace exasol::udf::v2::protocol::arrow_types::correlation
