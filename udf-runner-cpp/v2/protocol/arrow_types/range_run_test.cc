@@ -281,91 +281,6 @@ namespace
         expect_all_values(view, ids);
     }
 
-    TEST(RangeRunTest, PostfixIncrementPreservesPreviousPosition)
-    {
-        auto encoded =
-            make_range_run(std::vector<std::uint64_t>{10, 20}, std::vector<std::uint64_t>{2, 1});
-        ASSERT_TRUE(encoded.ok()) << encoded.status();
-        RunArrayView<RangeRunArray> view(encoded.ValueOrDie());
-        auto iterator = view.begin();
-        auto previous = iterator++;
-        EXPECT_EQ(*previous, 10);
-        EXPECT_EQ(*iterator, 11);
-        previous = iterator++;
-        EXPECT_EQ(*previous, 11);
-        EXPECT_EQ(*iterator, 20);
-    }
-
-    TEST(RangeRunTest, RejectsEndIteratorOperations)
-    {
-        auto encoded =
-            make_range_run(std::vector<std::uint64_t>{10}, std::vector<std::uint64_t>{1});
-        ASSERT_TRUE(encoded.ok()) << encoded.status();
-        RunArrayView<RangeRunArray> view(encoded.ValueOrDie());
-        auto end = view.end();
-        EXPECT_THROW(static_cast<void>(*end), std::out_of_range);
-        EXPECT_THROW(++end, std::out_of_range);
-    }
-
-    TEST(RangeRunTest, RejectsDefaultIteratorOperations)
-    {
-        RunArrayView<RangeRunArray>::Iterator default_iterator;
-        EXPECT_THROW(static_cast<void>(*default_iterator), std::out_of_range);
-        EXPECT_THROW(++default_iterator, std::out_of_range);
-    }
-
-    TEST(RangeRunTest, DistinguishesIteratorsFromDifferentArrays)
-    {
-        auto encoded =
-            make_range_run(std::vector<std::uint64_t>{10}, std::vector<std::uint64_t>{1});
-        ASSERT_TRUE(encoded.ok()) << encoded.status();
-        RunArrayView<RangeRunArray> view(encoded.ValueOrDie());
-        auto other = make_range_run(std::vector<std::uint64_t>{10}, std::vector<std::uint64_t>{1});
-        ASSERT_TRUE(other.ok()) << other.status();
-        RunArrayView<RangeRunArray> other_view(other.ValueOrDie());
-        EXPECT_FALSE(view.begin() == other_view.begin());
-    }
-
-    TEST(RangeRunTest, RejectsNullArray)
-    {
-        EXPECT_THROW((RunArrayView<RangeRunArray>(nullptr)), std::invalid_argument);
-    }
-
-    TEST(RangeRunTest, IteratesSlicedRuns)
-    {
-        auto encoded =
-            make_range_run(std::vector<std::uint64_t>{42, 100}, std::vector<std::uint64_t>{3, 3});
-        ASSERT_TRUE(encoded.ok()) << encoded.status();
-        const auto& array = encoded.ValueOrDie();
-        RunArrayView<RangeRunArray> within_run(
-            std::static_pointer_cast<RangeRunArray>(array->Slice(1, 2)));
-        expect_all_values(within_run, {43, 44});
-
-        RunArrayView<RangeRunArray> across_runs(
-            std::static_pointer_cast<RangeRunArray>(array->Slice(2, 3)));
-        expect_all_values(across_runs, {44, 100, 101});
-
-        RunArrayView<RangeRunArray> from_zero(
-            std::static_pointer_cast<RangeRunArray>(array->Slice(0, 2)));
-        expect_all_values(from_zero, {42, 43});
-
-        RunArrayView<RangeRunArray> empty(
-            std::static_pointer_cast<RangeRunArray>(array->Slice(3, 0)));
-        expect_all_values(empty, {});
-    }
-
-    TEST(RangeRunTest, RejectsMalformedRuns)
-    {
-        const auto malformed = std::make_shared<arrow::RunEndEncodedArray>(
-            arrow::run_end_encoded(arrow::int64(), arrow::uint64()), 3, make_int64({2, 2}),
-            make_uint64({10, 20}));
-        const auto encoded =
-            arrow::ExtensionType::WrapArray(std::make_shared<RangeRunType>(), malformed);
-        EXPECT_THROW(
-            (RunArrayView<RangeRunArray>(std::static_pointer_cast<RangeRunArray>(encoded))),
-            std::invalid_argument);
-    }
-
     TEST(RangeRunTest, RejectsWrongExtensionStorage)
     {
         RangeRunType type;
@@ -385,44 +300,11 @@ namespace
             type.ExtensionEquals(TestRangeRunType("exasol.udf.range_run", arrow::uint64())));
     }
 
-    TEST(RangeRunTest, RejectsWrongArrayExtension)
-    {
-        auto storage = make_run_end(std::vector<std::uint64_t>{10}, std::vector<std::uint64_t>{1});
-        ASSERT_TRUE(storage.ok()) << storage.status();
-        auto wrong_name = arrow::ExtensionType::WrapArray(
-            std::make_shared<TestRangeRunType>("other", storage.ValueOrDie()->type()),
-            storage.ValueOrDie());
-        EXPECT_THROW(
-            (RunArrayView<RangeRunArray>(std::static_pointer_cast<RangeRunArray>(wrong_name))),
-            std::invalid_argument);
-
-        auto wrong_storage = arrow::ExtensionType::WrapArray(
-            std::make_shared<TestRangeRunType>("exasol.udf.range_run", arrow::uint64()),
-            make_uint64({10}));
-        EXPECT_THROW(
-            (RunArrayView<RangeRunArray>(std::static_pointer_cast<RangeRunArray>(wrong_storage))),
-            std::invalid_argument);
-    }
-
     TEST(RangeRunTest, RejectsUnexpectedExtensionMetadata)
     {
         RangeRunType type;
         EXPECT_FALSE(type.Deserialize(type.storage_type(), "unexpected").ok());
     }
-
-#ifndef NDEBUG
-    TEST(RangeRunTest, RejectsDecodedValueOverflow)
-    {
-        auto storage = arrow::RunEndEncodedArray::Make(
-            2, make_int64({2}), make_uint64({std::numeric_limits<std::uint64_t>::max()}));
-        ASSERT_TRUE(storage.ok()) << storage.status();
-        const auto encoded =
-            arrow::ExtensionType::WrapArray(std::make_shared<RangeRunType>(), storage.ValueOrDie());
-        EXPECT_THROW(
-            (RunArrayView<RangeRunArray>(std::static_pointer_cast<RangeRunArray>(encoded))),
-            std::invalid_argument);
-    }
-#endif
 
     TEST(RangeRunTest, RegistersExtensionIdempotently)
     {

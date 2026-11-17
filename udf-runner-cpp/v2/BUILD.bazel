@@ -222,6 +222,17 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "run_array_view_test",
+    srcs = ["protocol/arrow_types/run_array_view_test.cc"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":arrow_core",
+        ":arrow_types",
+        "@googletest//:gtest_main",
+    ],
+)
+
 cc_fuzz_test(
     name = "correlation_arrow_types_fuzz_test",
     srcs = ["protocol/arrow_types/correlation_arrow_types_fuzz_test.cc"],

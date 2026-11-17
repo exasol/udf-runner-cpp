@@ -2,7 +2,6 @@
 
 #include <arrow/array/array_primitive.h>
 #include <arrow/array/array_run_end.h>
-#include <arrow/array/builder_primitive.h>
 #include <arrow/type.h>
 #include <gtest/gtest.h>
 
@@ -10,40 +9,12 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
-#include <stdexcept>
 #include <vector>
 
 namespace exasol::udf::v2::protocol::arrow_types::correlation
 {
 namespace
 {
-
-    std::shared_ptr<arrow::Array> make_uint64(const std::vector<std::uint64_t>& values)
-    {
-        arrow::UInt64Builder builder;
-        EXPECT_TRUE(builder.AppendValues(values).ok());
-        std::shared_ptr<arrow::Array> array;
-        EXPECT_TRUE(builder.Finish(&array).ok());
-        return array;
-    }
-
-    std::shared_ptr<arrow::Array> make_int64(const std::vector<std::int64_t>& values)
-    {
-        arrow::Int64Builder builder;
-        EXPECT_TRUE(builder.AppendValues(values).ok());
-        std::shared_ptr<arrow::Array> array;
-        EXPECT_TRUE(builder.Finish(&array).ok());
-        return array;
-    }
-
-    std::shared_ptr<arrow::Array> make_int32(const std::vector<std::int32_t>& values)
-    {
-        arrow::Int32Builder builder;
-        EXPECT_TRUE(builder.AppendValues(values).ok());
-        std::shared_ptr<arrow::Array> array;
-        EXPECT_TRUE(builder.Finish(&array).ok());
-        return array;
-    }
 
     template <typename ArrayType>
     void expect_all_values(const RunArrayView<ArrayType>& view,
@@ -89,143 +60,6 @@ namespace
         EXPECT_EQ(empty.ValueOrDie()->values()->length(), 0);
         RunArrayView<arrow::RunEndEncodedArray> view(empty.ValueOrDie());
         expect_all_values(view, no_values);
-    }
-
-    TEST(RunEndEncodedTest, IteratesSlicedRuns)
-    {
-        auto encoded = make_run_end(std::vector<std::uint64_t>{10, 20, 30},
-                                    std::vector<std::uint64_t>{2, 3, 2});
-        ASSERT_TRUE(encoded.ok()) << encoded.status();
-        auto sliced =
-            std::static_pointer_cast<arrow::RunEndEncodedArray>(encoded.ValueOrDie()->Slice(1, 5));
-        RunArrayView<arrow::RunEndEncodedArray> view(sliced);
-        expect_all_values(view, {10, 20, 20, 20, 30});
-    }
-
-    TEST(RunEndEncodedTest, PostfixIncrementPreservesPreviousPosition)
-    {
-        auto encoded =
-            make_run_end(std::vector<std::uint64_t>{10, 20}, std::vector<std::uint64_t>{2, 1});
-        ASSERT_TRUE(encoded.ok()) << encoded.status();
-        RunArrayView<arrow::RunEndEncodedArray> view(encoded.ValueOrDie());
-        auto iterator = view.begin();
-        auto previous = iterator++;
-        EXPECT_EQ(*previous, 10);
-        EXPECT_EQ(*iterator, 10);
-        previous = iterator++;
-        EXPECT_EQ(*previous, 10);
-        EXPECT_EQ(*iterator, 20);
-    }
-
-    TEST(RunEndEncodedTest, RejectsEndIteratorOperations)
-    {
-        auto encoded = make_run_end(std::vector<std::uint64_t>{10}, std::vector<std::uint64_t>{1});
-        ASSERT_TRUE(encoded.ok()) << encoded.status();
-        RunArrayView<arrow::RunEndEncodedArray> view(encoded.ValueOrDie());
-        auto end = view.end();
-        EXPECT_THROW(static_cast<void>(*end), std::out_of_range);
-        EXPECT_THROW(++end, std::out_of_range);
-    }
-
-    TEST(RunEndEncodedTest, RejectsDefaultIteratorOperations)
-    {
-        RunArrayView<arrow::RunEndEncodedArray>::Iterator default_iterator;
-        EXPECT_THROW(static_cast<void>(*default_iterator), std::out_of_range);
-        EXPECT_THROW(++default_iterator, std::out_of_range);
-    }
-
-    TEST(RunEndEncodedTest, DistinguishesIteratorsFromDifferentArrays)
-    {
-        auto encoded = make_run_end(std::vector<std::uint64_t>{10}, std::vector<std::uint64_t>{1});
-        ASSERT_TRUE(encoded.ok()) << encoded.status();
-        RunArrayView<arrow::RunEndEncodedArray> view(encoded.ValueOrDie());
-        auto other = make_run_end(std::vector<std::uint64_t>{10}, std::vector<std::uint64_t>{1});
-        ASSERT_TRUE(other.ok()) << other.status();
-        RunArrayView<arrow::RunEndEncodedArray> other_view(other.ValueOrDie());
-        EXPECT_FALSE(view.begin() == other_view.begin());
-    }
-
-    TEST(RunEndEncodedTest, RejectsMalformedRuns)
-    {
-        const auto malformed = std::make_shared<arrow::RunEndEncodedArray>(
-            arrow::run_end_encoded(arrow::int64(), arrow::uint64()), 3, make_int64({2, 2}),
-            make_uint64({10, 20}));
-        EXPECT_THROW((RunArrayView<arrow::RunEndEncodedArray>(malformed)), std::invalid_argument);
-    }
-
-    TEST(RunEndEncodedTest, RejectsMismatchedStoredRuns)
-    {
-        const auto malformed = std::make_shared<arrow::RunEndEncodedArray>(
-            arrow::run_end_encoded(arrow::int64(), arrow::uint64()), 2, make_int64({2}),
-            make_uint64({10, 20}));
-        EXPECT_THROW((RunArrayView<arrow::RunEndEncodedArray>(malformed)), std::invalid_argument);
-    }
-
-    TEST(RunEndEncodedTest, RejectsUncoveredLogicalArray)
-    {
-        const auto malformed = std::make_shared<arrow::RunEndEncodedArray>(
-            arrow::run_end_encoded(arrow::int64(), arrow::uint64()), 3, make_int64({2}),
-            make_uint64({10}));
-        EXPECT_THROW((RunArrayView<arrow::RunEndEncodedArray>(malformed)), std::invalid_argument);
-    }
-
-    TEST(RunEndEncodedTest, RejectsOffsetBeyondRuns)
-    {
-        const auto malformed = std::make_shared<arrow::RunEndEncodedArray>(
-            arrow::run_end_encoded(arrow::int64(), arrow::uint64()), 1, make_int64({2}),
-            make_uint64({10}), 3);
-        EXPECT_THROW((RunArrayView<arrow::RunEndEncodedArray>(malformed)), std::invalid_argument);
-    }
-
-    TEST(RunEndEncodedTest, RejectsNegativeLogicalOffset)
-    {
-        const auto malformed = std::make_shared<arrow::RunEndEncodedArray>(
-            arrow::run_end_encoded(arrow::int64(), arrow::uint64()), 1, make_int64({2}),
-            make_uint64({10}), -1);
-        EXPECT_THROW((RunArrayView<arrow::RunEndEncodedArray>(malformed)), std::invalid_argument);
-    }
-
-    TEST(RunEndEncodedTest, RejectsNullRunEnd)
-    {
-        arrow::Int64Builder builder;
-        ASSERT_TRUE(builder.AppendNull().ok());
-        std::shared_ptr<arrow::Array> ends;
-        ASSERT_TRUE(builder.Finish(&ends).ok());
-        const auto malformed = std::make_shared<arrow::RunEndEncodedArray>(
-            arrow::run_end_encoded(arrow::int64(), arrow::uint64()), 1, ends, make_uint64({10}));
-        EXPECT_THROW((RunArrayView<arrow::RunEndEncodedArray>(malformed)), std::invalid_argument);
-    }
-
-    TEST(RunEndEncodedTest, RejectsWrongValueType)
-    {
-        auto wrong_values = arrow::RunEndEncodedArray::Make(2, make_int64({2}), make_int64({10}));
-        ASSERT_TRUE(wrong_values.ok()) << wrong_values.status();
-        EXPECT_THROW((RunArrayView<arrow::RunEndEncodedArray>(wrong_values.ValueOrDie())),
-                     std::invalid_argument);
-    }
-
-    TEST(RunEndEncodedTest, RejectsWrongRunEndType)
-    {
-        auto encoded = arrow::RunEndEncodedArray::Make(2, make_int32({2}), make_uint64({10}));
-        ASSERT_TRUE(encoded.ok()) << encoded.status();
-        EXPECT_THROW((RunArrayView<arrow::RunEndEncodedArray>(encoded.ValueOrDie())),
-                     std::invalid_argument);
-    }
-
-    TEST(RunEndEncodedTest, RejectsNullEncodedValues)
-    {
-        arrow::UInt64Builder builder;
-        ASSERT_TRUE(builder.AppendNull().ok());
-        std::shared_ptr<arrow::Array> values;
-        ASSERT_TRUE(builder.Finish(&values).ok());
-        auto encoded = std::make_shared<arrow::RunEndEncodedArray>(
-            arrow::run_end_encoded(arrow::int64(), arrow::uint64()), 1, make_int64({1}), values);
-        EXPECT_THROW((RunArrayView<arrow::RunEndEncodedArray>(encoded)), std::invalid_argument);
-    }
-
-    TEST(RunEndEncodedTest, RejectsNullArray)
-    {
-        EXPECT_THROW((RunArrayView<arrow::RunEndEncodedArray>(nullptr)), std::invalid_argument);
     }
 
     TEST(RunEndEncodedTest, PreservesExplicitRuns)
