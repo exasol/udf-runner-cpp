@@ -57,51 +57,81 @@ DispatchResult StreamRegistry::dispatch(InboundMessage&& message)
     if (auto* control_message =
             std::get_if<std::unique_ptr<interface::ControlMessageView>>(&message))
     {
-        if (*control_message == nullptr || (*control_message)->stream_id() != 0)
-        {
-            return DispatchResult::ProtocolError;
-        }
-        if ((*control_message)->close_connection() != nullptr)
-        {
-            control_pending_.push_back(std::move(*control_message));
-            return DispatchResult::ConnectionShutdown;
-        }
-        control_pending_.push_back(std::move(*control_message));
-        return DispatchResult::Routed;
+        return dispatch_control_message(std::move(*control_message));
     }
 
-    auto* call_message = std::get_if<std::unique_ptr<interface::CallMessageView>>(&message);
-    if (call_message == nullptr || *call_message == nullptr)
+    if (auto* call_message = std::get_if<std::unique_ptr<interface::CallMessageView>>(&message))
+    {
+        return dispatch_call_message(std::move(*call_message));
+    }
+
+    return DispatchResult::ProtocolError;
+}
+
+DispatchResult StreamRegistry::dispatch_control_message(
+    std::unique_ptr<interface::ControlMessageView> message)
+{
+    if (message == nullptr || message->stream_id() != 0)
+    {
+        return DispatchResult::ProtocolError;
+    }
+    if (message->close_connection() != nullptr)
+    {
+        control_pending_.push_back(std::move(message));
+        return DispatchResult::ConnectionShutdown;
+    }
+    control_pending_.push_back(std::move(message));
+    return DispatchResult::Routed;
+}
+
+DispatchResult StreamRegistry::dispatch_call_message(
+    std::unique_ptr<interface::CallMessageView> message)
+{
+    if (message == nullptr)
     {
         return DispatchResult::ProtocolError;
     }
 
-    const auto stream_id = (*call_message)->stream_id();
+    const auto stream_id = message->stream_id();
     if (stream_id == 0)
     {
         return DispatchResult::ProtocolError;
     }
 
-    const bool is_opening  = (*call_message)->open_call() != nullptr;
-    const bool is_closing  = (*call_message)->close_call() != nullptr;
-    const auto active_call = active_calls_.find(stream_id);
-    if (active_call != active_calls_.end())
+    if (const auto active_call = active_calls_.find(stream_id); active_call != active_calls_.end())
     {
-        if (active_call->second.peer_close_received)
-        {
-            return DispatchResult::Discarded;
-        }
-        if (is_opening)
-        {
-            return DispatchResult::ProtocolError;
-        }
-        active_call->second.pending_messages.push_back(std::move(*call_message));
-        if (is_closing)
-        {
-            active_call->second.peer_close_received = true;
-        }
-        return DispatchResult::Routed;
+        return dispatch_call_message_for_existing_call(active_call->second, std::move(message));
     }
+    return dispatch_call_message_for_new_call(std::move(message));
+}
+
+DispatchResult StreamRegistry::dispatch_call_message_for_existing_call(
+    CallState& call_state, std::unique_ptr<interface::CallMessageView> message)
+{
+    if (call_state.peer_close_received)
+    {
+        return DispatchResult::Discarded;
+    }
+    if (message->open_call() != nullptr)
+    {
+        return DispatchResult::ProtocolError;
+    }
+
+    const bool is_closing = message->close_call() != nullptr;
+    call_state.pending_messages.push_back(std::move(message));
+    if (is_closing)
+    {
+        call_state.peer_close_received = true;
+    }
+    return DispatchResult::Routed;
+}
+
+DispatchResult StreamRegistry::dispatch_call_message_for_new_call(
+    std::unique_ptr<interface::CallMessageView> message)
+{
+    const auto stream_id  = message->stream_id();
+    const bool is_opening = message->open_call() != nullptr;
+    const bool is_closing = message->close_call() != nullptr;
 
     if (has_local_endpoint_parity(stream_id))
     {
@@ -126,7 +156,7 @@ DispatchResult StreamRegistry::dispatch(InboundMessage&& message)
     peer_high_water_mark_ = stream_id;
     CallState state;
     state.peer_close_received = is_closing;
-    state.pending_messages.push_back(std::move(*call_message));
+    state.pending_messages.push_back(std::move(message));
     active_calls_.emplace(stream_id, std::move(state));
     unaccepted_call_ids_.push_back(stream_id);
     return DispatchResult::Routed;

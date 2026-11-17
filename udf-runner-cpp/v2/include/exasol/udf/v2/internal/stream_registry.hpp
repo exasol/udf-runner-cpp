@@ -79,6 +79,14 @@ private:
         bool peer_close_received{};
     };
 
+    [[nodiscard]] DispatchResult dispatch_control_message(
+        std::unique_ptr<interface::ControlMessageView> message);
+    [[nodiscard]] DispatchResult dispatch_call_message(
+        std::unique_ptr<interface::CallMessageView> message);
+    [[nodiscard]] DispatchResult dispatch_call_message_for_existing_call(
+        CallState& call_state, std::unique_ptr<interface::CallMessageView> message);
+    [[nodiscard]] DispatchResult dispatch_call_message_for_new_call(
+        std::unique_ptr<interface::CallMessageView> message);
     [[nodiscard]] bool has_local_endpoint_parity(std::uint64_t stream_id) const noexcept;
     EndpointRole endpoint_role_;
     std::uint64_t next_local_stream_id_;
