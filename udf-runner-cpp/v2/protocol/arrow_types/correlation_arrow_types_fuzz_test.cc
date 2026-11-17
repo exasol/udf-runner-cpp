@@ -212,6 +212,29 @@ void fuzz_valid_round_trip(Input& input)
     }
 }
 
+std::optional<std::vector<std::uint64_t>> expected_repeated_values(
+    std::int64_t logical_length,
+    const std::vector<std::int64_t>& ends,
+    const std::vector<std::uint64_t>& values,
+    const std::vector<bool>& nulls)
+{
+    std::vector<std::uint64_t> expected;
+    std::size_t physical_run = 0;
+    for (std::int64_t position = 0; position < logical_length; ++position)
+    {
+        while (physical_run < ends.size() && ends[physical_run] <= position)
+        {
+            ++physical_run;
+        }
+        if (physical_run == ends.size() || nulls[physical_run])
+        {
+            return std::nullopt;
+        }
+        expected.push_back(values[physical_run]);
+    }
+    return expected;
+}
+
 void fuzz_malformed_runs(Input& input)
 {
     const auto logical_length = static_cast<std::int64_t>(input.read_byte() % (max_rows + 1));
@@ -235,25 +258,9 @@ void fuzz_malformed_runs(Input& input)
     auto extension =
         arrow::ExtensionType::WrapArray(std::make_shared<correlation::RangeRunType>(), storage);
 
-    std::vector<std::uint64_t> expected_repeated;
+    const auto expected_repeated = expected_repeated_values(logical_length, ends, values, nulls);
     std::vector<std::uint64_t> expected_ranges;
-    bool valid_repeated      = true;
-    bool valid_ranges        = true;
-    std::size_t physical_run = 0;
-    for (std::int64_t position = 0; position < logical_length; ++position)
-    {
-        while (physical_run < count && ends[physical_run] <= position)
-        {
-            ++physical_run;
-        }
-        if (physical_run == count || nulls[physical_run])
-        {
-            valid_repeated = false;
-            break;
-        }
-        expected_repeated.push_back(values[physical_run]);
-    }
-
+    bool valid_ranges         = true;
     std::int64_t previous_end = 0;
     for (std::size_t run = 0; run < count; ++run)
     {
@@ -287,7 +294,8 @@ void fuzz_malformed_runs(Input& input)
         valid_ranges = false;
     }
     const auto repeated = read_values(storage);
-    if (repeated.has_value() && (!valid_repeated || repeated.value() != expected_repeated))
+    if (repeated.has_value() &&
+        (!expected_repeated.has_value() || repeated.value() != expected_repeated.value()))
     {
         fuzz_failure();
     }

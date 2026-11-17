@@ -1,3 +1,5 @@
+#include <protocol/arrow_types/arrow_types_test_helpers.hpp>
+
 #include <exasol/udf/v2/protocol/arrow_types/run_end_encoded.hpp>
 
 #include <arrow/array/array_primitive.h>
@@ -15,19 +17,6 @@ namespace exasol::udf::v2::protocol::arrow_types::correlation
 {
 namespace
 {
-
-    template <typename ArrayType>
-    void expect_all_values(const RunArrayView<ArrayType>& view,
-                           const std::vector<std::uint64_t>& expected)
-    {
-        EXPECT_EQ((std::vector<std::uint64_t>(view.begin(), view.end())), expected);
-        for (std::size_t position = 0; position < expected.size(); ++position)
-        {
-            SCOPED_TRACE(position);
-            EXPECT_EQ(*view.find(static_cast<std::int64_t>(position)), expected[position]);
-        }
-        EXPECT_EQ(view.find(static_cast<std::int64_t>(expected.size())), view.end());
-    }
 
     TEST(RunEndEncodedTest, EncodesAndDecodesRepeatedIds)
     {
