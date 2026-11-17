@@ -12,7 +12,11 @@ namespace exasol::udf::v2::internal
 class ContextStateInterface
 {
 public:
-    virtual ~ContextStateInterface() = default;
+    virtual ~ContextStateInterface()                               = default;
+    ContextStateInterface(const ContextStateInterface&)            = delete;
+    ContextStateInterface& operator=(const ContextStateInterface&) = delete;
+    ContextStateInterface(ContextStateInterface&&)                 = delete;
+    ContextStateInterface& operator=(ContextStateInterface&&)      = delete;
 
     [[nodiscard]] virtual std::unique_ptr<interface::OpeningCallMessageBuilder>
     create_opening_call_message_builder() = 0;
@@ -43,6 +47,9 @@ public:
         std::unique_ptr<interface::ControlMessageBuilder>&& message) = 0;
 
     virtual void shutdown() noexcept = 0;
+
+protected:
+    ContextStateInterface() = default;
 };
 
 } // namespace exasol::udf::v2::internal

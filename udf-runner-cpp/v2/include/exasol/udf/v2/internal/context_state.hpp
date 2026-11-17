@@ -27,7 +27,7 @@ public:
         EndpointRole endpoint_role,
         std::unique_ptr<BackgroundThreadInterface> background_thread,
         NowFunction now = [] { return std::chrono::steady_clock::now(); });
-    ~ContextState();
+    ~ContextState() override;
     ContextState(const ContextState&)            = delete;
     ContextState& operator=(const ContextState&) = delete;
     ContextState(ContextState&&)                 = delete;

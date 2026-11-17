@@ -132,7 +132,7 @@ namespace
         [[nodiscard]] BackgroundThreadResult wait_until(
             const std::optional<std::chrono::steady_clock::time_point> deadline) override
         {
-            last_deadline = deadline;
+            last_deadline_ = deadline;
             if (!inbound_.empty())
             {
                 return {.event = Event::InboundAvailable};
@@ -145,7 +145,7 @@ namespace
         }
         bool enqueue_outbound_messages(OutboundBatch& messages) override
         {
-            if (reject_outbound)
+            if (reject_outbound_)
             {
                 return false;
             }
@@ -155,7 +155,7 @@ namespace
         }
         bool enqueue_outbound_message(OutboundMessage& message) override
         {
-            if (reject_outbound)
+            if (reject_outbound_)
             {
                 return false;
             }
@@ -170,23 +170,31 @@ namespace
         }
         void request_shutdown() noexcept override
         {
-            shutdown_requested = true;
+            shutdown_requested_ = true;
         }
 
         void push_inbound(InboundMessage message)
         {
             inbound_.push_back(std::move(message));
         }
+        void set_reject_outbound(const bool reject) noexcept
+        {
+            reject_outbound_ = reject;
+        }
+        [[nodiscard]] const std::optional<std::chrono::steady_clock::time_point>& last_deadline()
+            const noexcept
+        {
+            return last_deadline_;
+        }
         [[nodiscard]] std::size_t outbound_size() const noexcept
         {
             return outbound_.size();
         }
 
-        bool reject_outbound{};
-        bool shutdown_requested{};
-        std::optional<std::chrono::steady_clock::time_point> last_deadline;
-
     private:
+        bool reject_outbound_{};
+        bool shutdown_requested_{};
+        std::optional<std::chrono::steady_clock::time_point> last_deadline_;
         InboundBatch inbound_;
         OutboundBatch outbound_;
     };
@@ -214,8 +222,8 @@ namespace
 
         EXPECT_EQ(context_state.wait_for_message(interface::Timeout{timeout}),
                   interface::MessageStatus::TimedOut);
-        ASSERT_TRUE(background_ptr->last_deadline.has_value());
-        EXPECT_EQ(*background_ptr->last_deadline, now + timeout);
+        ASSERT_TRUE(background_ptr->last_deadline().has_value());
+        EXPECT_EQ(*background_ptr->last_deadline(), now + timeout);
     }
 
     TEST(StreamRegistryTest, RejectsWrongParityBeforeHighWaterMarkHandling)
@@ -424,8 +432,8 @@ namespace
 
         auto builder = (*opened.value)->create_message_builder();
         ASSERT_NE(builder, nullptr);
-        background_ptr->reject_outbound = true;
-        auto result                     = (*opened.value)->send(std::move(builder));
+        background_ptr->set_reject_outbound(true);
+        auto result = (*opened.value)->send(std::move(builder));
 
         EXPECT_EQ(result.status, interface::OperationStatus::TransportError);
         EXPECT_NE(builder, nullptr);
@@ -440,7 +448,7 @@ namespace
         auto opening = context.create_opening_call_message_builder();
         ASSERT_NE(opening, nullptr);
         opening->open_call("test");
-        background_ptr->reject_outbound = true;
+        background_ptr->set_reject_outbound(true);
 
         const auto result = context.open_call(std::move(opening));
 

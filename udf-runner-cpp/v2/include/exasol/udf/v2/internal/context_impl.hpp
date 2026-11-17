@@ -14,6 +14,10 @@ class ContextImpl final : public interface::Context
 public:
     explicit ContextImpl(std::shared_ptr<ContextStateInterface> state);
     ~ContextImpl() override;
+    ContextImpl(const ContextImpl&)            = delete;
+    ContextImpl& operator=(const ContextImpl&) = delete;
+    ContextImpl(ContextImpl&&)                 = delete;
+    ContextImpl& operator=(ContextImpl&&)      = delete;
 
     [[nodiscard]] interface::MessageStatus receive_status() const override;
     [[nodiscard]] bool is_new_inbound_call_available() const override;
