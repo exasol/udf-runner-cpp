@@ -105,9 +105,13 @@ DispatchResult StreamRegistry::dispatch(InboundMessage&& message)
 
     if (has_local_endpoint_parity(stream_id))
     {
-        // Inbound stream IDs must have peer-owned parity. Delayed traffic is
-        // only possible on a previously used peer-owned stream.
-        return DispatchResult::ProtocolError;
+        // Either endpoint can close a call, so old local-owned streams can
+        // also receive delayed peer traffic.
+        if (is_opening || stream_id > local_high_water_mark_)
+        {
+            return DispatchResult::ProtocolError;
+        }
+        return DispatchResult::Discarded;
     }
 
     if (stream_id <= peer_high_water_mark_)

@@ -246,7 +246,7 @@ namespace
         EXPECT_EQ(registry.take_call_message(2).result, CallMessageResult::PeerClosed);
     }
 
-    TEST(StreamRegistryTest, DiscardsDelayedTrafficOnlyOnPreviouslyUsedPeerStreams)
+    TEST(StreamRegistryTest, DiscardsDelayedTrafficOnPreviouslyUsedPeerStreams)
     {
         StreamRegistry registry{EndpointRole::Client};
         ASSERT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(4, true)),
@@ -262,6 +262,30 @@ namespace
         EXPECT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(2, true)),
                   DispatchResult::ProtocolError);
         EXPECT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(6)),
+                  DispatchResult::ProtocolError);
+    }
+
+    TEST(StreamRegistryTest, DiscardsDelayedTrafficOnPreviouslyUsedLocalStreams)
+    {
+        StreamRegistry registry{EndpointRole::Client};
+        ASSERT_EQ(registry.reserve_local_stream_id(), 1);
+        ASSERT_TRUE(registry.register_local_call(1, false));
+        ASSERT_TRUE(registry.mark_local_close_accepted(1));
+
+        EXPECT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(1)),
+                  DispatchResult::Routed);
+        EXPECT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(1, false, true)),
+                  DispatchResult::Routed);
+        EXPECT_EQ(registry.take_call_message(1).result, CallMessageResult::Message);
+        auto peer_close = registry.take_call_message(1);
+        ASSERT_EQ(peer_close.result, CallMessageResult::Message);
+        EXPECT_NE(peer_close.message->close_call(), nullptr);
+
+        EXPECT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(1)),
+                  DispatchResult::Discarded);
+        EXPECT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(1, true)),
+                  DispatchResult::ProtocolError);
+        EXPECT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(3)),
                   DispatchResult::ProtocolError);
     }
 
