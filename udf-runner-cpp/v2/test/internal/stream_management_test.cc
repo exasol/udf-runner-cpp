@@ -129,28 +129,41 @@ namespace
     class ForeignCallMessageBuilder final : public interface::CallMessageBuilder
     {
     public:
-        interface::CallMessageBuilderBase& add_payload(std::string_view,
-                                                       std::string_view,
-                                                       bool) override
+        interface::CallMessageBuilderBase& add_payload(const std::string_view name,
+                                                       const std::string_view value,
+                                                       const bool binary) override
         {
+            static_cast<void>(name);
+            static_cast<void>(value);
+            static_cast<void>(binary);
             return *this;
         }
-        interface::CallMessageBuilderBase& data_schema(interface::ArrowSchemaPtr,
-                                                       bool,
-                                                       bool) override
+        interface::CallMessageBuilderBase& data_schema(interface::ArrowSchemaPtr schema,
+                                                       const bool has_group_id,
+                                                       const bool has_row_id) override
         {
+            static_cast<void>(schema);
+            static_cast<void>(has_group_id);
+            static_cast<void>(has_row_id);
             return *this;
         }
-        interface::CallMessageBuilderBase& reset(std::uint64_t) override
+        interface::CallMessageBuilderBase& reset(const std::uint64_t row_id) override
         {
+            static_cast<void>(row_id);
             return *this;
         }
-        interface::CallMessageBuilderBase& record_batch(interface::ArrowArrayPtr, bool) override
+        interface::CallMessageBuilderBase& record_batch(interface::ArrowArrayPtr array,
+                                                        const bool is_end_of_group) override
         {
+            static_cast<void>(array);
+            static_cast<void>(is_end_of_group);
             return *this;
         }
-        interface::CallMessageBuilderBase& error(std::string_view, std::string_view) override
+        interface::CallMessageBuilderBase& error(const std::string_view code,
+                                                 const std::string_view text) override
         {
+            static_cast<void>(code);
+            static_cast<void>(text);
             return *this;
         }
         interface::CallMessageBuilderBase& close_call() override
@@ -162,25 +175,36 @@ namespace
     class ForeignControlMessageBuilder final : public interface::ControlMessageBuilder
     {
     public:
-        interface::ControlMessageBuilder& server_capabilities(std::uint32_t,
-                                                              std::uint32_t,
-                                                              std::endian,
-                                                              std::uint32_t) override
+        interface::ControlMessageBuilder& server_capabilities(
+            const std::uint32_t major,
+            const std::uint32_t minor,
+            const std::endian endianness,
+            const std::uint32_t number_of_supported_workers) override
         {
+            static_cast<void>(major);
+            static_cast<void>(minor);
+            static_cast<void>(endianness);
+            static_cast<void>(number_of_supported_workers);
             return *this;
         }
         interface::ControlMessageBuilder& keep_alive() override
         {
             return *this;
         }
-        interface::ControlMessageBuilder& add_payload(std::string_view,
-                                                      std::string_view,
-                                                      bool) override
+        interface::ControlMessageBuilder& add_payload(const std::string_view name,
+                                                      const std::string_view value,
+                                                      const bool binary) override
         {
+            static_cast<void>(name);
+            static_cast<void>(value);
+            static_cast<void>(binary);
             return *this;
         }
-        interface::ControlMessageBuilder& error(std::string_view, std::string_view) override
+        interface::ControlMessageBuilder& error(const std::string_view code,
+                                                const std::string_view text) override
         {
+            static_cast<void>(code);
+            static_cast<void>(text);
             return *this;
         }
         interface::ControlMessageBuilder& close_connection() override
