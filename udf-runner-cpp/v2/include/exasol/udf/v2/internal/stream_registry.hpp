@@ -5,9 +5,9 @@
 
 #include <cstdint>
 #include <deque>
-#include <map>
 #include <memory>
 #include <optional>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace exasol::udf::v2::internal
@@ -86,7 +86,7 @@ private:
     std::uint64_t peer_high_water_mark_{};
     bool local_id_space_exhausted_{};
     std::unordered_set<std::uint64_t> opened_local_stream_ids_;
-    std::map<std::uint64_t, CallState> active_calls_;
+    std::unordered_map<std::uint64_t, CallState> active_calls_;
     std::deque<std::uint64_t> unaccepted_call_ids_;
     std::deque<std::unique_ptr<interface::ControlMessageView>> control_pending_;
 };
