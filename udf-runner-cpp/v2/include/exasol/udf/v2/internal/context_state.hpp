@@ -8,6 +8,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -19,8 +20,12 @@ namespace exasol::udf::v2::internal
 class ContextState final
 {
 public:
-    ContextState(EndpointRole endpoint_role,
-                 std::unique_ptr<BackgroundThreadInterface> background_thread);
+    using NowFunction = std::function<std::chrono::steady_clock::time_point()>;
+
+    ContextState(
+        EndpointRole endpoint_role,
+        std::unique_ptr<BackgroundThreadInterface> background_thread,
+        NowFunction now = [] { return std::chrono::steady_clock::now(); });
     ~ContextState();
     ContextState(const ContextState&)            = delete;
     ContextState& operator=(const ContextState&) = delete;
@@ -73,6 +78,7 @@ private:
     [[nodiscard]] interface::ErrorInfo protocol_error(std::string message) const;
 
     std::unique_ptr<BackgroundThreadInterface> background_thread_;
+    NowFunction now_;
     std::shared_ptr<const BuilderOwnerToken> builder_owner_token_{
         std::make_shared<const BuilderOwnerToken>()};
     StreamRegistry stream_registry_;

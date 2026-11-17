@@ -13,10 +13,14 @@ namespace exasol::udf::v2::internal
 {
 
 ContextState::ContextState(const EndpointRole endpoint_role,
-                           std::unique_ptr<BackgroundThreadInterface> background_thread)
-    : background_thread_(std::move(background_thread)), stream_registry_(endpoint_role)
+                           std::unique_ptr<BackgroundThreadInterface> background_thread,
+                           NowFunction now)
+    : background_thread_(std::move(background_thread)),
+      now_(std::move(now)),
+      stream_registry_(endpoint_role)
 {
     EXASOL_UDF_ASSERT(background_thread_ != nullptr);
+    EXASOL_UDF_ASSERT(now_);
 }
 
 ContextState::~ContextState()
@@ -433,7 +437,7 @@ std::optional<ContextState::Clock::time_point> ContextState::make_deadline(
     {
         return std::nullopt;
     }
-    return Clock::now() + *timeout;
+    return now_() + *timeout;
 }
 
 bool ContextState::dispatch_available_inbound_messages()

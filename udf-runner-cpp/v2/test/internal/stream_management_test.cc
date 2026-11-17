@@ -132,6 +132,7 @@ namespace
         [[nodiscard]] BackgroundThreadResult wait_until(
             const std::optional<std::chrono::steady_clock::time_point> deadline) override
         {
+            last_deadline = deadline;
             if (!inbound_.empty())
             {
                 return {.event = Event::InboundAvailable};
@@ -183,6 +184,7 @@ namespace
 
         bool reject_outbound{};
         bool shutdown_requested{};
+        std::optional<std::chrono::steady_clock::time_point> last_deadline;
 
     private:
         InboundBatch inbound_;
@@ -198,6 +200,22 @@ namespace
         EXPECT_EQ(client.reserve_local_stream_id(), 3);
         EXPECT_EQ(server.reserve_local_stream_id(), 2);
         EXPECT_EQ(server.reserve_local_stream_id(), 4);
+    }
+
+    TEST(ContextStateTest, UsesInjectedClockToCreateDeadlineWithoutSleeping)
+    {
+        using Clock          = std::chrono::steady_clock;
+        const auto now       = Clock::time_point{std::chrono::seconds{123}};
+        const auto timeout   = std::chrono::seconds{5};
+        auto background      = std::make_unique<FakeBackgroundThread>();
+        auto* background_ptr = background.get();
+        ContextState context_state{EndpointRole::Client, std::move(background),
+                                   [now] { return now; }};
+
+        EXPECT_EQ(context_state.wait_for_message(interface::Timeout{timeout}),
+                  interface::MessageStatus::TimedOut);
+        ASSERT_TRUE(background_ptr->last_deadline.has_value());
+        EXPECT_EQ(*background_ptr->last_deadline, now + timeout);
     }
 
     TEST(StreamRegistryTest, RejectsWrongParityBeforeHighWaterMarkHandling)
