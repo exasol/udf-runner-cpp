@@ -4,6 +4,7 @@
 #include <arrow/array/array_primitive.h>
 #include <arrow/array/array_run_end.h>
 #include <arrow/array/builder_primitive.h>
+#include <arrow/c/bridge.h>
 #include <arrow/type.h>
 
 #include <algorithm>
@@ -15,6 +16,7 @@
 #include <memory>
 #include <optional>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace
@@ -297,18 +299,111 @@ void fuzz_malformed_runs(Input& input)
     }
 }
 
+std::shared_ptr<arrow::Array> import_array(const arrow::Array& array)
+{
+    ArrowArray c_array{};
+    ArrowSchema c_schema{};
+    if (!arrow::ExportArray(array, &c_array, &c_schema).ok())
+    {
+        fuzz_failure();
+    }
+    // Arrow 25 exports one unused REE parent buffer, while its importer expects none.
+    if (c_array.n_buffers == 1 && c_array.buffers[0] == nullptr)
+    {
+        c_array.n_buffers = 0;
+    }
+    auto imported = arrow::ImportArray(&c_array, &c_schema);
+    if (!imported.ok())
+    {
+        fuzz_failure();
+    }
+    return imported.ValueOrDie();
+}
+
+void fuzz_deserialization(Input& input)
+{
+    if (!correlation::register_range_run_type().ok())
+    {
+        fuzz_failure();
+    }
+
+    const auto run_count = static_cast<std::size_t>(input.read_byte()) % (max_rows + 1);
+    std::vector<std::uint64_t> starts;
+    std::vector<std::uint64_t> counts;
+    std::vector<std::uint64_t> expected_ranges;
+    std::vector<std::uint64_t> expected_repeated;
+    for (std::size_t run = 0; run < run_count; ++run)
+    {
+        const auto start = input.read_uint64();
+        auto count       = static_cast<std::uint64_t>(input.read_byte() % 4) + 1;
+        if (start > std::numeric_limits<std::uint64_t>::max() - (count - 1))
+        {
+            count = 1;
+        }
+        starts.push_back(start);
+        counts.push_back(count);
+        for (std::uint64_t offset = 0; offset < count; ++offset)
+        {
+            expected_ranges.push_back(start + offset);
+        }
+        expected_repeated.insert(expected_repeated.end(), count, start);
+    }
+
+    auto ranges   = correlation::make_range_run(starts, counts);
+    auto repeated = correlation::make_run_end(starts, counts);
+    if (!ranges.ok() || !repeated.ok())
+    {
+        fuzz_failure();
+    }
+    auto imported_ranges   = import_array(*ranges.ValueOrDie());
+    auto imported_repeated = import_array(*repeated.ValueOrDie());
+    if (imported_ranges->type_id() != arrow::Type::EXTENSION ||
+        imported_repeated->type_id() != arrow::Type::RUN_END_ENCODED ||
+        read_values(std::static_pointer_cast<correlation::RangeRunArray>(imported_ranges)) !=
+            expected_ranges ||
+        read_values(std::static_pointer_cast<arrow::RunEndEncodedArray>(imported_repeated)) !=
+            expected_repeated)
+    {
+        fuzz_failure();
+    }
+
+    std::string metadata;
+    const auto metadata_size = input.read_byte() % 33;
+    for (std::size_t index = 0; index < metadata_size; ++index)
+    {
+        metadata.push_back(static_cast<char>(input.read_byte()));
+    }
+    correlation::RangeRunType type;
+    const auto storage = input.read_byte() % 4;
+    const std::shared_ptr<arrow::DataType> storage_type =
+        storage == 0   ? type.storage_type()
+        : storage == 1 ? arrow::uint64()
+        : storage == 2 ? arrow::run_end_encoded(arrow::int32(), arrow::uint64())
+                       : arrow::run_end_encoded(arrow::int64(), arrow::int64());
+    const auto deserialized = type.Deserialize(storage_type, metadata);
+    if (deserialized.ok() != (storage == 0 && metadata.empty()))
+    {
+        fuzz_failure();
+    }
+}
+
 } // namespace
 
 extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size)
 {
     Input input(data, size);
-    if (input.read_byte() % 2U == 0)
+    const auto mode = input.read_byte() % 3U;
+    if (mode == 0)
     {
         fuzz_valid_round_trip(input);
     }
-    else
+    else if (mode == 1)
     {
         fuzz_malformed_runs(input);
+    }
+    else
+    {
+        fuzz_deserialization(input);
     }
     return 0;
 }
