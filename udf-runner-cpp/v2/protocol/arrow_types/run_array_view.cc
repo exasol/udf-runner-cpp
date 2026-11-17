@@ -30,6 +30,29 @@ namespace
     }
 
     template <typename ArrayType>
+    void validate_all_runs(const arrow::Int64Array& ends, const arrow::UInt64Array& values)
+    {
+        std::int64_t previous_end = 0;
+        for (std::int64_t run = 0; run < ends.length(); ++run)
+        {
+            const auto end = ends.Value(run);
+            if (end <= previous_end)
+            {
+                throw std::invalid_argument("run ends must increase");
+            }
+            if constexpr (std::is_same_v<ArrayType, RangeRunArray>)
+            {
+                const auto count = static_cast<std::uint64_t>(end - previous_end);
+                if (values.Value(run) > std::numeric_limits<std::uint64_t>::max() - (count - 1))
+                {
+                    throw std::invalid_argument("range_run value overflow");
+                }
+            }
+            previous_end = end;
+        }
+    }
+
+    template <typename ArrayType>
     void validate(const ArrayType& array)
     {
         if constexpr (std::is_same_v<ArrayType, RangeRunArray>)
@@ -54,31 +77,10 @@ namespace
         {
             throw std::invalid_argument("invalid encoded runs");
         }
-        std::int64_t previous_end = 0;
 #ifndef NDEBUG
-        for (std::int64_t run = 0; run < ends.length(); ++run)
-        {
-            const auto end = ends.Value(run);
-            if (end <= previous_end)
-            {
-                throw std::invalid_argument("run ends must increase");
-            }
-            if constexpr (std::is_same_v<ArrayType, RangeRunArray>)
-            {
-                const auto count = static_cast<std::uint64_t>(end - previous_end);
-                if (values.Value(run) > std::numeric_limits<std::uint64_t>::max() - (count - 1))
-                {
-                    throw std::invalid_argument("range_run value overflow");
-                }
-            }
-            previous_end = end;
-        }
-#else
-        if (ends.length() != 0)
-        {
-            previous_end = ends.Value(ends.length() - 1);
-        }
+        validate_all_runs<ArrayType>(ends, values);
 #endif
+        const auto previous_end = ends.length() == 0 ? 0 : ends.Value(ends.length() - 1);
         if (array.offset() < 0 || array.length() < 0 || array.offset() > previous_end ||
             array.length() > previous_end - array.offset())
         {
