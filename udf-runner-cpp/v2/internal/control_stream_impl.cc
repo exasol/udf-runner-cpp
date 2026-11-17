@@ -1,6 +1,6 @@
 #include <exasol/udf/v2/internal/control_stream_impl.hpp>
 
-#include <exasol/udf/v2/internal/context_state.hpp>
+#include <exasol/udf/v2/internal/context_state_interface.hpp>
 
 #include <chrono>
 #include <utility>
@@ -8,7 +8,8 @@
 namespace exasol::udf::v2::internal
 {
 
-ControlStreamImpl::ControlStreamImpl(std::weak_ptr<ContextState> state) : state_(std::move(state))
+ControlStreamImpl::ControlStreamImpl(std::weak_ptr<ContextStateInterface> state)
+    : state_(std::move(state))
 {
 }
 

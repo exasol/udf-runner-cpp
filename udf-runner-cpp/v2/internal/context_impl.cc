@@ -1,5 +1,6 @@
 #include <exasol/udf/v2/internal/context_impl.hpp>
 
+#include <exasol/udf/v2/assert.hpp>
 #include <exasol/udf/v2/internal/call_impl.hpp>
 
 #include <utility>
@@ -7,11 +8,10 @@
 namespace exasol::udf::v2::internal
 {
 
-ContextImpl::ContextImpl(const EndpointRole endpoint_role,
-                         std::unique_ptr<BackgroundThreadInterface> background_thread)
-    : state_(std::make_shared<ContextState>(endpoint_role, std::move(background_thread))),
-      control_stream_(state_)
+ContextImpl::ContextImpl(std::shared_ptr<ContextStateInterface> state)
+    : state_(std::move(state)), control_stream_(state_)
 {
+    EXASOL_UDF_ASSERT(state_ != nullptr);
 }
 
 ContextImpl::~ContextImpl()

@@ -7,12 +7,12 @@
 namespace exasol::udf::v2::internal
 {
 
-class ContextState;
+class ContextStateInterface;
 
 class ControlStreamImpl final : public interface::ControlStream
 {
 public:
-    explicit ControlStreamImpl(std::weak_ptr<ContextState> state);
+    explicit ControlStreamImpl(std::weak_ptr<ContextStateInterface> state);
 
     [[nodiscard]] interface::MessageStatus receive_status() const override;
     [[nodiscard]] std::unique_ptr<interface::ControlMessageBuilder> create_message_builder()
@@ -25,7 +25,7 @@ public:
         std::unique_ptr<interface::ControlMessageBuilder>&& message) override;
 
 private:
-    std::weak_ptr<ContextState> state_;
+    std::weak_ptr<ContextStateInterface> state_;
 };
 
 } // namespace exasol::udf::v2::internal

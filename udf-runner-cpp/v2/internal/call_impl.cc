@@ -1,13 +1,13 @@
 #include <exasol/udf/v2/internal/call_impl.hpp>
 
-#include <exasol/udf/v2/internal/context_state.hpp>
+#include <exasol/udf/v2/internal/context_state_interface.hpp>
 
 #include <utility>
 
 namespace exasol::udf::v2::internal
 {
 
-CallImpl::CallImpl(std::weak_ptr<ContextState> state, const std::uint64_t stream_id)
+CallImpl::CallImpl(std::weak_ptr<ContextStateInterface> state, const std::uint64_t stream_id)
     : state_(std::move(state)), stream_id_(stream_id)
 {
 }

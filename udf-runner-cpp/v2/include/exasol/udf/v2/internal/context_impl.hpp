@@ -1,10 +1,8 @@
 #pragma once
 
 #include <exasol/udf/v2/interface/context.hpp>
-#include <exasol/udf/v2/internal/background_thread_interface.hpp>
-#include <exasol/udf/v2/internal/context_state.hpp>
+#include <exasol/udf/v2/internal/context_state_interface.hpp>
 #include <exasol/udf/v2/internal/control_stream_impl.hpp>
-#include <exasol/udf/v2/internal/stream_registry.hpp>
 
 #include <memory>
 
@@ -14,8 +12,7 @@ namespace exasol::udf::v2::internal
 class ContextImpl final : public interface::Context
 {
 public:
-    ContextImpl(EndpointRole endpoint_role,
-                std::unique_ptr<BackgroundThreadInterface> background_thread);
+    explicit ContextImpl(std::shared_ptr<ContextStateInterface> state);
     ~ContextImpl() override;
 
     [[nodiscard]] interface::MessageStatus receive_status() const override;
@@ -30,7 +27,7 @@ public:
     [[nodiscard]] interface::ControlStream& control_stream() override;
 
 private:
-    std::shared_ptr<ContextState> state_;
+    std::shared_ptr<ContextStateInterface> state_;
     ControlStreamImpl control_stream_;
 };
 

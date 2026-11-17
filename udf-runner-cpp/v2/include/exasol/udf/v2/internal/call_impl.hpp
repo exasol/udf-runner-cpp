@@ -8,12 +8,12 @@
 namespace exasol::udf::v2::internal
 {
 
-class ContextState;
+class ContextStateInterface;
 
 class CallImpl final : public interface::Call
 {
 public:
-    CallImpl(std::weak_ptr<ContextState> state, std::uint64_t stream_id);
+    CallImpl(std::weak_ptr<ContextStateInterface> state, std::uint64_t stream_id);
 
     [[nodiscard]] interface::MessageStatus receive_status() const override;
     [[nodiscard]] std::unique_ptr<interface::CallMessageBuilder> create_message_builder()
@@ -28,7 +28,7 @@ public:
         interface::Timeout timeout) override;
 
 private:
-    std::weak_ptr<ContextState> state_;
+    std::weak_ptr<ContextStateInterface> state_;
     std::uint64_t stream_id_;
 };
 

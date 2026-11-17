@@ -363,6 +363,7 @@ cc_library(
         "include/exasol/udf/v2/internal/control_stream_impl.hpp",
         "include/exasol/udf/v2/internal/context_impl.hpp",
         "include/exasol/udf/v2/internal/context_state.hpp",
+        "include/exasol/udf/v2/internal/context_state_interface.hpp",
         "include/exasol/udf/v2/internal/data_schema_view_impl.hpp",
         "include/exasol/udf/v2/internal/record_batch_view_impl.hpp",
         "include/exasol/udf/v2/internal/payload.hpp",

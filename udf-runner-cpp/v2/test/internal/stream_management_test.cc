@@ -349,7 +349,8 @@ namespace
         auto background = std::make_unique<FakeBackgroundThread>();
         background->push_inbound(std::make_unique<FakeCallMessageView>(2, true));
         background->push_inbound(std::make_unique<FakeCallMessageView>(2, false, true));
-        ContextImpl context{EndpointRole::Client, std::move(background)};
+        ContextImpl context{
+            std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
 
         auto result = context.accept_call();
         ASSERT_TRUE(result);
@@ -367,7 +368,8 @@ namespace
     {
         auto background      = std::make_unique<FakeBackgroundThread>();
         auto* background_ptr = background.get();
-        ContextImpl context{EndpointRole::Client, std::move(background)};
+        ContextImpl context{
+            std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
         auto opening = context.create_opening_call_message_builder();
         ASSERT_NE(opening, nullptr);
         opening->open_call("test");
@@ -412,7 +414,8 @@ namespace
     {
         auto background      = std::make_unique<FakeBackgroundThread>();
         auto* background_ptr = background.get();
-        ContextImpl context{EndpointRole::Client, std::move(background)};
+        ContextImpl context{
+            std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
         auto opening = context.create_opening_call_message_builder();
         ASSERT_NE(opening, nullptr);
         opening->open_call("test");
@@ -432,7 +435,8 @@ namespace
     {
         auto background      = std::make_unique<FakeBackgroundThread>();
         auto* background_ptr = background.get();
-        ContextImpl context{EndpointRole::Client, std::move(background)};
+        ContextImpl context{
+            std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
         auto opening = context.create_opening_call_message_builder();
         ASSERT_NE(opening, nullptr);
         opening->open_call("test");
@@ -449,7 +453,8 @@ namespace
         auto background = std::make_unique<FakeBackgroundThread>();
         background->push_inbound(std::make_unique<FakeControlMessageView>(0, true));
         auto* background_ptr = background.get();
-        ContextImpl context{EndpointRole::Client, std::move(background)};
+        ContextImpl context{
+            std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
 
         EXPECT_EQ(context.receive_status(), interface::MessageStatus::MessageAvailable);
         EXPECT_EQ(background_ptr->outbound_size(), 1);
@@ -463,8 +468,10 @@ namespace
 
     TEST(ContextImplTest, RejectsBuildersCreatedByAnotherContextWithTheSameStreamId)
     {
-        ContextImpl first{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
-        ContextImpl second{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+        ContextImpl first{std::make_shared<ContextState>(EndpointRole::Client,
+                                                         std::make_unique<FakeBackgroundThread>())};
+        ContextImpl second{std::make_shared<ContextState>(
+            EndpointRole::Client, std::make_unique<FakeBackgroundThread>())};
         auto first_opening = first.create_opening_call_message_builder();
         first_opening->open_call("first");
         auto first_call     = first.open_call(std::move(first_opening));
