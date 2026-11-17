@@ -89,10 +89,9 @@ private:
         std::unique_ptr<interface::CallMessageView> message);
     [[nodiscard]] bool has_local_endpoint_parity(std::uint64_t stream_id) const noexcept;
     EndpointRole endpoint_role_;
-    std::uint64_t next_local_stream_id_;
+    std::optional<std::uint64_t> next_local_stream_id_;
     std::uint64_t local_high_water_mark_{};
     std::uint64_t peer_high_water_mark_{};
-    bool local_id_space_exhausted_{};
     std::unordered_set<std::uint64_t> opened_local_stream_ids_;
     std::unordered_map<std::uint64_t, CallState> active_calls_;
     std::deque<std::uint64_t> unaccepted_call_ids_;

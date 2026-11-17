@@ -15,20 +15,20 @@ StreamRegistry::StreamRegistry(const EndpointRole endpoint_role)
 
 std::optional<std::uint64_t> StreamRegistry::reserve_local_stream_id()
 {
-    if (local_id_space_exhausted_)
+    if (!next_local_stream_id_)
     {
         return std::nullopt;
     }
 
-    const auto reserved_id = next_local_stream_id_;
+    const auto reserved_id = *next_local_stream_id_;
     local_high_water_mark_ = reserved_id;
     if (reserved_id > std::numeric_limits<std::uint64_t>::max() - 2)
     {
-        local_id_space_exhausted_ = true;
+        next_local_stream_id_.reset();
     }
     else
     {
-        next_local_stream_id_ += 2;
+        *next_local_stream_id_ += 2;
     }
     return reserved_id;
 }
