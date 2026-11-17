@@ -3,8 +3,8 @@
 #include <exasol/udf/v2/assert.hpp>
 #include <exasol/udf/v2/internal/call_message_builder_impl.hpp>
 #include <exasol/udf/v2/internal/control_message_builder_impl.hpp>
-#include <exasol/udf/v2/internal/message_builder_factory.hpp>
 
+#include <memory>
 #include <string>
 #include <utility>
 #include <variant>
@@ -32,9 +32,11 @@ ContextState::create_opening_call_message_builder()
         return nullptr;
     }
     const auto stream_id = stream_registry_.reserve_local_stream_id();
-    return stream_id ? MessageBuilderFactory::create_opening_call_builder(*stream_id,
-                                                                          builder_owner_token_)
-                     : nullptr;
+    if (!stream_id)
+    {
+        return nullptr;
+    }
+    return std::make_unique<OpeningCallMessageBuilderImpl>(*stream_id, builder_owner_token_);
 }
 
 std::unique_ptr<interface::CallMessageBuilder> ContextState::create_call_message_builder(
@@ -45,15 +47,17 @@ std::unique_ptr<interface::CallMessageBuilder> ContextState::create_call_message
     {
         return nullptr;
     }
-    return MessageBuilderFactory::create_call_builder(stream_id, builder_owner_token_);
+    return std::make_unique<CallMessageBuilderImpl>(stream_id, builder_owner_token_);
 }
 
 std::unique_ptr<interface::ControlMessageBuilder> ContextState::create_control_message_builder()
     const
 {
-    return is_closed() || worker_close_accepted_
-               ? nullptr
-               : MessageBuilderFactory::create_control_builder(builder_owner_token_);
+    if (is_closed() || worker_close_accepted_)
+    {
+        return nullptr;
+    }
+    return std::make_unique<ControlMessageBuilderImpl>(0, builder_owner_token_);
 }
 
 interface::Result<std::uint64_t> ContextState::accept_call()
@@ -454,7 +458,7 @@ bool ContextState::dispatch_available_inbound_messages()
             {
                 peer_close_pending_delivery_ = true;
                 stream_registry_.discard_call_streams();
-                auto response = MessageBuilderFactory::create_control_builder();
+                auto response = std::make_unique<ControlMessageBuilderImpl>(0);
                 response->close_connection();
                 OutboundMessage reply{std::move(response)};
                 static_cast<void>(background_thread_->enqueue_outbound_message(std::move(reply)));

@@ -263,7 +263,6 @@ cc_library(
         "include/exasol/udf/v2/internal/common_flatbuffer_view_impl.hpp",
         "include/exasol/udf/v2/internal/control_message_flatbuffer_view_impl.hpp",
         "include/exasol/udf/v2/internal/record_batch_view_impl.hpp",
-        "include/exasol/udf/v2/internal/message_builder_factory.hpp",
         "include/exasol/udf/v2/internal/payload.hpp",
     ],
     hdrs = [
@@ -323,7 +322,6 @@ cc_library(
         "include/exasol/udf/v2/internal/context_state.hpp",
         "include/exasol/udf/v2/internal/data_schema_view_impl.hpp",
         "include/exasol/udf/v2/internal/record_batch_view_impl.hpp",
-        "include/exasol/udf/v2/internal/message_builder_factory.hpp",
         "include/exasol/udf/v2/internal/payload.hpp",
         "include/exasol/udf/v2/internal/stream_registry.hpp",
     ],

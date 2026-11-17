@@ -1,9 +1,10 @@
 #pragma once
 
 #include <exasol/udf/v2/interface/interface.hpp>
+#include <exasol/udf/v2/internal/call_message_builder_impl.hpp>
 #include <exasol/udf/v2/internal/call_message_view_impl.hpp>
+#include <exasol/udf/v2/internal/control_message_builder_impl.hpp>
 #include <exasol/udf/v2/internal/control_message_view_impl.hpp>
-#include <exasol/udf/v2/internal/message_builder_factory.hpp>
 #include "protocol_test_utils.hpp"
 
 #include <memory>
@@ -22,7 +23,7 @@ public:
     [[nodiscard]] std::unique_ptr<interface::CallMessageBuilder> create_message_builder()
         const override
     {
-        return internal::MessageBuilderFactory::create_call_builder(2);
+        return std::make_unique<internal::CallMessageBuilderImpl>(2);
     }
 
     [[nodiscard]] interface::Result<std::unique_ptr<interface::CallMessageView>> receive(
@@ -65,7 +66,7 @@ public:
     [[nodiscard]] std::unique_ptr<interface::ControlMessageBuilder> create_message_builder()
         const override
     {
-        return internal::MessageBuilderFactory::create_control_builder();
+        return std::make_unique<internal::ControlMessageBuilderImpl>(0);
     }
 
     [[nodiscard]] interface::Result<std::unique_ptr<interface::ControlMessageView>> receive(
@@ -123,7 +124,7 @@ public:
     [[nodiscard]] std::unique_ptr<interface::OpeningCallMessageBuilder>
     create_opening_call_message_builder() override
     {
-        return internal::MessageBuilderFactory::create_opening_call_builder(2);
+        return std::make_unique<internal::OpeningCallMessageBuilderImpl>(2);
     }
 
     [[nodiscard]] interface::Result<std::unique_ptr<interface::Call>> open_call(

@@ -1,7 +1,7 @@
 #include "../common/protocol_test_utils.hpp"
+#include <exasol/udf/v2/internal/call_message_builder_impl.hpp>
 #include <exasol/udf/v2/internal/call_message_view_impl.hpp>
 #include <exasol/udf/v2/internal/data_schema_view_impl.hpp>
-#include <exasol/udf/v2/internal/message_builder_factory.hpp>
 #include <exasol/udf/v2/internal/record_batch_view_impl.hpp>
 
 #include <gtest/gtest.h>
@@ -9,6 +9,7 @@
 #include <arrow/api.h>
 #include <arrow/c/bridge.h>
 
+#include <memory>
 #include <type_traits>
 #include <utility>
 
@@ -81,7 +82,7 @@ TEST(CallMessageViewTest, ArrowDataCanRoundTripThroughInterface)
     auto* sent_array  = new ArrowArray{};
     ASSERT_TRUE(arrow::ExportRecordBatch(*imported.ValueOrDie(), sent_array, sent_schema).ok());
     {
-        auto outgoing = MessageBuilderFactory::create_call_builder(2);
+        auto outgoing = std::make_unique<CallMessageBuilderImpl>(2);
         outgoing->data_schema(ArrowSchemaPtr(sent_schema), false, false)
             .record_batch(ArrowArrayPtr(sent_array), true);
     }
