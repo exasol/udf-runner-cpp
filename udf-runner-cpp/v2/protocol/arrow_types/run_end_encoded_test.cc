@@ -1,4 +1,4 @@
-#include <protocol/arrow_types/arrow_types_test_helpers.hpp>
+#include <arrow_types_test_helpers.hpp>
 
 #include <exasol/udf/v2/protocol/arrow_types/run_end_encoded.hpp>
 

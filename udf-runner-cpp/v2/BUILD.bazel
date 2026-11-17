@@ -200,51 +200,19 @@ cc_library(
     deps = [":arrow_core"],
 )
 
-cc_library(
-    name = "arrow_types_test_helpers",
-    hdrs = ["protocol/arrow_types/arrow_types_test_helpers.hpp"],
-    include_prefix = "protocol/arrow_types",
-    strip_include_prefix = "protocol/arrow_types",
-    testonly = True,
-    deps = [
-        ":arrow_core",
-        ":arrow_types",
-        "@googletest//:gtest_main",
-    ],
-)
-
 cc_test(
-    name = "run_end_encoded_test",
-    srcs = ["protocol/arrow_types/run_end_encoded_test.cc"],
-    copts = ["-std=c++23"],
-    deps = [
-        ":arrow_core",
-        ":arrow_types",
-        ":arrow_types_test_helpers",
-        "@googletest//:gtest_main",
+    name = "arrow_types_test",
+    srcs = [
+        "protocol/arrow_types/arrow_types_test_helpers.hpp",
+        "protocol/arrow_types/range_run_test.cc",
+        "protocol/arrow_types/run_array_view_test.cc",
+        "protocol/arrow_types/run_end_encoded_test.cc",
     ],
-)
-
-cc_test(
-    name = "range_run_test",
-    srcs = ["protocol/arrow_types/range_run_test.cc"],
     copts = ["-std=c++23"],
+    includes = ["protocol/arrow_types"],
     deps = [
         ":arrow_core",
         ":arrow_types",
-        ":arrow_types_test_helpers",
-        "@googletest//:gtest_main",
-    ],
-)
-
-cc_test(
-    name = "run_array_view_test",
-    srcs = ["protocol/arrow_types/run_array_view_test.cc"],
-    copts = ["-std=c++23"],
-    deps = [
-        ":arrow_core",
-        ":arrow_types",
-        ":arrow_types_test_helpers",
         "@googletest//:gtest_main",
     ],
 )
