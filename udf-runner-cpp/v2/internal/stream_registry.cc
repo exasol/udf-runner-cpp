@@ -37,8 +37,7 @@ bool StreamRegistry::register_local_call(const std::uint64_t stream_id,
                                          const bool local_close_accepted)
 {
     if (stream_id == 0 || stream_id > local_high_water_mark_ ||
-        !has_local_endpoint_parity(stream_id) || active_calls_.contains(stream_id) ||
-        !opened_local_stream_ids_.insert(stream_id).second)
+        !has_local_endpoint_parity(stream_id) || active_calls_.contains(stream_id))
     {
         return false;
     }
@@ -274,7 +273,6 @@ void StreamRegistry::discard_call_streams() noexcept
 {
     active_calls_.clear();
     unaccepted_call_ids_.clear();
-    opened_local_stream_ids_.clear();
 }
 
 void StreamRegistry::clear() noexcept

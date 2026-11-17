@@ -8,7 +8,6 @@
 #include <memory>
 #include <optional>
 #include <unordered_map>
-#include <unordered_set>
 
 namespace exasol::udf::v2::internal
 {
@@ -92,7 +91,6 @@ private:
     std::optional<std::uint64_t> next_local_stream_id_;
     std::uint64_t local_high_water_mark_{};
     std::uint64_t peer_high_water_mark_{};
-    std::unordered_set<std::uint64_t> opened_local_stream_ids_;
     std::unordered_map<std::uint64_t, CallState> active_calls_;
     std::deque<std::uint64_t> unaccepted_call_ids_;
     std::deque<std::unique_ptr<interface::ControlMessageView>> control_pending_;

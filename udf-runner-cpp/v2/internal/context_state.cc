@@ -121,7 +121,7 @@ interface::Result<std::uint64_t> ContextState::open_call(
     {
         return interface::Result<std::uint64_t>::failure(
             interface::OperationStatus::ProtocolError,
-            protocol_error("Opening message does not own an unused reserved stream ID"));
+            protocol_error("Opening message does not use an available reserved local stream ID"));
     }
 
     std::unique_ptr<interface::CallMessageBuilderBase> base_builder(std::move(opening_message));
