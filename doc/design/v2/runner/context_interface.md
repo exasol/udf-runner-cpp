@@ -291,8 +291,10 @@ ControlMessage {
 }
 ```
 
-The control stream supports capabilities, keepalive, connection-level payloads, errors, and connection close. It must
-not expose `OpenCall`, `CloseCall`, `Reset`, `ArrowSchemaPtr`, or `ArrowArrayPtr` objects.
+The control stream supports capabilities, keepalive, connection-level payloads, errors, and connection close. A
+received `CloseConnection` message is returned by `ControlStream::receive()` exactly once, in FIFO order after any
+earlier pending control messages. After it is consumed, subsequent operations return the terminal `ContextClosed`
+status. It must not expose `OpenCall`, `CloseCall`, `Reset`, `ArrowSchemaPtr`, or `ArrowArrayPtr` objects.
 
 An error without `close_connection` is a non-terminal diagnostic. `CloseConnection` starts or acknowledges connection
 shutdown and may be combined with an error or other permitted connection-level fields.

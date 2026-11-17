@@ -187,7 +187,8 @@ The context-owned call registry tracks active streams and the high-water state d
 the registry releases a call are defined in the [call-close rules](stream_management.md#call-close-ordering); no set
 of every closed stream ID is needed.
 
-`close_connection` is handled as a context shutdown event rather than being placed in the control-stream pending list.
+`close_connection` is retained in the control-stream pending list and delivered once before subsequent control-stream
+receives return `ContextClosed`, as defined by the peer-close sequence below.
 `close_call` remains in the call's pending `CallMessageView`; its dispatch and delivery ordering is defined in the
 [stream-management call-close rules](stream_management.md#call-close-ordering).
 
@@ -750,7 +751,10 @@ When the background thread receives `CloseConnection`:
 7. wake all worker waiters;
 8. make later worker send and receive operations return `ContextClosed`.
 
-The peer close is not delivered as ordinary call traffic after connection shutdown begins.
+The context retains the peer's verified close message in the control-stream pending list, after any earlier pending
+control messages. `ControlStream::receive()` returns the close message exactly once, including its
+`CloseConnectionView`; after it is consumed, subsequent control-stream receives return `ContextClosed`. It is never
+delivered as call traffic.
 
 ## Ownership and cleanup rules
 
