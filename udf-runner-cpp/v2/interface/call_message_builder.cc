@@ -145,8 +145,8 @@ bool CallMessageBuilderImpl::belongs_to(
     return builder_owner != nullptr && builder_owner == owner;
 }
 
-OpeningCallMessageBuilderImpl::OpeningCallMessageBuilderImpl(const std::uint64_t stream_id,
-                                                             std::weak_ptr<const BuilderOwnerToken> owner)
+OpeningCallMessageBuilderImpl::OpeningCallMessageBuilderImpl(
+    const std::uint64_t stream_id, std::weak_ptr<const BuilderOwnerToken> owner)
     : message_(stream_id), owner_(std::move(owner))
 {
 }

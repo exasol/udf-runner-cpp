@@ -382,9 +382,9 @@ namespace
 
         auto zero_timeout_builder = (*opened.value)->create_message_builder();
         ASSERT_NE(zero_timeout_builder, nullptr);
-        EXPECT_TRUE((*opened.value)->send(std::move(zero_timeout_builder),
-                                          interface::Timeout{
-                                              std::chrono::steady_clock::duration::zero()}));
+        EXPECT_TRUE((*opened.value)
+                        ->send(std::move(zero_timeout_builder),
+                               interface::Timeout{std::chrono::steady_clock::duration::zero()}));
         EXPECT_EQ(background_ptr->outbound_size(), outbound_before_sends + 2);
 
         EXPECT_EQ((*opened.value)->receive().status, interface::OperationStatus::TimedOut);
