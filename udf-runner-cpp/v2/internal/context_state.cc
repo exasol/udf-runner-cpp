@@ -126,7 +126,7 @@ interface::Result<std::uint64_t> ContextState::open_call(
 
     std::unique_ptr<interface::CallMessageBuilderBase> base_builder(std::move(opening_message));
     OutboundMessage outbound{std::move(base_builder)};
-    if (!background_thread_->enqueue_outbound_message(std::move(outbound)))
+    if (!background_thread_->enqueue_outbound_message(outbound))
     {
         auto rejected =
             std::move(std::get<std::unique_ptr<interface::CallMessageBuilderBase>>(outbound));
@@ -340,7 +340,7 @@ interface::Result<void> ContextState::send_call_message(
 
     std::unique_ptr<interface::CallMessageBuilderBase> base_builder(std::move(message));
     OutboundMessage outbound{std::move(base_builder)};
-    if (!background_thread_->enqueue_outbound_message(std::move(outbound)))
+    if (!background_thread_->enqueue_outbound_message(outbound))
     {
         auto rejected =
             std::move(std::get<std::unique_ptr<interface::CallMessageBuilderBase>>(outbound));
@@ -381,7 +381,7 @@ interface::Result<void> ContextState::send_control_message(
     }
     const bool closes_connection = implementation->message().is_close_connection();
     OutboundMessage outbound{std::move(message)};
-    if (!background_thread_->enqueue_outbound_message(std::move(outbound)))
+    if (!background_thread_->enqueue_outbound_message(outbound))
     {
         auto rejected =
             std::move(std::get<std::unique_ptr<interface::ControlMessageBuilder>>(outbound));
@@ -447,7 +447,7 @@ bool ContextState::dispatch_available_inbound_messages()
                 auto response = std::make_unique<ControlMessageBuilderImpl>(0);
                 response->close_connection();
                 OutboundMessage reply{std::move(response)};
-                static_cast<void>(background_thread_->enqueue_outbound_message(std::move(reply)));
+                static_cast<void>(background_thread_->enqueue_outbound_message(reply));
                 return false;
             }
         }

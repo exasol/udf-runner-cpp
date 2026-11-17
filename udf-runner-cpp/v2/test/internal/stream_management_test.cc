@@ -143,7 +143,7 @@ namespace
             }
             return {.event = Event::ShutdownRequested};
         }
-        bool enqueue_outbound_messages(OutboundBatch&& messages) override
+        bool enqueue_outbound_messages(OutboundBatch& messages) override
         {
             if (reject_outbound)
             {
@@ -153,7 +153,7 @@ namespace
                              std::make_move_iterator(messages.end()));
             return true;
         }
-        bool enqueue_outbound_message(OutboundMessage&& message) override
+        bool enqueue_outbound_message(OutboundMessage& message) override
         {
             if (reject_outbound)
             {
