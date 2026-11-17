@@ -97,20 +97,6 @@ cc_library(
     deps = [":private_flatbuffers_runtime"],
 )
 
-cc_library(
-    name = "mutation_smoke",
-    srcs = ["mutation_smoke.cc"],
-    hdrs = ["mutation_smoke.hpp"],
-    copts = ["-std=c++23"],
-)
-
-cc_test(
-    name = "mutation_smoke_test",
-    srcs = ["mutation_smoke_test.cc"],
-    copts = ["-std=c++23"],
-    deps = [":mutation_smoke"],
-)
-
 cc_test(
     name = "udf_protocol_test",
     srcs = ["udf_protocol_test.cc"],
@@ -183,29 +169,6 @@ alias(
     tags = ["noclangtidy"],
 )
 
-filegroup(
-    name = "arrow_c_data_demo_exports",
-    srcs = ["arrow_c_data_demo.exports.map"],
-)
-
-cc_binary(
-    name = "libarrow_c_data_demo.so",
-    srcs = ["arrow_c_data_demo.cc"],
-    additional_linker_inputs = [":arrow_c_data_demo_exports"],
-    copts = [
-        "-std=c++23",
-        "-fvisibility=hidden",
-        "-fvisibility-inlines-hidden",
-    ],
-    linkopts = [
-        "-Wl,--exclude-libs,ALL",
-        "-Wl,--exclude-libs,libarrow_core.a",
-        "-Wl,--version-script=$(location :arrow_c_data_demo_exports)",
-    ],
-    linkshared = 1,
-    deps = [":arrow_core"],
-)
-
 cc_test(
     name = "arrow_core_test",
     srcs = ["arrow_core_test.cc"],
@@ -215,18 +178,6 @@ cc_test(
         ":arrow_core",
         "@googletest//:gtest_main",
     ],
-)
-
-cc_test(
-    name = "arrow_c_data_demo_test",
-    srcs = ["arrow_c_data_demo_test.cc"],
-    copts = ["-std=c++23"],
-    tags = ["no-mull"],
-    data = [":libarrow_c_data_demo.so"],
-    args = ["$(location :libarrow_c_data_demo.so)"],
-    linkopts = ["-ldl"],
-    target_compatible_with = ["@platforms//os:linux"],
-    deps = [":arrow_core"],
 )
 
 cc_library(
