@@ -7,6 +7,7 @@ n/a
 
 ## Features / Enhancements
 
+ - #134: Added v2 Arrow run-end and range-run helpers with lazy iterators, range-run slice support, and fuzz regressions
  - #109: Added v2 stream management specification
  - #119: Added transport-neutral v2 connection acceptance with Unix socket support
  - #86: Added a RAII Linux epoll abstraction with injectable POSIX operations
