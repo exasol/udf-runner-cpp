@@ -281,32 +281,38 @@ cc_library(
 )
 
 cc_library(
-    name = "interface",
-    srcs = [
-        "interface/call.cc",
-        "interface/context.cc",
-        "interface/control_stream.cc",
-        "interface/call_message_builder.cc",
-        "interface/control_message_builder.cc",
-        "interface/control_message_view_impl.cc",
-        "interface/data_schema_view_impl.cc",
-        "interface/call_message_flatbuffer_view_impl.cc",
-        "interface/common_flatbuffer_view_impl.cc",
-        "interface/control_message_flatbuffer_view_impl.cc",
-        "interface/record_batch_view_impl.cc",
-        "interface/message_view.cc",
+    name = "interface_impl_headers",
+    hdrs = [
         "include/exasol/udf/v2/internal/background_thread_interface.hpp",
         "include/exasol/udf/v2/internal/builder_owner_token.hpp",
         "include/exasol/udf/v2/internal/call_message_builder_impl.hpp",
         "include/exasol/udf/v2/internal/call_message_view_impl.hpp",
         "include/exasol/udf/v2/internal/control_message_builder_impl.hpp",
         "include/exasol/udf/v2/internal/control_message_view_impl.hpp",
-        "include/exasol/udf/v2/internal/data_schema_view_impl.hpp",
         "include/exasol/udf/v2/internal/call_message_flatbuffer_view_impl.hpp",
         "include/exasol/udf/v2/internal/common_flatbuffer_view_impl.hpp",
         "include/exasol/udf/v2/internal/control_message_flatbuffer_view_impl.hpp",
+        "include/exasol/udf/v2/internal/data_schema_view_impl.hpp",
         "include/exasol/udf/v2/internal/record_batch_view_impl.hpp",
         "include/exasol/udf/v2/internal/payload.hpp",
+    ],
+    copts = ["-std=c++23"],
+    includes = ["include"],
+    deps = [
+        ":arrow_core",
+        ":exception",
+        ":interface_api",
+        ":udf_protocol",
+    ],
+    visibility = ["//:__pkg__"],
+)
+
+cc_library(
+    name = "interface_api",
+    srcs = [
+        "interface/call.cc",
+        "interface/context.cc",
+        "interface/control_stream.cc",
     ],
     hdrs = [
         "include/exasol/udf/v2/interface/call.hpp",
@@ -340,6 +346,39 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "interface_impl",
+    srcs = [
+        "interface/call_message_builder.cc",
+        "interface/control_message_builder.cc",
+        "interface/control_message_view_impl.cc",
+        "interface/data_schema_view_impl.cc",
+        "interface/call_message_flatbuffer_view_impl.cc",
+        "interface/common_flatbuffer_view_impl.cc",
+        "interface/control_message_flatbuffer_view_impl.cc",
+        "interface/record_batch_view_impl.cc",
+        "interface/message_view.cc",
+    ],
+    includes = [
+        "include",
+    ],
+    copts = ["-std=c++23"],
+    deps = [
+        ":interface_api",
+        ":interface_impl_headers",
+        ":arrow_core",
+        ":exception",
+        ":udf_protocol",
+    ],
+)
+
+cc_library(
+    name = "interface",
+    copts = ["-std=c++23"],
+    deps = [":interface_api"],
+    implementation_deps = [":interface_impl"],
+)
+
 # Internal headers are available only through this implementation-facing
 # target. Keeping them out of :interface prevents the worker-facing Bazel
 # target from exporting implementation details to its dependents.
@@ -353,25 +392,20 @@ cc_library(
         "internal/stream_registry.cc",
     ],
     hdrs = [
-        "include/exasol/udf/v2/internal/background_thread_interface.hpp",
-        "include/exasol/udf/v2/internal/builder_owner_token.hpp",
         "include/exasol/udf/v2/internal/call_impl.hpp",
-        "include/exasol/udf/v2/internal/call_message_builder_impl.hpp",
-        "include/exasol/udf/v2/internal/call_message_view_impl.hpp",
-        "include/exasol/udf/v2/internal/control_message_builder_impl.hpp",
-        "include/exasol/udf/v2/internal/control_message_view_impl.hpp",
         "include/exasol/udf/v2/internal/control_stream_impl.hpp",
         "include/exasol/udf/v2/internal/context_impl.hpp",
         "include/exasol/udf/v2/internal/context_state.hpp",
         "include/exasol/udf/v2/internal/context_state_interface.hpp",
-        "include/exasol/udf/v2/internal/data_schema_view_impl.hpp",
-        "include/exasol/udf/v2/internal/record_batch_view_impl.hpp",
-        "include/exasol/udf/v2/internal/payload.hpp",
         "include/exasol/udf/v2/internal/stream_registry.hpp",
     ],
     includes = ["include"],
     copts = ["-std=c++23"],
-    deps = [":interface"],
+    deps = [
+        ":interface",
+        ":interface_impl_headers",
+        ":interface_impl",
+    ],
 )
 
 cc_test(
