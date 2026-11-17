@@ -26,7 +26,7 @@ std::unique_ptr<interface::ControlMessageBuilder> ControlStreamImpl::create_mess
 
 interface::Result<std::unique_ptr<interface::ControlMessageView>> ControlStreamImpl::receive()
 {
-    return receive(std::chrono::steady_clock::duration::zero());
+    return receive(interface::Timeout{std::chrono::steady_clock::duration::zero()});
 }
 
 interface::Result<std::unique_ptr<interface::ControlMessageView>> ControlStreamImpl::receive(

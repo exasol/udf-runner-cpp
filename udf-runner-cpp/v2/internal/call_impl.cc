@@ -26,7 +26,7 @@ std::unique_ptr<interface::CallMessageBuilder> CallImpl::create_message_builder(
 
 interface::Result<std::unique_ptr<interface::CallMessageView>> CallImpl::receive()
 {
-    return receive(std::chrono::steady_clock::duration::zero());
+    return receive(interface::Timeout{std::chrono::steady_clock::duration::zero()});
 }
 
 interface::Result<std::unique_ptr<interface::CallMessageView>> CallImpl::receive(
@@ -43,7 +43,8 @@ interface::Result<std::unique_ptr<interface::CallMessageView>> CallImpl::receive
 
 interface::Result<void> CallImpl::send(std::unique_ptr<interface::CallMessageBuilder>&& message)
 {
-    return send(std::move(message), std::chrono::steady_clock::duration::zero());
+    return send(std::move(message),
+                interface::Timeout{std::chrono::steady_clock::duration::zero()});
 }
 
 interface::Result<void> CallImpl::send(std::unique_ptr<interface::CallMessageBuilder>&& message,

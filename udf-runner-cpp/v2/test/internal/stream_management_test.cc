@@ -291,6 +291,38 @@ namespace
         EXPECT_EQ(call.receive().status, interface::OperationStatus::PeerClosed);
     }
 
+    TEST(ContextImplTest, SendOverloadsAcceptMessagesAndZeroTimeoutReceiveReturnsTimedOut)
+    {
+        auto background      = std::make_unique<FakeBackgroundThread>();
+        auto* background_ptr = background.get();
+        ContextImpl context{EndpointRole::Client, std::move(background)};
+        auto opening = context.create_opening_call_message_builder();
+        ASSERT_NE(opening, nullptr);
+        opening->open_call("test");
+        auto opened = context.open_call(std::move(opening));
+        ASSERT_TRUE(opened);
+        const auto outbound_before_sends = background_ptr->outbound_size();
+
+        auto no_wait_builder = (*opened.value)->create_message_builder();
+        ASSERT_NE(no_wait_builder, nullptr);
+        EXPECT_TRUE((*opened.value)->send(std::move(no_wait_builder)));
+        EXPECT_EQ(background_ptr->outbound_size(), outbound_before_sends + 1);
+
+        auto zero_timeout_builder = (*opened.value)->create_message_builder();
+        ASSERT_NE(zero_timeout_builder, nullptr);
+        EXPECT_TRUE((*opened.value)->send(std::move(zero_timeout_builder),
+                                          interface::Timeout{
+                                              std::chrono::steady_clock::duration::zero()}));
+        EXPECT_EQ(background_ptr->outbound_size(), outbound_before_sends + 2);
+
+        EXPECT_EQ((*opened.value)->receive().status, interface::OperationStatus::TimedOut);
+        EXPECT_EQ((*opened.value)
+                      ->receive(interface::Timeout{std::chrono::steady_clock::duration::zero()})
+                      .status,
+                  interface::OperationStatus::TimedOut);
+        EXPECT_EQ(context.control_stream().receive().status, interface::OperationStatus::TimedOut);
+    }
+
     TEST(CallImplTest, ReportsContextClosedAfterSharedStateExpires)
     {
         std::unique_ptr<CallImpl> call;
