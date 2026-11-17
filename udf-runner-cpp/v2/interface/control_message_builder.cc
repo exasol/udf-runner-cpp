@@ -70,7 +70,7 @@ bool ControlMessage::is_close_connection() const noexcept
 }
 
 ControlMessageBuilderImpl::ControlMessageBuilderImpl(const std::uint64_t stream_id,
-                                                     std::weak_ptr<const void> owner)
+                                                     std::weak_ptr<const BuilderOwnerToken> owner)
     : message_(stream_id), owner_(std::move(owner))
 {
 }
@@ -117,7 +117,8 @@ const ControlMessage& ControlMessageBuilderImpl::message() const noexcept
     return message_;
 }
 
-bool ControlMessageBuilderImpl::belongs_to(const std::shared_ptr<const void>& owner) const noexcept
+bool ControlMessageBuilderImpl::belongs_to(
+    const std::shared_ptr<const BuilderOwnerToken>& owner) const noexcept
 {
     const auto builder_owner = owner_.lock();
     return builder_owner != nullptr && builder_owner == owner;

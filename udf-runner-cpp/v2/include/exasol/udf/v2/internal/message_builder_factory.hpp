@@ -15,19 +15,20 @@ class MessageBuilderFactory
 {
 public:
     [[nodiscard]] static std::unique_ptr<interface::CallMessageBuilder> create_call_builder(
-        std::uint64_t stream_id, std::weak_ptr<const void> owner = {})
+        std::uint64_t stream_id, std::weak_ptr<const BuilderOwnerToken> owner = {})
     {
         return std::make_unique<CallMessageBuilderImpl>(stream_id, std::move(owner));
     }
 
     [[nodiscard]] static std::unique_ptr<interface::OpeningCallMessageBuilder>
-    create_opening_call_builder(std::uint64_t stream_id, std::weak_ptr<const void> owner = {})
+    create_opening_call_builder(std::uint64_t stream_id,
+                                std::weak_ptr<const BuilderOwnerToken> owner = {})
     {
         return std::make_unique<OpeningCallMessageBuilderImpl>(stream_id, std::move(owner));
     }
 
     [[nodiscard]] static std::unique_ptr<interface::ControlMessageBuilder> create_control_builder(
-        std::weak_ptr<const void> owner = {})
+        std::weak_ptr<const BuilderOwnerToken> owner = {})
     {
         return std::make_unique<ControlMessageBuilderImpl>(0, std::move(owner));
     }

@@ -3,6 +3,7 @@
 #include <exasol/udf/v2/interface/error_info.hpp>
 #include <exasol/udf/v2/interface/arrow_c_data.hpp>
 #include <exasol/udf/v2/interface/message_builder/call_message_builder.hpp>
+#include <exasol/udf/v2/internal/builder_owner_token.hpp>
 #include <exasol/udf/v2/internal/payload.hpp>
 
 #include <cstdint>
@@ -102,7 +103,8 @@ public:
     using interface::CallMessageBuilderBase::record_batch;
     using interface::CallMessageBuilderBase::reset;
 
-    explicit CallMessageBuilderImpl(std::uint64_t stream_id, std::weak_ptr<const void> owner = {});
+    explicit CallMessageBuilderImpl(std::uint64_t stream_id,
+                                    std::weak_ptr<const BuilderOwnerToken> owner = {});
 
     interface::CallMessageBuilder& add_payload(std::string_view name,
                                                std::string_view value,
@@ -116,11 +118,12 @@ public:
     interface::CallMessageBuilder& error(std::string_view code, std::string_view text) override;
     interface::CallMessageBuilder& close_call() override;
     [[nodiscard]] const CallMessage& message() const noexcept;
-    [[nodiscard]] bool belongs_to(const std::shared_ptr<const void>& owner) const noexcept;
+    [[nodiscard]] bool belongs_to(
+        const std::shared_ptr<const BuilderOwnerToken>& owner) const noexcept;
 
 private:
     CallMessage message_;
-    std::weak_ptr<const void> owner_;
+    std::weak_ptr<const BuilderOwnerToken> owner_;
 };
 
 class OpeningCallMessageBuilderImpl final : public interface::OpeningCallMessageBuilder
@@ -132,7 +135,7 @@ public:
     using interface::CallMessageBuilderBase::reset;
 
     explicit OpeningCallMessageBuilderImpl(std::uint64_t stream_id,
-                                           std::weak_ptr<const void> owner = {});
+                                           std::weak_ptr<const BuilderOwnerToken> owner = {});
 
     interface::OpeningCallMessageBuilder& open_call(std::string_view name) override;
     interface::OpeningCallMessageBuilder& add_payload(std::string_view name,
@@ -148,11 +151,12 @@ public:
                                                 std::string_view text) override;
     interface::OpeningCallMessageBuilder& close_call() override;
     [[nodiscard]] const CallMessage& message() const noexcept;
-    [[nodiscard]] bool belongs_to(const std::shared_ptr<const void>& owner) const noexcept;
+    [[nodiscard]] bool belongs_to(
+        const std::shared_ptr<const BuilderOwnerToken>& owner) const noexcept;
 
 private:
     CallMessage message_;
-    std::weak_ptr<const void> owner_;
+    std::weak_ptr<const BuilderOwnerToken> owner_;
 };
 
 } // namespace exasol::udf::v2::internal

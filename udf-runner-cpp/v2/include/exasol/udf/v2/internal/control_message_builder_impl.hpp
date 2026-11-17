@@ -2,6 +2,7 @@
 
 #include <exasol/udf/v2/interface/error_info.hpp>
 #include <exasol/udf/v2/interface/message_builder/control_message_builder.hpp>
+#include <exasol/udf/v2/internal/builder_owner_token.hpp>
 #include <exasol/udf/v2/internal/payload.hpp>
 
 #include <bit>
@@ -89,7 +90,7 @@ public:
     using interface::ControlMessageBuilder::add_payload;
 
     explicit ControlMessageBuilderImpl(std::uint64_t stream_id,
-                                       std::weak_ptr<const void> owner = {});
+                                       std::weak_ptr<const BuilderOwnerToken> owner = {});
 
     interface::ControlMessageBuilder& server_capabilities(
         std::uint32_t major,
@@ -104,11 +105,12 @@ public:
     interface::ControlMessageBuilder& close_connection() override;
 
     [[nodiscard]] const ControlMessage& message() const noexcept;
-    [[nodiscard]] bool belongs_to(const std::shared_ptr<const void>& owner) const noexcept;
+    [[nodiscard]] bool belongs_to(
+        const std::shared_ptr<const BuilderOwnerToken>& owner) const noexcept;
 
 private:
     ControlMessage message_;
-    std::weak_ptr<const void> owner_;
+    std::weak_ptr<const BuilderOwnerToken> owner_;
 };
 
 } // namespace exasol::udf::v2::internal

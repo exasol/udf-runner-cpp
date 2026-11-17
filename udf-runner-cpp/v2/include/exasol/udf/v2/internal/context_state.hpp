@@ -3,6 +3,7 @@
 #include <exasol/udf/v2/interface/context.hpp>
 #include <exasol/udf/v2/interface/error_info.hpp>
 #include <exasol/udf/v2/internal/background_thread_interface.hpp>
+#include <exasol/udf/v2/internal/builder_owner_token.hpp>
 #include <exasol/udf/v2/internal/stream_registry.hpp>
 
 #include <chrono>
@@ -72,8 +73,8 @@ private:
     [[nodiscard]] interface::ErrorInfo protocol_error(std::string message) const;
 
     std::unique_ptr<BackgroundThreadInterface> background_thread_;
-    std::shared_ptr<const std::uint8_t> builder_owner_token_{
-        std::make_shared<const std::uint8_t>(0)};
+    std::shared_ptr<const BuilderOwnerToken> builder_owner_token_{
+        std::make_shared<const BuilderOwnerToken>()};
     StreamRegistry stream_registry_;
     std::optional<interface::OperationStatus> terminal_status_;
     std::optional<interface::ErrorInfo> terminal_error_;

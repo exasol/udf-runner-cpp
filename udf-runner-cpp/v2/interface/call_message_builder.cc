@@ -86,7 +86,7 @@ bool CallMessage::is_close_call() const noexcept
 }
 
 CallMessageBuilderImpl::CallMessageBuilderImpl(const std::uint64_t stream_id,
-                                               std::weak_ptr<const void> owner)
+                                               std::weak_ptr<const BuilderOwnerToken> owner)
     : message_(stream_id), owner_(std::move(owner))
 {
 }
@@ -138,14 +138,15 @@ const CallMessage& CallMessageBuilderImpl::message() const noexcept
     return message_;
 }
 
-bool CallMessageBuilderImpl::belongs_to(const std::shared_ptr<const void>& owner) const noexcept
+bool CallMessageBuilderImpl::belongs_to(
+    const std::shared_ptr<const BuilderOwnerToken>& owner) const noexcept
 {
     const auto builder_owner = owner_.lock();
     return builder_owner != nullptr && builder_owner == owner;
 }
 
 OpeningCallMessageBuilderImpl::OpeningCallMessageBuilderImpl(const std::uint64_t stream_id,
-                                                             std::weak_ptr<const void> owner)
+                                                             std::weak_ptr<const BuilderOwnerToken> owner)
     : message_(stream_id), owner_(std::move(owner))
 {
 }
@@ -203,7 +204,7 @@ const CallMessage& OpeningCallMessageBuilderImpl::message() const noexcept
 }
 
 bool OpeningCallMessageBuilderImpl::belongs_to(
-    const std::shared_ptr<const void>& owner) const noexcept
+    const std::shared_ptr<const BuilderOwnerToken>& owner) const noexcept
 {
     const auto builder_owner = owner_.lock();
     return builder_owner != nullptr && builder_owner == owner;
