@@ -220,31 +220,13 @@ interface::Result<std::unique_ptr<interface::CallMessageView>> ContextState::rec
     const auto deadline = make_deadline(timeout);
     while (!is_closed())
     {
-        auto read = stream_registry_.take_call_message(stream_id);
-        if (read.result == CallMessageResult::Message)
+        if (auto message = take_call_message_or_dispatch(stream_id))
         {
-            return interface::Result<std::unique_ptr<interface::CallMessageView>>::success(
-                std::move(read.message));
+            return std::move(*message);
         }
-        if (read.result == CallMessageResult::PeerClosed)
-        {
-            return interface::Result<std::unique_ptr<interface::CallMessageView>>::failure(
-                interface::OperationStatus::PeerClosed);
-        }
-        if (!dispatch_available_inbound_messages())
+        if (is_closed())
         {
             break;
-        }
-        read = stream_registry_.take_call_message(stream_id);
-        if (read.result == CallMessageResult::Message)
-        {
-            return interface::Result<std::unique_ptr<interface::CallMessageView>>::success(
-                std::move(read.message));
-        }
-        if (read.result == CallMessageResult::PeerClosed)
-        {
-            return interface::Result<std::unique_ptr<interface::CallMessageView>>::failure(
-                interface::OperationStatus::PeerClosed);
         }
         const auto event = wait_for_background_event(deadline);
         if (!event)
@@ -471,6 +453,32 @@ bool ContextState::dispatch_available_inbound_messages()
         }
     }
     return !is_closed();
+}
+
+std::optional<interface::Result<std::unique_ptr<interface::CallMessageView>>>
+ContextState::take_call_message_or_dispatch(const std::uint64_t stream_id)
+{
+    auto read = stream_registry_.take_call_message(stream_id);
+    if (read.result == CallMessageResult::Empty)
+    {
+        if (!dispatch_available_inbound_messages())
+        {
+            return std::nullopt;
+        }
+        read = stream_registry_.take_call_message(stream_id);
+    }
+    switch (read.result)
+    {
+        case CallMessageResult::Message:
+            return interface::Result<std::unique_ptr<interface::CallMessageView>>::success(
+                std::move(read.message));
+        case CallMessageResult::PeerClosed:
+            return interface::Result<std::unique_ptr<interface::CallMessageView>>::failure(
+                interface::OperationStatus::PeerClosed);
+        case CallMessageResult::Empty:
+            return std::nullopt;
+    }
+    return std::nullopt;
 }
 
 std::optional<BackgroundThreadResult> ContextState::wait_for_background_event(
