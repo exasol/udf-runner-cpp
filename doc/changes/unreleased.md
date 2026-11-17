@@ -8,6 +8,7 @@ n/a
 ## Features / Enhancements
 
  - #132: Implemented v2 stream registry, context dispatch, and call/control stream state
+ - #109: Added v2 stream management specification
  - #119: Added transport-neutral v2 connection acceptance with Unix socket support
  - #86: Added a RAII Linux epoll abstraction with injectable POSIX operations
  - #90: Added an injectable POSIX API wrapper for Unix-domain socket operations
