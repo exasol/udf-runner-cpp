@@ -596,8 +596,8 @@ namespace
 
     TEST(ContextImplTest, RetainsBuilderOwnershipWhenBackgroundRejectsCallMessage)
     {
-        auto background = std::make_unique<FakeBackgroundThread>();
-        background->set_reject_outbound(true);
+        auto background      = std::make_unique<FakeBackgroundThread>();
+        auto* background_ptr = background.get();
         ContextImpl context{
             std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
         auto opening = context.create_opening_call_message_builder();
@@ -608,6 +608,7 @@ namespace
 
         auto builder = (*opened.value)->create_message_builder();
         ASSERT_NE(builder, nullptr);
+        background_ptr->set_reject_outbound(true);
         auto result = (*opened.value)->send(std::move(builder));
 
         EXPECT_EQ(result.status, interface::OperationStatus::TransportError);
