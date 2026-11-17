@@ -7,7 +7,7 @@ n/a
 
 ## Features / Enhancements
 
- - #139: Defined a v2 thread abstraction and factory for standard and database-managed background threads
+ - #139: Defined a v2 thread abstraction and factory for background threads
  - #119: Added transport-neutral v2 connection acceptance with Unix socket support
  - #86: Added a RAII Linux epoll abstraction with injectable POSIX operations
  - #90: Added an injectable POSIX API wrapper for Unix-domain socket operations

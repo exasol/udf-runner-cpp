@@ -83,7 +83,7 @@ the descriptor according to the documented ownership handoff.
 ### ThreadFactory
 
 `ThreadFactory` creates the Internal `Thread` used by a context's background I/O loop. The composition root chooses a
-standard-library implementation for standalone v2 builds or a database-runtime implementation for database builds.
+thread implementation appropriate for the selected build environment.
 Neither implementation detail leaks into the worker-facing API or protocol context. The lifecycle and build-boundary
 contract is defined in [thread_factory_design.md](thread_factory_design.md).
 

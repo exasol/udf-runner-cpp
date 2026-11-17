@@ -2,12 +2,12 @@
 
 ## Purpose
 
-The runner needs background execution without depending directly on either
-`std::thread` or the database thread-management runtime. This design defines
-an Internal-namespace `Thread` abstraction and a factory that creates it from
-a task. Context and other runner internals depend on this contract, while the
-composition root selects the appropriate implementation for the build
-environment.
+The runner needs background execution without depending directly on
+`std::thread`, so another thread runtime can be selected when needed. This
+design defines an Internal-namespace `Thread` abstraction and a factory that
+creates it from a task. Context and other runner internals depend on this
+contract, while the composition root selects the appropriate implementation
+for the build environment.
 
 The abstraction represents one execution of one task. It is not a worker pool,
 a cancellation mechanism, or a general executor.
@@ -103,58 +103,54 @@ an unjoined started thread is a programming error.
 ### Standard implementation
 
 The standalone v2 implementation creates a `std::thread` when `start()` is
-called. Because the standard library has no timed join, the adapter records
-task completion under a mutex and notifies a condition variable. A timed
-join waits on that completion state; after completion it performs the native
-`std::thread::join()` exactly once. It serializes concurrent join callers
-before invoking the native operation.
+called. Because the standard library has no timed join, the adapter owns a
+completion flag, mutex, and condition variable. After the task returns, its
+thread function sets the completion flag while holding the mutex and then
+notifies the condition variable. A join operation waits on that condition
+variable with the completion flag as its predicate. After observing completion,
+exactly one join caller invokes native `std::thread::join()`; the adapter
+serializes concurrent join callers around that operation.
+
+```text
+thread function:
+    task()
+    lock completion mutex
+    set completed = true
+    unlock completion mutex
+    completion condition variable.notify_all()
+
+join_for/join_until:
+    wait for completed predicate until the requested deadline
+    if the wait times out: return false
+    claim responsibility for the native join, or wait for another caller to finish it
+    perform native join once without holding the completion mutex
+    publish joined = true and notify waiting join callers
+    return true
+```
+
+The completion notification is separate from the native join: it makes a
+timed wait possible without polling or attempting a native join before task
+completion. A timeout leaves the completion flag unchanged and the native
+thread joinable. `join_for()` and `join_until()` therefore wait for the same
+predicate and differ only in how they establish their deadline.
+
+The completion predicate must be read and written while holding its mutex, so
+a notification that occurs before a join starts waiting is not lost. The same
+state protects the one native-join transition. A caller that loses the claim
+to perform the native join waits for `joined` under its own deadline rather
+than calling `std::thread::join()` concurrently.
 
 The adapter does not catch task exceptions. It preserves the native
 `std::thread` failure behavior for an exception escaping a task.
-
-### Database implementation
-
-The database-only implementation creates an internal subclass of
-`Threads::Thread`. Its `run()` implementation invokes the stored `ThreadTask`:
-
-```cpp
-class DatabaseThread final : public Threads::Thread {
-private:
-    void run() override
-    {
-        this->task();
-    }
-
-    ThreadTask task;
-};
-```
-
-It uses `Threads::Thread::start()` to schedule the task through the database
-thread-management runtime. `join_for()` calculates one common deadline and
-delegates to `join_until()`. The database adapter calculates the remaining
-duration before every database join wait and converts that value to the
-database millisecond timeout. Sub-millisecond positive durations are rounded
-up to one millisecond so the adapter does not time out early solely through
-unit conversion. Durations exceeding the database timeout's representable
-range are waited in successive bounded intervals while the original common
-deadline remains in effect.
-
-The adapter never requests `delete_after_execution`: the factory caller owns
-the wrapper through `std::unique_ptr<Thread>`, and database auto-deletion
-would leave that owner dangling. The adapter also enforces the common
-single-start, self-join, destruction, and concurrent-join rules rather than
-exposing the database type's differing lifecycle behavior. The database
-implementation is built only in the database integration; the standalone Bazel
-module must not include database headers or libraries.
 
 ## Context integration
 
 `ContextManager` receives the selected `ThreadFactory` during composition and
 uses it to create each context's background I/O thread. The context retains the
-returned `Thread`, starts it only after its queues and transport-side state are
-ready, requests background shutdown through its existing control path, and
-joins it before releasing queues, socket state, or storage arenas. The factory
-does not change the worker-facing `Context` contract or the protocol.
+returned `Thread`. The precise construction order remains an implementation
+detail, but the context must request shutdown and successfully join the thread
+before releasing state the task may access. The factory does not change the
+worker-facing `Context` contract or the protocol.
 
 ## Tests and integration
 
@@ -169,12 +165,8 @@ does not change the worker-facing `Context` contract or the protocol.
   and self-join.
 - Test the standard implementation with deterministic task gates rather than
   scheduler-dependent sleeps.
-- Test the database adapter in its database build: it invokes the task through
-  `Threads::Thread`, converts relative and absolute waits to millisecond
-  timeouts without enabling auto-deletion, and preserves the common lifecycle
-  contract.
-- Keep the standalone v2 Bazel targets independent of database headers and
-  libraries.
+- Test that task completion wakes an indefinite join and a timed join, while a
+  timeout leaves the task joinable for a later successful join.
 
 ## Assumptions
 
