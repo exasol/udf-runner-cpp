@@ -289,6 +289,36 @@ namespace
                   DispatchResult::ProtocolError);
     }
 
+    TEST(StreamRegistryTest, TracksPendingCallMessagesAcrossReadsAndCleanup)
+    {
+        StreamRegistry registry{EndpointRole::Client};
+        EXPECT_FALSE(registry.has_any_pending_message());
+
+        ASSERT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(2, true)),
+                  DispatchResult::Routed);
+        ASSERT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(2)),
+                  DispatchResult::Routed);
+        ASSERT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(4, true)),
+                  DispatchResult::Routed);
+        EXPECT_TRUE(registry.has_any_pending_message());
+
+        EXPECT_EQ(registry.take_call_message(2).result, CallMessageResult::Message);
+        EXPECT_TRUE(registry.has_any_pending_message());
+        EXPECT_EQ(registry.take_call_message(2).result, CallMessageResult::Message);
+        EXPECT_TRUE(registry.has_any_pending_message());
+        EXPECT_EQ(registry.take_call_message(4).result, CallMessageResult::Message);
+        EXPECT_FALSE(registry.has_any_pending_message());
+
+        ASSERT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(6, true)),
+                  DispatchResult::Routed);
+        ASSERT_EQ(registry.dispatch(std::make_unique<FakeControlMessageView>(0)),
+                  DispatchResult::Routed);
+        registry.discard_call_streams();
+        EXPECT_TRUE(registry.has_any_pending_message());
+        EXPECT_NE(registry.take_control_message(), nullptr);
+        EXPECT_FALSE(registry.has_any_pending_message());
+    }
+
     TEST(StreamRegistryTest, EnforcesLocalCloseState)
     {
         StreamRegistry registry{EndpointRole::Client};
