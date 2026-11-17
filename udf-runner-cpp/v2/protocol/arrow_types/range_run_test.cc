@@ -166,13 +166,16 @@ namespace
         EXPECT_FALSE(RangeRunType::Make(arrow::run_end_encoded(arrow::int64(), arrow::int64()), 1,
                                         make_int64({1}), make_int64({10}))
                          .ok());
-        EXPECT_FALSE(RangeRunType::Make(1, make_int32({1}), make_uint64({10})).ok());
+        const auto inferred_wrong_type = RangeRunType::Make(1, make_int32({1}), make_uint64({10}));
+        ASSERT_FALSE(inferred_wrong_type.ok());
+        EXPECT_EQ(inferred_wrong_type.status().message(),
+                  "expected RunEndEncoded<int64, uint64> storage");
         EXPECT_FALSE(RangeRunType::Make(1, make_int64({1}), make_int64({10})).ok());
         EXPECT_FALSE(
             RangeRunType::Make(type.storage_type(), 1, make_int32({1}), make_uint64({10})).ok());
     }
 
-    TEST(RangeRunTest, MakeRejectsInvalidChildren)
+    TEST(RangeRunTest, MakeRejectsNullArguments)
     {
         const auto ends   = make_int64({2});
         const auto values = make_uint64({10});
@@ -182,22 +185,44 @@ namespace
         RangeRunType type;
         EXPECT_FALSE(RangeRunType::Make(type.storage_type(), 2, nullptr, values).ok());
         EXPECT_FALSE(RangeRunType::Make(type.storage_type(), 2, ends, nullptr).ok());
-        EXPECT_FALSE(RangeRunType::Make(2, make_int64({2, 2}), make_uint64({10, 20})).ok());
-        EXPECT_FALSE(
-            RangeRunType::Make(2, ends, make_uint64({std::numeric_limits<std::uint64_t>::max()}))
-                .ok());
+    }
 
+    TEST(RangeRunTest, MakeRejectsNonIncreasingRunEnds)
+    {
+        const auto invalid_ends = RangeRunType::Make(2, make_int64({2, 2}), make_uint64({10, 20}));
+        ASSERT_FALSE(invalid_ends.ok());
+        EXPECT_NE(invalid_ends.status().message().find("strictly greater"), std::string::npos);
+    }
+
+    TEST(RangeRunTest, MakeRejectsValueOverflow)
+    {
+        const auto overflow = RangeRunType::Make(
+            2, make_int64({2}), make_uint64({std::numeric_limits<std::uint64_t>::max()}));
+        ASSERT_FALSE(overflow.ok());
+        EXPECT_EQ(overflow.status().message(), "range_run exceeds uint64 values");
+    }
+
+    TEST(RangeRunTest, MakeRejectsNullValues)
+    {
         arrow::UInt64Builder builder;
         ASSERT_TRUE(builder.AppendNull().ok());
         std::shared_ptr<arrow::Array> null_value;
         ASSERT_TRUE(builder.Finish(&null_value).ok());
-        EXPECT_FALSE(RangeRunType::Make(1, make_int64({1}), null_value).ok());
+        const auto null_values = RangeRunType::Make(1, make_int64({1}), null_value);
+        ASSERT_FALSE(null_values.ok());
+        EXPECT_EQ(null_values.status().message(), "range_run children must not contain nulls");
+    }
 
+    TEST(RangeRunTest, MakeRejectsNullRunEnd)
+    {
         arrow::Int64Builder ends_builder;
         ASSERT_TRUE(ends_builder.AppendNull().ok());
         std::shared_ptr<arrow::Array> null_end;
         ASSERT_TRUE(ends_builder.Finish(&null_end).ok());
-        EXPECT_FALSE(RangeRunType::Make(1, null_end, make_uint64({10})).ok());
+        const auto null_ends = RangeRunType::Make(1, null_end, make_uint64({10}));
+        ASSERT_FALSE(null_ends.ok());
+        EXPECT_NE(null_ends.status().message().find("Null count must be 0 for run ends array"),
+                  std::string::npos);
     }
 
     TEST(RangeRunTest, ExpandsOverlappingConsecutiveRanges)

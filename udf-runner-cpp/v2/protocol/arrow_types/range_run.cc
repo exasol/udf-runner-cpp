@@ -36,7 +36,7 @@ namespace
             return arrow::Status::Invalid("expected RunEndEncoded<int64, uint64> storage");
         }
         ARROW_RETURN_NOT_OK(storage->ValidateFull());
-        if (storage->run_ends()->null_count() != 0 || storage->values()->null_count() != 0)
+        if (storage->values()->null_count() != 0)
         {
             return arrow::Status::Invalid("range_run children must not contain nulls");
         }
@@ -45,11 +45,7 @@ namespace
         std::int64_t previous_end = 0;
         for (std::int64_t run = 0; run < ends.length(); ++run)
         {
-            const auto end = ends.Value(run);
-            if (end <= previous_end)
-            {
-                return arrow::Status::Invalid("range_run ends must increase");
-            }
+            const auto end   = ends.Value(run);
             const auto count = static_cast<std::uint64_t>(end - previous_end);
             if (starts.Value(run) > std::numeric_limits<std::uint64_t>::max() - (count - 1))
             {
