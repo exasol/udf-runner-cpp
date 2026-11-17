@@ -15,7 +15,7 @@ StreamRegistry::StreamRegistry(const EndpointRole endpoint_role)
 
 std::optional<std::uint64_t> StreamRegistry::reserve_local_stream_id()
 {
-    if (!next_local_stream_id_)
+    if (!next_local_stream_id_.has_value())
     {
         return std::nullopt;
     }
@@ -42,7 +42,7 @@ bool StreamRegistry::register_local_call(const std::uint64_t stream_id,
         return false;
     }
 
-    active_calls_.emplace(stream_id, CallState{.local_close_accepted = local_close_accepted});
+    active_calls_.try_emplace(stream_id, CallState{.local_close_accepted = local_close_accepted});
     return true;
 }
 
@@ -56,7 +56,7 @@ void StreamRegistry::rollback_local_call(const std::uint64_t stream_id) noexcept
     }
 }
 
-DispatchResult StreamRegistry::dispatch(InboundMessage&& message)
+DispatchResult StreamRegistry::dispatch(InboundMessage message)
 {
     if (auto* control_message =
             std::get_if<std::unique_ptr<interface::ControlMessageView>>(&message))
@@ -75,17 +75,19 @@ DispatchResult StreamRegistry::dispatch(InboundMessage&& message)
 DispatchResult StreamRegistry::dispatch_control_message(
     std::unique_ptr<interface::ControlMessageView> message)
 {
+    using enum DispatchResult;
+
     if (message == nullptr || message->stream_id() != 0)
     {
-        return DispatchResult::ProtocolError;
+        return ProtocolError;
     }
     if (message->close_connection() != nullptr)
     {
         control_pending_.push_back(std::move(message));
-        return DispatchResult::ConnectionShutdown;
+        return ConnectionShutdown;
     }
     control_pending_.push_back(std::move(message));
-    return DispatchResult::Routed;
+    return Routed;
 }
 
 DispatchResult StreamRegistry::dispatch_call_message(
@@ -134,6 +136,8 @@ DispatchResult StreamRegistry::dispatch_call_message_for_existing_call(
 DispatchResult StreamRegistry::dispatch_call_message_for_new_call(
     std::unique_ptr<interface::CallMessageView> message)
 {
+    using enum DispatchResult;
+
     const auto stream_id  = message->stream_id();
     const bool is_opening = message->open_call() != nullptr;
     const bool is_closing = message->close_call() != nullptr;
@@ -144,28 +148,28 @@ DispatchResult StreamRegistry::dispatch_call_message_for_new_call(
         // also receive delayed peer traffic.
         if (is_opening || stream_id > local_high_water_mark_)
         {
-            return DispatchResult::ProtocolError;
+            return ProtocolError;
         }
-        return DispatchResult::Discarded;
+        return Discarded;
     }
 
     if (stream_id <= peer_high_water_mark_)
     {
-        return is_opening ? DispatchResult::ProtocolError : DispatchResult::Discarded;
+        return is_opening ? ProtocolError : Discarded;
     }
     if (!is_opening)
     {
-        return DispatchResult::ProtocolError;
+        return ProtocolError;
     }
 
     peer_high_water_mark_ = stream_id;
     CallState state;
     state.peer_close_received = is_closing;
     state.pending_messages.push_back(std::move(message));
-    active_calls_.emplace(stream_id, std::move(state));
+    active_calls_.try_emplace(stream_id, std::move(state));
     ++pending_call_message_count_;
     unaccepted_call_ids_.push_back(stream_id);
-    return DispatchResult::Routed;
+    return Routed;
 }
 
 bool StreamRegistry::has_unaccepted_call() const noexcept
@@ -192,13 +196,14 @@ bool StreamRegistry::has_any_pending_message() const noexcept
 interface::MessageStatus StreamRegistry::call_receive_status(
     const std::uint64_t stream_id) const noexcept
 {
+    using enum interface::MessageStatus;
+
     const auto call = active_calls_.find(stream_id);
     if (call == active_calls_.end())
     {
-        return interface::MessageStatus::PeerClosed;
+        return PeerClosed;
     }
-    return call->second.pending_messages.empty() ? interface::MessageStatus::NoMessage
-                                                 : interface::MessageStatus::MessageAvailable;
+    return call->second.pending_messages.empty() ? NoMessage : MessageAvailable;
 }
 
 interface::MessageStatus StreamRegistry::control_receive_status() const noexcept
@@ -222,8 +227,7 @@ CallMessageRead StreamRegistry::take_call_message(const std::uint64_t stream_id)
     auto message = std::move(call->second.pending_messages.front());
     call->second.pending_messages.pop_front();
     --pending_call_message_count_;
-    const bool is_closing = message->close_call() != nullptr;
-    if (is_closing)
+    if (const bool is_closing = message->close_call() != nullptr; is_closing)
     {
         active_calls_.erase(call);
     }
@@ -244,13 +248,14 @@ std::unique_ptr<interface::ControlMessageView> StreamRegistry::take_control_mess
 interface::OperationStatus StreamRegistry::call_send_status(
     const std::uint64_t stream_id) const noexcept
 {
+    using enum interface::OperationStatus;
+
     const auto call = active_calls_.find(stream_id);
     if (call == active_calls_.end() || call->second.peer_close_received)
     {
-        return interface::OperationStatus::PeerClosed;
+        return PeerClosed;
     }
-    return call->second.local_close_accepted ? interface::OperationStatus::ProtocolError
-                                             : interface::OperationStatus::Ok;
+    return call->second.local_close_accepted ? ProtocolError : Ok;
 }
 
 bool StreamRegistry::mark_local_close_accepted(const std::uint64_t stream_id) noexcept

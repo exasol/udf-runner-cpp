@@ -129,6 +129,8 @@ namespace
     class ForeignCallMessageBuilder final : public interface::CallMessageBuilder
     {
     public:
+        using interface::CallMessageBuilderBase::add_payload;
+
         interface::CallMessageBuilderBase& add_payload(const std::string_view name,
                                                        const std::string_view value,
                                                        const bool binary) override
@@ -175,6 +177,8 @@ namespace
     class ForeignControlMessageBuilder final : public interface::ControlMessageBuilder
     {
     public:
+        using interface::ControlMessageBuilder::add_payload;
+
         interface::ControlMessageBuilder& server_capabilities(
             const std::uint32_t major,
             const std::uint32_t minor,
@@ -219,6 +223,8 @@ namespace
         [[nodiscard]] BackgroundThreadResult wait_until(
             const std::optional<std::chrono::steady_clock::time_point> deadline) override
         {
+            using enum Event;
+
             last_deadline_ = deadline;
             if (next_wait_result_)
             {
@@ -228,13 +234,13 @@ namespace
             }
             if (!inbound_.empty())
             {
-                return {.event = Event::InboundAvailable};
+                return {.event = InboundAvailable};
             }
             if (deadline)
             {
-                return {.event = Event::DeadlineExpired};
+                return {.event = DeadlineExpired};
             }
-            return {.event = Event::ShutdownRequested};
+            return {.event = ShutdownRequested};
         }
         bool enqueue_outbound_messages(OutboundBatch& messages) override
         {
@@ -310,11 +316,11 @@ namespace
 
     TEST(ContextStateTest, UsesInjectedClockToCreateDeadlineWithoutSleeping)
     {
-        using Clock          = std::chrono::steady_clock;
-        const auto now       = Clock::time_point{std::chrono::seconds{123}};
-        const auto timeout   = std::chrono::seconds{5};
-        auto background      = std::make_unique<FakeBackgroundThread>();
-        auto* background_ptr = background.get();
+        using Clock                = std::chrono::steady_clock;
+        const auto now             = Clock::time_point{std::chrono::seconds{123}};
+        const auto timeout         = std::chrono::seconds{5};
+        auto background            = std::make_unique<FakeBackgroundThread>();
+        const auto* background_ptr = background.get();
         ContextState context_state{EndpointRole::Client, std::move(background),
                                    [now] { return now; }};
 
@@ -476,8 +482,8 @@ namespace
 
     TEST(ContextImplTest, SendOverloadsAcceptMessagesAndZeroTimeoutReceiveReturnsTimedOut)
     {
-        auto background      = std::make_unique<FakeBackgroundThread>();
-        auto* background_ptr = background.get();
+        auto background            = std::make_unique<FakeBackgroundThread>();
+        const auto* background_ptr = background.get();
         ContextImpl context{
             std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
         auto opening = context.create_opening_call_message_builder();
@@ -590,8 +596,8 @@ namespace
 
     TEST(ContextImplTest, RetainsBuilderOwnershipWhenBackgroundRejectsCallMessage)
     {
-        auto background      = std::make_unique<FakeBackgroundThread>();
-        auto* background_ptr = background.get();
+        auto background = std::make_unique<FakeBackgroundThread>();
+        background->set_reject_outbound(true);
         ContextImpl context{
             std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
         auto opening = context.create_opening_call_message_builder();
@@ -602,7 +608,6 @@ namespace
 
         auto builder = (*opened.value)->create_message_builder();
         ASSERT_NE(builder, nullptr);
-        background_ptr->set_reject_outbound(true);
         auto result = (*opened.value)->send(std::move(builder));
 
         EXPECT_EQ(result.status, interface::OperationStatus::TransportError);
@@ -611,15 +616,13 @@ namespace
 
     TEST(ContextImplTest, RetainsOpeningBuilderWhenBackgroundRejectsIt)
     {
-        auto background      = std::make_unique<FakeBackgroundThread>();
-        auto* background_ptr = background.get();
+        auto background = std::make_unique<FakeBackgroundThread>();
+        background->set_reject_outbound(true);
         ContextImpl context{
             std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
         auto opening = context.create_opening_call_message_builder();
         ASSERT_NE(opening, nullptr);
         opening->open_call("test");
-        background_ptr->set_reject_outbound(true);
-
         const auto result = context.open_call(std::move(opening));
 
         EXPECT_EQ(result.status, interface::OperationStatus::TransportError);
@@ -630,7 +633,7 @@ namespace
     {
         auto background = std::make_unique<FakeBackgroundThread>();
         background->push_inbound(std::make_unique<FakeControlMessageView>(0, true));
-        auto* background_ptr = background.get();
+        const auto* background_ptr = background.get();
         ContextImpl context{
             std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
 
@@ -668,8 +671,8 @@ namespace
 
     TEST(ContextStateTest, CreatesAndSendsControlMessagesUntilConnectionClose)
     {
-        auto background      = std::make_unique<FakeBackgroundThread>();
-        auto* background_ptr = background.get();
+        auto background            = std::make_unique<FakeBackgroundThread>();
+        const auto* background_ptr = background.get();
         ContextState state{EndpointRole::Client, std::move(background)};
 
         auto message = state.create_control_message_builder();

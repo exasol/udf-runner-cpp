@@ -50,7 +50,7 @@ public:
     [[nodiscard]] bool register_local_call(std::uint64_t stream_id, bool local_close_accepted);
     void rollback_local_call(std::uint64_t stream_id) noexcept;
 
-    [[nodiscard]] DispatchResult dispatch(InboundMessage&& message);
+    [[nodiscard]] DispatchResult dispatch(InboundMessage message);
 
     [[nodiscard]] bool has_unaccepted_call() const noexcept;
     [[nodiscard]] std::optional<std::uint64_t> take_next_unaccepted_call();

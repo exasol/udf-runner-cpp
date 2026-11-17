@@ -36,7 +36,7 @@ ContextState::create_opening_call_message_builder()
         return nullptr;
     }
     const auto stream_id = stream_registry_.reserve_local_stream_id();
-    if (!stream_id)
+    if (!stream_id.has_value())
     {
         return nullptr;
     }
@@ -68,7 +68,8 @@ interface::Result<std::uint64_t> ContextState::accept_call()
 {
     while (!is_closed())
     {
-        if (const auto stream_id = stream_registry_.take_next_unaccepted_call())
+        if (const auto stream_id = stream_registry_.take_next_unaccepted_call();
+            stream_id.has_value())
         {
             return interface::Result<std::uint64_t>::success(*stream_id);
         }
@@ -76,7 +77,8 @@ interface::Result<std::uint64_t> ContextState::accept_call()
         {
             break;
         }
-        if (const auto stream_id = stream_registry_.take_next_unaccepted_call())
+        if (const auto stream_id = stream_registry_.take_next_unaccepted_call();
+            stream_id.has_value())
         {
             return interface::Result<std::uint64_t>::success(*stream_id);
         }
@@ -172,7 +174,7 @@ interface::MessageStatus ContextState::wait_for_message(const interface::Timeout
     {
         if (!dispatch_available_inbound_messages())
         {
-            break;
+            return message_status_for_terminal();
         }
         if (stream_registry_.has_any_pending_message())
         {
@@ -181,7 +183,7 @@ interface::MessageStatus ContextState::wait_for_message(const interface::Timeout
         const auto event = wait_for_background_event(deadline);
         if (!event)
         {
-            break;
+            return message_status_for_terminal();
         }
         if (event->event == Event::DeadlineExpired)
         {
@@ -226,12 +228,14 @@ interface::Result<std::unique_ptr<interface::CallMessageView>> ContextState::rec
         }
         if (is_closed())
         {
-            break;
+            return interface::Result<std::unique_ptr<interface::CallMessageView>>::failure(
+                operation_status_for_terminal(), terminal_error_);
         }
         const auto event = wait_for_background_event(deadline);
         if (!event)
         {
-            break;
+            return interface::Result<std::unique_ptr<interface::CallMessageView>>::failure(
+                operation_status_for_terminal(), terminal_error_);
         }
         if (event->event == Event::DeadlineExpired)
         {
@@ -271,7 +275,8 @@ ContextState::receive_control_message(const interface::Timeout timeout)
         }
         if (is_closed())
         {
-            break;
+            return interface::Result<std::unique_ptr<interface::ControlMessageView>>::failure(
+                operation_status_for_terminal(), terminal_error_);
         }
         if (!dispatch_available_inbound_messages())
         {
@@ -279,7 +284,8 @@ ContextState::receive_control_message(const interface::Timeout timeout)
             {
                 return std::move(*message);
             }
-            break;
+            return interface::Result<std::unique_ptr<interface::ControlMessageView>>::failure(
+                operation_status_for_terminal(), terminal_error_);
         }
         if (auto message = take_control_message())
         {
@@ -288,7 +294,8 @@ ContextState::receive_control_message(const interface::Timeout timeout)
         const auto event = wait_for_background_event(deadline);
         if (!event)
         {
-            break;
+            return interface::Result<std::unique_ptr<interface::ControlMessageView>>::failure(
+                operation_status_for_terminal(), terminal_error_);
         }
         if (event->event == Event::DeadlineExpired)
         {
@@ -371,7 +378,7 @@ interface::Result<void> ContextState::send_control_message(
             interface::OperationStatus::ProtocolError,
             protocol_error("Cannot send a null control message"));
     }
-    auto* implementation = dynamic_cast<ControlMessageBuilderImpl*>(message.get());
+    const auto* implementation = dynamic_cast<ControlMessageBuilderImpl*>(message.get());
     if (implementation == nullptr || !implementation->belongs_to(builder_owner_token_) ||
         implementation->message().stream_id() != 0)
     {
@@ -380,8 +387,8 @@ interface::Result<void> ContextState::send_control_message(
             protocol_error("Control message builder is not bound to stream zero"));
     }
     const bool closes_connection = implementation->message().is_close_connection();
-    OutboundMessage outbound{std::move(message)};
-    if (!background_thread_->enqueue_outbound_message(outbound))
+    if (OutboundMessage outbound{std::move(message)};
+        !background_thread_->enqueue_outbound_message(outbound))
     {
         auto rejected =
             std::move(std::get<std::unique_ptr<interface::ControlMessageBuilder>>(outbound));
