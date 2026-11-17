@@ -185,6 +185,10 @@ interface::MessageStatus ContextState::wait_for_message(const interface::Timeout
 
 interface::MessageStatus ContextState::call_receive_status(const std::uint64_t stream_id)
 {
+    if (peer_close_pending_delivery_)
+    {
+        return interface::MessageStatus::ContextClosed;
+    }
     if (!is_closed())
     {
         static_cast<void>(dispatch_available_inbound_messages());
@@ -252,22 +256,44 @@ interface::Result<std::unique_ptr<interface::CallMessageView>> ContextState::rec
 interface::Result<std::unique_ptr<interface::ControlMessageView>>
 ContextState::receive_control_message(const interface::Timeout timeout)
 {
-    const auto deadline = make_deadline(timeout);
-    while (!is_closed())
-    {
-        if (auto message = stream_registry_.take_control_message())
+    const auto deadline             = make_deadline(timeout);
+    const auto take_control_message = [this]()
+        -> std::optional<interface::Result<std::unique_ptr<interface::ControlMessageView>>> {
+        auto message = stream_registry_.take_control_message();
+        if (!message)
         {
-            return interface::Result<std::unique_ptr<interface::ControlMessageView>>::success(
-                std::move(message));
+            return std::nullopt;
         }
-        if (!dispatch_available_inbound_messages())
+        if (message->close_connection() != nullptr)
+        {
+            peer_close_pending_delivery_ = false;
+            mark_terminal(interface::OperationStatus::ContextClosed, {}, false);
+        }
+        return interface::Result<std::unique_ptr<interface::ControlMessageView>>::success(
+            std::move(message));
+    };
+
+    while (true)
+    {
+        if (auto message = take_control_message())
+        {
+            return std::move(*message);
+        }
+        if (is_closed())
         {
             break;
         }
-        if (auto message = stream_registry_.take_control_message())
+        if (!dispatch_available_inbound_messages())
         {
-            return interface::Result<std::unique_ptr<interface::ControlMessageView>>::success(
-                std::move(message));
+            if (auto message = take_control_message())
+            {
+                return std::move(*message);
+            }
+            break;
+        }
+        if (auto message = take_control_message())
+        {
+            return std::move(*message);
         }
         const auto event = wait_for_background_event(deadline);
         if (!event)
@@ -393,7 +419,7 @@ void ContextState::shutdown() noexcept
 
 bool ContextState::is_closed() const noexcept
 {
-    return terminal_status_.has_value();
+    return terminal_status_.has_value() || peer_close_pending_delivery_;
 }
 
 std::optional<ContextState::Clock::time_point> ContextState::make_deadline(
@@ -426,11 +452,12 @@ bool ContextState::dispatch_available_inbound_messages()
                 return false;
             case DispatchResult::ConnectionShutdown:
             {
+                peer_close_pending_delivery_ = true;
+                stream_registry_.discard_call_streams();
                 auto response = MessageBuilderFactory::create_control_builder();
                 response->close_connection();
                 OutboundMessage reply{std::move(response)};
                 static_cast<void>(background_thread_->enqueue_outbound_message(std::move(reply)));
-                mark_terminal(interface::OperationStatus::ContextClosed, {}, false);
                 return false;
             }
         }
@@ -464,6 +491,7 @@ void ContextState::mark_terminal(const interface::OperationStatus status,
         return;
     }
     terminal_status_.emplace(status);
+    peer_close_pending_delivery_ = false;
     if (error)
     {
         terminal_error_.emplace(std::move(*error));
@@ -477,6 +505,10 @@ void ContextState::mark_terminal(const interface::OperationStatus status,
 
 interface::MessageStatus ContextState::message_status_for_terminal() const noexcept
 {
+    if (peer_close_pending_delivery_)
+    {
+        return stream_registry_.control_receive_status();
+    }
     if (!terminal_status_)
     {
         return interface::MessageStatus::NoMessage;

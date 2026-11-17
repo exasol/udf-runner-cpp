@@ -78,6 +78,7 @@ private:
     std::optional<interface::OperationStatus> terminal_status_;
     std::optional<interface::ErrorInfo> terminal_error_;
     bool worker_close_accepted_{};
+    bool peer_close_pending_delivery_{};
 };
 
 } // namespace exasol::udf::v2::internal

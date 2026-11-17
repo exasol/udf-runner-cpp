@@ -64,6 +64,7 @@ public:
     [[nodiscard]] interface::OperationStatus call_send_status(
         std::uint64_t stream_id) const noexcept;
     [[nodiscard]] bool mark_local_close_accepted(std::uint64_t stream_id) noexcept;
+    void discard_call_streams() noexcept;
     void clear() noexcept;
 
     [[nodiscard]] EndpointRole endpoint_role() const noexcept;

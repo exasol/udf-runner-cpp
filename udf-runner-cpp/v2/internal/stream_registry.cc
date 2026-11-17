@@ -63,6 +63,7 @@ DispatchResult StreamRegistry::dispatch(InboundMessage&& message)
         }
         if ((*control_message)->close_connection() != nullptr)
         {
+            control_pending_.push_back(std::move(*control_message));
             return DispatchResult::ConnectionShutdown;
         }
         control_pending_.push_back(std::move(*control_message));
@@ -235,12 +236,17 @@ bool StreamRegistry::mark_local_close_accepted(const std::uint64_t stream_id) no
     return true;
 }
 
-void StreamRegistry::clear() noexcept
+void StreamRegistry::discard_call_streams() noexcept
 {
     active_calls_.clear();
     unaccepted_call_ids_.clear();
-    control_pending_.clear();
     opened_local_stream_ids_.clear();
+}
+
+void StreamRegistry::clear() noexcept
+{
+    discard_call_streams();
+    control_pending_.clear();
 }
 
 EndpointRole StreamRegistry::endpoint_role() const noexcept

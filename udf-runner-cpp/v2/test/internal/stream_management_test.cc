@@ -372,17 +372,21 @@ namespace
         EXPECT_NE(opening, nullptr);
     }
 
-    TEST(ContextImplTest, HandlesPeerConnectionCloseAsContextClosed)
+    TEST(ContextImplTest, DeliversPeerConnectionCloseOnceBeforeBecomingTerminal)
     {
         auto background = std::make_unique<FakeBackgroundThread>();
         background->push_inbound(std::make_unique<FakeControlMessageView>(0, true));
         auto* background_ptr = background.get();
         ContextImpl context{EndpointRole::Client, std::move(background)};
 
-        EXPECT_EQ(context.receive_status(), interface::MessageStatus::ContextClosed);
+        EXPECT_EQ(context.receive_status(), interface::MessageStatus::MessageAvailable);
         EXPECT_EQ(background_ptr->outbound_size(), 1);
-        EXPECT_EQ(context.control_stream().receive().status,
-                  interface::OperationStatus::ContextClosed);
+        auto& control_stream = context.control_stream();
+        EXPECT_EQ(control_stream.receive_status(), interface::MessageStatus::MessageAvailable);
+        auto close_message = control_stream.receive();
+        ASSERT_TRUE(close_message);
+        EXPECT_NE((*close_message.value)->close_connection(), nullptr);
+        EXPECT_EQ(control_stream.receive().status, interface::OperationStatus::ContextClosed);
     }
 
     TEST(ContextImplTest, RejectsBuildersCreatedByAnotherContextWithTheSameStreamId)
