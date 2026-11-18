@@ -250,52 +250,21 @@ interface::Result<std::unique_ptr<interface::CallMessageView>> ContextState::rec
 interface::Result<std::unique_ptr<interface::ControlMessageView>>
 ContextState::receive_control_message(const interface::Timeout timeout)
 {
-    const auto deadline             = make_deadline(timeout);
-    const auto take_control_message = [this]()
-        -> std::optional<interface::Result<std::unique_ptr<interface::ControlMessageView>>> {
-        auto message = stream_registry_.take_control_message();
-        if (!message)
-        {
-            return std::nullopt;
-        }
-        if (message->close_connection() != nullptr)
-        {
-            peer_close_pending_delivery_ = false;
-            mark_terminal(interface::OperationStatus::ContextClosed, {}, false);
-        }
-        return interface::Result<std::unique_ptr<interface::ControlMessageView>>::success(
-            std::move(message));
-    };
-
+    const auto deadline = make_deadline(timeout);
     while (true)
     {
-        if (auto message = take_control_message())
+        if (auto message = take_control_message_or_dispatch())
         {
             return std::move(*message);
         }
         if (is_closed())
         {
-            return interface::Result<std::unique_ptr<interface::ControlMessageView>>::failure(
-                operation_status_for_terminal(), terminal_error_);
-        }
-        if (!dispatch_available_inbound_messages())
-        {
-            if (auto message = take_control_message())
-            {
-                return std::move(*message);
-            }
-            return interface::Result<std::unique_ptr<interface::ControlMessageView>>::failure(
-                operation_status_for_terminal(), terminal_error_);
-        }
-        if (auto message = take_control_message())
-        {
-            return std::move(*message);
+            break;
         }
         const auto event = wait_for_background_event(deadline);
         if (!event)
         {
-            return interface::Result<std::unique_ptr<interface::ControlMessageView>>::failure(
-                operation_status_for_terminal(), terminal_error_);
+            break;
         }
         if (event->event == Event::DeadlineExpired)
         {
@@ -486,6 +455,35 @@ ContextState::take_call_message_or_dispatch(const std::uint64_t stream_id)
             return std::nullopt;
     }
     return std::nullopt;
+}
+
+std::optional<interface::Result<std::unique_ptr<interface::ControlMessageView>>>
+ContextState::take_control_message_or_dispatch()
+{
+    const auto take_control_message = [this]()
+        -> std::optional<interface::Result<std::unique_ptr<interface::ControlMessageView>>> {
+        auto message = stream_registry_.take_control_message();
+        if (!message)
+        {
+            return std::nullopt;
+        }
+        if (message->close_connection() != nullptr)
+        {
+            peer_close_pending_delivery_ = false;
+            mark_terminal(interface::OperationStatus::ContextClosed, {}, false);
+        }
+        return interface::Result<std::unique_ptr<interface::ControlMessageView>>::success(
+            std::move(message));
+    };
+
+    if (auto message = take_control_message())
+    {
+        return message;
+    }
+
+    // Dispatch may stop after queuing CloseConnection, which must still be delivered once.
+    static_cast<void>(dispatch_available_inbound_messages());
+    return take_control_message();
 }
 
 std::optional<BackgroundThreadResult> ContextState::wait_for_background_event(

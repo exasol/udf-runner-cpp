@@ -71,6 +71,8 @@ private:
     [[nodiscard]] bool dispatch_available_inbound_messages();
     [[nodiscard]] std::optional<interface::Result<std::unique_ptr<interface::CallMessageView>>>
     take_call_message_or_dispatch(std::uint64_t stream_id);
+    [[nodiscard]] std::optional<interface::Result<std::unique_ptr<interface::ControlMessageView>>>
+    take_control_message_or_dispatch();
     [[nodiscard]] std::optional<BackgroundThreadResult> wait_for_background_event(
         std::optional<Clock::time_point> deadline);
     void mark_terminal(interface::OperationStatus status,
