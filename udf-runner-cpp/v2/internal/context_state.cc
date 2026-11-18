@@ -259,12 +259,14 @@ ContextState::receive_control_message(const interface::Timeout timeout)
         }
         if (is_closed())
         {
-            break;
+            return interface::Result<std::unique_ptr<interface::ControlMessageView>>::failure(
+                operation_status_for_terminal(), terminal_error_);
         }
         const auto event = wait_for_background_event(deadline);
         if (!event)
         {
-            break;
+            return interface::Result<std::unique_ptr<interface::ControlMessageView>>::failure(
+                operation_status_for_terminal(), terminal_error_);
         }
         if (event->event == Event::DeadlineExpired)
         {
@@ -272,8 +274,6 @@ ContextState::receive_control_message(const interface::Timeout timeout)
                 interface::OperationStatus::TimedOut);
         }
     }
-    return interface::Result<std::unique_ptr<interface::ControlMessageView>>::failure(
-        operation_status_for_terminal(), terminal_error_);
 }
 
 interface::Result<void> ContextState::send_call_message(
