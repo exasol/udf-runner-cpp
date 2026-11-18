@@ -27,6 +27,8 @@ Arrow C Data Interface.
   notification, batching, and shutdown design.
 - [thread_factory_design.md](thread_factory_design.md) defines the internal thread abstraction used for background
   execution and its standard-library and database-runtime implementations.
+- [stream_management.md](stream_management.md) defines low-level context stream IDs, routing, pending-message
+  ownership, and close behavior.
 - [interface_class_diagram.md](interface_class_diagram.md) documents the abstract worker-facing interfaces and the
   high-level relationship between those interfaces, their implementations, and generated FlatBuffer objects.
 - [epoll_design.md](epoll_design.md) defines the Linux epoll abstraction and its registration ownership model.

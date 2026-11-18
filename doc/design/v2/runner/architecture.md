@@ -86,6 +86,8 @@ the descriptor according to the documented ownership handoff.
 thread implementation appropriate for the selected build environment.
 Neither implementation detail leaks into the worker-facing API or protocol context. The lifecycle and build-boundary
 contract is defined in [thread_factory_design.md](thread_factory_design.md).
+The endpoint role supplied during context construction is described in
+[context_implementation.md](context_implementation.md#endpoint-role-configuration).
 
 ### Context
 
