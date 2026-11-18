@@ -13,6 +13,6 @@ cc_library(
         "//:udf_protocol",
         "//:interface",
         "//:interface_internal",
-        "@googletest//:gmock",
+        "@googletest//:gtest",
     ],
 )
