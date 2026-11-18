@@ -89,6 +89,7 @@ private:
         std::unique_ptr<interface::CallMessageView> message);
     [[nodiscard]] bool has_local_endpoint_parity(std::uint64_t stream_id) const noexcept;
     EndpointRole endpoint_role_;
+    /// Empty when the local stream-ID space is exhausted; allocated IDs are never reused.
     std::optional<std::uint64_t> next_local_stream_id_;
     /// Number of queued messages across all active call streams.
     std::size_t pending_call_message_count_{};
