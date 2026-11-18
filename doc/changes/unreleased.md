@@ -7,6 +7,7 @@ n/a
 
 ## Features / Enhancements
 
+ - #73: Added v2 logging utilities with configurable severity levels and Debug-build traces
  - #134: Added v2 Arrow run-end and range-run helpers with lazy iterators, range-run slice support, and fuzz regressions
  - #109: Added v2 stream management specification
  - #119: Added transport-neutral v2 connection acceptance with Unix socket support

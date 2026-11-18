@@ -811,3 +811,31 @@ cc_test(
     ],
     target_compatible_with = ["@platforms//os:linux"],
 )
+
+cc_library(
+    name = "providers",
+    srcs = ["provider/logging_provider.cpp"],
+    hdrs = ["include/exasol/udf/v2/provider/logging_provider.h"],
+    copts = ["-std=c++23"],
+    includes = ["include"],
+)
+
+cc_library(
+    name = "logging_utils",
+    srcs = ["utils/log_utils.cpp"],
+    hdrs = ["include/exasol/udf/v2/utils/log_utils.h"],
+    copts = ["-std=c++23"],
+    includes = ["include"],
+    deps = [":providers"],
+)
+
+cc_test(
+    name = "logging_utils_test",
+    srcs = ["utils/log_utils_utest.cpp"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":logging_utils",
+        ":providers",
+        "@googletest//:gtest_main",
+    ],
+)
