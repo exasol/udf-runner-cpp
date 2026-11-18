@@ -514,7 +514,10 @@ namespace
                                interface::Timeout{std::chrono::steady_clock::duration::zero()}));
         EXPECT_EQ(background_ptr->outbound_size(), outbound_before_sends + 2);
 
-        EXPECT_EQ((*opened.value)->receive().status, interface::OperationStatus::TimedOut);
+        EXPECT_EQ((*opened.value)
+                      ->receive(interface::Timeout{std::chrono::steady_clock::duration::zero()})
+                      .status,
+                  interface::OperationStatus::TimedOut);
         EXPECT_EQ((*opened.value)->receive_status(), interface::MessageStatus::NoMessage);
         auto populated_builder = (*opened.value)->create_message_builder();
         ASSERT_NE(populated_builder, nullptr);
@@ -580,6 +583,22 @@ namespace
                   interface::OperationStatus::ContextClosed);
         EXPECT_EQ(call->create_message_builder(), nullptr);
         EXPECT_EQ(call->send(nullptr).status, interface::OperationStatus::ContextClosed);
+    }
+
+    TEST(CallImplTest, NoTimeoutReceiveWaitsIndefinitely)
+    {
+        auto background            = std::make_unique<FakeBackgroundThread>();
+        const auto* background_ptr = background.get();
+        ContextImpl context{
+            std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
+        auto opening = context.create_opening_call_message_builder();
+        ASSERT_NE(opening, nullptr);
+        opening->open_call("test");
+        auto opened = context.open_call(std::move(opening));
+        ASSERT_TRUE(opened);
+
+        EXPECT_EQ((*opened.value)->receive().status, interface::OperationStatus::Cancelled);
+        EXPECT_FALSE(background_ptr->last_deadline().has_value());
     }
 
     TEST(ControlStreamImplTest, ReportsContextClosedAfterStateExpires)

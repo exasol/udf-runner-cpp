@@ -136,9 +136,11 @@ Call {
 
 `Call::receive_status()` is non-blocking, observes only this call's stream, and never consumes a message.
 
-`Call::receive(timeout)` waits only for this call's stream. An omitted timeout means wait indefinitely. It returns the
-next complete call message, returns `TimedOut` when the timeout expires, and returns a terminal result for
-cancellation, peer closure, or connection failure.
+`Call::receive()` waits indefinitely for this call's next message or a terminal result. The timeout overload,
+`Call::receive(timeout)`, waits only for this call's stream for at most the supplied timeout. An empty timeout means
+wait indefinitely; a zero timeout polls and returns `TimedOut` when no message is ready. The operation returns the next
+complete call message, or a terminal result for cancellation, peer closure, or connection failure. Use
+`Call::receive_status()` to check readiness without consuming a message.
 
 The first successful `Call::receive()` returns the opening `CallMessageView`, including its `open_call` field and any
 payloads, `DataSchema`, `Reset`, `RecordBatch`, error, or close fields carried in the same protocol message. Subsequent

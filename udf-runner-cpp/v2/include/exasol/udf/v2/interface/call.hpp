@@ -25,9 +25,11 @@ public:
     [[nodiscard]] virtual MessageStatus receive_status() const = 0;
     /// Creates a builder bound to this call's stream.
     [[nodiscard]] virtual std::unique_ptr<CallMessageBuilder> create_message_builder() const = 0;
-    /// Receives the next message for this call without waiting.
+    /// Receives the next message for this call, waiting until a message or terminal result is
+    /// ready.
     [[nodiscard]] virtual Result<std::unique_ptr<CallMessageView>> receive() = 0;
-    /// Receives the next message for this call, optionally waiting up to `timeout`.
+    /// Receives the next message for this call, optionally waiting up to `timeout`. A zero timeout
+    /// returns immediately; an empty timeout waits indefinitely.
     [[nodiscard]] virtual Result<std::unique_ptr<CallMessageView>> receive(Timeout timeout) = 0;
     /// Sends one composite call message without waiting for flow-control permission.
     /// A successful result means the call accepted the message and ownership transferred. On
