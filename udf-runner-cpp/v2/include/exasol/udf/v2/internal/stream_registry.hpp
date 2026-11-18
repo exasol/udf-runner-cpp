@@ -91,8 +91,7 @@ private:
     EndpointRole endpoint_role_;
     /// Empty when the local stream-ID space is exhausted; allocated IDs are never reused.
     std::optional<std::uint64_t> next_local_stream_id_;
-    /// Number of queued messages across all active call streams.
-    std::size_t pending_call_message_count_{};
+    std::size_t total_queued_call_message_count_{};
     std::uint64_t local_high_water_mark_{};
     std::uint64_t peer_high_water_mark_{};
     std::unordered_map<std::uint64_t, CallState> active_calls_;

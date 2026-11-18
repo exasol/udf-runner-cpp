@@ -51,7 +51,7 @@ void StreamRegistry::rollback_local_call(const std::uint64_t stream_id) noexcept
     const auto call = active_calls_.find(stream_id);
     if (call != active_calls_.end())
     {
-        pending_call_message_count_ -= call->second.pending_messages.size();
+        total_queued_call_message_count_ -= call->second.pending_messages.size();
         active_calls_.erase(call);
     }
 }
@@ -125,7 +125,7 @@ DispatchResult StreamRegistry::dispatch_call_message_for_existing_call(
 
     const bool is_closing = message->close_call() != nullptr;
     call_state.pending_messages.push_back(std::move(message));
-    ++pending_call_message_count_;
+    ++total_queued_call_message_count_;
     if (is_closing)
     {
         call_state.peer_close_received = true;
@@ -167,7 +167,7 @@ DispatchResult StreamRegistry::dispatch_call_message_for_new_call(
     state.peer_close_received = is_closing;
     state.pending_messages.push_back(std::move(message));
     active_calls_.try_emplace(stream_id, std::move(state));
-    ++pending_call_message_count_;
+    ++total_queued_call_message_count_;
     unaccepted_call_ids_.push_back(stream_id);
     return Routed;
 }
@@ -190,7 +190,7 @@ std::optional<std::uint64_t> StreamRegistry::take_next_unaccepted_call()
 
 bool StreamRegistry::has_any_pending_message() const noexcept
 {
-    return !control_pending_.empty() || pending_call_message_count_ != 0;
+    return !control_pending_.empty() || total_queued_call_message_count_ != 0;
 }
 
 interface::MessageStatus StreamRegistry::call_receive_status(
@@ -226,7 +226,7 @@ CallMessageRead StreamRegistry::take_call_message(const std::uint64_t stream_id)
 
     auto message = std::move(call->second.pending_messages.front());
     call->second.pending_messages.pop_front();
-    --pending_call_message_count_;
+    --total_queued_call_message_count_;
     if (const bool is_closing = message->close_call() != nullptr; is_closing)
     {
         active_calls_.erase(call);
@@ -274,7 +274,7 @@ void StreamRegistry::discard_call_streams() noexcept
 {
     active_calls_.clear();
     unaccepted_call_ids_.clear();
-    pending_call_message_count_ = 0;
+    total_queued_call_message_count_ = 0;
 }
 
 void StreamRegistry::clear() noexcept
