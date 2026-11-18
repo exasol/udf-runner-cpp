@@ -6,6 +6,9 @@ This document describes the internal implementation of the worker-facing `Contex
 [context_interface.md](context_interface.md). It does not change the worker-facing API and does not expose queues,
 eventfds, sockets, or background threads to the worker.
 
+For the distinction between the cross-thread outbound queue and the background per-call send queue, and their
+respective roles in send-budget reconciliation, see [send_budget_reconciliation.md](send_budget_reconciliation.md).
+
 The context uses one background I/O thread and two one-producer/one-consumer queues:
 
 ```text

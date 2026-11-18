@@ -7,7 +7,7 @@ n/a
 
 ## Features / Enhancements
 
- - #129: Added RecordBatchSendQueueInterface
+ - #129: Added RecordBatchSendQueueInterface and documented send-budget reconciliation across the context handoff and background send queues
  - #86: Added a RAII Linux epoll abstraction with injectable POSIX operations
  - #90: Added an injectable POSIX API wrapper for Unix-domain socket operations
  - #71: Documented the v2 runner architecture, worker-facing context interface, and background I/O design
