@@ -91,9 +91,16 @@ the libFuzzer entry point `LLVMFuzzerTestOneInput` keeps its required spelling.
 - Write functional unit tests with GoogleTest `TEST` or `TEST_F` cases. Use
   `ASSERT_*` for prerequisites and `EXPECT_*` for independent checks; use
   `@googletest//:gtest_main` instead of a hand-written `main()`.
-- GoogleMock is available through the GoogleTest dependency. Use it only to
-  verify meaningful interactions with collaborators, callbacks, or failure
-  boundaries. Do not add production abstractions solely to create a mock.
+- GoogleMock is available through the GoogleTest dependency. Use it when a test
+  needs to verify calls, arguments, ordering, callbacks, or failure handling at
+  a collaborator boundary. Set expectations on the mock collaborator, then
+  invoke the real class under test. A test that only calls methods on a mock
+  and checks those expectations does not test production behavior; use a
+  simple concrete test implementation only when testing the interface itself.
+- Keep a stateful fake when realistic state transitions, queues, event
+  sequencing, or deterministic timing are central to the test. Do not replace
+  such a fake with GMock just to reduce boilerplate, and do not add production
+  abstractions solely to create a mock.
 - Keep custom entry points for ELF inspection, dynamic-loading, include-order,
   and other specialized tests where they make the test's purpose clearer.
 - Use Google Benchmark for performance tests. Exclude setup and cleanup from
