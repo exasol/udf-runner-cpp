@@ -144,11 +144,12 @@ receive_from(requested_stream, deadline):
 ```
 
 `ShutdownRequested` takes precedence if shutdown and inbound work are observed together. Once the context becomes
-terminal, ordinary queued messages are not delivered; remaining views are released during shutdown cleanup. A
-deadline applies to the current worker operation and does not consume a message that arrives later. The inbound
-generation notification ensures a message arriving between the drain and `wait_until()` is still observed. Global
-readiness operations use the same drain-and-route step, but leave all routed messages in their per-stream pending
-lists.
+terminal, ordinary queued messages are not delivered; remaining views are released during shutdown cleanup. The
+deadline is derived once from the operation's timeout and reused across every loop iteration, as required by the
+[timeout contract](context_interface.md#result-and-status-concepts); it does not consume a message that arrives later.
+The inbound generation notification ensures a message arriving between the drain and `wait_until()` is still observed.
+Global readiness operations use the same drain-and-route step, but leave all routed messages in their per-stream
+pending lists.
 
 Outbound operations use the matching enqueue methods. `open_call()`, `Call::send()`, and control-stream sends validate
 their builder and context state, then call `enqueue_outbound_message()`; a validated group may use

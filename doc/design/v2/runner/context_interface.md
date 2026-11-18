@@ -70,6 +70,10 @@ value where applicable. A failed result has no value and may include an error co
 All timeout parameters use the conceptual type `optional<Duration>`. An absent timeout waits indefinitely; a zero
 duration performs no blocking wait.
 
+For a finite timeout, the operation derives one absolute deadline when it starts and reuses that deadline for every
+wait and retry. Dispatching messages, receiving unrelated notifications, or waking spuriously does not restart the
+timeout.
+
 A successful operation returns its value. A failed operation returns no value and may include an error code and message.
 Timeout is distinct from protocol and transport failure and does not consume or discard a later message.
 
