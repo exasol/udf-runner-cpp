@@ -22,6 +22,7 @@ cc_test(
         "//:interface",
         "//:interface_internal",
         "//test/common:test_common",
+        "@googletest//:gmock",
         "@googletest//:gtest_main",
     ],
 )
