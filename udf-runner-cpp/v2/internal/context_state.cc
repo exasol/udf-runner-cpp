@@ -329,6 +329,9 @@ interface::Result<void> ContextState::send_call_message(
 
     if (closes_call)
     {
+        // After enqueue accepts CloseCall, the registry must record the local close. The stream
+        // was checked above, and only this worker thread mutates the registry, so failure means
+        // an internal invariant was violated.
         EXASOL_UDF_ASSERT(stream_registry_.mark_local_close_accepted(stream_id));
     }
     return interface::Result<void>::success();
