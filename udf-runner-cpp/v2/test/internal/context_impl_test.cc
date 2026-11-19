@@ -16,14 +16,17 @@ namespace
 {
 
     using test_support::FakeBackgroundThread;
+    using test_support::k_control_stream_id;
+    using test_support::k_first_client_stream_id;
+    using test_support::k_first_server_stream_id;
     using test_support::make_call_message_view;
     using test_support::make_control_message_view;
 
     TEST(ContextImplTest, DispatchesInboundCallAndKeepsCallStateAfterAccept)
     {
         auto background = std::make_unique<FakeBackgroundThread>();
-        background->push_inbound(make_call_message_view(2, true));
-        background->push_inbound(make_call_message_view(2, false, true));
+        background->push_inbound(make_call_message_view(k_first_server_stream_id, true));
+        background->push_inbound(make_call_message_view(k_first_server_stream_id, false, true));
         ContextImpl context{
             std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
 
@@ -134,7 +137,7 @@ namespace
         {
             auto state = std::make_shared<ContextState>(EndpointRole::Client,
                                                         std::make_unique<FakeBackgroundThread>());
-            call       = std::make_unique<CallImpl>(state, 1);
+            call       = std::make_unique<CallImpl>(state, k_first_client_stream_id);
         }
 
         EXPECT_EQ(call->receive_status(), interface::MessageStatus::ContextClosed);
@@ -212,7 +215,7 @@ namespace
     TEST(ContextImplTest, DeliversPeerConnectionCloseOnceBeforeBecomingTerminal)
     {
         auto background = std::make_unique<FakeBackgroundThread>();
-        background->push_inbound(make_control_message_view(0, true));
+        background->push_inbound(make_control_message_view(k_control_stream_id, true));
         const auto* background_ptr = background.get();
         ContextImpl context{
             std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};

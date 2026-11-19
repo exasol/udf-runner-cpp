@@ -21,6 +21,14 @@
 namespace exasol::udf::v2::internal::test_support
 {
 
+inline constexpr std::uint64_t k_control_stream_id       = 0;
+inline constexpr std::uint64_t k_first_client_stream_id  = 1;
+inline constexpr std::uint64_t k_second_client_stream_id = 3;
+inline constexpr std::uint64_t k_first_server_stream_id  = 2;
+inline constexpr std::uint64_t k_second_server_stream_id = 4;
+inline constexpr std::uint64_t k_third_server_stream_id  = 6;
+inline constexpr std::uint64_t k_unknown_stream_id       = 999;
+
 class FakeOpenCallView final : public interface::OpenCallView
 {
 public:

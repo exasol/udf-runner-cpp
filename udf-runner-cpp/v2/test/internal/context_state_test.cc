@@ -18,6 +18,11 @@ namespace
     using test_support::FakeBackgroundThread;
     using test_support::ForeignCallMessageBuilder;
     using test_support::ForeignControlMessageBuilder;
+    using test_support::k_control_stream_id;
+    using test_support::k_first_client_stream_id;
+    using test_support::k_first_server_stream_id;
+    using test_support::k_second_client_stream_id;
+    using test_support::k_unknown_stream_id;
     using test_support::make_call_message_view;
     using test_support::make_control_message_view;
 
@@ -134,12 +139,13 @@ namespace
         const auto opened = state.open_call(std::move(opening));
         ASSERT_TRUE(opened);
         const auto stream_id = *opened.value;
+        ASSERT_EQ(stream_id, k_first_client_stream_id);
 
         std::unique_ptr<interface::CallMessageBuilder> null_message;
         EXPECT_EQ(state.send_call_message(stream_id, std::move(null_message), std::nullopt).status,
                   interface::OperationStatus::ProtocolError);
         EXPECT_EQ(state
-                      .send_call_message(stream_id + 2,
+                      .send_call_message(k_second_client_stream_id,
                                          state.create_call_message_builder(stream_id), std::nullopt)
                       .status,
                   interface::OperationStatus::PeerClosed);
@@ -179,7 +185,7 @@ namespace
             auto source_opening = source.create_opening_call_message_builder();
             source_opening->open_call("source");
             ASSERT_TRUE(source.open_call(std::move(source_opening)));
-            expired_owner_builder = source.create_call_message_builder(1);
+            expired_owner_builder = source.create_call_message_builder(k_first_client_stream_id);
         }
         auto destination_opening = state.create_opening_call_message_builder();
         destination_opening->open_call("destination");
@@ -199,12 +205,12 @@ namespace
         state.shutdown();
 
         EXPECT_EQ(state.create_opening_call_message_builder(), nullptr);
-        EXPECT_EQ(state.create_call_message_builder(1), nullptr);
+        EXPECT_EQ(state.create_call_message_builder(k_first_client_stream_id), nullptr);
         EXPECT_EQ(state.create_control_message_builder(), nullptr);
         EXPECT_EQ(state.accept_call().status, interface::OperationStatus::ContextClosed);
         EXPECT_EQ(state.open_call(nullptr).status, interface::OperationStatus::ContextClosed);
         EXPECT_EQ(state.wait_for_message(std::nullopt), interface::MessageStatus::ContextClosed);
-        EXPECT_EQ(state.send_call_message(1, nullptr, std::nullopt).status,
+        EXPECT_EQ(state.send_call_message(k_first_client_stream_id, nullptr, std::nullopt).status,
                   interface::OperationStatus::ContextClosed);
         EXPECT_EQ(state.send_control_message(nullptr).status,
                   interface::OperationStatus::ContextClosed);
@@ -228,29 +234,29 @@ namespace
                   interface::OperationStatus::TransportError);
 
         auto invalid_background = std::make_unique<FakeBackgroundThread>();
-        invalid_background->push_inbound(make_call_message_view(0));
+        invalid_background->push_inbound(make_call_message_view(k_control_stream_id));
         ContextState invalid{EndpointRole::Client, std::move(invalid_background)};
         EXPECT_EQ(invalid.receive_status(), interface::MessageStatus::ConnectionError);
         EXPECT_EQ(invalid.is_new_inbound_call_available(), false);
-        EXPECT_EQ(invalid.receive_call_message(1, std::nullopt).status,
+        EXPECT_EQ(invalid.receive_call_message(k_first_client_stream_id, std::nullopt).status,
                   interface::OperationStatus::ProtocolError);
     }
 
     TEST(ContextStateTest, RejectsMalformedInboundTrafficFromEveryBlockingOperation)
     {
         auto wait_background = std::make_unique<FakeBackgroundThread>();
-        wait_background->push_inbound(make_control_message_view(1));
+        wait_background->push_inbound(make_control_message_view(k_first_client_stream_id));
         ContextState wait_state{EndpointRole::Client, std::move(wait_background)};
         EXPECT_EQ(wait_state.wait_for_message(std::nullopt),
                   interface::MessageStatus::ConnectionError);
 
         auto accept_background = std::make_unique<FakeBackgroundThread>();
-        accept_background->push_inbound(make_control_message_view(1));
+        accept_background->push_inbound(make_control_message_view(k_first_client_stream_id));
         ContextState accept_state{EndpointRole::Client, std::move(accept_background)};
         EXPECT_EQ(accept_state.accept_call().status, interface::OperationStatus::ProtocolError);
 
         auto control_background = std::make_unique<FakeBackgroundThread>();
-        control_background->push_inbound(make_control_message_view(1));
+        control_background->push_inbound(make_control_message_view(k_first_client_stream_id));
         ContextState control_state{EndpointRole::Client, std::move(control_background)};
         EXPECT_EQ(control_state.receive_control_message(std::nullopt).status,
                   interface::OperationStatus::ProtocolError);
@@ -262,7 +268,7 @@ namespace
         opening->open_call("call");
         const auto call = send_state.open_call(std::move(opening));
         ASSERT_TRUE(call);
-        send_background_ptr->push_inbound(make_call_message_view(0));
+        send_background_ptr->push_inbound(make_call_message_view(k_control_stream_id));
         auto message = send_state.create_call_message_builder(*call.value);
         EXPECT_EQ(
             send_state.send_call_message(*call.value, std::move(message), std::nullopt).status,
@@ -273,19 +279,20 @@ namespace
     TEST(ContextStateTest, ReceivesAcceptedInboundCallAndConnectionClose)
     {
         auto background = std::make_unique<FakeBackgroundThread>();
-        background->push_inbound(make_call_message_view(2, true));
+        background->push_inbound(make_call_message_view(k_first_server_stream_id, true));
         ContextState state{EndpointRole::Client, std::move(background)};
         EXPECT_TRUE(state.is_new_inbound_call_available());
         const auto accepted = state.accept_call();
         ASSERT_TRUE(accepted);
-        EXPECT_EQ(*accepted.value, 2);
-        EXPECT_EQ(state.call_receive_status(2), interface::MessageStatus::MessageAvailable);
-        EXPECT_TRUE(state.receive_call_message(2, std::nullopt));
-        EXPECT_EQ(state.receive_call_message(2, std::nullopt).status,
+        EXPECT_EQ(*accepted.value, k_first_server_stream_id);
+        EXPECT_EQ(state.call_receive_status(k_first_server_stream_id),
+                  interface::MessageStatus::MessageAvailable);
+        EXPECT_TRUE(state.receive_call_message(k_first_server_stream_id, std::nullopt));
+        EXPECT_EQ(state.receive_call_message(k_first_server_stream_id, std::nullopt).status,
                   interface::OperationStatus::Cancelled);
 
         auto close_background = std::make_unique<FakeBackgroundThread>();
-        close_background->push_inbound(make_control_message_view(0, true));
+        close_background->push_inbound(make_control_message_view(k_control_stream_id, true));
         ContextState peer_closed{EndpointRole::Client, std::move(close_background)};
         EXPECT_EQ(peer_closed.control_receive_status(), interface::MessageStatus::MessageAvailable);
         auto close = peer_closed.receive_control_message(std::nullopt);
@@ -304,12 +311,13 @@ namespace
 
         EXPECT_EQ(state.wait_for_message(interface::Timeout{std::chrono::seconds{1}}),
                   interface::MessageStatus::TimedOut);
-        background_ptr->push_inbound(make_control_message_view(0));
+        background_ptr->push_inbound(make_control_message_view(k_control_stream_id));
         EXPECT_TRUE(state.receive_control_message(std::nullopt));
         EXPECT_EQ(state.receive_control_message(interface::Timeout{std::chrono::seconds{0}}).status,
                   interface::OperationStatus::TimedOut);
-        EXPECT_EQ(state.call_receive_status(999), interface::MessageStatus::PeerClosed);
-        EXPECT_EQ(state.receive_call_message(999, std::nullopt).status,
+        EXPECT_EQ(state.call_receive_status(k_unknown_stream_id),
+                  interface::MessageStatus::PeerClosed);
+        EXPECT_EQ(state.receive_call_message(k_unknown_stream_id, std::nullopt).status,
                   interface::OperationStatus::PeerClosed);
 
         auto first_opening = state.create_opening_call_message_builder();
@@ -359,7 +367,7 @@ namespace
         const auto opened = state.open_call(std::move(opening));
         ASSERT_TRUE(opened);
 
-        background_ptr->push_inbound(make_control_message_view(0, true));
+        background_ptr->push_inbound(make_control_message_view(k_control_stream_id, true));
         EXPECT_EQ(state.receive_call_message(*opened.value, std::nullopt).status,
                   interface::OperationStatus::ContextClosed);
         EXPECT_EQ(state.control_receive_status(), interface::MessageStatus::MessageAvailable);
@@ -373,17 +381,17 @@ namespace
     TEST(ContextStateTest, AcceptsOpeningMessageThatAlsoClosesTheCall)
     {
         auto background = std::make_unique<FakeBackgroundThread>();
-        background->push_inbound(make_call_message_view(2, true, true));
+        background->push_inbound(make_call_message_view(k_first_server_stream_id, true, true));
         ContextState state{EndpointRole::Client, std::move(background)};
 
         const auto accepted = state.accept_call();
         ASSERT_TRUE(accepted);
-        EXPECT_EQ(*accepted.value, 2);
-        auto opening_and_close = state.receive_call_message(2, std::nullopt);
+        EXPECT_EQ(*accepted.value, k_first_server_stream_id);
+        auto opening_and_close = state.receive_call_message(k_first_server_stream_id, std::nullopt);
         ASSERT_TRUE(opening_and_close);
         EXPECT_NE((*opening_and_close.value)->open_call(), nullptr);
         EXPECT_NE((*opening_and_close.value)->close_call(), nullptr);
-        EXPECT_EQ(state.receive_call_message(2, std::nullopt).status,
+        EXPECT_EQ(state.receive_call_message(k_first_server_stream_id, std::nullopt).status,
                   interface::OperationStatus::PeerClosed);
     }
 
@@ -399,7 +407,7 @@ namespace
     TEST(ContextStateTest, DeliversPeerConnectionCloseDispatchedDuringControlReceive)
     {
         auto background = std::make_unique<FakeBackgroundThread>();
-        background->push_inbound(make_control_message_view(0, true));
+        background->push_inbound(make_control_message_view(k_control_stream_id, true));
         ContextState state{EndpointRole::Client, std::move(background)};
 
         auto result = state.receive_control_message(std::nullopt);
