@@ -30,7 +30,27 @@ inline constexpr std::uint64_t k_third_server_stream_id  = 6;
 inline constexpr std::uint64_t k_unknown_stream_id       = 999;
 
 /// Strict interaction tests use this mock to assert queue-boundary calls.
-class MockBackgroundThread : public BackgroundThreadInterface
+class AcceptedOutboundMessageQueue
+{
+public:
+    bool accept_outbound_messages(OutboundBatch& messages)
+    {
+        outbound_.insert(outbound_.end(), std::make_move_iterator(messages.begin()),
+                         std::make_move_iterator(messages.end()));
+        return true;
+    }
+
+    bool accept_outbound_message(OutboundMessage& message)
+    {
+        outbound_.push_back(std::move(message));
+        return true;
+    }
+
+private:
+    OutboundBatch outbound_;
+};
+
+class MockBackgroundThread : public BackgroundThreadInterface, private AcceptedOutboundMessageQueue
 {
 public:
     MOCK_METHOD(BackgroundThreadResult,
@@ -42,6 +62,7 @@ public:
     MOCK_METHOD(InboundBatch, dequeue_inbound_messages, (), (override));
     void request_shutdown() noexcept override
     {
+        // This mock does not run a worker thread that needs to be stopped.
     }
 
     MockBackgroundThread()
@@ -63,19 +84,29 @@ public:
 
     bool accept_outbound_messages(OutboundBatch& messages)
     {
-        outbound_.insert(outbound_.end(), std::make_move_iterator(messages.begin()),
-                         std::make_move_iterator(messages.end()));
-        return true;
+        return AcceptedOutboundMessageQueue::accept_outbound_messages(messages);
     }
 
     bool accept_outbound_message(OutboundMessage& message)
     {
-        outbound_.push_back(std::move(message));
-        return true;
+        return AcceptedOutboundMessageQueue::accept_outbound_message(message);
+    }
+};
+
+class StreamIdViewState
+{
+public:
+    explicit StreamIdViewState(const std::uint64_t stream_id) : stream_id_(stream_id)
+    {
+    }
+
+    [[nodiscard]] std::uint64_t stream_id() const noexcept
+    {
+        return stream_id_;
     }
 
 private:
-    OutboundBatch outbound_;
+    std::uint64_t stream_id_;
 };
 
 class FakeOpenCallView final : public interface::OpenCallView
@@ -91,16 +122,16 @@ class FakeCloseCallView final : public interface::CloseCallView
 {
 };
 
-class MockCallMessageView : public interface::CallMessageView
+class MockCallMessageView : public interface::CallMessageView, private StreamIdViewState
 {
 public:
-    explicit MockCallMessageView(const std::uint64_t stream_id) : stream_id_(stream_id)
+    explicit MockCallMessageView(const std::uint64_t stream_id) : StreamIdViewState(stream_id)
     {
     }
 
     [[nodiscard]] std::uint64_t stream_id() const noexcept override
     {
-        return stream_id_;
+        return StreamIdViewState::stream_id();
     }
     MOCK_METHOD(std::unique_ptr<interface::OpenCallView>, open_call, (), (const, override));
     MOCK_METHOD(std::unique_ptr<interface::PayloadsView>, payloads, (), (const, override));
@@ -115,9 +146,6 @@ public:
     }
     MOCK_METHOD(std::unique_ptr<interface::ErrorView>, error, (), (const, override));
     MOCK_METHOD(std::unique_ptr<interface::CloseCallView>, close_call, (), (const, override));
-
-private:
-    std::uint64_t stream_id_;
 };
 
 inline std::unique_ptr<MockCallMessageView> make_call_message_view(const std::uint64_t stream_id,
@@ -138,16 +166,16 @@ class FakeCloseConnectionView final : public interface::CloseConnectionView
 {
 };
 
-class MockControlMessageView : public interface::ControlMessageView
+class MockControlMessageView : public interface::ControlMessageView, private StreamIdViewState
 {
 public:
-    explicit MockControlMessageView(const std::uint64_t stream_id) : stream_id_(stream_id)
+    explicit MockControlMessageView(const std::uint64_t stream_id) : StreamIdViewState(stream_id)
     {
     }
 
     [[nodiscard]] std::uint64_t stream_id() const noexcept override
     {
-        return stream_id_;
+        return StreamIdViewState::stream_id();
     }
     MOCK_METHOD(std::unique_ptr<interface::ServerCapabilitiesView>,
                 server_capabilities,
@@ -160,9 +188,6 @@ public:
                 close_connection,
                 (),
                 (const, override));
-
-private:
-    std::uint64_t stream_id_;
 };
 
 inline std::unique_ptr<MockControlMessageView> make_control_message_view(
@@ -264,6 +289,7 @@ public:
     }
     void request_shutdown() noexcept override
     {
+        next_wait_result_.emplace(BackgroundThreadResult{.event = Event::ShutdownRequested});
     }
 
     void push_inbound(InboundMessage message)
