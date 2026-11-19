@@ -142,47 +142,26 @@ namespace
         MOCK_METHOD(interface::CallMessageBuilderBase&, close_call, (), (override));
     };
 
-    class ForeignControlMessageBuilder final : public interface::ControlMessageBuilder
+    class ForeignControlMessageBuilder : public interface::ControlMessageBuilder
     {
     public:
-        using interface::ControlMessageBuilder::add_payload;
-
-        interface::ControlMessageBuilder& server_capabilities(
-            const std::uint32_t major,
-            const std::uint32_t minor,
-            const std::endian endianness,
-            const std::uint32_t number_of_supported_workers) override
-        {
-            static_cast<void>(major);
-            static_cast<void>(minor);
-            static_cast<void>(endianness);
-            static_cast<void>(number_of_supported_workers);
-            return *this;
-        }
-        interface::ControlMessageBuilder& keep_alive() override
-        {
-            return *this;
-        }
-        interface::ControlMessageBuilder& add_payload(const std::string_view name,
-                                                      const std::string_view value,
-                                                      const bool binary) override
-        {
-            static_cast<void>(name);
-            static_cast<void>(value);
-            static_cast<void>(binary);
-            return *this;
-        }
-        interface::ControlMessageBuilder& error(const std::string_view code,
-                                                const std::string_view text) override
-        {
-            static_cast<void>(code);
-            static_cast<void>(text);
-            return *this;
-        }
-        interface::ControlMessageBuilder& close_connection() override
-        {
-            return *this;
-        }
+        MOCK_METHOD(interface::ControlMessageBuilder&,
+                    server_capabilities,
+                    (std::uint32_t major,
+                     std::uint32_t minor,
+                     std::endian endianness,
+                     std::uint32_t number_of_supported_workers),
+                    (override));
+        MOCK_METHOD(interface::ControlMessageBuilder&, keep_alive, (), (override));
+        MOCK_METHOD(interface::ControlMessageBuilder&,
+                    add_payload,
+                    (std::string_view name, std::string_view value, bool binary),
+                    (override));
+        MOCK_METHOD(interface::ControlMessageBuilder&,
+                    error,
+                    (std::string_view code, std::string_view text),
+                    (override));
+        MOCK_METHOD(interface::ControlMessageBuilder&, close_connection, (), (override));
     };
 
     class FakeBackgroundThread final : public BackgroundThreadInterface
@@ -679,7 +658,7 @@ namespace
         EXPECT_NE(foreign, nullptr);
 
         std::unique_ptr<interface::ControlMessageBuilder> wrong_implementation =
-            std::make_unique<ForeignControlMessageBuilder>();
+            std::make_unique<testing::StrictMock<ForeignControlMessageBuilder>>();
         EXPECT_EQ(state.send_control_message(std::move(wrong_implementation)).status,
                   interface::OperationStatus::ProtocolError);
         EXPECT_NE(wrong_implementation, nullptr);
