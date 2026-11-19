@@ -29,12 +29,17 @@ namespace
         EXPECT_EQ(server.reserve_local_stream_id(), k_second_server_stream_id);
     }
 
-    TEST(StreamRegistryTest, RejectsNewLocalOwnedStreamAndDiscardsDelayedTraffic)
+    TEST(StreamRegistryTest, RejectsNewLocalOwnedStream)
     {
         StreamRegistry registry{EndpointRole::Client};
 
         EXPECT_EQ(registry.dispatch(make_call_message_view(k_first_client_stream_id)),
                   DispatchResult::ProtocolError);
+    }
+
+    TEST(StreamRegistryTest, DiscardsDelayedTrafficOnReservedLocalStream)
+    {
+        StreamRegistry registry{EndpointRole::Client};
         ASSERT_EQ(registry.reserve_local_stream_id(), k_first_client_stream_id);
 
         EXPECT_EQ(registry.dispatch(make_call_message_view(k_first_client_stream_id)),
