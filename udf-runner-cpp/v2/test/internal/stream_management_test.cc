@@ -82,44 +82,42 @@ namespace
     {
     };
 
-    class FakeControlMessageView final : public interface::ControlMessageView
+    class MockControlMessageView : public interface::ControlMessageView
     {
     public:
-        explicit FakeControlMessageView(const std::uint64_t stream_id, const bool close = false)
-            : stream_id_(stream_id), close_(close)
+        explicit MockControlMessageView(const std::uint64_t stream_id) : stream_id_(stream_id)
         {
         }
+
         [[nodiscard]] std::uint64_t stream_id() const noexcept override
         {
             return stream_id_;
         }
-        [[nodiscard]] std::unique_ptr<interface::ServerCapabilitiesView> server_capabilities()
-            const override
-        {
-            return nullptr;
-        }
-        [[nodiscard]] std::unique_ptr<interface::KeepAliveView> keep_alive() const override
-        {
-            return nullptr;
-        }
-        [[nodiscard]] std::unique_ptr<interface::PayloadsView> payloads() const override
-        {
-            return nullptr;
-        }
-        [[nodiscard]] std::unique_ptr<interface::ErrorView> error() const override
-        {
-            return nullptr;
-        }
-        [[nodiscard]] std::unique_ptr<interface::CloseConnectionView> close_connection()
-            const override
-        {
-            return close_ ? std::make_unique<FakeCloseConnectionView>() : nullptr;
-        }
+        MOCK_METHOD(std::unique_ptr<interface::ServerCapabilitiesView>,
+                    server_capabilities,
+                    (),
+                    (const, override));
+        MOCK_METHOD(std::unique_ptr<interface::KeepAliveView>, keep_alive, (), (const, override));
+        MOCK_METHOD(std::unique_ptr<interface::PayloadsView>, payloads, (), (const, override));
+        MOCK_METHOD(std::unique_ptr<interface::ErrorView>, error, (), (const, override));
+        MOCK_METHOD(std::unique_ptr<interface::CloseConnectionView>,
+                    close_connection,
+                    (),
+                    (const, override));
 
     private:
         std::uint64_t stream_id_;
-        bool close_;
     };
+
+    std::unique_ptr<MockControlMessageView> make_control_message_view(const std::uint64_t stream_id,
+                                                                      const bool close = false)
+    {
+        auto message = std::make_unique<testing::NiceMock<MockControlMessageView>>(stream_id);
+        ON_CALL(*message, close_connection()).WillByDefault([close] {
+            return close ? std::make_unique<FakeCloseConnectionView>() : nullptr;
+        });
+        return message;
+    }
 
     class ForeignCallMessageBuilder final : public interface::CallMessageBuilder
     {
@@ -408,8 +406,7 @@ namespace
         EXPECT_FALSE(registry.has_any_pending_message());
 
         ASSERT_EQ(registry.dispatch(make_call_message_view(6, true)), DispatchResult::Routed);
-        ASSERT_EQ(registry.dispatch(std::make_unique<FakeControlMessageView>(0)),
-                  DispatchResult::Routed);
+        ASSERT_EQ(registry.dispatch(make_control_message_view(0)), DispatchResult::Routed);
         registry.discard_call_streams();
         EXPECT_TRUE(registry.has_any_pending_message());
         EXPECT_NE(registry.take_control_message(), nullptr);
@@ -433,10 +430,8 @@ namespace
         StreamRegistry registry{EndpointRole::Client};
 
         EXPECT_EQ(registry.dispatch(make_call_message_view(0)), DispatchResult::ProtocolError);
-        EXPECT_EQ(registry.dispatch(std::make_unique<FakeControlMessageView>(1)),
-                  DispatchResult::ProtocolError);
-        EXPECT_EQ(registry.dispatch(std::make_unique<FakeControlMessageView>(0)),
-                  DispatchResult::Routed);
+        EXPECT_EQ(registry.dispatch(make_control_message_view(1)), DispatchResult::ProtocolError);
+        EXPECT_EQ(registry.dispatch(make_control_message_view(0)), DispatchResult::Routed);
         EXPECT_NE(registry.take_control_message(), nullptr);
     }
 
@@ -633,7 +628,7 @@ namespace
     TEST(ContextImplTest, DeliversPeerConnectionCloseOnceBeforeBecomingTerminal)
     {
         auto background = std::make_unique<FakeBackgroundThread>();
-        background->push_inbound(std::make_unique<FakeControlMessageView>(0, true));
+        background->push_inbound(make_control_message_view(0, true));
         const auto* background_ptr = background.get();
         ContextImpl context{
             std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
@@ -872,18 +867,18 @@ namespace
     TEST(ContextStateTest, RejectsMalformedInboundTrafficFromEveryBlockingOperation)
     {
         auto wait_background = std::make_unique<FakeBackgroundThread>();
-        wait_background->push_inbound(std::make_unique<FakeControlMessageView>(1));
+        wait_background->push_inbound(make_control_message_view(1));
         ContextState wait_state{EndpointRole::Client, std::move(wait_background)};
         EXPECT_EQ(wait_state.wait_for_message(std::nullopt),
                   interface::MessageStatus::ConnectionError);
 
         auto accept_background = std::make_unique<FakeBackgroundThread>();
-        accept_background->push_inbound(std::make_unique<FakeControlMessageView>(1));
+        accept_background->push_inbound(make_control_message_view(1));
         ContextState accept_state{EndpointRole::Client, std::move(accept_background)};
         EXPECT_EQ(accept_state.accept_call().status, interface::OperationStatus::ProtocolError);
 
         auto control_background = std::make_unique<FakeBackgroundThread>();
-        control_background->push_inbound(std::make_unique<FakeControlMessageView>(1));
+        control_background->push_inbound(make_control_message_view(1));
         ContextState control_state{EndpointRole::Client, std::move(control_background)};
         EXPECT_EQ(control_state.receive_control_message(std::nullopt).status,
                   interface::OperationStatus::ProtocolError);
@@ -918,7 +913,7 @@ namespace
                   interface::OperationStatus::Cancelled);
 
         auto close_background = std::make_unique<FakeBackgroundThread>();
-        close_background->push_inbound(std::make_unique<FakeControlMessageView>(0, true));
+        close_background->push_inbound(make_control_message_view(0, true));
         ContextState peer_closed{EndpointRole::Client, std::move(close_background)};
         EXPECT_EQ(peer_closed.control_receive_status(), interface::MessageStatus::MessageAvailable);
         auto close = peer_closed.receive_control_message(std::nullopt);
@@ -937,7 +932,7 @@ namespace
 
         EXPECT_EQ(state.wait_for_message(interface::Timeout{std::chrono::seconds{1}}),
                   interface::MessageStatus::TimedOut);
-        background_ptr->push_inbound(std::make_unique<FakeControlMessageView>(0));
+        background_ptr->push_inbound(make_control_message_view(0));
         EXPECT_TRUE(state.receive_control_message(std::nullopt));
         EXPECT_EQ(state.receive_control_message(interface::Timeout{std::chrono::seconds{0}}).status,
                   interface::OperationStatus::TimedOut);
@@ -992,7 +987,7 @@ namespace
         const auto opened = state.open_call(std::move(opening));
         ASSERT_TRUE(opened);
 
-        background_ptr->push_inbound(std::make_unique<FakeControlMessageView>(0, true));
+        background_ptr->push_inbound(make_control_message_view(0, true));
         EXPECT_EQ(state.receive_call_message(*opened.value, std::nullopt).status,
                   interface::OperationStatus::ContextClosed);
         EXPECT_EQ(state.control_receive_status(), interface::MessageStatus::MessageAvailable);
@@ -1032,7 +1027,7 @@ namespace
     TEST(ContextStateTest, DeliversPeerConnectionCloseDispatchedDuringControlReceive)
     {
         auto background = std::make_unique<FakeBackgroundThread>();
-        background->push_inbound(std::make_unique<FakeControlMessageView>(0, true));
+        background->push_inbound(make_control_message_view(0, true));
         ContextState state{EndpointRole::Client, std::move(background)};
 
         auto result = state.receive_control_message(std::nullopt);
