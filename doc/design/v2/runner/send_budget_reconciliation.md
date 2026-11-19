@@ -18,29 +18,29 @@ sequenceDiagram
     B->>S: add peer credit
     S->>B: credit remaining after debt
     B-->>C: publish admission budget
-    C->>X: logical batch + remaining budget
+    C->>X: logical batch + budget consumed
     X->>B: dequeue outbound message
-    B->>S: enqueue batch + reported remainder
+    B->>S: enqueue batch + reported consumption
     S->>B: zero or more row-aligned slices
     B->>P: frames
 ```
 
 ## Accounting model
 
-The context consumes its admission allowance while producing a logical batch, then reports the unused remainder with that batch. The background send queue compares that remainder with the serialized Arrow buffer bytes for the batch. Any amount by which actual batch bytes exceed the allowance consumed becomes debt owned by the send queue. New peer credit pays debt first; only the surplus is published as the next context admission allowance. The cross-thread queue merely transports the batch and its reported remainder.
+The context measures the logical batch and consumes its size from its admission budget. If the batch is larger than the remaining budget, the context consumes the remainder and sets its budget to zero. It sends the amount consumed together with the batch through the cross-thread outbound queue. The background send queue compares that reported consumption with the serialized Arrow buffer bytes for the batch. Any excess batch bytes become debt owned by the send queue. New peer credit pays debt first; only the surplus is published as the next context admission allowance. The cross-thread queue merely transports the batch and its reported consumption.
 
-Let `A` be the allowance granted to the context, `R` its reported remainder, and `B` the actual serialized buffer bytes in the batch. The context-reported consumption is `A - R`. Reconciliation adds `B - (A - R)` to debt when positive; if negative, the unused difference offsets existing debt before any credit is returned to the context. Slicing uses the send queue's reconciled credit and row sizes. An indivisible row may overshoot available credit; that overshoot is recorded as debt rather than discarded.
+Let `A` be the context's budget immediately before sending, `C` the amount it reports consumed, and `B` the actual serialized buffer bytes in the batch. The context reports `C = min(A, B)` and retains `A - C` as its budget. The send queue records `max(0, B - C)` as new debt. Any remaining budget and any credit returned after debt reconciliation are combined only on the context side. Slicing uses the send queue's reconciled credit and row sizes. An indivisible row may overshoot available credit; that overshoot is recorded as debt rather than discarded.
 
 The first logical batch in a direction retains the protocol's existing no-credit exception and does not create debt. Empty batches consume no byte credit.
 
 ## Worked example
 
-Assume the context has allowance 100 bytes and returns a 20-byte remainder with a 130-byte batch. It consumed 80 bytes by its own accounting, while the batch is 130 bytes, so the send queue records 50 bytes of debt. Later peer credit of 70 bytes pays that debt first, leaving 20 bytes for the context.
+Assume the context has 100 bytes of budget and sends a 130-byte batch. It consumes the 100 bytes available and reports 100 consumed, leaving its budget at zero. The send queue records 30 bytes of debt. Later peer credit of 70 bytes pays that debt first, leaving 40 bytes for the context.
 
-| Event | Allowance / peer credit | Batch bytes | Reported remainder | Debt after event | Credit returned to context |
+| Event | Allowance / peer credit | Batch bytes | Reported consumed | Debt after event | Credit returned to context |
 |---|---:|---:|---:|---:|---:|
-| Context submits batch | 100 | 130 | 20 | 50 | 0 |
-| Peer grants more credit | 70 | — | — | 0 | 20 |
+| Context submits batch | 100 | 130 | 100 consumed | 30 | 0 |
+| Peer grants more credit | 70 | — | — | 0 | 40 |
 
 ## Budget state
 
