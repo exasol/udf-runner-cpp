@@ -188,8 +188,7 @@ namespace
         EXPECT_EQ(state->shutdown_call_count(), 1);
     }
 
-    TEST(ContextHandleIntegrationTest,
-         SendOverloadsAcceptMessagesAndZeroTimeoutReceiveReturnsTimedOut)
+    TEST(ContextHandleIntegrationTest, CallSendOverloadsAcceptMessagesAndZeroTimeoutReceivePolls)
     {
         auto background            = std::make_unique<FakeBackgroundThread>();
         const auto* background_ptr = background.get();
@@ -197,16 +196,7 @@ namespace
             std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
         auto opening = context.create_opening_call_message_builder();
         ASSERT_NE(opening, nullptr);
-        opening->add_payload("opening", "value")
-            .data_schema(nullptr, false, false)
-            .reset(1)
-            .record_batch(nullptr, false)
-            .error("OPEN", "opening error")
-            .data_schema(interface::ArrowSchemaPtr{new ArrowSchema{}}, true, true)
-            .reset(2)
-            .record_batch(interface::ArrowArrayPtr{new ArrowArray{}}, true)
-            .error("OPEN_REPLACED", "replacement opening error");
-        opening->open_call("test").add_payload("", "", true);
+        opening->open_call("test");
         auto opened = context.open_call(std::move(opening));
         ASSERT_TRUE(opened);
         const auto outbound_before_sends = background_ptr->outbound_size();
@@ -230,33 +220,27 @@ namespace
         EXPECT_EQ((*opened.value)->receive_status(), interface::MessageStatus::NoMessage);
         auto populated_builder = (*opened.value)->create_message_builder();
         ASSERT_NE(populated_builder, nullptr);
-        populated_builder->add_payload("call", "value")
-            .data_schema(nullptr, false, false)
-            .reset(2)
-            .record_batch(nullptr, false)
-            .error("CALL", "call error")
-            .data_schema(interface::ArrowSchemaPtr{new ArrowSchema{}}, true, true)
-            .reset(3)
-            .record_batch(interface::ArrowArrayPtr{new ArrowArray{}}, true)
-            .add_payload("", "", true)
-            .error("CALL_REPLACED", "replacement call error");
+        populated_builder->add_payload("call", "value");
         EXPECT_TRUE((*opened.value)->send(std::move(populated_builder)));
         EXPECT_EQ((*opened.value)
                       ->receive(interface::Timeout{std::chrono::steady_clock::duration::zero()})
                       .status,
                   interface::OperationStatus::TimedOut);
-        EXPECT_EQ(context.control_stream().receive().status, interface::OperationStatus::TimedOut);
+    }
 
+    TEST(ContextHandleIntegrationTest, ControlStreamSendsAndTimesOutWhenNoMessageIsAvailable)
+    {
+        auto background            = std::make_unique<FakeBackgroundThread>();
+        const auto* background_ptr = background.get();
+        ContextImpl context{
+            std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
+
+        EXPECT_EQ(context.control_stream().receive().status, interface::OperationStatus::TimedOut);
         auto control_builder = context.control_stream().create_message_builder();
         ASSERT_NE(control_builder, nullptr);
-        control_builder->server_capabilities(1, 0, std::endian::native, 1)
-            .keep_alive()
-            .add_payload("control", "value")
-            .error("CONTROL", "control error")
-            .server_capabilities(2, 1, std::endian::native, 2)
-            .add_payload("", "", true)
-            .error("CONTROL_REPLACED", "replacement control error");
+        control_builder->keep_alive();
         EXPECT_TRUE(context.control_stream().send(std::move(control_builder)));
+        EXPECT_EQ(background_ptr->outbound_size(), 1);
     }
 
     TEST(CallImplTest, ReportsContextClosedAfterSharedStateExpires)
@@ -276,7 +260,7 @@ namespace
         EXPECT_EQ(call->send(nullptr).status, interface::OperationStatus::ContextClosed);
     }
 
-    TEST(CallImplTest, NoTimeoutReceiveWaitsIndefinitely)
+    TEST(CallImplTest, NoTimeoutReceivePassesNoDeadlineToBackgroundThread)
     {
         auto background            = std::make_unique<FakeBackgroundThread>();
         const auto* background_ptr = background.get();

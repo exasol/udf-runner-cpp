@@ -37,7 +37,8 @@ TEST(ContextTest, ConvenienceMethodsDelegateToVirtualOperations)
     [[maybe_unused]] auto opening_message = context.create_opening_call_message_builder();
     EXPECT_EQ(context.open_call(std::unique_ptr<OpeningCallMessageBuilder>{}).status,
               OperationStatus::Cancelled);
-    EXPECT_NE(&context.control_stream(), nullptr);
+    auto& returned_control_stream = context.control_stream();
+    EXPECT_EQ(&returned_control_stream, &control_stream);
 }
 
 } // namespace exasol::udf::v2::interface
