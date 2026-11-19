@@ -10,6 +10,7 @@ cc_test(
     deps = [
         "//:interface",
         "//:interface_internal",
+        "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
 )

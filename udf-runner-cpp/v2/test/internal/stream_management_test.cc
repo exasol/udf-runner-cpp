@@ -14,6 +14,7 @@
 #include <utility>
 #include <variant>
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 namespace exasol::udf::v2::internal
@@ -34,13 +35,10 @@ namespace
     {
     };
 
-    class FakeCallMessageView final : public interface::CallMessageView
+    class MockCallMessageView : public interface::CallMessageView
     {
     public:
-        explicit FakeCallMessageView(const std::uint64_t stream_id,
-                                     const bool open  = false,
-                                     const bool close = false)
-            : stream_id_(stream_id), open_(open), close_(close)
+        explicit MockCallMessageView(const std::uint64_t stream_id) : stream_id_(stream_id)
         {
         }
 
@@ -48,40 +46,37 @@ namespace
         {
             return stream_id_;
         }
-        [[nodiscard]] std::unique_ptr<interface::OpenCallView> open_call() const override
-        {
-            return open_ ? std::make_unique<FakeOpenCallView>() : nullptr;
-        }
-        [[nodiscard]] std::unique_ptr<interface::PayloadsView> payloads() const override
-        {
-            return nullptr;
-        }
+        MOCK_METHOD(std::unique_ptr<interface::OpenCallView>, open_call, (), (const, override));
+        MOCK_METHOD(std::unique_ptr<interface::PayloadsView>, payloads, (), (const, override));
         [[nodiscard]] std::unique_ptr<interface::DataSchemaView> data_schema() noexcept override
         {
             return nullptr;
         }
-        [[nodiscard]] std::unique_ptr<interface::ResetView> reset() const override
-        {
-            return nullptr;
-        }
+        MOCK_METHOD(std::unique_ptr<interface::ResetView>, reset, (), (const, override));
         [[nodiscard]] std::unique_ptr<interface::RecordBatchView> record_batch() noexcept override
         {
             return nullptr;
         }
-        [[nodiscard]] std::unique_ptr<interface::ErrorView> error() const override
-        {
-            return nullptr;
-        }
-        [[nodiscard]] std::unique_ptr<interface::CloseCallView> close_call() const override
-        {
-            return close_ ? std::make_unique<FakeCloseCallView>() : nullptr;
-        }
+        MOCK_METHOD(std::unique_ptr<interface::ErrorView>, error, (), (const, override));
+        MOCK_METHOD(std::unique_ptr<interface::CloseCallView>, close_call, (), (const, override));
 
     private:
         std::uint64_t stream_id_;
-        bool open_;
-        bool close_;
     };
+
+    std::unique_ptr<MockCallMessageView> make_call_message_view(const std::uint64_t stream_id,
+                                                                const bool open  = false,
+                                                                const bool close = false)
+    {
+        auto message = std::make_unique<testing::NiceMock<MockCallMessageView>>(stream_id);
+        ON_CALL(*message, open_call()).WillByDefault([open] {
+            return open ? std::make_unique<FakeOpenCallView>() : nullptr;
+        });
+        ON_CALL(*message, close_call()).WillByDefault([close] {
+            return close ? std::make_unique<FakeCloseCallView>() : nullptr;
+        });
+        return message;
+    }
 
     class FakeCloseConnectionView final : public interface::CloseConnectionView
     {
@@ -334,20 +329,17 @@ namespace
     {
         StreamRegistry registry{EndpointRole::Client};
 
-        EXPECT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(1)),
-                  DispatchResult::ProtocolError);
+        EXPECT_EQ(registry.dispatch(make_call_message_view(1)), DispatchResult::ProtocolError);
         ASSERT_EQ(registry.reserve_local_stream_id(), 1);
 
-        EXPECT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(1)),
-                  DispatchResult::Discarded);
+        EXPECT_EQ(registry.dispatch(make_call_message_view(1)), DispatchResult::Discarded);
     }
 
     TEST(StreamRegistryTest, DeliversPeerCloseOnceAndThenClosesCall)
     {
         StreamRegistry registry{EndpointRole::Client};
-        ASSERT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(2, true)),
-                  DispatchResult::Routed);
-        ASSERT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(2, false, true)),
+        ASSERT_EQ(registry.dispatch(make_call_message_view(2, true)), DispatchResult::Routed);
+        ASSERT_EQ(registry.dispatch(make_call_message_view(2, false, true)),
                   DispatchResult::Routed);
         ASSERT_EQ(registry.take_next_unaccepted_call(), 2);
 
@@ -364,20 +356,17 @@ namespace
     TEST(StreamRegistryTest, DiscardsDelayedTrafficOnPreviouslyUsedPeerStreams)
     {
         StreamRegistry registry{EndpointRole::Client};
-        ASSERT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(4, true)),
-                  DispatchResult::Routed);
-        ASSERT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(4, false, true)),
+        ASSERT_EQ(registry.dispatch(make_call_message_view(4, true)), DispatchResult::Routed);
+        ASSERT_EQ(registry.dispatch(make_call_message_view(4, false, true)),
                   DispatchResult::Routed);
         static_cast<void>(registry.take_next_unaccepted_call());
         static_cast<void>(registry.take_call_message(4));
         static_cast<void>(registry.take_call_message(4));
 
-        EXPECT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(2)),
-                  DispatchResult::Discarded);
-        EXPECT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(2, true)),
+        EXPECT_EQ(registry.dispatch(make_call_message_view(2)), DispatchResult::Discarded);
+        EXPECT_EQ(registry.dispatch(make_call_message_view(2, true)),
                   DispatchResult::ProtocolError);
-        EXPECT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(6)),
-                  DispatchResult::ProtocolError);
+        EXPECT_EQ(registry.dispatch(make_call_message_view(6)), DispatchResult::ProtocolError);
     }
 
     TEST(StreamRegistryTest, DiscardsDelayedTrafficOnPreviouslyUsedLocalStreams)
@@ -387,21 +376,18 @@ namespace
         ASSERT_TRUE(registry.register_local_call(1, false));
         ASSERT_TRUE(registry.mark_local_close_accepted(1));
 
-        EXPECT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(1)),
-                  DispatchResult::Routed);
-        EXPECT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(1, false, true)),
+        EXPECT_EQ(registry.dispatch(make_call_message_view(1)), DispatchResult::Routed);
+        EXPECT_EQ(registry.dispatch(make_call_message_view(1, false, true)),
                   DispatchResult::Routed);
         EXPECT_EQ(registry.take_call_message(1).result, CallMessageResult::Message);
         auto peer_close = registry.take_call_message(1);
         ASSERT_EQ(peer_close.result, CallMessageResult::Message);
         EXPECT_NE(peer_close.message->close_call(), nullptr);
 
-        EXPECT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(1)),
-                  DispatchResult::Discarded);
-        EXPECT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(1, true)),
+        EXPECT_EQ(registry.dispatch(make_call_message_view(1)), DispatchResult::Discarded);
+        EXPECT_EQ(registry.dispatch(make_call_message_view(1, true)),
                   DispatchResult::ProtocolError);
-        EXPECT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(3)),
-                  DispatchResult::ProtocolError);
+        EXPECT_EQ(registry.dispatch(make_call_message_view(3)), DispatchResult::ProtocolError);
     }
 
     TEST(StreamRegistryTest, TracksPendingCallMessagesAcrossReadsAndCleanup)
@@ -409,12 +395,9 @@ namespace
         StreamRegistry registry{EndpointRole::Client};
         EXPECT_FALSE(registry.has_any_pending_message());
 
-        ASSERT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(2, true)),
-                  DispatchResult::Routed);
-        ASSERT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(2)),
-                  DispatchResult::Routed);
-        ASSERT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(4, true)),
-                  DispatchResult::Routed);
+        ASSERT_EQ(registry.dispatch(make_call_message_view(2, true)), DispatchResult::Routed);
+        ASSERT_EQ(registry.dispatch(make_call_message_view(2)), DispatchResult::Routed);
+        ASSERT_EQ(registry.dispatch(make_call_message_view(4, true)), DispatchResult::Routed);
         EXPECT_TRUE(registry.has_any_pending_message());
 
         EXPECT_EQ(registry.take_call_message(2).result, CallMessageResult::Message);
@@ -424,8 +407,7 @@ namespace
         EXPECT_EQ(registry.take_call_message(4).result, CallMessageResult::Message);
         EXPECT_FALSE(registry.has_any_pending_message());
 
-        ASSERT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(6, true)),
-                  DispatchResult::Routed);
+        ASSERT_EQ(registry.dispatch(make_call_message_view(6, true)), DispatchResult::Routed);
         ASSERT_EQ(registry.dispatch(std::make_unique<FakeControlMessageView>(0)),
                   DispatchResult::Routed);
         registry.discard_call_streams();
@@ -450,8 +432,7 @@ namespace
     {
         StreamRegistry registry{EndpointRole::Client};
 
-        EXPECT_EQ(registry.dispatch(std::make_unique<FakeCallMessageView>(0)),
-                  DispatchResult::ProtocolError);
+        EXPECT_EQ(registry.dispatch(make_call_message_view(0)), DispatchResult::ProtocolError);
         EXPECT_EQ(registry.dispatch(std::make_unique<FakeControlMessageView>(1)),
                   DispatchResult::ProtocolError);
         EXPECT_EQ(registry.dispatch(std::make_unique<FakeControlMessageView>(0)),
@@ -462,8 +443,8 @@ namespace
     TEST(ContextImplTest, DispatchesInboundCallAndKeepsCallStateAfterAccept)
     {
         auto background = std::make_unique<FakeBackgroundThread>();
-        background->push_inbound(std::make_unique<FakeCallMessageView>(2, true));
-        background->push_inbound(std::make_unique<FakeCallMessageView>(2, false, true));
+        background->push_inbound(make_call_message_view(2, true));
+        background->push_inbound(make_call_message_view(2, false, true));
         ContextImpl context{
             std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
 
@@ -880,7 +861,7 @@ namespace
                   interface::OperationStatus::TransportError);
 
         auto invalid_background = std::make_unique<FakeBackgroundThread>();
-        invalid_background->push_inbound(std::make_unique<FakeCallMessageView>(0));
+        invalid_background->push_inbound(make_call_message_view(0));
         ContextState invalid{EndpointRole::Client, std::move(invalid_background)};
         EXPECT_EQ(invalid.receive_status(), interface::MessageStatus::ConnectionError);
         EXPECT_EQ(invalid.is_new_inbound_call_available(), false);
@@ -914,7 +895,7 @@ namespace
         opening->open_call("call");
         const auto call = send_state.open_call(std::move(opening));
         ASSERT_TRUE(call);
-        send_background_ptr->push_inbound(std::make_unique<FakeCallMessageView>(0));
+        send_background_ptr->push_inbound(make_call_message_view(0));
         auto message = send_state.create_call_message_builder(*call.value);
         EXPECT_EQ(
             send_state.send_call_message(*call.value, std::move(message), std::nullopt).status,
@@ -925,7 +906,7 @@ namespace
     TEST(ContextStateTest, ReceivesAcceptedInboundCallAndConnectionClose)
     {
         auto background = std::make_unique<FakeBackgroundThread>();
-        background->push_inbound(std::make_unique<FakeCallMessageView>(2, true));
+        background->push_inbound(make_call_message_view(2, true));
         ContextState state{EndpointRole::Client, std::move(background)};
         EXPECT_TRUE(state.is_new_inbound_call_available());
         const auto accepted = state.accept_call();
@@ -1025,7 +1006,7 @@ namespace
     TEST(ContextStateTest, AcceptsOpeningMessageThatAlsoClosesTheCall)
     {
         auto background = std::make_unique<FakeBackgroundThread>();
-        background->push_inbound(std::make_unique<FakeCallMessageView>(2, true, true));
+        background->push_inbound(make_call_message_view(2, true, true));
         ContextState state{EndpointRole::Client, std::move(background)};
 
         const auto accepted = state.accept_call();
