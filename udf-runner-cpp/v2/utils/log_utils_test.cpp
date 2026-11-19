@@ -325,17 +325,13 @@ TEST(LogUtilsTest, FunctionTraceUsesVerboseLevel)
 #ifndef NDEBUG
 TEST(LogUtilsTest, FunctionTraceIgnoresLoggingFailures)
 {
-    for (const auto failure :
-         {FailingTraceLoggingProvider::Failure::Enable, FailingTraceLoggingProvider::Failure::Start,
-          FailingTraceLoggingProvider::Failure::End})
+    using enum FailingTraceLoggingProvider::Failure;
+    for (const auto failure : {Enable, Start, End})
     {
         FailingTraceLoggingProvider provider(failure);
         EXPECT_NO_THROW(
             { log_utils::FunctionTraceLog trace(provider, std::source_location::current()); });
-        EXPECT_EQ(provider.verbose_call_count(),
-                  failure == FailingTraceLoggingProvider::Failure::Enable  ? 0
-                  : failure == FailingTraceLoggingProvider::Failure::Start ? 1
-                                                                           : 2);
+        EXPECT_EQ(provider.verbose_call_count(), failure == Enable ? 0 : failure == Start ? 1 : 2);
     }
 }
 #endif

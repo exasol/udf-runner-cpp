@@ -82,7 +82,7 @@ FunctionTraceLog::FunctionTraceLog(
     exasol::udf::v2::provider::logging::LoggingProviderIf& logging_provider,
     const std::source_location code_location) noexcept
 #ifndef NDEBUG
-    : logging_provider(logging_provider), code_location(code_location), enabled(false)
+    : logging_provider(logging_provider), code_location(code_location)
 #endif
 {
 #ifndef NDEBUG
@@ -115,9 +115,9 @@ FunctionTraceLog::~FunctionTraceLog() noexcept
             log_trace(this->logging_provider, "End", this->code_location);
         }
     }
-    catch (...)
+    catch (...) // NOSONAR: A failed end trace must not throw from this destructor.
     {
-        // Destruction must remain safe even if the log stream fails.
+        // Scope tracing is best-effort, and the logging provider may be the source of the failure.
     }
 #endif
 }

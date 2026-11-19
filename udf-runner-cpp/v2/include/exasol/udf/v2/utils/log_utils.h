@@ -108,7 +108,7 @@ private:
 #ifndef NDEBUG
     exasol::udf::v2::provider::logging::LoggingProviderIf& logging_provider;
     std::source_location code_location;
-    bool enabled;
+    bool enabled = false;
 #endif
 };
 
