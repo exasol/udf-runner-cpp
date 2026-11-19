@@ -3,9 +3,17 @@
 #include <exasol/udf/v2/internal/thread.hpp>
 
 #include <memory>
+#include <stdexcept>
 
 namespace exasol::udf::v2::internal
 {
+
+/// Reports an invalid task passed to a ThreadFactory.
+class ThreadTaskError final : public std::invalid_argument
+{
+public:
+    using std::invalid_argument::invalid_argument;
+};
 
 /// Creates Internal threads without exposing a native thread runtime to callers.
 class ThreadFactory

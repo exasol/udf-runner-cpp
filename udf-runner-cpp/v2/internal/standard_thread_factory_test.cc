@@ -17,7 +17,9 @@ namespace
 using namespace std::chrono_literals;
 using exasol::udf::v2::internal::StandardThreadFactory;
 using exasol::udf::v2::internal::Thread;
+using exasol::udf::v2::internal::ThreadLifecycleError;
 using exasol::udf::v2::internal::ThreadTask;
+using exasol::udf::v2::internal::ThreadTaskError;
 
 class TaskGate
 {
@@ -46,8 +48,8 @@ private:
 TEST(StandardThreadFactoryTest, DoesNotExecuteTaskBeforeStart)
 {
     StandardThreadFactory factory;
-    std::atomic<int> executions{0};
-    std::unique_ptr<Thread> thread = factory.create([&executions] { ++executions; });
+    std::atomic executions{0};
+    auto thread = factory.create([&executions] { ++executions; });
 
     EXPECT_EQ(executions.load(), 0);
 
@@ -61,7 +63,7 @@ TEST(StandardThreadFactoryTest, TimedJoinLeavesRunningTaskJoinable)
 {
     StandardThreadFactory factory;
     TaskGate gate;
-    std::unique_ptr<Thread> thread = factory.create([&gate] { gate.wait(); });
+    auto thread = factory.create([&gate] { gate.wait(); });
     thread->start();
 
     EXPECT_FALSE(thread->join_for(0ms));
@@ -76,13 +78,15 @@ TEST(StandardThreadFactoryTest, TimedJoinLeavesRunningTaskJoinable)
 TEST(StandardThreadFactoryTest, RejectsInvalidLifecycleOperations)
 {
     StandardThreadFactory factory;
-    std::unique_ptr<Thread> thread = factory.create([] {});
+    auto thread = factory.create([] {
+        // Intentionally empty: this test exercises Thread lifecycle checks only.
+    });
 
-    EXPECT_THROW(thread->join(), std::logic_error);
+    EXPECT_THROW(thread->join(), ThreadLifecycleError);
     EXPECT_THROW(static_cast<void>(thread->join_for(-1ms)), std::invalid_argument);
 
     thread->start();
-    EXPECT_THROW(thread->start(), std::logic_error);
+    EXPECT_THROW(thread->start(), ThreadLifecycleError);
     thread->join();
 }
 
@@ -90,25 +94,25 @@ TEST(StandardThreadFactoryTest, RejectsEmptyTask)
 {
     StandardThreadFactory factory;
 
-    EXPECT_THROW(static_cast<void>(factory.create(ThreadTask{})), std::invalid_argument);
+    EXPECT_THROW(static_cast<void>(factory.create(ThreadTask{})), ThreadTaskError);
 }
 
 TEST(StandardThreadFactoryTest, RejectsSelfJoin)
 {
     StandardThreadFactory factory;
     Thread* thread_pointer = nullptr;
-    std::atomic<bool> rejected{false};
-    std::unique_ptr<Thread> thread = factory.create([&thread_pointer, &rejected] {
+    std::atomic rejected{false};
+    auto thread    = factory.create([&thread_pointer, &rejected] {
         try
         {
             thread_pointer->join();
         }
-        catch (const std::logic_error&)
+        catch (const ThreadLifecycleError&)
         {
             rejected = true;
         }
     });
-    thread_pointer                 = thread.get();
+    thread_pointer = thread.get();
 
     thread->start();
     thread->join();
@@ -120,12 +124,12 @@ TEST(StandardThreadFactoryTest, SerializesConcurrentJoiners)
 {
     StandardThreadFactory factory;
     TaskGate task_gate;
-    std::unique_ptr<Thread> thread = factory.create([&task_gate] { task_gate.wait(); });
+    auto thread = factory.create([&task_gate] { task_gate.wait(); });
     thread->start();
 
     std::latch joiners_ready(2);
     std::latch start_joining(1);
-    std::atomic<int> successful_joins{0};
+    std::atomic successful_joins{0};
     auto join_task = [&thread, &joiners_ready, &start_joining, &successful_joins] {
         joiners_ready.count_down();
         start_joining.wait();
@@ -134,8 +138,8 @@ TEST(StandardThreadFactoryTest, SerializesConcurrentJoiners)
             ++successful_joins;
         }
     };
-    std::thread first_joiner(join_task);
-    std::thread second_joiner(join_task);
+    std::jthread first_joiner(join_task);
+    std::jthread second_joiner(join_task);
 
     joiners_ready.wait();
     start_joining.count_down();
@@ -145,6 +149,18 @@ TEST(StandardThreadFactoryTest, SerializesConcurrentJoiners)
     second_joiner.join();
 
     EXPECT_EQ(successful_joins.load(), 2);
+}
+
+TEST(StandardThreadFactoryTest, SupportsMaximumRelativeTimeoutAndRepeatedJoins)
+{
+    StandardThreadFactory factory;
+    auto thread = factory.create([] {
+        // Intentionally empty: this test exercises timeout conversion and repeated joins only.
+    });
+    thread->start();
+
+    EXPECT_TRUE(thread->join_for(std::chrono::steady_clock::duration::max()));
+    EXPECT_TRUE(thread->join_for(0ms));
 }
 
 } // namespace

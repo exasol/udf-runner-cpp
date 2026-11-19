@@ -27,14 +27,16 @@ namespace
             std::lock_guard lock(this->mutex);
             if (this->started)
             {
-                throw std::logic_error("thread has already been started");
+                throw ThreadLifecycleError("thread has already been started");
             }
             this->started = true;
             try
             {
+                // NOSONAR: std::jthread silently joins on destruction, which violates Thread's
+                // explicit-join contract.
                 this->thread = std::thread([this] { this->run_task(); });
             }
-            catch (...)
+            catch (const std::system_error&)
             {
                 this->started = false;
                 throw;
@@ -52,9 +54,9 @@ namespace
             {
                 throw std::invalid_argument("thread join timeout must not be negative");
             }
-            const auto now             = std::chrono::steady_clock::now();
-            const auto maximum_timeout = std::chrono::steady_clock::time_point::max() - now;
-            if (timeout >= maximum_timeout)
+            const auto now = std::chrono::steady_clock::now();
+            if (const auto maximum_timeout = std::chrono::steady_clock::time_point::max() - now;
+                timeout >= maximum_timeout)
             {
                 return this->join_until(std::chrono::steady_clock::time_point::max());
             }
@@ -67,61 +69,92 @@ namespace
         }
 
     private:
+        enum class JoinClaim
+        {
+            TimedOut,
+            AlreadyJoined,
+            Claimed,
+        };
+
         [[nodiscard]] bool join_impl(
+            const std::optional<std::chrono::steady_clock::time_point> deadline)
+        {
+            const JoinClaim claim = this->wait_for_completion_and_claim(deadline);
+            if (claim == JoinClaim::TimedOut)
+            {
+                return false;
+            }
+            if (claim == JoinClaim::AlreadyJoined)
+            {
+                return true;
+            }
+
+            try
+            {
+                this->thread.join();
+            }
+            catch (const std::system_error&)
+            {
+                this->release_join_claim();
+                throw;
+            }
+            this->complete_join();
+            return true;
+        }
+
+        [[nodiscard]] JoinClaim wait_for_completion_and_claim(
             const std::optional<std::chrono::steady_clock::time_point> deadline)
         {
             std::unique_lock lock(this->mutex);
             if (!this->started)
             {
-                throw std::logic_error("thread has not been started");
+                throw ThreadLifecycleError("thread has not been started");
             }
             if (this->joined)
             {
-                return true;
+                return JoinClaim::AlreadyJoined;
             }
             if (!this->joining && this->thread.get_id() == std::this_thread::get_id())
             {
-                throw std::logic_error("a thread cannot join itself");
+                throw ThreadLifecycleError("a thread cannot join itself");
             }
             if (!this->wait_for(lock, deadline, [this] { return this->completed; }))
             {
-                return false;
+                return JoinClaim::TimedOut;
             }
-            while (!this->joined)
+            while (this->joining)
             {
-                if (this->joining)
+                if (!this->wait_for(lock, deadline,
+                                    [this] { return this->joined || !this->joining; }))
                 {
-                    if (!this->wait_for(lock, deadline,
-                                        [this] { return this->joined || !this->joining; }))
-                    {
-                        return false;
-                    }
-                    continue;
+                    return JoinClaim::TimedOut;
                 }
+            }
+            if (this->joined)
+            {
+                return JoinClaim::AlreadyJoined;
+            }
+            this->joining = true;
+            return JoinClaim::Claimed;
+        }
 
-                this->joining = true;
-                lock.unlock();
-                try
-                {
-                    this->thread.join();
-                }
-                catch (...)
-                {
-                    lock.lock();
-                    this->joining = false;
-                    lock.unlock();
-                    this->state_changed.notify_all();
-                    throw;
-                }
+        void release_join_claim()
+        {
+            {
+                std::lock_guard lock(this->mutex);
+                this->joining = false;
+            }
+            this->state_changed.notify_all();
+        }
 
-                lock.lock();
+        void complete_join()
+        {
+            {
+                std::lock_guard lock(this->mutex);
                 this->joining = false;
                 this->joined  = true;
-                lock.unlock();
-                this->state_changed.notify_all();
-                return true;
             }
-            return true;
+            this->state_changed.notify_all();
         }
 
         template <typename Predicate>
@@ -149,6 +182,8 @@ namespace
         }
 
         ThreadTask task;
+        // NOSONAR: std::jthread silently joins on destruction, which violates Thread's
+        // explicit-join contract.
         std::thread thread;
         std::condition_variable state_changed;
         std::mutex mutex;
@@ -164,7 +199,7 @@ std::unique_ptr<Thread> StandardThreadFactory::create(ThreadTask task)
 {
     if (!task)
     {
-        throw std::invalid_argument("thread task must not be empty");
+        throw ThreadTaskError("thread task must not be empty");
     }
     return std::make_unique<StandardThread>(std::move(task));
 }
