@@ -587,7 +587,7 @@ cc_library(
 
 cc_test(
     name = "connection_acceptor_test",
-    # This binary links the logging implementation, so run its tests when Mull
+    # This binary links the logging implementation, to run its tests when Mull
     # mutates the connection acceptor's transitive dependencies.
     srcs = ["internal/connection_acceptor_test.cc"],
     copts = ["-std=c++23"],
