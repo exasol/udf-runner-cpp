@@ -61,6 +61,27 @@ namespace
                   CallMessageResult::PeerClosed);
     }
 
+    TEST(StreamRegistryTest, RoutesCallMessageToActiveStream)
+    {
+        StreamRegistry registry{EndpointRole::Client};
+        ASSERT_EQ(registry.dispatch(make_call_message_view(k_first_server_stream_id, true)),
+                  DispatchResult::Routed);
+        ASSERT_EQ(registry.take_next_unaccepted_call(), k_first_server_stream_id);
+
+        const auto opening = registry.take_call_message(k_first_server_stream_id);
+        ASSERT_EQ(opening.result, CallMessageResult::Message);
+        ASSERT_NE(opening.message->open_call(), nullptr);
+
+        EXPECT_EQ(registry.dispatch(make_call_message_view(k_first_server_stream_id)),
+                  DispatchResult::Routed);
+
+        const auto message = registry.take_call_message(k_first_server_stream_id);
+        ASSERT_EQ(message.result, CallMessageResult::Message);
+        EXPECT_EQ(message.message->stream_id(), k_first_server_stream_id);
+        EXPECT_EQ(message.message->open_call(), nullptr);
+        EXPECT_EQ(message.message->close_call(), nullptr);
+    }
+
     TEST(StreamRegistryTest, DiscardsDelayedTrafficOnPreviouslyUsedPeerStreams)
     {
         StreamRegistry registry{EndpointRole::Client};
