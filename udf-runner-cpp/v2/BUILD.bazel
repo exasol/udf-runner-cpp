@@ -589,15 +589,11 @@ cc_test(
     name = "connection_acceptor_test",
     # This binary links the logging implementation, so run its tests when Mull
     # mutates the connection acceptor's transitive dependencies.
-    srcs = [
-        "internal/connection_acceptor_test.cc",
-        "utils/log_utils_test.cpp",
-    ],
+    srcs = ["internal/connection_acceptor_test.cc"],
     copts = ["-std=c++23"],
     deps = [
         ":connection_acceptor",
-        ":logging_utils",
-        ":providers",
+        ":logging_utils_test_cases",
         ":recording_logging_provider_test_utils",
         "@googletest//:gtest_main",
     ],
@@ -850,13 +846,26 @@ cc_library(
     deps = [":providers"],
 )
 
-cc_test(
-    name = "logging_utils_test",
+cc_library(
+    name = "logging_utils_test_cases",
+    testonly = True,
     srcs = ["utils/log_utils_test.cpp"],
+    # GoogleTest registers cases during static initialization, without a
+    # symbol referenced directly by either test binary.
+    alwayslink = True,
     copts = ["-std=c++23"],
     deps = [
         ":logging_utils",
         ":providers",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "logging_utils_test",
+    copts = ["-std=c++23"],
+    deps = [
+        ":logging_utils_test_cases",
         "@googletest//:gtest_main",
     ],
 )
