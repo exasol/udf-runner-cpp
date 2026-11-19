@@ -3,8 +3,34 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 package(default_visibility = ["//visibility:public"])
 
 cc_test(
-    name = "stream_management_test",
-    srcs = ["stream_management_test.cc"],
+    name = "stream_registry_test",
+    srcs = ["stream_registry_test.cc", "stream_management_test_utils.hpp"],
+    copts = ["-std=c++23"],
+    tags = ["no-mull"],
+    deps = [
+        "//:interface",
+        "//:interface_internal",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "context_state_test",
+    srcs = ["context_state_test.cc", "stream_management_test_utils.hpp"],
+    copts = ["-std=c++23"],
+    tags = ["no-mull"],
+    deps = [
+        "//:interface",
+        "//:interface_internal",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "context_impl_test",
+    srcs = ["context_impl_test.cc", "stream_management_test_utils.hpp"],
     copts = ["-std=c++23"],
     tags = ["no-mull"],
     deps = [
