@@ -5,8 +5,8 @@
 
 #include <cstdlib>
 #include <initializer_list>
+#include <ios>
 #include <iostream>
-#include <stdexcept>
 #include <source_location>
 #include <string>
 #include <string_view>
@@ -94,9 +94,9 @@ public:
     }
 
 private:
-    static std::ostream& fail()
+    [[noreturn]] static std::ostream& fail()
     {
-        throw std::runtime_error("log stream unavailable");
+        throw std::ios_base::failure("log stream unavailable");
     }
 };
 
@@ -255,12 +255,12 @@ TEST(LogUtilsTest, PropagatesProviderErrors)
 {
     ThrowingLoggingProvider provider;
     const auto location = std::source_location::current();
-    EXPECT_THROW(log_utils::log_error(provider, "error", location), std::runtime_error);
-    EXPECT_THROW(log_utils::log_warning(provider, "warning", location), std::runtime_error);
-    EXPECT_THROW(log_utils::log_notice(provider, "notice", location), std::runtime_error);
-    EXPECT_THROW(log_utils::log_debug(provider, "debug", location), std::runtime_error);
+    EXPECT_THROW(log_utils::log_error(provider, "error", location), std::ios_base::failure);
+    EXPECT_THROW(log_utils::log_warning(provider, "warning", location), std::ios_base::failure);
+    EXPECT_THROW(log_utils::log_notice(provider, "notice", location), std::ios_base::failure);
+    EXPECT_THROW(log_utils::log_debug(provider, "debug", location), std::ios_base::failure);
 #ifndef NDEBUG
-    EXPECT_THROW(log_utils::log_trace(provider, "trace", location), std::runtime_error);
+    EXPECT_THROW(log_utils::log_trace(provider, "trace", location), std::ios_base::failure);
 #endif
 }
 
