@@ -34,7 +34,7 @@ namespace
             {
                 // NOSONAR: std::jthread silently joins on destruction, which violates Thread's
                 // explicit-join contract.
-                this->thread = std::thread([this] { this->run_task(); }); // NOSONAR: std::thread is intentional here
+                this->thread = std::thread([this] { this->run_task(); }); // NOSONAR
             }
             catch (const std::system_error&)
             {
