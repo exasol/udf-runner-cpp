@@ -569,9 +569,20 @@ cc_library(
         ":event_fd",
         ":exception",
         ":linux_epoll_interface",
+        ":logging_utils",
+        ":providers",
         ":socket_interface",
     ],
     target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "recording_logging_provider_test_utils",
+    testonly = True,
+    hdrs = ["test_utils/recording_logging_provider.hpp"],
+    copts = ["-std=c++23"],
+    includes = ["test_utils"],
+    deps = [":providers"],
 )
 
 cc_test(
@@ -580,6 +591,7 @@ cc_test(
     copts = ["-std=c++23"],
     deps = [
         ":connection_acceptor",
+        ":recording_logging_provider_test_utils",
         "@googletest//:gtest_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],
@@ -607,6 +619,7 @@ cc_test(
     deps = [
         ":socket",
         ":posix",
+        ":providers",
         "@googletest//:gtest_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],
@@ -619,6 +632,7 @@ cc_fuzz_test(
     copts = ["-std=c++23"],
     deps = [
         ":posix",
+        ":providers",
         ":socket",
     ],
     tags = ["fuzz-test"],
