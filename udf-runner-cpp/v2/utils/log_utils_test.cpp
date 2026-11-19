@@ -60,25 +60,25 @@ private:
 class ThrowingLoggingProvider final : public exasol::udf::v2::provider::logging::LoggingProviderIf
 {
 public:
-    std::ostream& error() override
+    [[noreturn]] std::ostream& error() override
     {
-        return fail();
+        fail();
     }
-    std::ostream& warning() override
+    [[noreturn]] std::ostream& warning() override
     {
-        return fail();
+        fail();
     }
-    std::ostream& notice() override
+    [[noreturn]] std::ostream& notice() override
     {
-        return fail();
+        fail();
     }
-    std::ostream& debug() override
+    [[noreturn]] std::ostream& debug() override
     {
-        return fail();
+        fail();
     }
-    std::ostream& verbose() override
+    [[noreturn]] std::ostream& verbose() override
     {
-        return fail();
+        fail();
     }
     [[nodiscard]] bool isNoticeEnabled() const override
     {
@@ -94,7 +94,7 @@ public:
     }
 
 private:
-    [[noreturn]] static std::ostream& fail()
+    [[noreturn]] static void fail()
     {
         throw std::ios_base::failure("log stream unavailable");
     }
