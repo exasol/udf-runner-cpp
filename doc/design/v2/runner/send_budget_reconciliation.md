@@ -29,7 +29,7 @@ sequenceDiagram
 
 The context measures the logical batch and consumes its size from its admission budget. If the batch is larger than the remaining budget, the context consumes the remainder and sets its budget to zero. It sends the amount consumed together with the batch through the cross-thread outbound queue. The background send queue compares that reported consumption with the serialized Arrow buffer bytes for the batch. Any excess batch bytes become debt owned by the send queue. New peer credit pays debt first; only the surplus is published as the next context admission allowance. The cross-thread queue merely transports the batch and its reported consumption.
 
-Let `A` be the context's budget immediately before sending, `C` the amount it reports consumed, and `B` the actual serialized buffer bytes in the batch. The context reports `C = min(A, B)` and retains `A - C` as its budget. The send queue records `max(0, B - C)` as new debt. Any remaining budget and any credit returned after debt reconciliation are combined only on the context side. Slicing uses the send queue's reconciled credit and row sizes. An indivisible row may overshoot available credit; that overshoot is recorded as debt rather than discarded.
+Let `A` be the context's budget immediately before sending, `C` the amount it reports consumed, and `B` the actual serialized buffer bytes in the batch. The context reports `C = min(A, B)` and retains `A - C` as its budget. The send queue records `max(0, B - C)` as batch-level debt. Any remaining budget and any credit returned after batch-level debt reconciliation are combined only on the context side. Slicing uses the send queue's reconciled credit and row sizes. If an indivisible row crosses the available credit while selecting a slice, the queue includes that row and clamps available credit to zero; this row-boundary overshoot is discarded and does not add to batch-level debt.
 
 The first logical batch in a direction retains the protocol's existing no-credit exception and does not create debt. Empty batches consume no byte credit.
 
@@ -41,6 +41,8 @@ Assume the context has 100 bytes of budget and sends a 130-byte batch. It consum
 |---|---:|---:|---:|---:|---:|
 | Context submits batch | 100 | 130 | 100 consumed | 30 | 0 |
 | Peer grants more credit | 70 | — | — | 0 | 40 |
+
+This example's 30-byte debt comes from the complete logical batch exceeding the context's consumed budget. A separate row-boundary overshoot during slicing would be clamped to zero and discarded; it would not increase the debt shown here.
 
 ## Budget state
 
