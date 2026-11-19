@@ -29,6 +29,55 @@ inline constexpr std::uint64_t k_second_server_stream_id = 4;
 inline constexpr std::uint64_t k_third_server_stream_id  = 6;
 inline constexpr std::uint64_t k_unknown_stream_id       = 999;
 
+/// Strict interaction tests use this mock to assert queue-boundary calls.
+class MockBackgroundThread : public BackgroundThreadInterface
+{
+public:
+    MOCK_METHOD(BackgroundThreadResult,
+                wait_until,
+                (std::optional<std::chrono::steady_clock::time_point> deadline),
+                (override));
+    MOCK_METHOD(bool, enqueue_outbound_messages, (OutboundBatch & messages), (override));
+    MOCK_METHOD(bool, enqueue_outbound_message, (OutboundMessage & message), (override));
+    MOCK_METHOD(InboundBatch, dequeue_inbound_messages, (), (override));
+    void request_shutdown() noexcept override
+    {
+    }
+
+    MockBackgroundThread()
+    {
+        ON_CALL(*this, wait_until(testing::_)).WillByDefault([](const auto deadline) {
+            return BackgroundThreadResult{.event = deadline ? Event::DeadlineExpired
+                                                            : Event::ShutdownRequested};
+        });
+        ON_CALL(*this, enqueue_outbound_messages(testing::_))
+            .WillByDefault([this](OutboundBatch& messages) {
+                return this->accept_outbound_messages(messages);
+            });
+        ON_CALL(*this, enqueue_outbound_message(testing::_))
+            .WillByDefault([this](OutboundMessage& message) {
+                return this->accept_outbound_message(message);
+            });
+        ON_CALL(*this, dequeue_inbound_messages()).WillByDefault([] { return InboundBatch{}; });
+    }
+
+    bool accept_outbound_messages(OutboundBatch& messages)
+    {
+        outbound_.insert(outbound_.end(), std::make_move_iterator(messages.begin()),
+                         std::make_move_iterator(messages.end()));
+        return true;
+    }
+
+    bool accept_outbound_message(OutboundMessage& message)
+    {
+        outbound_.push_back(std::move(message));
+        return true;
+    }
+
+private:
+    OutboundBatch outbound_;
+};
+
 class FakeOpenCallView final : public interface::OpenCallView
 {
 public:
@@ -171,7 +220,8 @@ public:
     MOCK_METHOD(interface::ControlMessageBuilder&, close_connection, (), (override));
 };
 
-class FakeBackgroundThread final : public BackgroundThreadInterface
+/// Queue and event-sequence tests use this fake to model deterministic inbound work.
+class StatefulBackgroundThreadFake final : public BackgroundThreadInterface
 {
 public:
     [[nodiscard]] BackgroundThreadResult wait_until(
@@ -179,7 +229,6 @@ public:
     {
         using enum Event;
 
-        last_deadline_ = deadline;
         if (next_wait_result_)
         {
             auto result = std::move(*next_wait_result_);
@@ -198,20 +247,12 @@ public:
     }
     bool enqueue_outbound_messages(OutboundBatch& messages) override
     {
-        if (reject_outbound_)
-        {
-            return false;
-        }
         outbound_.insert(outbound_.end(), std::make_move_iterator(messages.begin()),
                          std::make_move_iterator(messages.end()));
         return true;
     }
     bool enqueue_outbound_message(OutboundMessage& message) override
     {
-        if (reject_outbound_)
-        {
-            return false;
-        }
         outbound_.push_back(std::move(message));
         return true;
     }
@@ -223,36 +264,19 @@ public:
     }
     void request_shutdown() noexcept override
     {
-        shutdown_requested_ = true;
     }
 
     void push_inbound(InboundMessage message)
     {
         inbound_.push_back(std::move(message));
     }
-    void set_reject_outbound(const bool reject) noexcept
-    {
-        reject_outbound_ = reject;
-    }
     void set_next_wait_result(BackgroundThreadResult result)
     {
         next_wait_result_.emplace(std::move(result));
     }
-    [[nodiscard]] const std::optional<std::chrono::steady_clock::time_point>& last_deadline()
-        const noexcept
-    {
-        return last_deadline_;
-    }
-    [[nodiscard]] std::size_t outbound_size() const noexcept
-    {
-        return outbound_.size();
-    }
 
 private:
-    bool reject_outbound_{};
-    bool shutdown_requested_{};
     std::optional<BackgroundThreadResult> next_wait_result_;
-    std::optional<std::chrono::steady_clock::time_point> last_deadline_;
     InboundBatch inbound_;
     OutboundBatch outbound_;
 };

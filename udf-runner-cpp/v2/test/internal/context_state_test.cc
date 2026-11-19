@@ -15,7 +15,6 @@ namespace exasol::udf::v2::internal
 namespace
 {
 
-    using test_support::FakeBackgroundThread;
     using test_support::ForeignCallMessageBuilder;
     using test_support::ForeignControlMessageBuilder;
     using test_support::k_control_stream_id;
@@ -25,34 +24,43 @@ namespace
     using test_support::k_unknown_stream_id;
     using test_support::make_call_message_view;
     using test_support::make_control_message_view;
+    using test_support::MockBackgroundThread;
+    using test_support::StatefulBackgroundThreadFake;
 
     TEST(ContextStateTest, UsesInjectedClockToCreateDeadlineWithoutSleeping)
     {
-        using Clock                = std::chrono::steady_clock;
-        const auto now             = Clock::time_point{std::chrono::seconds{123}};
-        const auto timeout         = std::chrono::seconds{5};
-        auto background            = std::make_unique<FakeBackgroundThread>();
-        const auto* background_ptr = background.get();
+        using Clock          = std::chrono::steady_clock;
+        const auto now       = Clock::time_point{std::chrono::seconds{123}};
+        const auto timeout   = std::chrono::seconds{5};
+        auto background      = std::make_unique<testing::StrictMock<MockBackgroundThread>>();
+        auto* background_ptr = background.get();
+        EXPECT_CALL(*background_ptr, dequeue_inbound_messages()).WillOnce([] {
+            return InboundBatch{};
+        });
+        EXPECT_CALL(*background_ptr, wait_until(std::optional<Clock::time_point>{now + timeout}))
+            .WillOnce([] { return BackgroundThreadResult{.event = Event::DeadlineExpired}; });
         ContextState context_state{EndpointRole::Client, std::move(background),
                                    [now] { return now; }};
 
         EXPECT_EQ(context_state.wait_for_message(interface::Timeout{timeout}),
                   interface::MessageStatus::TimedOut);
-        ASSERT_TRUE(background_ptr->last_deadline().has_value());
-        EXPECT_EQ(*background_ptr->last_deadline(), now + timeout);
     }
 
     TEST(ContextStateTest, CreatesAndSendsControlMessagesUntilConnectionClose)
     {
-        auto background            = std::make_unique<FakeBackgroundThread>();
-        const auto* background_ptr = background.get();
+        auto background      = std::make_unique<testing::StrictMock<MockBackgroundThread>>();
+        auto* background_ptr = background.get();
+        EXPECT_CALL(*background_ptr, enqueue_outbound_message(testing::_))
+            .Times(2)
+            .WillRepeatedly([background_ptr](OutboundMessage& message) {
+                return background_ptr->accept_outbound_message(message);
+            });
         ContextState state{EndpointRole::Client, std::move(background)};
 
         auto message = state.create_control_message_builder();
         ASSERT_NE(message, nullptr);
         message->keep_alive();
         EXPECT_TRUE(state.send_control_message(std::move(message)));
-        EXPECT_EQ(background_ptr->outbound_size(), 1);
 
         auto send_after_close = state.create_control_message_builder();
         ASSERT_NE(send_after_close, nullptr);
@@ -70,15 +78,18 @@ namespace
     TEST(ContextStateTest, RejectsNullControlBuilder)
     {
         std::unique_ptr<interface::ControlMessageBuilder> null_message;
-        ContextState state{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+        ContextState state{EndpointRole::Client,
+                           std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
         EXPECT_EQ(state.send_control_message(std::move(null_message)).status,
                   interface::OperationStatus::ProtocolError);
     }
 
     TEST(ContextStateTest, RejectsForeignControlBuilderAndRetainsOwnership)
     {
-        ContextState state{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
-        ContextState other{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+        ContextState state{EndpointRole::Client,
+                           std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
+        ContextState other{EndpointRole::Client,
+                           std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
         auto foreign = other.create_control_message_builder();
         ASSERT_NE(foreign, nullptr);
         EXPECT_EQ(state.send_control_message(std::move(foreign)).status,
@@ -88,7 +99,8 @@ namespace
 
     TEST(ContextStateTest, RejectsNonImplementationControlBuilderAndRetainsOwnership)
     {
-        ContextState state{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+        ContextState state{EndpointRole::Client,
+                           std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
         std::unique_ptr<interface::ControlMessageBuilder> wrong_implementation =
             std::make_unique<testing::StrictMock<ForeignControlMessageBuilder>>();
         EXPECT_EQ(state.send_control_message(std::move(wrong_implementation)).status,
@@ -98,12 +110,13 @@ namespace
 
     TEST(ContextStateTest, RetainsControlBuilderWhenBackgroundRejectsIt)
     {
-        auto background      = std::make_unique<FakeBackgroundThread>();
+        auto background      = std::make_unique<testing::StrictMock<MockBackgroundThread>>();
         auto* background_ptr = background.get();
+        EXPECT_CALL(*background_ptr, enqueue_outbound_message(testing::_))
+            .WillOnce(testing::Return(false));
         ContextState state{EndpointRole::Client, std::move(background)};
         auto rejected = state.create_control_message_builder();
         ASSERT_NE(rejected, nullptr);
-        background_ptr->set_reject_outbound(true);
         EXPECT_EQ(state.send_control_message(std::move(rejected)).status,
                   interface::OperationStatus::TransportError);
         EXPECT_NE(rejected, nullptr);
@@ -114,10 +127,12 @@ namespace
     {
         std::unique_ptr<interface::ControlMessageBuilder> expired_owner_builder;
         {
-            ContextState source{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+            ContextState source{EndpointRole::Client,
+                                std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
             expired_owner_builder = source.create_control_message_builder();
         }
-        ContextState fresh_state{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+        ContextState fresh_state{EndpointRole::Client,
+                                 std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
         EXPECT_EQ(fresh_state.send_control_message(std::move(expired_owner_builder)).status,
                   interface::OperationStatus::ProtocolError);
         EXPECT_NE(expired_owner_builder, nullptr);
@@ -126,14 +141,16 @@ namespace
     TEST(ContextStateTest, RejectsNullOpeningBuilder)
     {
         std::unique_ptr<interface::OpeningCallMessageBuilder> null_message;
-        ContextState state{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+        ContextState state{EndpointRole::Client,
+                           std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
         EXPECT_EQ(state.open_call(std::move(null_message)).status,
                   interface::OperationStatus::ProtocolError);
     }
 
     TEST(ContextStateTest, RejectsOpeningBuilderWithoutOpenCallAndRetainsOwnership)
     {
-        ContextState state{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+        ContextState state{EndpointRole::Client,
+                           std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
         auto missing_open = state.create_opening_call_message_builder();
         ASSERT_NE(missing_open, nullptr);
         EXPECT_EQ(state.open_call(std::move(missing_open)).status,
@@ -143,8 +160,10 @@ namespace
 
     TEST(ContextStateTest, RejectsForeignOpeningBuilderAndRetainsOwnership)
     {
-        ContextState state{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
-        ContextState other{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+        ContextState state{EndpointRole::Client,
+                           std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
+        ContextState other{EndpointRole::Client,
+                           std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
         auto foreign = other.create_opening_call_message_builder();
         ASSERT_NE(foreign, nullptr);
         foreign->open_call("foreign");
@@ -155,7 +174,8 @@ namespace
 
     TEST(ContextStateTest, RejectsNullCallBuilder)
     {
-        ContextState state{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+        ContextState state{EndpointRole::Client,
+                           std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
         auto opening = state.create_opening_call_message_builder();
         ASSERT_NE(opening, nullptr);
         opening->open_call("call");
@@ -171,7 +191,8 @@ namespace
 
     TEST(ContextStateTest, ReturnsPeerClosedForUnknownCallStream)
     {
-        ContextState state{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+        ContextState state{EndpointRole::Client,
+                           std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
         auto opening = state.create_opening_call_message_builder();
         opening->open_call("call");
         const auto opened = state.open_call(std::move(opening));
@@ -187,13 +208,15 @@ namespace
 
     TEST(ContextStateTest, RejectsForeignCallBuilderAndRetainsOwnership)
     {
-        ContextState state{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+        ContextState state{EndpointRole::Client,
+                           std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
         auto opening = state.create_opening_call_message_builder();
         opening->open_call("call");
         const auto opened = state.open_call(std::move(opening));
         ASSERT_TRUE(opened);
 
-        ContextState other{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+        ContextState other{EndpointRole::Client,
+                           std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
         auto other_opening = other.create_opening_call_message_builder();
         ASSERT_NE(other_opening, nullptr);
         other_opening->open_call("other");
@@ -207,7 +230,8 @@ namespace
 
     TEST(ContextStateTest, RejectsNonImplementationCallBuilderAndRetainsOwnership)
     {
-        ContextState state{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+        ContextState state{EndpointRole::Client,
+                           std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
         auto opening = state.create_opening_call_message_builder();
         opening->open_call("call");
         const auto opened = state.open_call(std::move(opening));
@@ -223,7 +247,8 @@ namespace
 
     TEST(ContextStateTest, AcceptedCallClosePreventsFurtherSends)
     {
-        ContextState state{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+        ContextState state{EndpointRole::Client,
+                           std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
         auto opening = state.create_opening_call_message_builder();
         opening->open_call("call");
         const auto opened = state.open_call(std::move(opening));
@@ -246,13 +271,15 @@ namespace
     {
         std::unique_ptr<interface::CallMessageBuilder> expired_owner_builder;
         {
-            ContextState source{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+            ContextState source{EndpointRole::Client,
+                                std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
             auto source_opening = source.create_opening_call_message_builder();
             source_opening->open_call("source");
             ASSERT_TRUE(source.open_call(std::move(source_opening)));
             expired_owner_builder = source.create_call_message_builder(k_first_client_stream_id);
         }
-        ContextState state{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+        ContextState state{EndpointRole::Client,
+                           std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
         auto destination_opening = state.create_opening_call_message_builder();
         destination_opening->open_call("destination");
         const auto destination = state.open_call(std::move(destination_opening));
@@ -267,8 +294,16 @@ namespace
 
     TEST(ContextStateTest, RetainsCallMessageBuilderWhenBackgroundRejectsIt)
     {
-        auto background      = std::make_unique<FakeBackgroundThread>();
+        auto background      = std::make_unique<testing::StrictMock<MockBackgroundThread>>();
         auto* background_ptr = background.get();
+        EXPECT_CALL(*background_ptr, dequeue_inbound_messages())
+            .Times(testing::AnyNumber())
+            .WillRepeatedly([] { return InboundBatch{}; });
+        EXPECT_CALL(*background_ptr, enqueue_outbound_message(testing::_))
+            .WillOnce([background_ptr](OutboundMessage& message) {
+                return background_ptr->accept_outbound_message(message);
+            })
+            .WillOnce(testing::Return(false));
         ContextState state{EndpointRole::Client, std::move(background)};
         auto opening = state.create_opening_call_message_builder();
         ASSERT_NE(opening, nullptr);
@@ -278,7 +313,6 @@ namespace
 
         auto message = state.create_call_message_builder(*opened.value);
         ASSERT_NE(message, nullptr);
-        background_ptr->set_reject_outbound(true);
         const auto result =
             state.send_call_message(*opened.value, std::move(message), interface::Timeout{});
 
@@ -288,8 +322,9 @@ namespace
 
     TEST(ContextStateTest, RetainsOpeningBuilderWhenBackgroundRejectsIt)
     {
-        auto background = std::make_unique<FakeBackgroundThread>();
-        background->set_reject_outbound(true);
+        auto background = std::make_unique<testing::StrictMock<MockBackgroundThread>>();
+        EXPECT_CALL(*background, enqueue_outbound_message(testing::_))
+            .WillOnce(testing::Return(false));
         ContextState state{EndpointRole::Client, std::move(background)};
         auto opening = state.create_opening_call_message_builder();
         ASSERT_NE(opening, nullptr);
@@ -303,7 +338,8 @@ namespace
 
     TEST(ContextStateTest, ClosedStateRejectsNewBuildersAndOperations)
     {
-        ContextState state{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+        ContextState state{EndpointRole::Client,
+                           std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
         state.shutdown();
 
         EXPECT_EQ(state.create_opening_call_message_builder(), nullptr);
@@ -320,7 +356,7 @@ namespace
 
     TEST(ContextStateTest, MapsBackgroundShutdownToCancelled)
     {
-        auto background = std::make_unique<FakeBackgroundThread>();
+        auto background = std::make_unique<StatefulBackgroundThreadFake>();
         background->set_next_wait_result({.event = Event::ShutdownRequested});
         ContextState cancelled{EndpointRole::Client, std::move(background)};
         EXPECT_EQ(cancelled.wait_for_message(std::nullopt), interface::MessageStatus::Cancelled);
@@ -329,7 +365,7 @@ namespace
 
     TEST(ContextStateTest, MapsBackgroundErrorToConnectionFailure)
     {
-        auto failed_background = std::make_unique<FakeBackgroundThread>();
+        auto failed_background = std::make_unique<StatefulBackgroundThreadFake>();
         failed_background->set_next_wait_result(
             {.event = Event::ShutdownRequested,
              .error = interface::ErrorInfo("IO", "background failed")});
@@ -341,7 +377,7 @@ namespace
 
     TEST(ContextStateTest, MarksContextFailedAfterInvalidInboundCall)
     {
-        auto invalid_background = std::make_unique<FakeBackgroundThread>();
+        auto invalid_background = std::make_unique<StatefulBackgroundThreadFake>();
         invalid_background->push_inbound(make_call_message_view(k_control_stream_id));
         ContextState invalid{EndpointRole::Client, std::move(invalid_background)};
         EXPECT_EQ(invalid.receive_status(), interface::MessageStatus::ConnectionError);
@@ -352,24 +388,24 @@ namespace
 
     TEST(ContextStateTest, RejectsMalformedInboundTrafficAcrossOperations)
     {
-        auto wait_background = std::make_unique<FakeBackgroundThread>();
+        auto wait_background = std::make_unique<StatefulBackgroundThreadFake>();
         wait_background->push_inbound(make_control_message_view(k_first_client_stream_id));
         ContextState wait_state{EndpointRole::Client, std::move(wait_background)};
         EXPECT_EQ(wait_state.wait_for_message(std::nullopt),
                   interface::MessageStatus::ConnectionError);
 
-        auto accept_background = std::make_unique<FakeBackgroundThread>();
+        auto accept_background = std::make_unique<StatefulBackgroundThreadFake>();
         accept_background->push_inbound(make_control_message_view(k_first_client_stream_id));
         ContextState accept_state{EndpointRole::Client, std::move(accept_background)};
         EXPECT_EQ(accept_state.accept_call().status, interface::OperationStatus::ProtocolError);
 
-        auto control_background = std::make_unique<FakeBackgroundThread>();
+        auto control_background = std::make_unique<StatefulBackgroundThreadFake>();
         control_background->push_inbound(make_control_message_view(k_first_client_stream_id));
         ContextState control_state{EndpointRole::Client, std::move(control_background)};
         EXPECT_EQ(control_state.receive_control_message(std::nullopt).status,
                   interface::OperationStatus::ProtocolError);
 
-        auto send_background      = std::make_unique<FakeBackgroundThread>();
+        auto send_background      = std::make_unique<StatefulBackgroundThreadFake>();
         auto* send_background_ptr = send_background.get();
         ContextState send_state{EndpointRole::Client, std::move(send_background)};
         auto opening = send_state.create_opening_call_message_builder();
@@ -386,7 +422,7 @@ namespace
 
     TEST(ContextStateTest, AcceptsInboundCallAndDeliversItsOpeningMessage)
     {
-        auto background = std::make_unique<FakeBackgroundThread>();
+        auto background = std::make_unique<StatefulBackgroundThreadFake>();
         background->push_inbound(make_call_message_view(k_first_server_stream_id, true));
         ContextState state{EndpointRole::Client, std::move(background)};
         EXPECT_TRUE(state.is_new_inbound_call_available());
@@ -398,9 +434,26 @@ namespace
         EXPECT_TRUE(state.receive_call_message(k_first_server_stream_id, std::nullopt));
     }
 
+    TEST(ContextStateTest, ReceivesMessageFromBackgroundDequeuedBatch)
+    {
+        auto background      = std::make_unique<testing::StrictMock<MockBackgroundThread>>();
+        auto* background_ptr = background.get();
+        InboundBatch batch;
+        batch.emplace_back(make_control_message_view(k_control_stream_id));
+        EXPECT_CALL(*background_ptr, dequeue_inbound_messages())
+            .WillOnce([batch = std::move(batch)]() mutable { return std::move(batch); });
+        ContextState state{EndpointRole::Client, std::move(background)};
+
+        const auto received = state.receive_control_message(
+            interface::Timeout{std::chrono::steady_clock::duration::zero()});
+
+        ASSERT_TRUE(received);
+        EXPECT_EQ((*received.value)->stream_id(), k_control_stream_id);
+    }
+
     TEST(ContextStateTest, CallReceiveReportsCancelledAfterBackgroundShutdown)
     {
-        auto background = std::make_unique<FakeBackgroundThread>();
+        auto background = std::make_unique<StatefulBackgroundThreadFake>();
         background->push_inbound(make_call_message_view(k_first_server_stream_id, true));
         ContextState state{EndpointRole::Client, std::move(background)};
         const auto accepted = state.accept_call();
@@ -412,7 +465,7 @@ namespace
 
     TEST(ContextStateTest, DiscardsCallMessagesFollowingPeerCloseInTheSameBatch)
     {
-        auto background = std::make_unique<FakeBackgroundThread>();
+        auto background = std::make_unique<StatefulBackgroundThreadFake>();
         background->push_inbound(make_call_message_view(k_first_server_stream_id, true));
         background->push_inbound(make_call_message_view(k_first_server_stream_id));
         background->push_inbound(make_call_message_view(k_first_server_stream_id, false, true));
@@ -440,7 +493,7 @@ namespace
 
     TEST(ContextStateTest, ReturnsTimedOutWhenWaitDeadlineExpires)
     {
-        auto background = std::make_unique<FakeBackgroundThread>();
+        auto background = std::make_unique<StatefulBackgroundThreadFake>();
         ContextState state{EndpointRole::Client, std::move(background)};
 
         EXPECT_EQ(state.wait_for_message(interface::Timeout{std::chrono::seconds{1}}),
@@ -449,7 +502,7 @@ namespace
 
     TEST(ContextStateTest, ReceivesControlMessageThenTimesOutWhenQueueIsEmpty)
     {
-        auto background = std::make_unique<FakeBackgroundThread>();
+        auto background = std::make_unique<StatefulBackgroundThreadFake>();
         background->push_inbound(make_control_message_view(k_control_stream_id));
         ContextState state{EndpointRole::Client, std::move(background)};
 
@@ -460,7 +513,8 @@ namespace
 
     TEST(ContextStateTest, UnknownCallsReportPeerClosed)
     {
-        ContextState state{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+        ContextState state{EndpointRole::Client,
+                           std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
         EXPECT_EQ(state.call_receive_status(k_unknown_stream_id),
                   interface::MessageStatus::PeerClosed);
         EXPECT_EQ(state.receive_call_message(k_unknown_stream_id, std::nullopt).status,
@@ -469,7 +523,8 @@ namespace
 
     TEST(ContextStateTest, RejectsBuilderBoundToAnotherActiveCall)
     {
-        ContextState state{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+        ContextState state{EndpointRole::Client,
+                           std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
         auto first_opening = state.create_opening_call_message_builder();
         ASSERT_NE(first_opening, nullptr);
         first_opening->open_call("first");
@@ -494,7 +549,8 @@ namespace
 
     TEST(ContextStateTest, TimesOutWhenActiveCallHasNoMessage)
     {
-        ContextState state{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+        ContextState state{EndpointRole::Client,
+                           std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
         auto opening = state.create_opening_call_message_builder();
         ASSERT_NE(opening, nullptr);
         opening->open_call("active");
@@ -508,7 +564,8 @@ namespace
 
     TEST(ContextStateTest, RejectsSendOnCallClosedByItsOpeningMessage)
     {
-        ContextState state{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};
+        ContextState state{EndpointRole::Client,
+                           std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
         auto opening_close = state.create_opening_call_message_builder();
         ASSERT_NE(opening_close, nullptr);
         opening_close->open_call("closed at open").close_call();
@@ -524,7 +581,7 @@ namespace
 
     TEST(ContextStateTest, PeerConnectionCloseStopsCallReceiveAndRemainsAvailableOnControlStream)
     {
-        auto background      = std::make_unique<FakeBackgroundThread>();
+        auto background      = std::make_unique<StatefulBackgroundThreadFake>();
         auto* background_ptr = background.get();
         ContextState state{EndpointRole::Client, std::move(background)};
         auto opening = state.create_opening_call_message_builder();
@@ -545,7 +602,7 @@ namespace
 
     TEST(ContextStateTest, AcceptsOpeningMessageThatAlsoClosesTheCall)
     {
-        auto background = std::make_unique<FakeBackgroundThread>();
+        auto background = std::make_unique<StatefulBackgroundThreadFake>();
         background->push_inbound(make_call_message_view(k_first_server_stream_id, true, true));
         ContextState state{EndpointRole::Client, std::move(background)};
 
@@ -562,7 +619,7 @@ namespace
 
     TEST(ContextStateTest, IgnoresSpuriousInboundNotificationWhileAccepting)
     {
-        auto background = std::make_unique<FakeBackgroundThread>();
+        auto background = std::make_unique<StatefulBackgroundThreadFake>();
         background->set_next_wait_result({.event = Event::InboundAvailable});
         ContextState state{EndpointRole::Client, std::move(background)};
 
@@ -571,7 +628,7 @@ namespace
 
     TEST(ContextStateTest, DeliversPeerConnectionCloseDispatchedDuringControlReceive)
     {
-        auto background = std::make_unique<FakeBackgroundThread>();
+        auto background = std::make_unique<StatefulBackgroundThreadFake>();
         background->push_inbound(make_control_message_view(k_control_stream_id, true));
         ContextState state{EndpointRole::Client, std::move(background)};
 

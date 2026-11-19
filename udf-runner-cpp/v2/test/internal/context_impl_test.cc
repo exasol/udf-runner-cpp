@@ -18,8 +18,8 @@ namespace exasol::udf::v2::internal
 namespace
 {
 
-    using test_support::FakeBackgroundThread;
     using test_support::k_first_client_stream_id;
+    using test_support::MockBackgroundThread;
 
     class MockContextState : public ContextStateInterface
     {
@@ -190,8 +190,22 @@ namespace
 
     TEST(ContextHandleIntegrationTest, CallSendOverloadsAcceptMessagesAndZeroTimeoutReceivePolls)
     {
-        auto background            = std::make_unique<FakeBackgroundThread>();
-        const auto* background_ptr = background.get();
+        auto background      = std::make_unique<testing::StrictMock<MockBackgroundThread>>();
+        auto* background_ptr = background.get();
+        EXPECT_CALL(*background_ptr, enqueue_outbound_message(testing::_))
+            .Times(4)
+            .WillRepeatedly([background_ptr](OutboundMessage& message) {
+                return background_ptr->accept_outbound_message(message);
+            });
+        EXPECT_CALL(*background_ptr, dequeue_inbound_messages()).Times(6).WillRepeatedly([] {
+            return InboundBatch{};
+        });
+        EXPECT_CALL(*background_ptr, wait_until(testing::_))
+            .Times(2)
+            .WillRepeatedly([](const auto deadline) {
+                EXPECT_TRUE(deadline.has_value());
+                return BackgroundThreadResult{.event = Event::DeadlineExpired};
+            });
         ContextImpl context{
             std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
         auto opening = context.create_opening_call_message_builder();
@@ -199,19 +213,16 @@ namespace
         opening->open_call("test");
         auto opened = context.open_call(std::move(opening));
         ASSERT_TRUE(opened);
-        const auto outbound_before_sends = background_ptr->outbound_size();
 
         auto no_wait_builder = (*opened.value)->create_message_builder();
         ASSERT_NE(no_wait_builder, nullptr);
         EXPECT_TRUE((*opened.value)->send(std::move(no_wait_builder)));
-        EXPECT_EQ(background_ptr->outbound_size(), outbound_before_sends + 1);
 
         auto zero_timeout_builder = (*opened.value)->create_message_builder();
         ASSERT_NE(zero_timeout_builder, nullptr);
         EXPECT_TRUE((*opened.value)
                         ->send(std::move(zero_timeout_builder),
                                interface::Timeout{std::chrono::steady_clock::duration::zero()}));
-        EXPECT_EQ(background_ptr->outbound_size(), outbound_before_sends + 2);
 
         EXPECT_EQ((*opened.value)
                       ->receive(interface::Timeout{std::chrono::steady_clock::duration::zero()})
@@ -230,8 +241,19 @@ namespace
 
     TEST(ContextHandleIntegrationTest, ControlStreamSendsAndTimesOutWhenNoMessageIsAvailable)
     {
-        auto background            = std::make_unique<FakeBackgroundThread>();
-        const auto* background_ptr = background.get();
+        auto background      = std::make_unique<testing::StrictMock<MockBackgroundThread>>();
+        auto* background_ptr = background.get();
+        EXPECT_CALL(*background_ptr, dequeue_inbound_messages()).WillOnce([] {
+            return InboundBatch{};
+        });
+        EXPECT_CALL(*background_ptr, wait_until(testing::_)).WillOnce([](const auto deadline) {
+            EXPECT_TRUE(deadline.has_value());
+            return BackgroundThreadResult{.event = Event::DeadlineExpired};
+        });
+        EXPECT_CALL(*background_ptr, enqueue_outbound_message(testing::_))
+            .WillOnce([background_ptr](OutboundMessage& message) {
+                return background_ptr->accept_outbound_message(message);
+            });
         ContextImpl context{
             std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
 
@@ -240,16 +262,15 @@ namespace
         ASSERT_NE(control_builder, nullptr);
         control_builder->keep_alive();
         EXPECT_TRUE(context.control_stream().send(std::move(control_builder)));
-        EXPECT_EQ(background_ptr->outbound_size(), 1);
     }
 
     TEST(CallImplTest, ReportsContextClosedAfterSharedStateExpires)
     {
         std::unique_ptr<CallImpl> call;
         {
-            auto state = std::make_shared<ContextState>(EndpointRole::Client,
-                                                        std::make_unique<FakeBackgroundThread>());
-            call       = std::make_unique<CallImpl>(state, k_first_client_stream_id);
+            auto state = std::make_shared<ContextState>(
+                EndpointRole::Client, std::make_unique<testing::NiceMock<MockBackgroundThread>>());
+            call = std::make_unique<CallImpl>(state, k_first_client_stream_id);
         }
 
         EXPECT_EQ(call->receive_status(), interface::MessageStatus::ContextClosed);
@@ -262,8 +283,18 @@ namespace
 
     TEST(CallImplTest, NoTimeoutReceivePassesNoDeadlineToBackgroundThread)
     {
-        auto background            = std::make_unique<FakeBackgroundThread>();
-        const auto* background_ptr = background.get();
+        auto background      = std::make_unique<testing::StrictMock<MockBackgroundThread>>();
+        auto* background_ptr = background.get();
+        EXPECT_CALL(*background_ptr, enqueue_outbound_message(testing::_))
+            .WillOnce([background_ptr](OutboundMessage& message) {
+                return background_ptr->accept_outbound_message(message);
+            });
+        EXPECT_CALL(*background_ptr, dequeue_inbound_messages()).WillOnce([] {
+            return InboundBatch{};
+        });
+        EXPECT_CALL(*background_ptr,
+                    wait_until(testing::Eq(std::optional<std::chrono::steady_clock::time_point>{})))
+            .WillOnce([] { return BackgroundThreadResult{.event = Event::ShutdownRequested}; });
         ContextImpl context{
             std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
         auto opening = context.create_opening_call_message_builder();
@@ -273,7 +304,6 @@ namespace
         ASSERT_TRUE(opened);
 
         EXPECT_EQ((*opened.value)->receive().status, interface::OperationStatus::Cancelled);
-        EXPECT_FALSE(background_ptr->last_deadline().has_value());
     }
 
     TEST(ControlStreamImplTest, ReportsContextClosedAfterStateExpires)
