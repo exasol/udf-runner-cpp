@@ -23,9 +23,13 @@ namespace
 std::string format_strings(const std::vector<std::string>& strings)
 {
     std::string result = "[";
-    for (size_t index = 0; index < strings.size(); ++index)
+    for (const auto& string : strings)
     {
-        result += (index == 0 ? "" : ", ") + strings[index];
+        if (result.size() > 1)
+        {
+            result += ", ";
+        }
+        result += string;
     }
     result += ']';
     return result;

@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <initializer_list>
 #include <iostream>
+#include <stdexcept>
 #include <source_location>
 #include <string>
 #include <string_view>
@@ -54,6 +55,49 @@ private:
 
     std::string original;
     bool had_original = false;
+};
+
+class ThrowingLoggingProvider final : public exasol::udf::v2::provider::logging::LoggingProviderIf
+{
+public:
+    std::ostream& error() override
+    {
+        return fail();
+    }
+    std::ostream& warning() override
+    {
+        return fail();
+    }
+    std::ostream& notice() override
+    {
+        return fail();
+    }
+    std::ostream& debug() override
+    {
+        return fail();
+    }
+    std::ostream& verbose() override
+    {
+        return fail();
+    }
+    [[nodiscard]] bool isNoticeEnabled() const override
+    {
+        return true;
+    }
+    [[nodiscard]] bool isDebugEnabled() const override
+    {
+        return true;
+    }
+    [[nodiscard]] bool isVerboseEnabled() const override
+    {
+        return true;
+    }
+
+private:
+    static std::ostream& fail()
+    {
+        throw std::runtime_error("log stream unavailable");
+    }
 };
 
 std::string capture_messages(LoggingProvider& provider)
@@ -154,21 +198,21 @@ TEST(LogUtilsTest, LazyMessagesRunOnlyForEnabledSeverities)
         testing::internal::CaptureStderr();
         log_utils::log_notice_lazy_if_enabled(
             provider,
-            [&] {
+            [&notice_calls] {
                 ++notice_calls;
                 return std::string("notice");
             },
             location);
         log_utils::log_debug_lazy_if_enabled(
             provider,
-            [&] {
+            [&debug_calls] {
                 ++debug_calls;
                 return std::string("debug");
             },
             location);
         log_utils::log_trace_lazy_if_enabled(
             provider,
-            [&] {
+            [&verbose_calls] {
                 ++verbose_calls;
                 return std::string("verbose");
             },
@@ -207,9 +251,23 @@ TEST(LogUtilsTest, FunctionTraceUsesVerboseLevel)
     }
 }
 
+TEST(LogUtilsTest, PropagatesProviderErrors)
+{
+    ThrowingLoggingProvider provider;
+    const auto location = std::source_location::current();
+    EXPECT_THROW(log_utils::log_error(provider, "error", location), std::runtime_error);
+    EXPECT_THROW(log_utils::log_warning(provider, "warning", location), std::runtime_error);
+    EXPECT_THROW(log_utils::log_notice(provider, "notice", location), std::runtime_error);
+    EXPECT_THROW(log_utils::log_debug(provider, "debug", location), std::runtime_error);
+#ifndef NDEBUG
+    EXPECT_THROW(log_utils::log_trace(provider, "trace", location), std::runtime_error);
+#endif
+}
+
 TEST(LogUtilsTest, FormatsStrings)
 {
     EXPECT_EQ(log_utils::format_strings({}), "[]");
+    EXPECT_EQ(log_utils::format_strings({"first"}), "[first]");
     EXPECT_EQ(log_utils::format_strings({"first", "second"}), "[first, second]");
 }
 
