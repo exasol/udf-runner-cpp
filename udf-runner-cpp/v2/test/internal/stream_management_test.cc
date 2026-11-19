@@ -119,52 +119,27 @@ namespace
         return message;
     }
 
-    class ForeignCallMessageBuilder final : public interface::CallMessageBuilder
+    class ForeignCallMessageBuilder : public interface::CallMessageBuilder
     {
     public:
-        using interface::CallMessageBuilderBase::add_payload;
-
-        interface::CallMessageBuilderBase& add_payload(const std::string_view name,
-                                                       const std::string_view value,
-                                                       const bool binary) override
-        {
-            static_cast<void>(name);
-            static_cast<void>(value);
-            static_cast<void>(binary);
-            return *this;
-        }
-        interface::CallMessageBuilderBase& data_schema(interface::ArrowSchemaPtr schema,
-                                                       const bool has_group_id,
-                                                       const bool has_row_id) override
-        {
-            static_cast<void>(schema);
-            static_cast<void>(has_group_id);
-            static_cast<void>(has_row_id);
-            return *this;
-        }
-        interface::CallMessageBuilderBase& reset(const std::uint64_t row_id) override
-        {
-            static_cast<void>(row_id);
-            return *this;
-        }
-        interface::CallMessageBuilderBase& record_batch(interface::ArrowArrayPtr array,
-                                                        const bool is_end_of_group) override
-        {
-            static_cast<void>(array);
-            static_cast<void>(is_end_of_group);
-            return *this;
-        }
-        interface::CallMessageBuilderBase& error(const std::string_view code,
-                                                 const std::string_view text) override
-        {
-            static_cast<void>(code);
-            static_cast<void>(text);
-            return *this;
-        }
-        interface::CallMessageBuilderBase& close_call() override
-        {
-            return *this;
-        }
+        MOCK_METHOD(interface::CallMessageBuilderBase&,
+                    add_payload,
+                    (std::string_view name, std::string_view value, bool binary),
+                    (override));
+        MOCK_METHOD(interface::CallMessageBuilderBase&,
+                    data_schema,
+                    (interface::ArrowSchemaPtr schema, bool has_group_id, bool has_row_id),
+                    (override));
+        MOCK_METHOD(interface::CallMessageBuilderBase&, reset, (std::uint64_t row_id), (override));
+        MOCK_METHOD(interface::CallMessageBuilderBase&,
+                    record_batch,
+                    (interface::ArrowArrayPtr array, bool is_end_of_group),
+                    (override));
+        MOCK_METHOD(interface::CallMessageBuilderBase&,
+                    error,
+                    (std::string_view code, std::string_view text),
+                    (override));
+        MOCK_METHOD(interface::CallMessageBuilderBase&, close_call, (), (override));
     };
 
     class ForeignControlMessageBuilder final : public interface::ControlMessageBuilder
@@ -784,7 +759,7 @@ namespace
         EXPECT_NE(foreign, nullptr);
 
         std::unique_ptr<interface::CallMessageBuilder> wrong_implementation =
-            std::make_unique<ForeignCallMessageBuilder>();
+            std::make_unique<testing::StrictMock<ForeignCallMessageBuilder>>();
         EXPECT_EQ(state.send_call_message(stream_id, std::move(wrong_implementation), std::nullopt)
                       .status,
                   interface::OperationStatus::ProtocolError);
