@@ -574,6 +574,28 @@ cc_library(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
+cc_library(
+    name = "thread_factory",
+    srcs = ["internal/standard_thread_factory.cc"],
+    hdrs = [
+        "include/exasol/udf/v2/internal/standard_thread_factory.hpp",
+        "include/exasol/udf/v2/internal/thread.hpp",
+        "include/exasol/udf/v2/internal/thread_factory.hpp",
+    ],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+)
+
+cc_test(
+    name = "standard_thread_factory_test",
+    srcs = ["internal/standard_thread_factory_test.cc"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":thread_factory",
+        "@googletest//:gtest_main",
+    ],
+)
+
 cc_test(
     name = "connection_acceptor_test",
     srcs = ["internal/connection_acceptor_test.cc"],
