@@ -199,6 +199,42 @@ namespace
         EXPECT_NE(expired_owner_builder, nullptr);
     }
 
+    TEST(ContextStateTest, RetainsCallMessageBuilderWhenBackgroundRejectsIt)
+    {
+        auto background      = std::make_unique<FakeBackgroundThread>();
+        auto* background_ptr = background.get();
+        ContextState state{EndpointRole::Client, std::move(background)};
+        auto opening = state.create_opening_call_message_builder();
+        ASSERT_NE(opening, nullptr);
+        opening->open_call("test");
+        auto opened = state.open_call(std::move(opening));
+        ASSERT_TRUE(opened);
+
+        auto message = state.create_call_message_builder(*opened.value);
+        ASSERT_NE(message, nullptr);
+        background_ptr->set_reject_outbound(true);
+        const auto result =
+            state.send_call_message(*opened.value, std::move(message), interface::Timeout{});
+
+        EXPECT_EQ(result.status, interface::OperationStatus::TransportError);
+        EXPECT_NE(message, nullptr);
+    }
+
+    TEST(ContextStateTest, RetainsOpeningBuilderWhenBackgroundRejectsIt)
+    {
+        auto background = std::make_unique<FakeBackgroundThread>();
+        background->set_reject_outbound(true);
+        ContextState state{EndpointRole::Client, std::move(background)};
+        auto opening = state.create_opening_call_message_builder();
+        ASSERT_NE(opening, nullptr);
+        opening->open_call("test");
+
+        const auto result = state.open_call(std::move(opening));
+
+        EXPECT_EQ(result.status, interface::OperationStatus::TransportError);
+        EXPECT_NE(opening, nullptr);
+    }
+
     TEST(ContextStateTest, ClosedStateRejectsNewBuildersAndOperations)
     {
         ContextState state{EndpointRole::Client, std::make_unique<FakeBackgroundThread>()};

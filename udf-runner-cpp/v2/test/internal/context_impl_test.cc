@@ -5,9 +5,12 @@
 #include "stream_management_test_utils.hpp"
 
 #include <chrono>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <utility>
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 namespace exasol::udf::v2::internal
@@ -16,34 +19,177 @@ namespace
 {
 
     using test_support::FakeBackgroundThread;
-    using test_support::k_control_stream_id;
     using test_support::k_first_client_stream_id;
-    using test_support::k_first_server_stream_id;
-    using test_support::make_call_message_view;
-    using test_support::make_control_message_view;
 
-    TEST(ContextImplTest, DispatchesInboundCallAndKeepsCallStateAfterAccept)
+    class MockContextState : public ContextStateInterface
     {
-        auto background = std::make_unique<FakeBackgroundThread>();
-        background->push_inbound(make_call_message_view(k_first_server_stream_id, true));
-        background->push_inbound(make_call_message_view(k_first_server_stream_id, false, true));
-        ContextImpl context{
-            std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
+    public:
+        MOCK_METHOD((std::unique_ptr<interface::OpeningCallMessageBuilder>),
+                    create_opening_call_message_builder,
+                    (),
+                    (override));
+        MOCK_METHOD((std::unique_ptr<interface::CallMessageBuilder>),
+                    create_call_message_builder,
+                    (std::uint64_t stream_id),
+                    (const, override));
+        MOCK_METHOD((std::unique_ptr<interface::ControlMessageBuilder>),
+                    create_control_message_builder,
+                    (),
+                    (const, override));
+        MOCK_METHOD((interface::Result<std::uint64_t>), accept_call, (), (override));
+        MOCK_METHOD((interface::Result<std::uint64_t>),
+                    open_call,
+                    (std::unique_ptr<interface::OpeningCallMessageBuilder> && opening_message),
+                    (override));
+        MOCK_METHOD(interface::MessageStatus, receive_status, (), (override));
+        MOCK_METHOD(bool, is_new_inbound_call_available, (), (override));
+        MOCK_METHOD(interface::MessageStatus,
+                    wait_for_message,
+                    (interface::Timeout timeout),
+                    (override));
+        MOCK_METHOD(interface::MessageStatus,
+                    call_receive_status,
+                    (std::uint64_t stream_id),
+                    (override));
+        MOCK_METHOD(interface::MessageStatus, control_receive_status, (), (override));
+        MOCK_METHOD((interface::Result<std::unique_ptr<interface::CallMessageView>>),
+                    receive_call_message,
+                    (std::uint64_t stream_id, interface::Timeout timeout),
+                    (override));
+        MOCK_METHOD((interface::Result<std::unique_ptr<interface::ControlMessageView>>),
+                    receive_control_message,
+                    (interface::Timeout timeout),
+                    (override));
+        MOCK_METHOD((interface::Result<void>),
+                    send_call_message,
+                    (std::uint64_t stream_id,
+                     std::unique_ptr<interface::CallMessageBuilder>&& message,
+                     interface::Timeout timeout),
+                    (override));
+        MOCK_METHOD((interface::Result<void>),
+                    send_control_message,
+                    (std::unique_ptr<interface::ControlMessageBuilder> && message),
+                    (override));
 
-        auto result = context.accept_call();
-        ASSERT_TRUE(result);
-        auto& call = **result.value;
-        EXPECT_EQ(call.receive_status(), interface::MessageStatus::MessageAvailable);
-        auto opening = call.receive();
-        ASSERT_TRUE(opening);
-        EXPECT_NE((*opening.value)->open_call(), nullptr);
-        auto close = call.receive();
-        ASSERT_TRUE(close);
-        EXPECT_NE((*close.value)->close_call(), nullptr);
-        EXPECT_EQ(call.receive().status, interface::OperationStatus::PeerClosed);
+        void shutdown() noexcept override
+        {
+            ++shutdown_call_count_;
+        }
+
+        [[nodiscard]] std::size_t shutdown_call_count() const noexcept
+        {
+            return shutdown_call_count_;
+        }
+
+    private:
+        std::size_t shutdown_call_count_{};
+    };
+
+    TEST(ContextImplTest, DelegatesQueriesWaitsAndBuilderCreation)
+    {
+        auto state = std::make_shared<testing::StrictMock<MockContextState>>();
+        const interface::Timeout timeout{std::chrono::seconds{1}};
+        EXPECT_CALL(*state, receive_status())
+            .WillOnce(testing::Return(interface::MessageStatus::NoMessage));
+        EXPECT_CALL(*state, is_new_inbound_call_available()).WillOnce(testing::Return(true));
+        EXPECT_CALL(*state, wait_for_message(interface::Timeout{}))
+            .WillOnce(testing::Return(interface::MessageStatus::Cancelled));
+        EXPECT_CALL(*state, wait_for_message(timeout))
+            .WillOnce(testing::Return(interface::MessageStatus::TimedOut));
+        EXPECT_CALL(*state, create_opening_call_message_builder()).WillOnce([] {
+            return std::unique_ptr<interface::OpeningCallMessageBuilder>{};
+        });
+
+        ContextImpl context{state};
+        EXPECT_EQ(context.receive_status(), interface::MessageStatus::NoMessage);
+        EXPECT_TRUE(context.is_new_inbound_call_available());
+        EXPECT_EQ(context.wait_for_message(), interface::MessageStatus::Cancelled);
+        EXPECT_EQ(context.wait_for_message(timeout), interface::MessageStatus::TimedOut);
+        EXPECT_EQ(context.create_opening_call_message_builder(), nullptr);
     }
 
-    TEST(ContextImplTest, SendOverloadsAcceptMessagesAndZeroTimeoutReceiveReturnsTimedOut)
+    TEST(ContextImplTest, AcceptCallCreatesHandleBoundToAcceptedStream)
+    {
+        auto state = std::make_shared<testing::StrictMock<MockContextState>>();
+        EXPECT_CALL(*state, accept_call()).WillOnce([] {
+            return interface::Result<std::uint64_t>::success(
+                test_support::k_first_server_stream_id);
+        });
+        EXPECT_CALL(*state, call_receive_status(test_support::k_first_server_stream_id))
+            .WillOnce(testing::Return(interface::MessageStatus::MessageAvailable));
+        EXPECT_CALL(*state, create_call_message_builder(test_support::k_first_server_stream_id))
+            .WillOnce([] { return std::unique_ptr<interface::CallMessageBuilder>{}; });
+
+        ContextImpl context{state};
+        auto result = context.accept_call();
+        ASSERT_TRUE(result);
+        EXPECT_EQ((*result.value)->receive_status(), interface::MessageStatus::MessageAvailable);
+        EXPECT_EQ((*result.value)->create_message_builder(), nullptr);
+    }
+
+    TEST(ContextImplTest, PropagatesFailedAcceptAndOpenResults)
+    {
+        auto state = std::make_shared<testing::StrictMock<MockContextState>>();
+        EXPECT_CALL(*state, accept_call()).WillOnce([] {
+            return interface::Result<std::uint64_t>::failure(interface::OperationStatus::Cancelled);
+        });
+        EXPECT_CALL(*state, open_call(testing::_))
+            .WillOnce([](std::unique_ptr<interface::OpeningCallMessageBuilder>&& opening_message) {
+                EXPECT_EQ(opening_message, nullptr);
+                return interface::Result<std::uint64_t>::failure(
+                    interface::OperationStatus::ProtocolError);
+            });
+
+        ContextImpl context{state};
+        EXPECT_EQ(context.accept_call().status, interface::OperationStatus::Cancelled);
+        EXPECT_EQ(context.open_call(nullptr).status, interface::OperationStatus::ProtocolError);
+    }
+
+    TEST(ContextImplTest, OpenCallCreatesHandleBoundToStreamReturnedByState)
+    {
+        auto state = std::make_shared<testing::StrictMock<MockContextState>>();
+        EXPECT_CALL(*state, open_call(testing::_))
+            .WillOnce([](std::unique_ptr<interface::OpeningCallMessageBuilder>&& opening_message) {
+                EXPECT_EQ(opening_message, nullptr);
+                return interface::Result<std::uint64_t>::success(
+                    test_support::k_first_client_stream_id);
+            });
+        EXPECT_CALL(*state, call_receive_status(test_support::k_first_client_stream_id))
+            .WillOnce(testing::Return(interface::MessageStatus::NoMessage));
+
+        ContextImpl context{state};
+        auto result = context.open_call(nullptr);
+        ASSERT_TRUE(result);
+        EXPECT_EQ((*result.value)->receive_status(), interface::MessageStatus::NoMessage);
+    }
+
+    TEST(ContextImplTest, ControlStreamUsesSharedState)
+    {
+        auto state = std::make_shared<testing::StrictMock<MockContextState>>();
+        EXPECT_CALL(*state, control_receive_status())
+            .WillOnce(testing::Return(interface::MessageStatus::MessageAvailable));
+        EXPECT_CALL(*state, create_control_message_builder()).WillOnce([] {
+            return std::unique_ptr<interface::ControlMessageBuilder>{};
+        });
+
+        ContextImpl context{state};
+        auto& control_stream = context.control_stream();
+        EXPECT_EQ(&context.control_stream(), &control_stream);
+        EXPECT_EQ(control_stream.receive_status(), interface::MessageStatus::MessageAvailable);
+        EXPECT_EQ(control_stream.create_message_builder(), nullptr);
+    }
+
+    TEST(ContextImplTest, DestructorShutsDownSharedState)
+    {
+        auto state = std::make_shared<testing::StrictMock<MockContextState>>();
+        {
+            ContextImpl context{state};
+        }
+        EXPECT_EQ(state->shutdown_call_count(), 1);
+    }
+
+    TEST(ContextHandleIntegrationTest,
+         SendOverloadsAcceptMessagesAndZeroTimeoutReceiveReturnsTimedOut)
     {
         auto background            = std::make_unique<FakeBackgroundThread>();
         const auto* background_ptr = background.get();
@@ -113,24 +259,6 @@ namespace
         EXPECT_TRUE(context.control_stream().send(std::move(control_builder)));
     }
 
-    TEST(ContextImplTest, ForwardsFailedOperationsAndWaitOverloads)
-    {
-        auto background = std::make_unique<FakeBackgroundThread>();
-        background->set_next_wait_result({.event = Event::DeadlineExpired});
-        ContextImpl context{
-            std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
-
-        EXPECT_FALSE(context.is_new_inbound_call_available());
-        EXPECT_EQ(context.receive_status(), interface::MessageStatus::NoMessage);
-        const auto rejected_open = context.open_call(nullptr);
-        EXPECT_EQ(rejected_open.status, interface::OperationStatus::ProtocolError);
-        EXPECT_EQ(context.wait_for_message(interface::Timeout{std::chrono::seconds{1}}),
-                  interface::MessageStatus::TimedOut);
-        EXPECT_EQ(context.wait_for_message(), interface::MessageStatus::Cancelled);
-
-        EXPECT_EQ(context.accept_call().status, interface::OperationStatus::Cancelled);
-    }
-
     TEST(CallImplTest, ReportsContextClosedAfterSharedStateExpires)
     {
         std::unique_ptr<CallImpl> call;
@@ -174,82 +302,6 @@ namespace
         EXPECT_EQ(stream.receive(interface::Timeout{std::chrono::seconds{1}}).status,
                   interface::OperationStatus::ContextClosed);
         EXPECT_EQ(stream.send(nullptr).status, interface::OperationStatus::ContextClosed);
-    }
-
-    TEST(ContextImplTest, RetainsBuilderOwnershipWhenBackgroundRejectsCallMessage)
-    {
-        auto background      = std::make_unique<FakeBackgroundThread>();
-        auto* background_ptr = background.get();
-        ContextImpl context{
-            std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
-        auto opening = context.create_opening_call_message_builder();
-        ASSERT_NE(opening, nullptr);
-        opening->open_call("test");
-        auto opened = context.open_call(std::move(opening));
-        ASSERT_TRUE(opened);
-
-        auto builder = (*opened.value)->create_message_builder();
-        ASSERT_NE(builder, nullptr);
-        background_ptr->set_reject_outbound(true);
-        auto result = (*opened.value)->send(std::move(builder));
-
-        EXPECT_EQ(result.status, interface::OperationStatus::TransportError);
-        EXPECT_NE(builder, nullptr);
-    }
-
-    TEST(ContextImplTest, RetainsOpeningBuilderWhenBackgroundRejectsIt)
-    {
-        auto background = std::make_unique<FakeBackgroundThread>();
-        background->set_reject_outbound(true);
-        ContextImpl context{
-            std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
-        auto opening = context.create_opening_call_message_builder();
-        ASSERT_NE(opening, nullptr);
-        opening->open_call("test");
-        const auto result = context.open_call(std::move(opening));
-
-        EXPECT_EQ(result.status, interface::OperationStatus::TransportError);
-        EXPECT_NE(opening, nullptr);
-    }
-
-    TEST(ContextImplTest, DeliversPeerConnectionCloseOnceBeforeBecomingTerminal)
-    {
-        auto background = std::make_unique<FakeBackgroundThread>();
-        background->push_inbound(make_control_message_view(k_control_stream_id, true));
-        const auto* background_ptr = background.get();
-        ContextImpl context{
-            std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
-
-        EXPECT_EQ(context.receive_status(), interface::MessageStatus::MessageAvailable);
-        EXPECT_EQ(background_ptr->outbound_size(), 1);
-        auto& control_stream = context.control_stream();
-        EXPECT_EQ(control_stream.receive_status(), interface::MessageStatus::MessageAvailable);
-        auto close_message = control_stream.receive();
-        ASSERT_TRUE(close_message);
-        EXPECT_NE((*close_message.value)->close_connection(), nullptr);
-        EXPECT_EQ(control_stream.receive().status, interface::OperationStatus::ContextClosed);
-    }
-
-    TEST(ContextImplTest, RejectsBuildersCreatedByAnotherContextWithTheSameStreamId)
-    {
-        ContextImpl first{std::make_shared<ContextState>(EndpointRole::Client,
-                                                         std::make_unique<FakeBackgroundThread>())};
-        ContextImpl second{std::make_shared<ContextState>(
-            EndpointRole::Client, std::make_unique<FakeBackgroundThread>())};
-        auto first_opening = first.create_opening_call_message_builder();
-        first_opening->open_call("first");
-        auto first_call     = first.open_call(std::move(first_opening));
-        auto second_opening = second.create_opening_call_message_builder();
-        second_opening->open_call("second");
-        auto second_call = second.open_call(std::move(second_opening));
-        ASSERT_TRUE(first_call);
-        ASSERT_TRUE(second_call);
-
-        auto foreign_builder = (*first_call.value)->create_message_builder();
-        auto result          = (*second_call.value)->send(std::move(foreign_builder));
-
-        EXPECT_EQ(result.status, interface::OperationStatus::ProtocolError);
-        EXPECT_NE(foreign_builder, nullptr);
     }
 
 } // namespace
