@@ -7,6 +7,7 @@
 #include <initializer_list>
 #include <ios>
 #include <iostream>
+#include <sstream>
 #include <source_location>
 #include <string>
 #include <string_view>
@@ -99,6 +100,76 @@ private:
         throw std::ios_base::failure("log stream unavailable");
     }
 };
+
+#ifndef NDEBUG
+class FailingTraceLoggingProvider final
+    : public exasol::udf::v2::provider::logging::LoggingProviderIf
+{
+public:
+    enum class Failure
+    {
+        Enable,
+        Start,
+        End
+    };
+
+    explicit FailingTraceLoggingProvider(const Failure failure) : failure(failure)
+    {
+    }
+
+    std::ostream& error() override
+    {
+        return output;
+    }
+    std::ostream& warning() override
+    {
+        return output;
+    }
+    std::ostream& notice() override
+    {
+        return output;
+    }
+    std::ostream& debug() override
+    {
+        return output;
+    }
+    std::ostream& verbose() override
+    {
+        ++verbose_calls;
+        if ((failure == Failure::Start && verbose_calls == 1) ||
+            (failure == Failure::End && verbose_calls == 2))
+        {
+            throw std::ios_base::failure("trace stream unavailable");
+        }
+        return output;
+    }
+    [[nodiscard]] bool isNoticeEnabled() const override
+    {
+        return true;
+    }
+    [[nodiscard]] bool isDebugEnabled() const override
+    {
+        return true;
+    }
+    [[nodiscard]] bool isVerboseEnabled() const override
+    {
+        if (failure == Failure::Enable)
+        {
+            throw std::ios_base::failure("trace level unavailable");
+        }
+        return true;
+    }
+    [[nodiscard]] int verbose_call_count() const noexcept
+    {
+        return verbose_calls;
+    }
+
+private:
+    Failure failure;
+    int verbose_calls = 0;
+    std::ostringstream output;
+};
+#endif
 
 std::string capture_messages(LoggingProvider& provider)
 {
@@ -250,6 +321,24 @@ TEST(LogUtilsTest, FunctionTraceUsesVerboseLevel)
         EXPECT_EQ(output.find("End") != std::string::npos, expected);
     }
 }
+
+#ifndef NDEBUG
+TEST(LogUtilsTest, FunctionTraceIgnoresLoggingFailures)
+{
+    for (const auto failure :
+         {FailingTraceLoggingProvider::Failure::Enable, FailingTraceLoggingProvider::Failure::Start,
+          FailingTraceLoggingProvider::Failure::End})
+    {
+        FailingTraceLoggingProvider provider(failure);
+        EXPECT_NO_THROW(
+            { log_utils::FunctionTraceLog trace(provider, std::source_location::current()); });
+        EXPECT_EQ(provider.verbose_call_count(),
+                  failure == FailingTraceLoggingProvider::Failure::Enable  ? 0
+                  : failure == FailingTraceLoggingProvider::Failure::Start ? 1
+                                                                           : 2);
+    }
+}
+#endif
 
 TEST(LogUtilsTest, PropagatesProviderErrors)
 {

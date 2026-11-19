@@ -80,17 +80,24 @@ void log_error(exasol::udf::v2::provider::logging::LoggingProviderIf& logging_pr
 
 FunctionTraceLog::FunctionTraceLog(
     exasol::udf::v2::provider::logging::LoggingProviderIf& logging_provider,
-    const std::source_location code_location)
+    const std::source_location code_location) noexcept
 #ifndef NDEBUG
-    : logging_provider(logging_provider),
-      code_location(code_location),
-      enabled(logging_provider.isVerboseEnabled())
+    : logging_provider(logging_provider), code_location(code_location), enabled(false)
 #endif
 {
 #ifndef NDEBUG
-    if (enabled)
+    try
     {
-        log_trace(this->logging_provider, "Start", this->code_location);
+        enabled = this->logging_provider.isVerboseEnabled();
+        if (enabled)
+        {
+            log_trace(this->logging_provider, "Start", this->code_location);
+        }
+    }
+    catch (...)
+    {
+        // Scope tracing must not change the caller's control flow.
+        enabled = false;
     }
 #else
     static_cast<void>(logging_provider);
@@ -98,12 +105,19 @@ FunctionTraceLog::FunctionTraceLog(
 #endif
 }
 
-FunctionTraceLog::~FunctionTraceLog()
+FunctionTraceLog::~FunctionTraceLog() noexcept
 {
 #ifndef NDEBUG
-    if (enabled)
+    try
     {
-        log_trace(this->logging_provider, "End", this->code_location);
+        if (enabled)
+        {
+            log_trace(this->logging_provider, "End", this->code_location);
+        }
+    }
+    catch (...)
+    {
+        // Destruction must remain safe even if the log stream fails.
     }
 #endif
 }

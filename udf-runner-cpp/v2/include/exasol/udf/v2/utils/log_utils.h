@@ -89,14 +89,15 @@ void log_trace_lazy_if_enabled(
 /**
  * Logs the start and end of a function scope to the provider verbose stream.
  *
- * The messages are emitted only in Debug builds.
+ * The messages are emitted only in Debug builds. Logging failures are ignored
+ * so creating or destroying a trace cannot throw.
  */
 class FunctionTraceLog final
 {
 public:
     FunctionTraceLog(exasol::udf::v2::provider::logging::LoggingProviderIf& logging_provider,
-                     std::source_location code_location);
-    ~FunctionTraceLog();
+                     std::source_location code_location) noexcept;
+    ~FunctionTraceLog() noexcept;
 
     FunctionTraceLog(const FunctionTraceLog&)            = delete;
     FunctionTraceLog& operator=(const FunctionTraceLog&) = delete;
