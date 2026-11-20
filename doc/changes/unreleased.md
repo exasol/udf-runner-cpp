@@ -34,6 +34,7 @@ n/a
 
 ## Internal
 
+* #143: Added a repository skill for writing design specifications with diagrams and focused C++ sketches
 * #111: Added parallel v2 regular-test Nox and CI runs for ASan, UBSan, and Valgrind
 * #111: Added independent Nox and CI jobs for v2 clang-tidy, clang-format, coverage, and Sonar analysis
 * #111: Split v1 and v2 Bazel checks into dedicated CI workflows
