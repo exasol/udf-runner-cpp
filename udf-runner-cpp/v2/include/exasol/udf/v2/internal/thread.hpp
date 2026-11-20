@@ -35,14 +35,16 @@ public:
 
     /// Waits for task completion for at most `timeout`.
     ///
-    /// @returns `true` after successful completion and joining, or `false` if
-    /// the timeout expires first.
+    /// @returns `true` after successful completion and joining. Returns
+    /// `false` when the timeout expires while the task is still running or
+    /// another caller is completing the join. A later join may still succeed.
     [[nodiscard]] virtual bool join_for(std::chrono::steady_clock::duration timeout) = 0;
 
     /// Waits for task completion until `deadline`.
     ///
-    /// @returns `true` after successful completion and joining, or `false` if
-    /// the deadline expires first.
+    /// @returns `true` after successful completion and joining. Returns
+    /// `false` when the deadline expires while the task is still running or
+    /// another caller is completing the join. A later join may still succeed.
     [[nodiscard]] virtual bool join_until(std::chrono::steady_clock::time_point deadline) = 0;
 
 protected:

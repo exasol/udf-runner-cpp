@@ -64,8 +64,10 @@ resource. After one successful join, all later joins complete immediately.
   duration.
 - `join_until(deadline)` waits until the supplied absolute steady-clock
   deadline.
-- The timed operations return `true` after a successful join and `false` only
-  when their timeout or deadline expires before task completion.
+- The timed operations return `true` after a successful join. They return
+  `false` when their timeout or deadline expires while the task is still
+  running or another caller is completing the native join; a later join may
+  still succeed.
 
 `join_for()` is convenience for callers that have a local timeout. It converts
 the duration to a `steady_clock` deadline once at entry and then follows the

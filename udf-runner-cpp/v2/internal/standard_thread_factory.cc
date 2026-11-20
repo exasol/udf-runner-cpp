@@ -6,6 +6,7 @@
 #include <mutex>
 #include <optional>
 #include <stdexcept>
+#include <system_error>
 #include <thread>
 #include <utility>
 
