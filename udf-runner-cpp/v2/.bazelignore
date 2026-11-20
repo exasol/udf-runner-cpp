@@ -1,0 +1,4 @@
+# Workspace-local caches must not be discovered as packages by //... checks.
+.bazel-output-root
+.bazel-repository-cache
+.bazelisk

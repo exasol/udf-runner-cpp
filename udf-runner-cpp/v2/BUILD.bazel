@@ -624,6 +624,32 @@ cc_library(
 )
 
 cc_library(
+    name = "thread_factory",
+    srcs = [
+        "internal/native_thread.cc",
+        "internal/standard_thread_factory.cc",
+    ],
+    hdrs = [
+        "include/exasol/udf/v2/internal/native_thread.hpp",
+        "include/exasol/udf/v2/internal/standard_thread_factory.hpp",
+        "include/exasol/udf/v2/internal/thread.hpp",
+        "include/exasol/udf/v2/internal/thread_factory.hpp",
+    ],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+)
+
+cc_test(
+    name = "standard_thread_factory_test",
+    srcs = ["internal/standard_thread_factory_test.cc"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":thread_factory",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "recording_logging_provider_test_utils",
     testonly = True,
     hdrs = ["test_utils/recording_logging_provider.hpp"],
