@@ -80,8 +80,10 @@ namespace
         std::unique_ptr<interface::ControlMessageBuilder> null_message;
         ContextState state{EndpointRole::Client,
                            std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
-        EXPECT_EQ(state.send_control_message(std::move(null_message)).status,
-                  interface::OperationStatus::ProtocolError);
+        const auto result = state.send_control_message(std::move(null_message));
+        EXPECT_EQ(result.status, interface::OperationStatus::InvalidArgument);
+        ASSERT_TRUE(result.error.has_value());
+        EXPECT_EQ(result.error->code(), "INVALID_ARGUMENT");
     }
 
     TEST(ContextStateTest, RejectsForeignControlBuilderAndRetainsOwnership)
@@ -93,7 +95,7 @@ namespace
         auto foreign = other.create_control_message_builder();
         ASSERT_NE(foreign, nullptr);
         EXPECT_EQ(state.send_control_message(std::move(foreign)).status,
-                  interface::OperationStatus::ProtocolError);
+                  interface::OperationStatus::InvalidArgument);
         EXPECT_NE(foreign, nullptr);
     }
 
@@ -104,7 +106,7 @@ namespace
         std::unique_ptr<interface::ControlMessageBuilder> wrong_implementation =
             std::make_unique<testing::StrictMock<ForeignControlMessageBuilder>>();
         EXPECT_EQ(state.send_control_message(std::move(wrong_implementation)).status,
-                  interface::OperationStatus::ProtocolError);
+                  interface::OperationStatus::InvalidArgument);
         EXPECT_NE(wrong_implementation, nullptr);
     }
 
@@ -134,7 +136,7 @@ namespace
         ContextState fresh_state{EndpointRole::Client,
                                  std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
         EXPECT_EQ(fresh_state.send_control_message(std::move(expired_owner_builder)).status,
-                  interface::OperationStatus::ProtocolError);
+                  interface::OperationStatus::InvalidArgument);
         EXPECT_NE(expired_owner_builder, nullptr);
     }
 
@@ -143,8 +145,10 @@ namespace
         std::unique_ptr<interface::OpeningCallMessageBuilder> null_message;
         ContextState state{EndpointRole::Client,
                            std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
-        EXPECT_EQ(state.open_call(std::move(null_message)).status,
-                  interface::OperationStatus::ProtocolError);
+        const auto result = state.open_call(std::move(null_message));
+        EXPECT_EQ(result.status, interface::OperationStatus::InvalidArgument);
+        ASSERT_TRUE(result.error.has_value());
+        EXPECT_EQ(result.error->code(), "INVALID_ARGUMENT");
     }
 
     TEST(ContextStateTest, RejectsOpeningBuilderWithoutOpenCallAndRetainsOwnership)
@@ -154,7 +158,7 @@ namespace
         auto missing_open = state.create_opening_call_message_builder();
         ASSERT_NE(missing_open, nullptr);
         EXPECT_EQ(state.open_call(std::move(missing_open)).status,
-                  interface::OperationStatus::ProtocolError);
+                  interface::OperationStatus::InvalidArgument);
         EXPECT_NE(missing_open, nullptr);
     }
 
@@ -168,7 +172,7 @@ namespace
         ASSERT_NE(foreign, nullptr);
         foreign->open_call("foreign");
         EXPECT_EQ(state.open_call(std::move(foreign)).status,
-                  interface::OperationStatus::ProtocolError);
+                  interface::OperationStatus::InvalidArgument);
         EXPECT_NE(foreign, nullptr);
     }
 
@@ -185,8 +189,11 @@ namespace
         ASSERT_EQ(stream_id, k_first_client_stream_id);
 
         std::unique_ptr<interface::CallMessageBuilder> null_message;
-        EXPECT_EQ(state.send_call_message(stream_id, std::move(null_message), std::nullopt).status,
-                  interface::OperationStatus::ProtocolError);
+        const auto result =
+            state.send_call_message(stream_id, std::move(null_message), std::nullopt);
+        EXPECT_EQ(result.status, interface::OperationStatus::InvalidArgument);
+        ASSERT_TRUE(result.error.has_value());
+        EXPECT_EQ(result.error->code(), "INVALID_ARGUMENT");
     }
 
     TEST(ContextStateTest, ReturnsPeerClosedForUnknownCallStream)
@@ -224,7 +231,7 @@ namespace
         auto foreign = other.create_call_message_builder(*opened.value);
         ASSERT_NE(foreign, nullptr);
         EXPECT_EQ(state.send_call_message(*opened.value, std::move(foreign), std::nullopt).status,
-                  interface::OperationStatus::ProtocolError);
+                  interface::OperationStatus::InvalidArgument);
         EXPECT_NE(foreign, nullptr);
     }
 
@@ -241,7 +248,7 @@ namespace
         EXPECT_EQ(
             state.send_call_message(*opened.value, std::move(wrong_implementation), std::nullopt)
                 .status,
-            interface::OperationStatus::ProtocolError);
+            interface::OperationStatus::InvalidArgument);
         EXPECT_NE(wrong_implementation, nullptr);
     }
 
@@ -288,7 +295,7 @@ namespace
                       .send_call_message(*destination.value, std::move(expired_owner_builder),
                                          std::nullopt)
                       .status,
-                  interface::OperationStatus::ProtocolError);
+                  interface::OperationStatus::InvalidArgument);
         EXPECT_NE(expired_owner_builder, nullptr);
     }
 
@@ -543,7 +550,7 @@ namespace
                       .send_call_message(*second_call.value, std::move(wrong_stream_builder),
                                          std::nullopt)
                       .status,
-                  interface::OperationStatus::ProtocolError);
+                  interface::OperationStatus::InvalidArgument);
         EXPECT_NE(wrong_stream_builder, nullptr);
     }
 

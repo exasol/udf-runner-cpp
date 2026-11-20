@@ -17,8 +17,6 @@ namespace exasol::udf::v2::internal
 namespace
 {
 
-    using test_support::k_first_client_stream_id;
-
     class MockContextQueries
     {
     public:
@@ -229,12 +227,12 @@ namespace
             .WillOnce([](std::unique_ptr<interface::OpeningCallMessageBuilder> opening_message) {
                 EXPECT_EQ(opening_message, nullptr);
                 return interface::Result<std::uint64_t>::failure(
-                    interface::OperationStatus::ProtocolError);
+                    interface::OperationStatus::InvalidArgument);
             });
 
         ContextImpl context{state};
         EXPECT_EQ(context.accept_call().status, interface::OperationStatus::Cancelled);
-        EXPECT_EQ(context.open_call(nullptr).status, interface::OperationStatus::ProtocolError);
+        EXPECT_EQ(context.open_call(nullptr).status, interface::OperationStatus::InvalidArgument);
     }
 
     TEST(ContextImplTest, OpenCallCreatesHandleBoundToStreamReturnedByState)

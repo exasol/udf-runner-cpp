@@ -80,6 +80,7 @@ private:
                        bool request_background_shutdown          = true) noexcept;
     [[nodiscard]] interface::MessageStatus message_status_for_terminal() const noexcept;
     [[nodiscard]] interface::OperationStatus operation_status_for_terminal() const noexcept;
+    [[nodiscard]] interface::ErrorInfo invalid_argument(std::string message) const;
     [[nodiscard]] interface::ErrorInfo protocol_error(std::string message) const;
 
     std::unique_ptr<BackgroundThreadInterface> background_thread_;

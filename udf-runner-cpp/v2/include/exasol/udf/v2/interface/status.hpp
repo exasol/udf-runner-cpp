@@ -24,7 +24,8 @@ enum class OperationStatus
     PeerClosed,
     ProtocolError,
     TransportError,
-    ContextClosed
+    ContextClosed,
+    InvalidArgument
 };
 
 } // namespace exasol::udf::v2::interface

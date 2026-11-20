@@ -99,16 +99,16 @@ interface::Result<std::uint64_t> ContextState::open_call(
     if (opening_message == nullptr)
     {
         return interface::Result<std::uint64_t>::failure(
-            interface::OperationStatus::ProtocolError,
-            protocol_error("Cannot open a call with a null opening message"));
+            interface::OperationStatus::InvalidArgument,
+            invalid_argument("Cannot open a call with a null opening message"));
     }
 
     auto* implementation = dynamic_cast<OpeningCallMessageBuilderImpl*>(opening_message.get());
     if (implementation == nullptr || !implementation->belongs_to(builder_owner_token_))
     {
         return interface::Result<std::uint64_t>::failure(
-            interface::OperationStatus::ProtocolError,
-            protocol_error("Opening message was not created by this context"));
+            interface::OperationStatus::InvalidArgument,
+            invalid_argument("Opening message was not created by this context"));
     }
 
     const auto& built_message = implementation->message();
@@ -116,14 +116,15 @@ interface::Result<std::uint64_t> ContextState::open_call(
     if (!built_message.open_call().has_value())
     {
         return interface::Result<std::uint64_t>::failure(
-            interface::OperationStatus::ProtocolError,
-            protocol_error("An outbound opening message must contain OpenCall"));
+            interface::OperationStatus::InvalidArgument,
+            invalid_argument("An outbound opening message must contain OpenCall"));
     }
     if (!stream_registry_.register_local_call(stream_id, built_message.is_close_call()))
     {
         return interface::Result<std::uint64_t>::failure(
-            interface::OperationStatus::ProtocolError,
-            protocol_error("Opening message does not use an available reserved local stream ID"));
+            interface::OperationStatus::InvalidArgument,
+            invalid_argument("Opening message does not use an available reserved "
+                             "local stream ID"));
     }
 
     std::unique_ptr<interface::CallMessageBuilderBase> base_builder(std::move(opening_message));
@@ -292,15 +293,16 @@ interface::Result<void> ContextState::send_call_message(
     {
         return interface::Result<void>::failure(operation_status_for_terminal(), terminal_error_);
     }
-    if (message == nullptr)
-    {
-        return interface::Result<void>::failure(interface::OperationStatus::ProtocolError,
-                                                protocol_error("Cannot send a null call message"));
-    }
     const auto send_status = stream_registry_.call_send_status(stream_id);
     if (send_status != interface::OperationStatus::Ok)
     {
         return interface::Result<void>::failure(send_status);
+    }
+    if (message == nullptr)
+    {
+        return interface::Result<void>::failure(
+            interface::OperationStatus::InvalidArgument,
+            invalid_argument("Cannot send a null call message"));
     }
 
     auto* implementation = dynamic_cast<CallMessageBuilderImpl*>(message.get());
@@ -309,8 +311,8 @@ interface::Result<void> ContextState::send_call_message(
         implementation->message().open_call().has_value())
     {
         return interface::Result<void>::failure(
-            interface::OperationStatus::ProtocolError,
-            protocol_error("Call message builder is invalid for this stream"));
+            interface::OperationStatus::InvalidArgument,
+            invalid_argument("Call message builder is invalid for this stream"));
     }
     const bool closes_call = implementation->message().is_close_call();
 
@@ -347,16 +349,16 @@ interface::Result<void> ContextState::send_control_message(
     if (message == nullptr)
     {
         return interface::Result<void>::failure(
-            interface::OperationStatus::ProtocolError,
-            protocol_error("Cannot send a null control message"));
+            interface::OperationStatus::InvalidArgument,
+            invalid_argument("Cannot send a null control message"));
     }
     const auto* implementation = dynamic_cast<ControlMessageBuilderImpl*>(message.get());
     if (implementation == nullptr || !implementation->belongs_to(builder_owner_token_) ||
         implementation->message().stream_id() != 0)
     {
         return interface::Result<void>::failure(
-            interface::OperationStatus::ProtocolError,
-            protocol_error("Control message builder is not bound to stream zero"));
+            interface::OperationStatus::InvalidArgument,
+            invalid_argument("Control message builder is not bound to stream zero"));
     }
     const bool closes_connection = implementation->message().is_close_connection();
     if (OutboundMessage outbound{std::move(message)};
@@ -550,6 +552,8 @@ interface::MessageStatus ContextState::message_status_for_terminal() const noexc
             return interface::MessageStatus::ConnectionError;
         case interface::OperationStatus::ContextClosed:
             return interface::MessageStatus::ContextClosed;
+        case interface::OperationStatus::InvalidArgument:
+            return interface::MessageStatus::ConnectionError;
         case interface::OperationStatus::Ok:
             return interface::MessageStatus::NoMessage;
     }
@@ -564,6 +568,11 @@ interface::OperationStatus ContextState::operation_status_for_terminal() const n
 interface::ErrorInfo ContextState::protocol_error(std::string message) const
 {
     return interface::ErrorInfo("PROTOCOL_ERROR", std::move(message));
+}
+
+interface::ErrorInfo ContextState::invalid_argument(std::string message) const
+{
+    return interface::ErrorInfo("INVALID_ARGUMENT", std::move(message));
 }
 
 } // namespace exasol::udf::v2::internal
