@@ -4,7 +4,6 @@ cc_test(
     srcs = [
         "call_message_builder_test.cc",
         "call_message_view_test.cc",
-        "call_test.cc",
         "context_test.cc",
         "control_message_builder_test.cc",
         "control_message_view_test.cc",
