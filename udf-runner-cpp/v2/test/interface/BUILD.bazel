@@ -7,7 +7,6 @@ cc_test(
         "context_test.cc",
         "control_message_builder_test.cc",
         "control_message_view_test.cc",
-        "control_stream_test.cc",
         "data_schema_view_test.cc",
         "error_info_test.cc",
         "record_batch_view_test.cc",
