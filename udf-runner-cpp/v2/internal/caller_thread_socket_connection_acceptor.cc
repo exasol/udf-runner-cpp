@@ -1,6 +1,7 @@
 #include <exasol/udf/v2/internal/caller_thread_socket_connection_acceptor.hpp>
 
 #include <exasol/udf/v2/assert.hpp>
+#include <exasol/udf/v2/utils/log_utils.h>
 
 #include <algorithm>
 #include <cerrno>
@@ -8,6 +9,7 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <source_location>
 #include <stdexcept>
 #include <system_error>
 #include <utility>
@@ -58,11 +60,13 @@ CallerThreadSocketConnectionAcceptor::CallerThreadSocketConnectionAcceptor(
     const ConnectionType connection_type,
     std::unique_ptr<socket::SocketListener> listener,
     std::unique_ptr<LinuxEpoll> epoll,
-    std::unique_ptr<EventFd> shutdown_event)
+    std::unique_ptr<EventFd> shutdown_event,
+    provider::logging::LoggingProviderIf& logging_provider)
     : connection_type(connection_type),
       listener(std::move(listener)),
       epoll(std::move(epoll)),
-      shutdown_event(std::move(shutdown_event))
+      shutdown_event(std::move(shutdown_event)),
+      logging_provider(logging_provider)
 {
     EXASOL_UDF_ASSERT(this->listener);
     EXASOL_UDF_ASSERT(this->epoll);
@@ -76,6 +80,7 @@ CallerThreadSocketConnectionAcceptor::CallerThreadSocketConnectionAcceptor(
 std::unique_ptr<Connection> CallerThreadSocketConnectionAcceptor::get_next_connection(
     const ConnectionTimeout timeout)
 {
+    utils::logging::FunctionTraceLog trace(this->logging_provider, std::source_location::current());
     std::lock_guard acceptance_lock(this->acceptance_mutex);
     {
         std::lock_guard shutdown_lock(this->shutdown_mutex);

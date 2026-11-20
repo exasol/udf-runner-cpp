@@ -1,6 +1,7 @@
 #include <exasol/udf/v2/internal/caller_thread_socket_connection_acceptor.hpp>
 #include <exasol/udf/v2/internal/connection.hpp>
 #include <exasol/udf/v2/linux_epoll.hpp>
+#include <recording_logging_provider.hpp>
 
 #include <array>
 #include <chrono>
@@ -15,6 +16,7 @@
 #include <mutex>
 #include <optional>
 #include <span>
+#include <string>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -37,6 +39,7 @@ using exasol::udf::v2::socket::OwnedFileDescriptor;
 using exasol::udf::v2::socket::Shutdown;
 using exasol::udf::v2::socket::Socket;
 using exasol::udf::v2::socket::SocketListener;
+using exasol::udf::v2::test_utils::RecordingLoggingProvider;
 
 class FakeSocket final : public Socket
 {
@@ -293,6 +296,7 @@ TEST(SocketConnectionTest, RejectsMissingSocket)
 
 TEST(CallerThreadSocketConnectionAcceptorTest, WrapsAcceptedSocketWithConfiguredConnectionType)
 {
+    RecordingLoggingProvider logging_provider;
     int destruction_count         = 0;
     auto socket                   = std::make_unique<FakeSocket>();
     Socket* const expected_socket = socket.get();
@@ -302,7 +306,7 @@ TEST(CallerThreadSocketConnectionAcceptorTest, WrapsAcceptedSocketWithConfigured
     CallerThreadSocketConnectionAcceptor acceptor(
         ConnectionType::Tcp,
         std::make_unique<FakeSocketListener>(std::move(socket), &destruction_count),
-        std::move(epoll), std::move(event));
+        std::move(epoll), std::move(event), logging_provider);
 
     std::unique_ptr<exasol::udf::v2::internal::Connection> connection =
         acceptor.get_next_connection(ConnectionTimeout{});
@@ -314,10 +318,14 @@ TEST(CallerThreadSocketConnectionAcceptorTest, WrapsAcceptedSocketWithConfigured
     std::unique_ptr<Socket> transferred_socket = socket_connection->take_socket();
     EXPECT_EQ(transferred_socket.get(), expected_socket);
     EXPECT_EQ(destruction_count, 0);
+#ifndef NDEBUG
+    EXPECT_NE(logging_provider.messages().find("get_next_connection"), std::string::npos);
+#endif
 }
 
 TEST(CallerThreadSocketConnectionAcceptorTest, ShutdownSignalsButDoesNotDestroyListener)
 {
+    RecordingLoggingProvider logging_provider;
     int destruction_count                  = 0;
     auto event                             = std::make_unique<FakeEventFd>();
     const FakeEventFd* const event_pointer = event.get();
@@ -325,7 +333,7 @@ TEST(CallerThreadSocketConnectionAcceptorTest, ShutdownSignalsButDoesNotDestroyL
         CallerThreadSocketConnectionAcceptor acceptor(
             ConnectionType::UnixDomainSocket,
             std::make_unique<FakeSocketListener>(nullptr, &destruction_count),
-            std::make_unique<FakeEpoll>(), std::move(event));
+            std::make_unique<FakeEpoll>(), std::move(event), logging_provider);
 
         acceptor.shutdown();
         EXPECT_EQ(event_pointer->get_write_count(), 1);
@@ -339,10 +347,11 @@ TEST(CallerThreadSocketConnectionAcceptorTest, ShutdownSignalsButDoesNotDestroyL
 
 TEST(CallerThreadSocketConnectionAcceptorTest, TerminatesForMissingDependencies)
 {
+    RecordingLoggingProvider logging_provider;
     EXPECT_DEATH(
         {
             CallerThreadSocketConnectionAcceptor acceptor(ConnectionType::UnixDomainSocket, nullptr,
-                                                          nullptr, nullptr);
+                                                          nullptr, nullptr, logging_provider);
             static_cast<void>(acceptor);
         },
         "  #1 ");
@@ -350,22 +359,24 @@ TEST(CallerThreadSocketConnectionAcceptorTest, TerminatesForMissingDependencies)
 
 TEST(CallerThreadSocketConnectionAcceptorTest, ReturnsNoConnectionWhenEpollTimesOut)
 {
+    RecordingLoggingProvider logging_provider;
     int destruction_count = 0;
     CallerThreadSocketConnectionAcceptor acceptor(
         ConnectionType::UnixDomainSocket,
         std::make_unique<FakeSocketListener>(nullptr, &destruction_count),
-        std::make_unique<FakeEpoll>(), std::make_unique<FakeEventFd>());
+        std::make_unique<FakeEpoll>(), std::make_unique<FakeEventFd>(), logging_provider);
 
     EXPECT_EQ(acceptor.get_next_connection(std::chrono::milliseconds(1)), nullptr);
 }
 
 TEST(CallerThreadSocketConnectionAcceptorTest, RejectsInvalidTimeouts)
 {
+    RecordingLoggingProvider logging_provider;
     int destruction_count = 0;
     CallerThreadSocketConnectionAcceptor acceptor(
         ConnectionType::UnixDomainSocket,
         std::make_unique<FakeSocketListener>(nullptr, &destruction_count),
-        std::make_unique<FakeEpoll>(), std::make_unique<FakeEventFd>());
+        std::make_unique<FakeEpoll>(), std::make_unique<FakeEventFd>(), logging_provider);
 
     EXPECT_THROW(static_cast<void>(acceptor.get_next_connection(-std::chrono::milliseconds(1))),
                  std::invalid_argument);
@@ -376,13 +387,14 @@ TEST(CallerThreadSocketConnectionAcceptorTest, RejectsInvalidTimeouts)
 
 TEST(CallerThreadSocketConnectionAcceptorTest, RejectsUnexpectedEpollEvents)
 {
+    RecordingLoggingProvider logging_provider;
     int destruction_count = 0;
     auto epoll            = std::make_unique<FakeEpoll>();
     epoll->set_events({{.token = 2, .readable = true}});
     CallerThreadSocketConnectionAcceptor acceptor(
         ConnectionType::UnixDomainSocket,
         std::make_unique<FakeSocketListener>(nullptr, &destruction_count), std::move(epoll),
-        std::make_unique<FakeEventFd>());
+        std::make_unique<FakeEventFd>(), logging_provider);
 
     EXPECT_THROW(static_cast<void>(acceptor.get_next_connection(ConnectionTimeout{})),
                  std::runtime_error);
@@ -390,6 +402,7 @@ TEST(CallerThreadSocketConnectionAcceptorTest, RejectsUnexpectedEpollEvents)
 
 TEST(CallerThreadSocketConnectionAcceptorTest, ReportsUnusableListenerEvents)
 {
+    RecordingLoggingProvider logging_provider;
     const std::array unusable_events{
         EpollReadyEvent{.token = 0},
         EpollReadyEvent{.token = 0, .readable = true, .error = true},
@@ -404,7 +417,7 @@ TEST(CallerThreadSocketConnectionAcceptorTest, ReportsUnusableListenerEvents)
         CallerThreadSocketConnectionAcceptor acceptor(
             ConnectionType::UnixDomainSocket,
             std::make_unique<FakeSocketListener>(nullptr, &destruction_count), std::move(epoll),
-            std::make_unique<FakeEventFd>());
+            std::make_unique<FakeEventFd>(), logging_provider);
 
         EXPECT_THROW(static_cast<void>(acceptor.get_next_connection(ConnectionTimeout{})),
                      std::system_error);
@@ -413,15 +426,16 @@ TEST(CallerThreadSocketConnectionAcceptorTest, ReportsUnusableListenerEvents)
 
 TEST(CallerThreadSocketConnectionAcceptorTest, DropsSocketAcceptedDuringShutdown)
 {
+    RecordingLoggingProvider logging_provider;
     int destruction_count = 0;
     auto listener =
         std::make_unique<FakeSocketListener>(std::make_unique<FakeSocket>(), &destruction_count);
     FakeSocketListener* const listener_pointer = listener.get();
     auto epoll                                 = std::make_unique<FakeEpoll>();
     epoll->set_events({{.token = 0, .readable = true}});
-    CallerThreadSocketConnectionAcceptor acceptor(ConnectionType::UnixDomainSocket,
-                                                  std::move(listener), std::move(epoll),
-                                                  std::make_unique<FakeEventFd>());
+    CallerThreadSocketConnectionAcceptor acceptor(
+        ConnectionType::UnixDomainSocket, std::move(listener), std::move(epoll),
+        std::make_unique<FakeEventFd>(), logging_provider);
     listener_pointer->set_on_accept([&acceptor] { acceptor.shutdown(); });
 
     EXPECT_EQ(acceptor.get_next_connection(ConnectionTimeout{}), nullptr);
@@ -429,39 +443,42 @@ TEST(CallerThreadSocketConnectionAcceptorTest, DropsSocketAcceptedDuringShutdown
 
 TEST(CallerThreadSocketConnectionAcceptorTest, SuppressesSaturatedShutdownNotification)
 {
+    RecordingLoggingProvider logging_provider;
     int destruction_count = 0;
     auto event            = std::make_unique<FakeEventFd>();
     event->set_write_error(std::errc::resource_unavailable_try_again);
     CallerThreadSocketConnectionAcceptor acceptor(
         ConnectionType::UnixDomainSocket,
         std::make_unique<FakeSocketListener>(nullptr, &destruction_count),
-        std::make_unique<FakeEpoll>(), std::move(event));
+        std::make_unique<FakeEpoll>(), std::move(event), logging_provider);
 
     EXPECT_NO_THROW(acceptor.shutdown());
 }
 
 TEST(CallerThreadSocketConnectionAcceptorTest, PropagatesUnexpectedShutdownNotificationFailure)
 {
+    RecordingLoggingProvider logging_provider;
     int destruction_count = 0;
     auto event            = std::make_unique<FakeEventFd>();
     event->set_write_error(std::errc::io_error);
     CallerThreadSocketConnectionAcceptor acceptor(
         ConnectionType::UnixDomainSocket,
         std::make_unique<FakeSocketListener>(nullptr, &destruction_count),
-        std::make_unique<FakeEpoll>(), std::move(event));
+        std::make_unique<FakeEpoll>(), std::move(event), logging_provider);
 
     EXPECT_THROW(acceptor.shutdown(), std::system_error);
 }
 
 TEST(CallerThreadSocketConnectionAcceptorTest, ShutdownWakesAnUnlimitedWait)
 {
+    RecordingLoggingProvider logging_provider;
     int destruction_count              = 0;
     auto epoll                         = std::make_unique<BlockingEpoll>();
     BlockingEpoll* const epoll_pointer = epoll.get();
     CallerThreadSocketConnectionAcceptor acceptor(
         ConnectionType::UnixDomainSocket,
         std::make_unique<FakeSocketListener>(nullptr, &destruction_count), std::move(epoll),
-        std::make_unique<SignallingEventFd>(*epoll_pointer));
+        std::make_unique<SignallingEventFd>(*epoll_pointer), logging_provider);
 
     std::promise<bool> connection_result;
     std::future<bool> waiting_connection = connection_result.get_future();

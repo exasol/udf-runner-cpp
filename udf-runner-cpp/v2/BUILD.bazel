@@ -569,6 +569,8 @@ cc_library(
         ":event_fd",
         ":exception",
         ":linux_epoll_interface",
+        ":logging_utils",
+        ":providers",
         ":socket_interface",
     ],
     target_compatible_with = ["@platforms//os:linux"],
@@ -594,14 +596,24 @@ cc_test(
         ":thread_factory",
         "@googletest//:gtest_main",
     ],
+    name = "recording_logging_provider_test_utils",
+    testonly = True,
+    hdrs = ["test_utils/recording_logging_provider.hpp"],
+    copts = ["-std=c++23"],
+    includes = ["test_utils"],
+    deps = [":providers"],
 )
 
 cc_test(
     name = "connection_acceptor_test",
+    # This binary links the logging implementation, to run its tests when Mull
+    # mutates the connection acceptor's transitive dependencies.
     srcs = ["internal/connection_acceptor_test.cc"],
     copts = ["-std=c++23"],
     deps = [
         ":connection_acceptor",
+        ":logging_utils_test_cases",
+        ":recording_logging_provider_test_utils",
         "@googletest//:gtest_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],
@@ -629,6 +641,7 @@ cc_test(
     deps = [
         ":socket",
         ":posix",
+        ":providers",
         "@googletest//:gtest_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],
@@ -641,6 +654,7 @@ cc_fuzz_test(
     copts = ["-std=c++23"],
     deps = [
         ":posix",
+        ":providers",
         ":socket",
     ],
     tags = ["fuzz-test"],
@@ -832,4 +846,45 @@ cc_test(
         "@googletest//:gtest_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "providers",
+    srcs = ["provider/logging_provider.cpp"],
+    hdrs = ["include/exasol/udf/v2/provider/logging_provider.h"],
+    copts = ["-std=c++23"],
+    includes = ["include"],
+)
+
+cc_library(
+    name = "logging_utils",
+    srcs = ["utils/log_utils.cpp"],
+    hdrs = ["include/exasol/udf/v2/utils/log_utils.h"],
+    copts = ["-std=c++23"],
+    includes = ["include"],
+    deps = [":providers"],
+)
+
+cc_library(
+    name = "logging_utils_test_cases",
+    testonly = True,
+    srcs = ["utils/log_utils_test.cpp"],
+    # GoogleTest registers cases during static initialization, without a
+    # symbol referenced directly by either test binary.
+    alwayslink = True,
+    copts = ["-std=c++23"],
+    deps = [
+        ":logging_utils",
+        ":providers",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "logging_utils_test",
+    copts = ["-std=c++23"],
+    deps = [
+        ":logging_utils_test_cases",
+        "@googletest//:gtest_main",
+    ],
 )
