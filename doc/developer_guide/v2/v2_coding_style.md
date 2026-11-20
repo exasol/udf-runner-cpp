@@ -88,6 +88,9 @@ the libFuzzer entry point `LLVMFuzzerTestOneInput` keeps its required spelling.
 - Add or update tests when changing behavior, public interfaces, parsing,
   serialization, concurrency, or dependency boundaries.
 - Prefer small, focused tests that make failures easy to diagnose.
+- Keep unit tests for one class in a file named after that class, such as
+  `context_impl_test.cc`. Put tests that exercise interactions across multiple
+  classes in a separate integration-test file.
 - Write functional unit tests with GoogleTest `TEST` or `TEST_F` cases. Use
   `ASSERT_*` for prerequisites and `EXPECT_*` for independent checks; use
   `@googletest//:gtest_main` instead of a hand-written `main()`.
