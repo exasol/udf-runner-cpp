@@ -18,7 +18,7 @@ namespace
 
     using test_support::MockBackgroundThread;
 
-    TEST(ContextHandleIntegrationTest, CallSendOverloadsAcceptMessagesAndZeroTimeoutReceivePolls)
+    TEST(ContextHandleIntegrationTest, CallSendOverloadsAcceptMessages)
     {
         auto background      = std::make_unique<testing::NiceMock<MockBackgroundThread>>();
         auto* background_ptr = background.get();
@@ -27,15 +27,9 @@ namespace
             .WillRepeatedly([background_ptr](OutboundMessage& message) {
                 return background_ptr->accept_outbound_message(message);
             });
-        EXPECT_CALL(*background_ptr, dequeue_inbound_messages()).Times(6).WillRepeatedly([] {
+        EXPECT_CALL(*background_ptr, dequeue_inbound_messages()).Times(3).WillRepeatedly([] {
             return InboundBatch{};
         });
-        EXPECT_CALL(*background_ptr, wait_until(testing::_))
-            .Times(2)
-            .WillRepeatedly([](const auto deadline) {
-                EXPECT_TRUE(deadline.has_value());
-                return BackgroundThreadResult{.event = Event::DeadlineExpired};
-            });
         ContextImpl context{
             std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
         auto opening = context.create_opening_call_message_builder();
@@ -54,15 +48,42 @@ namespace
                         ->send(std::move(zero_timeout_builder),
                                interface::Timeout{std::chrono::steady_clock::duration::zero()}));
 
+        auto populated_builder = (*opened.value)->create_message_builder();
+        ASSERT_NE(populated_builder, nullptr);
+        populated_builder->add_payload("call", "value");
+        EXPECT_TRUE((*opened.value)->send(std::move(populated_builder)));
+    }
+
+    TEST(ContextHandleIntegrationTest, CallZeroTimeoutReceivePollsAndTimesOut)
+    {
+        auto background      = std::make_unique<testing::NiceMock<MockBackgroundThread>>();
+        auto* background_ptr = background.get();
+        EXPECT_CALL(*background_ptr, enqueue_outbound_message(testing::_))
+            .WillOnce([background_ptr](OutboundMessage& message) {
+                return background_ptr->accept_outbound_message(message);
+            });
+        EXPECT_CALL(*background_ptr, dequeue_inbound_messages()).Times(3).WillRepeatedly([] {
+            return InboundBatch{};
+        });
+        EXPECT_CALL(*background_ptr, wait_until(testing::_))
+            .Times(2)
+            .WillRepeatedly([](const auto deadline) {
+                EXPECT_TRUE(deadline.has_value());
+                return BackgroundThreadResult{.event = Event::DeadlineExpired};
+            });
+        ContextImpl context{
+            std::make_shared<ContextState>(EndpointRole::Client, std::move(background))};
+        auto opening = context.create_opening_call_message_builder();
+        ASSERT_NE(opening, nullptr);
+        opening->open_call("test");
+        auto opened = context.open_call(std::move(opening));
+        ASSERT_TRUE(opened);
+
         EXPECT_EQ((*opened.value)
                       ->receive(interface::Timeout{std::chrono::steady_clock::duration::zero()})
                       .status,
                   interface::OperationStatus::TimedOut);
         EXPECT_EQ((*opened.value)->receive_status(), interface::MessageStatus::NoMessage);
-        auto populated_builder = (*opened.value)->create_message_builder();
-        ASSERT_NE(populated_builder, nullptr);
-        populated_builder->add_payload("call", "value");
-        EXPECT_TRUE((*opened.value)->send(std::move(populated_builder)));
         EXPECT_EQ((*opened.value)
                       ->receive(interface::Timeout{std::chrono::steady_clock::duration::zero()})
                       .status,
