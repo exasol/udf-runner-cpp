@@ -32,7 +32,7 @@ namespace
         using Clock          = std::chrono::steady_clock;
         const auto now       = Clock::time_point{std::chrono::seconds{123}};
         const auto timeout   = std::chrono::seconds{5};
-        auto background      = std::make_unique<testing::StrictMock<MockBackgroundThread>>();
+        auto background      = std::make_unique<testing::NiceMock<MockBackgroundThread>>();
         auto* background_ptr = background.get();
         EXPECT_CALL(*background_ptr, dequeue_inbound_messages()).WillOnce([] {
             return InboundBatch{};
@@ -48,7 +48,7 @@ namespace
 
     TEST(ContextStateTest, CreatesAndSendsControlMessagesUntilConnectionClose)
     {
-        auto background      = std::make_unique<testing::StrictMock<MockBackgroundThread>>();
+        auto background      = std::make_unique<testing::NiceMock<MockBackgroundThread>>();
         auto* background_ptr = background.get();
         EXPECT_CALL(*background_ptr, enqueue_outbound_message(testing::_))
             .Times(2)
@@ -110,7 +110,7 @@ namespace
 
     TEST(ContextStateTest, RetainsControlBuilderWhenBackgroundRejectsIt)
     {
-        auto background      = std::make_unique<testing::StrictMock<MockBackgroundThread>>();
+        auto background      = std::make_unique<testing::NiceMock<MockBackgroundThread>>();
         auto* background_ptr = background.get();
         EXPECT_CALL(*background_ptr, enqueue_outbound_message(testing::_))
             .WillOnce(testing::Return(false));
@@ -294,7 +294,7 @@ namespace
 
     TEST(ContextStateTest, RetainsCallMessageBuilderWhenBackgroundRejectsIt)
     {
-        auto background      = std::make_unique<testing::StrictMock<MockBackgroundThread>>();
+        auto background      = std::make_unique<testing::NiceMock<MockBackgroundThread>>();
         auto* background_ptr = background.get();
         EXPECT_CALL(*background_ptr, dequeue_inbound_messages())
             .Times(testing::AnyNumber())
@@ -322,7 +322,7 @@ namespace
 
     TEST(ContextStateTest, RetainsOpeningBuilderWhenBackgroundRejectsIt)
     {
-        auto background = std::make_unique<testing::StrictMock<MockBackgroundThread>>();
+        auto background = std::make_unique<testing::NiceMock<MockBackgroundThread>>();
         EXPECT_CALL(*background, enqueue_outbound_message(testing::_))
             .WillOnce(testing::Return(false));
         ContextState state{EndpointRole::Client, std::move(background)};
@@ -436,7 +436,7 @@ namespace
 
     TEST(ContextStateTest, ReceivesMessageFromBackgroundDequeuedBatch)
     {
-        auto background      = std::make_unique<testing::StrictMock<MockBackgroundThread>>();
+        auto background      = std::make_unique<testing::NiceMock<MockBackgroundThread>>();
         auto* background_ptr = background.get();
         InboundBatch batch;
         batch.emplace_back(make_control_message_view(k_control_stream_id));

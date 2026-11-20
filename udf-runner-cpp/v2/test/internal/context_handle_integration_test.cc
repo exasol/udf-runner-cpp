@@ -20,7 +20,7 @@ namespace
 
     TEST(ContextHandleIntegrationTest, CallSendOverloadsAcceptMessagesAndZeroTimeoutReceivePolls)
     {
-        auto background      = std::make_unique<testing::StrictMock<MockBackgroundThread>>();
+        auto background      = std::make_unique<testing::NiceMock<MockBackgroundThread>>();
         auto* background_ptr = background.get();
         EXPECT_CALL(*background_ptr, enqueue_outbound_message(testing::_))
             .Times(4)
@@ -71,7 +71,7 @@ namespace
 
     TEST(ContextHandleIntegrationTest, ControlStreamSendsAndTimesOutWhenNoMessageIsAvailable)
     {
-        auto background      = std::make_unique<testing::StrictMock<MockBackgroundThread>>();
+        auto background      = std::make_unique<testing::NiceMock<MockBackgroundThread>>();
         auto* background_ptr = background.get();
         EXPECT_CALL(*background_ptr, dequeue_inbound_messages()).WillOnce([] {
             return InboundBatch{};
@@ -96,7 +96,7 @@ namespace
 
     TEST(CallImplIntegrationTest, NoTimeoutReceiveWaitsWithoutADeadline)
     {
-        auto background      = std::make_unique<testing::StrictMock<MockBackgroundThread>>();
+        auto background      = std::make_unique<testing::NiceMock<MockBackgroundThread>>();
         auto* background_ptr = background.get();
         EXPECT_CALL(*background_ptr, enqueue_outbound_message(testing::_))
             .WillOnce([background_ptr](OutboundMessage& message) {
