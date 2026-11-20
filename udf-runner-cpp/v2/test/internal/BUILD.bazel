@@ -6,7 +6,6 @@ cc_test(
     name = "stream_registry_test",
     srcs = ["stream_registry_test.cc", "stream_management_test_utils.hpp"],
     copts = ["-std=c++23"],
-    tags = ["no-mull"],
     deps = [
         "//:interface",
         "//:interface_internal",
@@ -19,7 +18,6 @@ cc_test(
     name = "context_state_test",
     srcs = ["context_state_test.cc", "stream_management_test_utils.hpp"],
     copts = ["-std=c++23"],
-    tags = ["no-mull"],
     deps = [
         "//:interface",
         "//:interface_internal",
@@ -32,7 +30,6 @@ cc_test(
     name = "context_impl_test",
     srcs = ["context_impl_test.cc", "stream_management_test_utils.hpp"],
     copts = ["-std=c++23"],
-    tags = ["no-mull"],
     deps = [
         "//:interface",
         "//:interface_internal",
@@ -45,7 +42,6 @@ cc_test(
     name = "call_impl_test",
     srcs = ["call_impl_test.cc", "stream_management_test_utils.hpp"],
     copts = ["-std=c++23"],
-    tags = ["no-mull"],
     deps = [
         "//:interface",
         "//:interface_internal",
@@ -58,7 +54,6 @@ cc_test(
     name = "control_stream_impl_test",
     srcs = ["control_stream_impl_test.cc"],
     copts = ["-std=c++23"],
-    tags = ["no-mull"],
     deps = [
         "//:interface",
         "//:interface_internal",
@@ -71,7 +66,6 @@ cc_test(
     name = "context_handle_integration_test",
     srcs = ["context_handle_integration_test.cc", "stream_management_test_utils.hpp"],
     copts = ["-std=c++23"],
-    tags = ["no-mull"],
     deps = [
         "//:interface",
         "//:interface_internal",
