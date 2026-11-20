@@ -2,6 +2,9 @@
 
 #include "stream_management_test_utils.hpp"
 
+#include <memory>
+#include <utility>
+
 #include <gtest/gtest.h>
 
 namespace exasol::udf::v2::internal
@@ -189,6 +192,17 @@ namespace
         EXPECT_EQ(registry.dispatch(make_control_message_view(k_control_stream_id)),
                   DispatchResult::Routed);
         EXPECT_NE(registry.take_control_message(), nullptr);
+    }
+
+    TEST(StreamRegistryTest, RejectsNullInboundViews)
+    {
+        StreamRegistry registry{EndpointRole::Client};
+        std::unique_ptr<interface::ControlMessageView> null_control_message;
+        std::unique_ptr<interface::CallMessageView> null_call_message;
+
+        EXPECT_EQ(registry.dispatch(std::move(null_control_message)),
+                  DispatchResult::ProtocolError);
+        EXPECT_EQ(registry.dispatch(std::move(null_call_message)), DispatchResult::ProtocolError);
     }
 
 } // namespace

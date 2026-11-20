@@ -526,6 +526,36 @@ namespace
                   interface::MessageStatus::PeerClosed);
         EXPECT_EQ(state.receive_call_message(k_unknown_stream_id, std::nullopt).status,
                   interface::OperationStatus::PeerClosed);
+        EXPECT_EQ(state.create_call_message_builder(k_unknown_stream_id), nullptr);
+    }
+
+    TEST(ContextStateTest, WaitForMessageReportsAvailableControlMessage)
+    {
+        auto background = std::make_unique<StatefulBackgroundThreadFake>();
+        background->push_inbound(make_control_message_view(k_control_stream_id));
+        ContextState state{EndpointRole::Client, std::move(background)};
+
+        EXPECT_EQ(state.wait_for_message(std::nullopt), interface::MessageStatus::MessageAvailable);
+        EXPECT_EQ(state.control_receive_status(), interface::MessageStatus::MessageAvailable);
+    }
+
+    TEST(ContextStateTest, WaitForMessageReportsAvailableInboundCall)
+    {
+        auto background = std::make_unique<StatefulBackgroundThreadFake>();
+        background->push_inbound(make_call_message_view(k_first_server_stream_id, true));
+        ContextState state{EndpointRole::Client, std::move(background)};
+
+        EXPECT_EQ(state.wait_for_message(std::nullopt), interface::MessageStatus::MessageAvailable);
+        EXPECT_TRUE(state.is_new_inbound_call_available());
+    }
+
+    TEST(ContextStateTest, WaitForMessageRetriesAfterSpuriousInboundNotification)
+    {
+        auto background = std::make_unique<StatefulBackgroundThreadFake>();
+        background->set_next_wait_result({.event = Event::InboundAvailable});
+        ContextState state{EndpointRole::Client, std::move(background)};
+
+        EXPECT_EQ(state.wait_for_message(std::nullopt), interface::MessageStatus::Cancelled);
     }
 
     TEST(ContextStateTest, RejectsBuilderBoundToAnotherActiveCall)
