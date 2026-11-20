@@ -596,6 +596,9 @@ cc_test(
         ":thread_factory",
         "@googletest//:gtest_main",
     ],
+)
+
+cc_library(
     name = "recording_logging_provider_test_utils",
     testonly = True,
     hdrs = ["test_utils/recording_logging_provider.hpp"],
