@@ -5,7 +5,6 @@
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <stdexcept>
 #include <thread>
 #include <utility>
 
@@ -215,7 +214,7 @@ std::unique_ptr<Thread> StandardThreadFactory::create(ThreadTask task)
     auto native_thread = this->create_native_thread();
     if (!native_thread)
     {
-        throw std::logic_error("native thread creator returned null");
+        throw NativeThreadCreatorError("native thread creator returned null");
     }
     return std::make_unique<StandardThread>(std::move(task), std::move(native_thread));
 }

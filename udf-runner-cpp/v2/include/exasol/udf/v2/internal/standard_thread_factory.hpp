@@ -8,6 +8,13 @@
 namespace exasol::udf::v2::internal
 {
 
+/// Reports an invalid native thread creator configuration.
+class NativeThreadCreatorError final : public std::logic_error
+{
+public:
+    using std::logic_error::logic_error;
+};
+
 /// Creates threads backed by the C++ standard-library thread runtime.
 class StandardThreadFactory final : public ThreadFactory
 {

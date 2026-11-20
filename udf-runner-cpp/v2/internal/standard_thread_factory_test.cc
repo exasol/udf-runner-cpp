@@ -20,6 +20,7 @@ namespace
 {
 
 using namespace std::chrono_literals;
+using exasol::udf::v2::internal::NativeThreadCreatorError;
 using exasol::udf::v2::internal::StandardThreadFactory;
 using exasol::udf::v2::internal::Thread;
 using exasol::udf::v2::internal::ThreadLifecycleError;
@@ -265,9 +266,10 @@ protected:
         {
             this->thread->join();
         }
-        catch (const ThreadLifecycleError&)
+        catch (const ThreadLifecycleError& error)
         {
             // A failed start leaves no native resource to join.
+            EXPECT_STREQ(error.what(), "thread has not been started");
         }
     }
 
@@ -456,7 +458,7 @@ TEST(StandardThreadFactoryTest, RejectsNullNativeThread)
 {
     StandardThreadFactory factory([] { return std::unique_ptr<NativeThread>{}; });
 
-    EXPECT_THROW(static_cast<void>(factory.create([] {})), std::logic_error);
+    EXPECT_THROW(static_cast<void>(factory.create([] {})), NativeThreadCreatorError);
 }
 
 TEST(StandardThreadFactoryTest, RejectsEmptyTaskBeforeInvokingNativeCreator)
@@ -508,7 +510,9 @@ TEST(StandardThreadFactoryTest, CreatesIndependentNativeThreads)
 TEST(StandardThreadFactoryTest, RejectsEveryJoinVariantBeforeStart)
 {
     StandardThreadFactory factory;
-    auto thread = factory.create([] {});
+    auto thread = factory.create([] {
+        // The task is never run; this test checks join validation before start.
+    });
 
     EXPECT_THROW(thread->join(), ThreadLifecycleError);
     EXPECT_THROW(static_cast<void>(thread->join_for(0ms)), ThreadLifecycleError);
