@@ -15,6 +15,15 @@ runs, or exactly the duration requested by the user. Do not run fuzzing
 indefinitely, use the CI campaign duration locally, or run all targets unless
 the user explicitly asks for that. Run one target at a time by default.
 
+## Agent-specific test-double behavior
+
+- Follow the GMock guidance in
+  [`v2_coding_style.md`](../../doc/developer_guide/v2/v2_coding_style.md).
+- Use GMock to assert interactions through a real class under test. Do not add
+  tests that only call methods on a mock and verify the mock's own expectations.
+- Keep a stateful fake when queues, event sequences, state transitions, or
+  deterministic timing are part of the behavior being tested.
+
 ## Protocol and runner design boundaries
 
 When documenting runner or context behavior, treat the protocol documents in

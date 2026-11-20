@@ -4,7 +4,7 @@ cc_library(
     hdrs = [
         "arrow_test_utils.hpp",
         "protocol_test_utils.hpp",
-        "test_doubles.hpp",
+        "interface_mocks.hpp",
     ],
     copts = ["-std=c++23"],
     deps = [
@@ -13,5 +13,6 @@ cc_library(
         "//:udf_protocol",
         "//:interface",
         "//:interface_internal",
+        "@googletest//:gtest",
     ],
 )

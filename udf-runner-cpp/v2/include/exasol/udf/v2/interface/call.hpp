@@ -25,9 +25,11 @@ public:
     [[nodiscard]] virtual MessageStatus receive_status() const = 0;
     /// Creates a builder bound to this call's stream.
     [[nodiscard]] virtual std::unique_ptr<CallMessageBuilder> create_message_builder() const = 0;
-    /// Receives the next message for this call without waiting.
+    /// Receives the next message for this call, waiting until a message or terminal result is
+    /// ready.
     [[nodiscard]] virtual Result<std::unique_ptr<CallMessageView>> receive() = 0;
-    /// Receives the next message for this call, optionally waiting up to `timeout`.
+    /// Receives the next message for this call, optionally waiting up to `timeout`. A zero timeout
+    /// returns immediately; an empty timeout waits indefinitely.
     [[nodiscard]] virtual Result<std::unique_ptr<CallMessageView>> receive(Timeout timeout) = 0;
     /// Sends one composite call message without waiting for flow-control permission.
     /// A successful result means the call accepted the message and ownership transferred. On
@@ -35,6 +37,8 @@ public:
     /// objects it owns.
     [[nodiscard]] virtual Result<void> send(std::unique_ptr<CallMessageBuilder>&& message) = 0;
     /// Sends one composite call message, waiting up to `timeout` for flow-control permission.
+    /// Current implementation limitation: sending is enqueued immediately, so `timeout` does not
+    /// wait for flow-control credit or produce `TimedOut` for lack of credit.
     /// A successful result means the call accepted the message and ownership transferred. On
     /// failure, `message` remains non-null and retains ownership of the builder and any Arrow
     /// objects it owns.

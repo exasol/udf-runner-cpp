@@ -1,8 +1,8 @@
 #include <exasol/udf/v2/internal/control_message_builder_impl.hpp>
-#include <exasol/udf/v2/internal/message_builder_factory.hpp>
 
 #include <gtest/gtest.h>
 
+#include <memory>
 #include <type_traits>
 
 namespace exasol::udf::v2::internal
@@ -12,7 +12,7 @@ static_assert(std::is_abstract_v<interface::ControlMessageBuilder>);
 
 TEST(ControlMessageBuilderTest, StoresServerCapabilities)
 {
-    auto builder = MessageBuilderFactory::create_control_builder();
+    auto builder = std::make_unique<ControlMessageBuilderImpl>(0);
     builder->server_capabilities(2, 1, std::endian::little, 4)
         .server_capabilities(3, 2, std::endian::big, 8);
 
@@ -28,7 +28,7 @@ TEST(ControlMessageBuilderTest, StoresServerCapabilities)
 
 TEST(ControlMessageBuilderTest, StoresTextAndBinaryPayloadsInOrder)
 {
-    auto builder = MessageBuilderFactory::create_control_builder();
+    auto builder = std::make_unique<ControlMessageBuilderImpl>(0);
     builder->add_payload("text", "value")
         .add_payload("binary", std::string{static_cast<char>(1), static_cast<char>(2)}, true);
 
@@ -46,7 +46,7 @@ TEST(ControlMessageBuilderTest, StoresTextAndBinaryPayloadsInOrder)
 
 TEST(ControlMessageBuilderTest, BuildsCompositeMessage)
 {
-    auto builder = MessageBuilderFactory::create_control_builder();
+    auto builder = std::make_unique<ControlMessageBuilderImpl>(0);
     builder->server_capabilities(2, 1, std::endian::little, 4)
         .keep_alive()
         .add_payload("control", "value")

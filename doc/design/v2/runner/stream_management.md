@@ -124,9 +124,10 @@ The view-to-stream mismatches in this table are protocol errors, including a
    Delayed messages are discarded; any protocol error fails the connection.
 
 A message for a call that has not yet been accepted remains with that stream
-entry and is not returned by another call. `close_connection` is handled as a
-context shutdown event rather than being placed in the control-stream pending
-list.
+entry and is not returned by another call. A validated `close_connection`
+message is retained in the control-stream pending list, after any earlier
+control messages, and is delivered exactly once. After it is consumed,
+subsequent control-stream receives return `ContextClosed`.
 
 ### Call close ordering
 
