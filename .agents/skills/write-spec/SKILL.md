@@ -7,6 +7,8 @@ description: Write or revise design specifications in this repository, including
 
 Inspect the relevant design documents and implementation boundaries before writing. Use the established level of detail and terminology, but give the new spec its own structure and explain its design directly. Choose sections that help the reader understand purpose, participants, behavior, ownership, and failure handling; omit sections that do not apply.
 
+Organize the design documentation from a high-level architecture overview to detailed component specs. Explain each design decision in one spec; when another spec needs that information, link to its authoritative section instead of repeating the explanation.
+
 Describe the intended implementation as an existing system. Write the spec in declarative present tense: "The context owns the connection" rather than "The context will own the connection." State decisions and observable behavior, not implementation tasks. Do not include TODO lists, task lists, roadmaps, or instructions to future implementers in the spec.
 
 Use concrete names for participants and example values whenever they clarify a relationship or order. Name components, classes, calls, messages, and batches consistently across prose, diagrams, and code. For example, explain what happens when record batch A arrives before record batch B instead of referring to "the earlier batch" without identifying it.
