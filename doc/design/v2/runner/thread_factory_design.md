@@ -76,9 +76,10 @@ have an operation-wide deadline and must not reset its time budget while
 performing nested work. The contract deliberately uses `steady_clock`; a
 wall-clock adjustment must never shorten or extend a join wait.
 
-A zero timeout, or a deadline that has already passed, does not block. It
-returns `true` when the task has already completed and can be joined, otherwise
-`false`. Negative durations passed to `join_for()` are rejected with
+A zero timeout, or a deadline that has already passed, does not wait. It
+returns `true` only if the native thread has already been joined or the
+complete join operation can finish without waiting. It returns `false` if the
+task is still running or another caller is still completing the join. Negative durations passed to `join_for()` are rejected with
 `std::invalid_argument`. If computing the deadline for an extremely large
 duration would overflow `steady_clock::time_point`, `join_for()` treats it as
 `steady_clock::time_point::max()`.
