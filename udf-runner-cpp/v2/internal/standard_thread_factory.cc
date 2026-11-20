@@ -6,7 +6,6 @@
 #include <mutex>
 #include <optional>
 #include <stdexcept>
-#include <system_error>
 #include <thread>
 #include <utility>
 
@@ -19,7 +18,8 @@ namespace
     class StandardThread final : public Thread
     {
     public:
-        explicit StandardThread(ThreadTask task) : task(std::move(task))
+        StandardThread(ThreadTask task, std::unique_ptr<detail::NativeThread> native_thread)
+            : task(std::move(task)), native_thread(std::move(native_thread))
         {
         }
 
@@ -33,11 +33,9 @@ namespace
             this->started = true;
             try
             {
-                // NOSONAR: std::jthread silently joins on destruction, which violates Thread's
-                // explicit-join contract.
-                this->thread = std::thread([this] { this->run_task(); }); // NOSONAR
+                this->native_thread->start([this] { this->run_task(); });
             }
-            catch (const std::system_error&)
+            catch (...)
             {
                 this->started = false;
                 throw;
@@ -92,9 +90,9 @@ namespace
 
             try
             {
-                this->thread.join();
+                this->native_thread->join();
             }
-            catch (const std::system_error&)
+            catch (...)
             {
                 this->release_join_claim();
                 throw;
@@ -115,7 +113,7 @@ namespace
             {
                 return JoinClaim::AlreadyJoined;
             }
-            if (!this->joining && this->thread.get_id() == std::this_thread::get_id())
+            if (!this->joining && this->native_thread->get_id() == std::this_thread::get_id())
             {
                 throw ThreadLifecycleError("a thread cannot join itself");
             }
@@ -183,9 +181,7 @@ namespace
         }
 
         ThreadTask task;
-        // NOSONAR: std::jthread silently joins on destruction, which violates Thread's
-        // explicit-join contract.
-        std::thread thread; // NOSONAR
+        std::unique_ptr<detail::NativeThread> native_thread;
         std::condition_variable state_changed;
         std::mutex mutex;
         bool started   = false;
@@ -196,13 +192,32 @@ namespace
 
 } // namespace
 
+StandardThreadFactory::StandardThreadFactory()
+    : StandardThreadFactory([] { return std::make_unique<detail::StdThreadFacade>(); })
+{
+}
+
+StandardThreadFactory::StandardThreadFactory(detail::NativeThreadCreator create_native_thread)
+    : create_native_thread(std::move(create_native_thread))
+{
+    if (!this->create_native_thread)
+    {
+        throw std::invalid_argument("native thread creator must not be empty");
+    }
+}
+
 std::unique_ptr<Thread> StandardThreadFactory::create(ThreadTask task)
 {
     if (!task)
     {
         throw ThreadTaskError("thread task must not be empty");
     }
-    return std::make_unique<StandardThread>(std::move(task));
+    auto native_thread = this->create_native_thread();
+    if (!native_thread)
+    {
+        throw std::logic_error("native thread creator returned null");
+    }
+    return std::make_unique<StandardThread>(std::move(task), std::move(native_thread));
 }
 
 } // namespace exasol::udf::v2::internal

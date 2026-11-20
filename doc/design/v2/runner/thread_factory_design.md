@@ -27,10 +27,10 @@ public:
 
     virtual void join() = 0;
 
-    // Returns false only when the timeout expires before task completion.
+    // Returns false when the task or another caller's native join exceeds the timeout.
     [[nodiscard]] virtual bool join_for(std::chrono::steady_clock::duration timeout) = 0;
 
-    // Returns false only when the deadline expires before task completion.
+    // Returns false when the task or another caller's native join exceeds the deadline.
     [[nodiscard]] virtual bool join_until(
         std::chrono::steady_clock::time_point deadline) = 0;
 };
@@ -145,6 +145,35 @@ than calling `std::thread::join()` concurrently.
 The adapter does not catch task exceptions. It preserves the native
 `std::thread` failure behavior for an exception escaping a task.
 
+### Owning native-thread facade
+
+`StandardThread` owns an Internal `detail::NativeThread` facade instead of
+accessing a native handle directly. Its `StdThreadFacade` implementation owns
+the `std::thread` and delegates `start(task)`, `join()`, and `get_id()`. The
+facade does not perform timed waits, track completion, implicitly join, or
+detach. `StandardThread` retains all lifecycle validation, timeout handling,
+completion synchronization, and serialization of native joining.
+
+The default `StandardThreadFactory` creates a fresh `StdThreadFacade` for each
+task. An injection constructor accepts a move-only native-thread creator. An
+empty creator is rejected with `std::invalid_argument`; a creator returning
+null is rejected with `std::logic_error`. Empty tasks are rejected before the
+creator is invoked. Each created thread exclusively owns its facade and task
+and can outlive its factory and creator.
+
+A native startup failure must leave no task running. `StandardThread` resets
+its started flag after any startup exception and rethrows the original error,
+allowing retry. A native join failure must leave the resource available for
+retry. The adapter releases its join claim and notifies other callers after
+any join exception; completion remains recorded so a later caller can retry
+even with a zero timeout or an expired deadline.
+
+Tests inject an owning facade that delegates to real standard threads while
+supporting one-shot failures and a gate around native joining. This makes
+native failure recovery and timeouts behind another join caller reproducible
+without exhausting system resources or relying on sleeps. Both production
+implementations remain included in coverage.
+
 ## Context integration
 
 `ContextManager` receives the selected `ThreadFactory` during composition and
@@ -169,6 +198,14 @@ worker-facing `Context` contract or the protocol.
   scheduler-dependent sleeps.
 - Test that task completion wakes an indefinite join and a timed join, while a
   timeout leaves the task joinable for a later successful join.
+- Test native startup and join failures, retry after failure, and exactly one
+  successful native join across concurrent callers. Gate native joining to
+  exercise a competing caller's timeout independently of task completion.
+- Test move-only tasks and creators, factory-independent thread lifetime, and
+  fresh native resources for separate tasks.
+- Verify escaping task exceptions and destruction without joining terminate
+  in death-test child processes. These tests verify the contract; child-process
+  coverage counters may not be included in the parent report.
 
 ## Assumptions
 
