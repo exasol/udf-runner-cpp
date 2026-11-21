@@ -23,6 +23,7 @@ n/a
  - #36: Added developer guide for clang-tidy and clang-format
  - #38: Added SonarQube Public
  - #49: Added Bazel-based fuzzing for v2
+ - #117: Added ArrowArrayWrapper and RecordBatchWrapper
 
 ## Refactorings
 
