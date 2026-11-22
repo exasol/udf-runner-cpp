@@ -37,19 +37,19 @@ Each `Context` has its own abstract `AllocatorPool`. `EventLoop` directly uses t
 storage; `BackgroundThreadImpl` only owns and schedules the event loop and does not use the pool itself. For every
 message, the event loop obtains one `Allocator` from the context's pool and uses it to allocate all buffers belonging
 to that message. A message may contain multiple buffers, all allocated through the same allocator. The allocator
-implements two interfaces: `AllocatorKeepAlive`, which frees non-RecordBatch message buffers, and Arrow's
+implements two interfaces: `MessageBufferReleaser`, which frees non-RecordBatch message buffers, and Arrow's
 `arrow::MemoryPool`.
 
 The interfaces serve different message ownership needs. A non-RecordBatch message buffer uses
-`AllocatorKeepAlive::free_buffer` to release the allocation. Its release owner does not expose or retain the memory-pool
+`MessageBufferReleaser::free_buffer` to release the allocation. Its release owner does not expose or retain the memory-pool
 interface. An Arrow `RecordBatch` may retain or use the allocator through `arrow::MemoryPool` when its Arrow ownership
 requires the pool interface. The message representation keeps these references distinct rather than making every
 buffer depend on the memory pool.
 
 The pool reports whether its returned allocators have global lifetime. A release owner for a non-RecordBatch buffer
-always calls `free_buffer`. For a global-lifetime allocator it keeps only a non-owning `AllocatorKeepAlive` reference;
+always calls `free_buffer`. For a global-lifetime allocator it keeps only a non-owning `MessageBufferReleaser` reference;
 the pool's lifetime guarantee keeps that reference valid, so the message does not own the allocator. For a
-non-global allocator it also retains a `std::shared_ptr<AllocatorKeepAlive>` until after `free_buffer` returns. Arrow
+non-global allocator it also retains a `std::shared_ptr<MessageBufferReleaser>` until after `free_buffer` returns. Arrow
 `RecordBatch` ownership may retain the memory-pool interface as required by Arrow. A pool is not shared between
 contexts. An allocator may be implemented with an arena, but this design specifies only the interfaces and lifetime
 relationship; it defines no concrete pool, allocator, or arena implementation.
@@ -57,14 +57,14 @@ relationship; it defines no concrete pool, allocator, or arena implementation.
 The conceptual C++ contracts are:
 
 ```cpp
-class AllocatorKeepAlive
+class MessageBufferReleaser
 {
 public:
-    virtual ~AllocatorKeepAlive() = default;
+    virtual ~MessageBufferReleaser() = default;
     virtual void free_buffer(std::uint8_t* buffer, std::int64_t size, std::int64_t alignment) = 0;
 };
 
-class Allocator : public AllocatorKeepAlive, public arrow::MemoryPool
+class Allocator : public MessageBufferReleaser, public arrow::MemoryPool
 {
 public:
     ~Allocator() override = default;
@@ -79,12 +79,12 @@ public:
 };
 ```
 
-The sketch shows the release method on `AllocatorKeepAlive`; allocation and RecordBatch memory-pool methods remain on
+The sketch shows the release method on `MessageBufferReleaser`; allocation and RecordBatch memory-pool methods remain on
 `arrow::MemoryPool`. It omits pool construction and implementation. The event loop records the allocator, buffer
 address, size, and alignment in each non-RecordBatch buffer's release action. That action calls `free_buffer` with
-those values. For a non-global allocator, its release owner retains a `std::shared_ptr<AllocatorKeepAlive>` converted
+those values. For a non-global allocator, its release owner retains a `std::shared_ptr<MessageBufferReleaser>` converted
 from the acquired `Allocator` until after the call. For a global allocator, it uses a non-owning
-`AllocatorKeepAlive` reference because the pool guarantees that the allocator remains alive; the message carries no
+`MessageBufferReleaser` reference because the pool guarantees that the allocator remains alive; the message carries no
 allocator ownership. An Arrow `RecordBatch` may retain or use a `std::shared_ptr<arrow::MemoryPool>` separately when
 its ownership requires it. Ordinary message-buffer owners do not carry that interface.
 
@@ -124,7 +124,7 @@ it is not a queue error.
 When socket input begins a new message, the event loop obtains a fresh `Allocator` from that Context's `AllocatorPool`
 and uses it for every buffer belonging to that message. A message may allocate multiple buffers through the same
 allocator; the loop does not reuse that allocator for another message. Once the message has been verified and
-published, its buffer-release objects transfer with the message and call `AllocatorKeepAlive::free_buffer` when each
+published, its buffer-release objects transfer with the message and call `MessageBufferReleaser::free_buffer` when each
 non-RecordBatch buffer is released. They retain shared allocator ownership only when the pool reports non-global
 allocator lifetime. An Arrow `RecordBatch` may retain or use the allocator's `arrow::MemoryPool` interface separately.
 The allocator may own or refer to an arena, according to its implementation.

@@ -5,7 +5,7 @@ flowchart LR
     E[EventLoop<br/>owns socket and both queues]
     P[AllocatorPool<br/>unique to Context]
     A[Allocator<br/>one per message]
-    K[AllocatorKeepAlive<br/>free_buffer(...)]
+    K[MessageBufferReleaser<br/>free_buffer(...)]
     M[arrow::MemoryPool]
     T[Thread from ThreadFactory]
     D[Dedicated scheduler]
@@ -23,5 +23,5 @@ flowchart LR
     A -->|implements| K
     A -->|implements| M
 
-    G[Non-RecordBatch buffers call keep-alive free_buffer; RecordBatch may use MemoryPool.]
+    G[Non-RecordBatch buffers call MessageBufferReleaser free_buffer; RecordBatch may use MemoryPool.]
     P -.-> G

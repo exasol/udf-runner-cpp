@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1160" height="650" viewBox="0 0 1160 650" role="img" aria-labelledby="title desc">
   <title id="title">Background-thread ownership and allocator use</title>
-  <desc id="desc">Context uses the background-thread interface. In dedicated mode, BackgroundThreadImpl owns EventLoop and Thread. EventLoop owns the socket and queues. Each Context has an allocator pool that returns one allocator per message; EventLoop uses it for buffers. AllocatorKeepAlive frees non-RecordBatch buffers and Arrow MemoryPool serves RecordBatch ownership. Dedicated and pool schedulers access EventLoop directly.</desc>
+  <desc id="desc">Context uses the background-thread interface. In dedicated mode, BackgroundThreadImpl owns EventLoop and Thread. EventLoop owns the socket and queues. Each Context has an allocator pool that returns one allocator per message; EventLoop uses it for buffers. MessageBufferReleaser frees non-RecordBatch buffers and Arrow MemoryPool serves RecordBatch ownership. Dedicated and pool schedulers access EventLoop directly.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 z" fill="#344054"/></marker>
     <style>
@@ -37,12 +37,12 @@
   <path class="edge" d="M235 357 H325"/><text class="label" x="280" y="348" text-anchor="middle">returns</text>
   <path class="edge uses" d="M530 357 H650 V285 H805 V120"/><text class="label" x="610" y="278">EventLoop uses for message buffers</text>
 
-  <rect class="box" x="325" y="445" width="205" height="65"/><text class="name" x="427" y="469" text-anchor="middle">AllocatorKeepAlive</text><text class="label" x="427" y="491" text-anchor="middle">free_buffer(...)</text>
+  <rect class="box" x="325" y="445" width="205" height="65"/><text class="name" x="427" y="469" text-anchor="middle">MessageBufferReleaser</text><text class="label" x="427" y="491" text-anchor="middle">free_buffer(...)</text>
   <rect class="box" x="575" y="445" width="205" height="65"/><text class="name" x="677" y="482" text-anchor="middle">arrow::MemoryPool</text>
   <path class="edge" d="M427 390 V445"/><text class="label" x="440" y="425">implements</text>
   <path class="edge" d="M470 390 C500 415 620 418 660 445"/><text class="label" x="560" y="425">implements</text>
 
-  <rect class="box" x="30" y="445" width="250" height="82"/><text class="label" x="45" y="469">Non-RecordBatch buffers call free_buffer.</text><text class="label" x="45" y="489">Global lifetime: non-owning reference;</text><text class="label" x="45" y="509">otherwise retain keep-alive until freed.</text>
+  <rect class="box" x="30" y="445" width="250" height="82"/><text class="label" x="45" y="469">Non-RecordBatch buffers call free_buffer.</text><text class="label" x="45" y="489">Global lifetime: non-owning reference;</text><text class="label" x="45" y="509">otherwise retain releaser until freed.</text>
   <text class="label" x="30" y="565">RecordBatch may use MemoryPool separately. Other message buffers carry no MemoryPool handle.</text>
   <text class="label" x="30" y="590">Concrete pool, allocator, and arena implementations are outside this design.</text>
 </svg>
