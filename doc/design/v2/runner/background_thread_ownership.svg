@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1160" height="650" viewBox="0 0 1160 650" role="img" aria-labelledby="title desc">
+  <title id="title">Background-thread ownership and allocator use</title>
+  <desc id="desc">Context uses the background-thread interface. In dedicated mode, BackgroundThreadImpl owns EventLoop and Thread. EventLoop owns the socket and queues. Each Context has an allocator pool that returns one allocator per message; EventLoop uses it for buffers. AllocatorKeepAlive frees non-RecordBatch buffers and Arrow MemoryPool serves RecordBatch ownership. Dedicated and pool schedulers access EventLoop directly.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 z" fill="#344054"/></marker>
+    <style>
+      text { font-family: Arial, sans-serif; fill: #101828; }
+      .box { fill: #f2f4f7; stroke: #667085; stroke-width: 1.5; rx: 8; }
+      .loop { fill: #eaf2ff; stroke: #175cd3; stroke-width: 2; rx: 8; }
+      .edge { fill: none; stroke: #344054; stroke-width: 1.7; marker-end: url(#arrow); }
+      .uses { stroke-dasharray: 6 4; }
+      .name { font-size: 14px; font-weight: 600; }
+      .label { font-size: 12px; fill: #344054; }
+      .title { font-size: 17px; font-weight: 700; }
+    </style>
+  </defs>
+  <text class="title" x="32" y="30">Context and scheduler ownership</text>
+  <rect class="box" x="30" y="55" width="145" height="55"/><text class="name" x="102" y="88" text-anchor="middle">Context</text>
+  <rect class="box" x="235" y="55" width="200" height="55"/><text class="name" x="335" y="78" text-anchor="middle">BackgroundThreadInterface</text><text class="label" x="335" y="98" text-anchor="middle">Context boundary</text>
+  <rect class="box" x="490" y="55" width="235" height="55"/><text class="name" x="607" y="78" text-anchor="middle">BackgroundThreadImpl</text><text class="label" x="607" y="98" text-anchor="middle">dedicated-thread mode</text>
+  <rect class="loop" x="805" y="45" width="320" height="75"/><text class="name" x="965" y="73" text-anchor="middle">EventLoop</text><text class="label" x="965" y="96" text-anchor="middle">owns socket and both queues</text>
+  <path class="edge" d="M175 82 H235"/><text class="label" x="205" y="73" text-anchor="middle">uses</text>
+  <path class="edge" d="M435 82 H490"/><text class="label" x="462" y="73" text-anchor="middle">delegates</text>
+  <path class="edge" d="M725 82 H805"/><text class="label" x="765" y="73" text-anchor="middle">owns</text>
+
+  <rect class="box" x="490" y="175" width="235" height="55"/><text class="name" x="607" y="198" text-anchor="middle">Thread from ThreadFactory</text><text class="label" x="607" y="218" text-anchor="middle">owned by BackgroundThreadImpl</text>
+  <rect class="box" x="805" y="175" width="170" height="55"/><text class="name" x="890" y="198" text-anchor="middle">Dedicated scheduler</text><text class="label" x="890" y="218" text-anchor="middle">accesses EventLoop</text>
+  <rect class="box" x="1005" y="175" width="145" height="55"/><text class="name" x="1077" y="198" text-anchor="middle">Future pool</text><text class="label" x="1077" y="218" text-anchor="middle">schedules EventLoop</text>
+  <path class="edge" d="M607 110 V175"/><text class="label" x="620" y="150">owns</text>
+  <path class="edge" d="M725 202 H805"/><text class="label" x="765" y="193" text-anchor="middle">runs</text>
+  <path class="edge uses" d="M890 175 V120"/>
+  <path class="edge uses" d="M1077 175 V145 H1125 V120"/>
+
+  <text class="title" x="32" y="300">Per-context message allocation</text>
+  <rect class="box" x="30" y="325" width="205" height="65"/><text class="name" x="132" y="352" text-anchor="middle">AllocatorPool</text><text class="label" x="132" y="374" text-anchor="middle">unique to Context</text>
+  <rect class="box" x="325" y="325" width="205" height="65"/><text class="name" x="427" y="352" text-anchor="middle">Allocator</text><text class="label" x="427" y="374" text-anchor="middle">one per message</text>
+  <path class="edge" d="M235 357 H325"/><text class="label" x="280" y="348" text-anchor="middle">returns</text>
+  <path class="edge uses" d="M530 357 H650 V285 H805 V120"/><text class="label" x="610" y="278">EventLoop uses for message buffers</text>
+
+  <rect class="box" x="325" y="445" width="205" height="65"/><text class="name" x="427" y="469" text-anchor="middle">AllocatorKeepAlive</text><text class="label" x="427" y="491" text-anchor="middle">free_buffer(...)</text>
+  <rect class="box" x="575" y="445" width="205" height="65"/><text class="name" x="677" y="482" text-anchor="middle">arrow::MemoryPool</text>
+  <path class="edge" d="M427 390 V445"/><text class="label" x="440" y="425">implements</text>
+  <path class="edge" d="M470 390 C500 415 620 418 660 445"/><text class="label" x="560" y="425">implements</text>
+
+  <rect class="box" x="30" y="445" width="250" height="82"/><text class="label" x="45" y="469">Non-RecordBatch buffers call free_buffer.</text><text class="label" x="45" y="489">Global lifetime: non-owning reference;</text><text class="label" x="45" y="509">otherwise retain keep-alive until freed.</text>
+  <text class="label" x="30" y="565">RecordBatch may use MemoryPool separately. Other message buffers carry no MemoryPool handle.</text>
+  <text class="label" x="30" y="590">Concrete pool, allocator, and arena implementations are outside this design.</text>
+</svg>
