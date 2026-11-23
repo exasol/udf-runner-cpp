@@ -22,10 +22,10 @@ n/a
  - #36: Added developer guide for clang-tidy and clang-format
  - #38: Added SonarQube Public
  - #49: Added Bazel-based fuzzing for v2
- - #117: Added ArrowArrayWrapper and RecordBatchWrapper
 
 ## Refactorings
 
+* #117: Specified pool-safe ownership and conversion between ArrowArrayWrapper and RecordBatchWrapper
 * #125: Added a Lima-derived Podman build container for reproducible v2 Bazel builds
 * #121: Replaced direct FlatBuffer types in v2 message views with mockable, serialization-independent typed view wrappers
 * #111: Simplified v2 message-view presence APIs, split flow-control reset from send budget, removed builder encoding views, and retained control capabilities and call/control payloads in builder messages
