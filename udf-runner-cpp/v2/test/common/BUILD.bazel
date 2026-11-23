@@ -1,6 +1,9 @@
 cc_library(
     name = "test_common",
-    visibility = ["//test/interface:__pkg__"],
+    visibility = [
+        "//test/interface:__pkg__",
+        "//test/internal:__pkg__",
+    ],
     hdrs = [
         "arrow_test_utils.hpp",
         "protocol_test_utils.hpp",
@@ -12,7 +15,6 @@ cc_library(
         "//:exception",
         "//:udf_protocol",
         "//:interface",
-        "//:interface_internal",
         "@googletest//:gtest",
     ],
 )

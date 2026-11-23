@@ -4,11 +4,14 @@ package(default_visibility = ["//visibility:public"])
 
 cc_test(
     name = "stream_registry_test",
-    srcs = ["stream_registry_test.cc", "stream_management_test_utils.hpp"],
+    srcs = [
+        "stream_registry_test.cc",
+        "stream_management_test_utils.hpp",
+        "//:internal/stream_registry.cc",
+    ],
     copts = ["-std=c++23"],
     deps = [
-        "//:interface",
-        "//:interface_internal",
+        "//:interface_internal_headers",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
@@ -16,11 +19,17 @@ cc_test(
 
 cc_test(
     name = "context_state_test",
-    srcs = ["context_state_test.cc", "stream_management_test_utils.hpp"],
+    srcs = [
+        "context_state_test.cc",
+        "stream_management_test_utils.hpp",
+        "//:internal/context_state.cc",
+        "//:internal/stream_registry.cc",
+        "//:interface/call_message_builder.cc",
+        "//:interface/control_message_builder.cc",
+    ],
     copts = ["-std=c++23"],
     deps = [
-        "//:interface",
-        "//:interface_internal",
+        "//:interface_internal_headers",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
@@ -28,11 +37,18 @@ cc_test(
 
 cc_test(
     name = "context_impl_test",
-    srcs = ["context_impl_test.cc", "stream_management_test_utils.hpp"],
+    srcs = [
+        "context_impl_test.cc",
+        "context_state_mock.hpp",
+        "stream_management_test_utils.hpp",
+        "//:internal/context_impl.cc",
+        "//:internal/call_impl.cc",
+        "//:internal/control_stream_impl.cc",
+    ],
     copts = ["-std=c++23"],
     deps = [
-        "//:interface",
-        "//:interface_internal",
+        "//:interface_internal_headers",
+        "//test/common:test_common",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
@@ -40,11 +56,15 @@ cc_test(
 
 cc_test(
     name = "call_impl_test",
-    srcs = ["call_impl_test.cc", "stream_management_test_utils.hpp"],
+    srcs = [
+        "call_impl_test.cc",
+        "context_state_mock.hpp",
+        "stream_management_test_utils.hpp",
+        "//:internal/call_impl.cc",
+    ],
     copts = ["-std=c++23"],
     deps = [
-        "//:interface",
-        "//:interface_internal",
+        "//:interface_internal_headers",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
@@ -52,11 +72,13 @@ cc_test(
 
 cc_test(
     name = "control_stream_impl_test",
-    srcs = ["control_stream_impl_test.cc"],
+    srcs = [
+        "control_stream_impl_test.cc",
+        "//:internal/control_stream_impl.cc",
+    ],
     copts = ["-std=c++23"],
     deps = [
-        "//:interface",
-        "//:interface_internal",
+        "//:interface_internal_headers",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
@@ -64,11 +86,20 @@ cc_test(
 
 cc_test(
     name = "context_handle_integration_test",
-    srcs = ["context_handle_integration_test.cc", "stream_management_test_utils.hpp"],
+    srcs = [
+        "context_handle_integration_test.cc",
+        "stream_management_test_utils.hpp",
+        "//:internal/context_impl.cc",
+        "//:internal/call_impl.cc",
+        "//:internal/control_stream_impl.cc",
+        "//:internal/context_state.cc",
+        "//:internal/stream_registry.cc",
+        "//:interface/call_message_builder.cc",
+        "//:interface/control_message_builder.cc",
+    ],
     copts = ["-std=c++23"],
     deps = [
-        "//:interface",
-        "//:interface_internal",
+        "//:interface_internal_headers",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],

@@ -118,7 +118,7 @@ cc_test(
     tags = ["no-mull"],
     deps = [
         ":interface",
-        ":interface_internal",
+        ":interface_impl",
         ":udf_protocol",
         "@googletest//:gtest_main",
     ],
@@ -379,18 +379,8 @@ cc_library(
     implementation_deps = [":interface_impl"],
 )
 
-# Internal headers are available only through this implementation-facing
-# target. Keeping them out of :interface prevents the worker-facing Bazel
-# target from exporting implementation details to its dependents.
 cc_library(
-    name = "interface_internal",
-    srcs = [
-        "internal/call_impl.cc",
-        "internal/context_impl.cc",
-        "internal/context_state.cc",
-        "internal/control_stream_impl.cc",
-        "internal/stream_registry.cc",
-    ],
+    name = "interface_internal_headers",
     hdrs = [
         "include/exasol/udf/v2/internal/call_impl.hpp",
         "include/exasol/udf/v2/internal/control_stream_impl.hpp",
@@ -402,8 +392,26 @@ cc_library(
     includes = ["include"],
     copts = ["-std=c++23"],
     deps = [
+        ":interface_api",
+        ":interface_impl_headers",
+    ],
+)
+
+cc_library(
+    name = "interface_internal",
+    srcs = [
+        "internal/call_impl.cc",
+        "internal/context_impl.cc",
+        "internal/context_state.cc",
+        "internal/control_stream_impl.cc",
+        "internal/stream_registry.cc",
+    ],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    deps = [
         ":interface",
         ":interface_impl_headers",
+        ":interface_internal_headers",
         ":interface_impl",
     ],
 )
