@@ -26,6 +26,7 @@ n/a
 
 ## Refactorings
 
+* #117: Specified pool-safe ownership and conversion between ArrowArrayWrapper and RecordBatchWrapper
 * #125: Added a Lima-derived Podman build container for reproducible v2 Bazel builds
 * #121: Replaced direct FlatBuffer types in v2 message views with mockable, serialization-independent typed view wrappers
 * #111: Simplified v2 message-view presence APIs, split flow-control reset from send budget, removed builder encoding views, and retained control capabilities and call/control payloads in builder messages

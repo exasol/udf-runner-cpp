@@ -208,7 +208,7 @@ Inbound schema ownership is exposed through `DataSchemaView`; the wire-level met
 The call-message builder accepts a record batch with its group-boundary flag:
 
 ```text
-record_batch(ArrowArrayPtr array, bool is_end_of_group)
+record_batch(ArrowArrayWrapper array, bool is_end_of_group)
 ```
 
 Inbound record-batch ownership is exposed through `RecordBatchView`; the wire-level metadata type is
@@ -286,7 +286,7 @@ ControlMessage {
 ```
 
 The control stream supports capabilities, keepalive, connection-level payloads, errors, and connection close. It must
-not expose `OpenCall`, `CloseCall`, `Reset`, `ArrowSchemaPtr`, or `ArrowArrayPtr` objects.
+not expose `OpenCall`, `CloseCall`, `Reset`, `ArrowSchemaPtr`, or `ArrowArrayWrapper` objects.
 
 An error without `close_connection` is a non-terminal diagnostic. `CloseConnection` starts or acknowledges connection
 shutdown and may be combined with an error or other permitted connection-level fields.
@@ -303,7 +303,7 @@ CallMessageBuilderBase {
     add_payload(name, value, binary = false) -> CallMessageBuilderBase&
     data_schema(ArrowSchemaPtr schema, has_group_id, has_row_id) -> CallMessageBuilderBase&
     reset(row_id) -> CallMessageBuilderBase&
-    record_batch(ArrowArrayPtr array, is_end_of_group) -> CallMessageBuilderBase&
+    record_batch(ArrowArrayWrapper array, is_end_of_group) -> CallMessageBuilderBase&
     error(code, message) -> CallMessageBuilderBase&
     close_call() -> CallMessageBuilderBase&
 }
@@ -384,7 +384,8 @@ optional. Payload indexing outside the available range returns `nullptr`.
 
 `DataSchemaView` exposes the Arrow schema ownership and its correlation flags. `RecordBatchView` exposes the Arrow
 array ownership and `is_end_of_group`. The move operations are rvalue-qualified and leave the corresponding message
-field empty. An empty view, or a second extraction after ownership has been taken, returns an empty smart pointer.
+field empty. A second schema extraction returns an empty smart pointer; a second array extraction returns an empty
+`ArrowArrayWrapper` with a null release callback and no pool owner.
 
 The specialized view contracts are:
 
@@ -396,7 +397,7 @@ DataSchemaView {
 }
 
 RecordBatchView {
-    take_array() && -> ArrowArrayPtr
+    take_array() && -> ArrowArrayWrapper
     is_end_of_group() -> bool
 }
 ```
@@ -450,8 +451,8 @@ produces an error rather than a view.
 
 Where a view exposes Arrow data, it retains the Arrow schema and array ownership until the caller invokes the matching
 move operation. Arrow release callbacks are invoked exactly once. A frame that contains only wire-level data metadata
-must not claim to provide a usable Arrow object until the corresponding adapter has populated the owned pointer.
-After a successful move, the caller owns the `ArrowSchemaPtr` or `ArrowArrayPtr` and the view no longer owns that
+must not claim to provide a usable Arrow object until the corresponding adapter has populated the owned wrapper.
+After a successful move, the caller owns the `ArrowSchemaPtr` or `ArrowArrayWrapper` and the view no longer owns that
 object.
 
 ### Builder and view implementation contract
@@ -476,11 +477,12 @@ remains non-null and the builder retains ownership of its Arrow objects.
 Data schemas and record batches are transferred through the Arrow C Data Interface, not as serialized FlatBuffer
 objects. The conceptual `data_schema` field contains the interface-level `DataSchema` value, whose `schema` field is
 an `ArrowSchemaPtr`. The conceptual `record_batch` field contains the interface-level `RecordBatch` value, whose
-`array` field is an `ArrowArrayPtr`.
+`array` field is an `ArrowArrayWrapper`.
 
-`ArrowSchemaPtr` and `ArrowArrayPtr` are move-only `std::unique_ptr` aliases with custom deleters. Their deleters call
-the Arrow C Data Interface `release` callback, when present; they never apply C++ `delete` to an Arrow object. This
-makes ownership explicit while preserving the C Data Interface as the worker-facing type.
+`ArrowSchemaPtr` is a move-only `std::unique_ptr` with a deleter that calls the Arrow C Data Interface `release`
+callback when present. `ArrowArrayWrapper` is a move-only value that owns the C array and any dedicated pool owner;
+its destructor releases the array before the pool owner. The
+[Arrow batch ownership design](arrow_batch_ownership.md) defines the wrapper and the optional Arrow C++ bridge.
 
 `DataSchema.schema` describes one direction of a call's data stream. It is sent once per direction, before or together
 with that direction's first `RecordBatch`. A later `RecordBatch` uses the previously announced schema and flags and
@@ -514,27 +516,30 @@ A typical conversion sequence is:
 schema_view = call_view.data_schema()
 batch_view = call_view.record_batch()
 schema = move(*schema_view).take_schema()
+imported_schema = arrow::ImportSchema(schema.get())
 array = move(*batch_view).take_array()
-batch = arrow::ImportRecordBatch(array.get(), schema.get())
+batch = arrow_bridge::import_record_batch(move(array), imported_schema.ValueOrDie())
 ```
 
 The specialized accessors return `nullptr` when the message has no corresponding Arrow data. Check both pointers
 before dereferencing them.
 
 The top-level `CallMessageView` must remain alive until both specialized views have extracted their owners. The
-resulting `arrow::RecordBatch` owns the imported Arrow data independently of the protocol view.
+caller imports `schema` once as `imported_schema`, checks the Arrow result before using its value, and may reuse
+that schema for later batches in the direction. The resulting `RecordBatchWrapper` owns the imported Arrow data and
+its pool independently of the protocol view.
 
 Ownership follows the Arrow release contract:
 
 - received `DataSchema.schema` and `RecordBatch.array` objects remain owned by the view until `take_schema()` or
   `take_array()` moves them to the caller;
 - a moved object is passed to the caller's Arrow C++ conversion or released by its receiving owner exactly once;
-- sent `ArrowSchemaPtr` and `ArrowArrayPtr` objects remain owned by the builder/caller until the context accepts the
+- sent `ArrowSchemaPtr` and `ArrowArrayWrapper` objects remain owned by the builder/caller until the context accepts the
   send;
-- after successful acceptance, the context takes the unique pointers and therefore the release responsibility;
-- a failed send before acceptance leaves the unique pointers with the builder/caller;
-- successful Arrow C++ import transfers the usable data into `arrow::RecordBatch` and must not be followed by manual
-  calls to `ArrowArray::release` or `ArrowSchema::release`;
+- after successful acceptance, the context takes the owners and therefore the release responsibility;
+- a failed send before acceptance leaves the owners with the builder/caller;
+- successful Arrow C++ import transfers the usable data and pool into `RecordBatchWrapper` and must not be followed
+  by manual calls to `ArrowArray::release` or `ArrowSchema::release`;
 - no object may be released more than once.
 
 ## Dispatch and consumption rules
@@ -685,7 +690,7 @@ The design is complete when it is clear that:
 - call fields can be combined or sent separately;
 - errors can be sent alone;
 - close messages can carry other permitted fields;
-- record batches use an `ArrowArrayPtr` plus `is_end_of_group` metadata;
+- record batches use an `ArrowArrayWrapper` plus `is_end_of_group` metadata;
 - data schemas use an `ArrowSchemaPtr` and preserve `has_group_id` and `has_row_id`;
 - `DataSchemaView::take_schema()` and `RecordBatchView::take_array()` make Arrow ownership transfer explicit;
 - Arrow C++ conversion is performed by the caller and is not part of `Context`, `Call`, or `ControlStream`;

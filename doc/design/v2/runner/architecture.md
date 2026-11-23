@@ -26,9 +26,10 @@ Arrow C Data Interface is the core boundary: `ArrowArray` and `ArrowSchema` cros
 ownership contract.
 
 The public API also provides an explicit, opt-in Arrow conversion utility outside `Context`, `Call`, and
-`ControlStream`. That utility consumes `ArrowArrayPtr` and `ArrowSchemaPtr` and returns an Arrow C++
-`arrow::RecordBatch`. Consumers choosing that utility accept the direct Arrow C++ dependency; the core context
-interface remains independent of Arrow C++ types.
+`ControlStream`. That utility consumes `ArrowArrayWrapper` and an imported schema and returns a
+`RecordBatchWrapper` holding an Arrow C++ `arrow::RecordBatch`. Consumers choosing that utility accept the direct
+Arrow C++ dependency; the core context interface remains independent of Arrow C++ types. The core array wrapper
+holds any dedicated memory pool through a project-owned abstract interface.
 
 ## Components
 
@@ -118,6 +119,6 @@ ConnectionAcceptor -> worker pool -> Worker(connection) -> ContextManager.create
 ```
 
 Arrow record batches and schemas cross the core API boundary as `ArrowArray` and `ArrowSchema` under the Arrow C Data
-Interface. A separate public conversion utility may return an Arrow C++ `arrow::RecordBatch`; that opt-in utility is
-outside the context interface and makes the Arrow C++ dependency explicit to its caller. All C Data objects are still
-released according to the Arrow C Data Interface ownership rules.
+Interface. The array is held by the project-owned `ArrowArrayWrapper` value. The separate `arrow_bridge` utility
+returns `RecordBatchWrapper`, which holds an Arrow C++ `arrow::RecordBatch` and makes the Arrow C++ dependency explicit
+to its caller. All C Data objects are released according to the Arrow C Data Interface ownership rules.
