@@ -27,6 +27,8 @@ Arrow C Data Interface.
   send, receive, and close behavior.
 - [background_thread_design.md](background_thread_design.md) defines the event loop, its waitable descriptors, and
   the initial dedicated-thread implementation of `BackgroundThreadInterface`.
+- [allocator_pool_design.md](allocator_pool_design.md) defines the per-Context allocator pool, allocator interfaces,
+  and message-buffer release ownership used by the event loop.
 - [thread_factory_design.md](thread_factory_design.md) defines the internal thread abstraction used for background
   execution and its standard-library implementations.
 - [stream_management.md](stream_management.md) defines low-level context stream IDs, routing, pending-message

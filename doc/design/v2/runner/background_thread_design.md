@@ -33,64 +33,8 @@ timed blocking dequeue operations to the non-circular SPSC queue API. The reposi
 nonblocking `ReaderWriterQueue`; the inbound queue uses the blocking counterpart from the same upstream library.
 See the [Moodycamel queue documentation](https://github.com/cameron314/readerwriterqueue#use).
 
-Each `Context` has its own abstract `AllocatorPool`. `EventLoop` directly uses that pool to allocate inbound message
-storage; `BackgroundThreadImpl` only owns and schedules the event loop and does not use the pool itself. For every
-message, the event loop obtains one `Allocator` from the context's pool and uses it to allocate all buffers belonging
-to that message. A message may contain multiple buffers, all allocated through the same allocator. The allocator
-implements two interfaces: `MessageBufferReleaser`, which frees non-RecordBatch message buffers, and Arrow's
-`arrow::MemoryPool`.
-
-The interfaces serve different message ownership needs. A non-RecordBatch message buffer uses
-`MessageBufferReleaser::Free` to release the allocation. Its release owner does not expose or retain the memory-pool
-interface. An Arrow `RecordBatch` may retain or use the allocator through `arrow::MemoryPool` when its Arrow ownership
-requires the pool interface. The message representation keeps these references distinct rather than making every
-buffer depend on the memory pool.
-
-The pool reports whether its returned allocators have global lifetime. A release owner for a non-RecordBatch buffer
-always calls `Free`. For a global-lifetime allocator it keeps only a non-owning `MessageBufferReleaser` reference;
-the pool's lifetime guarantee keeps that reference valid, so the message does not own the allocator. For a
-non-global allocator it also retains a `std::shared_ptr<MessageBufferReleaser>` until after `Free` returns. Arrow
-`RecordBatch` ownership may retain the memory-pool interface as required by Arrow. A pool is not shared between
-contexts. An allocator may be implemented with an arena, but this design specifies only the interfaces and lifetime
-relationship; it defines no concrete pool, allocator, or arena implementation.
-
-The conceptual C++ contracts are:
-
-```cpp
-class MessageBufferReleaser
-{
-public:
-    virtual ~MessageBufferReleaser() = default;
-    virtual void Free(std::uint8_t* buffer, std::int64_t size, std::int64_t alignment) = 0;
-};
-
-class Allocator : public MessageBufferReleaser, public arrow::MemoryPool
-{
-public:
-    ~Allocator() override = default;
-};
-
-class AllocatorPool
-{
-public:
-    virtual ~AllocatorPool() = default;
-    [[nodiscard]] virtual std::shared_ptr<Allocator> acquire() = 0;
-    [[nodiscard]] virtual bool allocators_have_global_lifetime() const noexcept = 0;
-};
-```
-
-`MessageBufferReleaser::Free` has the same signature as `arrow::MemoryPool::Free`, so one `Allocator::Free` override
-satisfies both interfaces. Allocation and RecordBatch memory-pool methods remain available through
-`arrow::MemoryPool`. The sketch omits pool construction and implementation. The event loop records the allocator,
-buffer address, size, and alignment in each non-RecordBatch buffer's release action. That action calls `Free` with those
-values. For a non-global allocator, its release owner retains a `std::shared_ptr<MessageBufferReleaser>` converted
-from the acquired `Allocator` until after the call. For a global allocator, it uses a non-owning
-`MessageBufferReleaser` reference because the pool guarantees that the allocator remains alive; the message carries no
-allocator ownership. An Arrow `RecordBatch` may retain or use a `std::shared_ptr<arrow::MemoryPool>` separately when
-its ownership requires it. Ordinary message-buffer owners do not carry that interface.
-
-The `BlockingReaderWriterQueue` only stores and transfers completed inbound message entries. It does not use the
-allocator pool or allocate message buffers.
+`EventLoop` directly uses each `Context`'s allocator pool for inbound message storage. The pool contract, allocator
+interfaces, and message-buffer release ownership are defined in the [allocator pool design](allocator_pool_design.md).
 
 `EventLoop` owns the connected non-blocking socket, frame decoder, receive buffer, pending partial writes, protocol
 connection state, transport deadlines, and both queue instances. It never calls worker code or blocks while publishing
@@ -121,14 +65,6 @@ updating interests. This closes the enqueue-versus-wait race: if an enqueue happ
 item; if it happens after the check, the waitable queue's eventfd wakes the scheduler. The loop drains notifications,
 then drains the queue until empty. `EAGAIN` while draining eventfd means there are no more notification counts to read;
 it is not a queue error.
-
-When socket input begins a new message, the event loop obtains a fresh `Allocator` from that Context's `AllocatorPool`
-and uses it for every buffer belonging to that message. A message may allocate multiple buffers through the same
-allocator; the loop does not reuse that allocator for another message. Once the message has been verified and
-published, its buffer-release objects transfer with the message and call `MessageBufferReleaser::Free` when each
-non-RecordBatch buffer is released. They retain shared allocator ownership only when the pool reports non-global
-allocator lifetime. An Arrow `RecordBatch` may retain or use the allocator's `arrow::MemoryPool` interface separately.
-The allocator may own or refer to an arena, according to its implementation.
 
 The loop handles socket readiness using non-blocking operations. It treats `EINTR` as retryable and `EAGAIN` or
 `EWOULDBLOCK` as a return to readiness waiting. It reads arbitrary fragments into the decoder, publishes complete
