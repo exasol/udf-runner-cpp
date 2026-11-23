@@ -1,11 +1,14 @@
 #include <exasol/udf/v2/internal/context_impl.hpp>
 
+#include "../common/interface_mocks.hpp"
 #include "context_state_mock.hpp"
 #include "stream_management_test_utils.hpp"
 
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <string_view>
+#include <utility>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -15,6 +18,7 @@ namespace exasol::udf::v2::internal
 namespace
 {
 
+    using test::MockOpeningCallMessageBuilder;
     using test_support::MockContextState;
 
     TEST(ContextImplTest, DelegatesQueriesWaitsAndBuilderCreation)
@@ -63,28 +67,35 @@ namespace
 
     TEST(ContextImplTest, PropagatesFailedAcceptAndOpenResults)
     {
-        auto state = std::make_shared<MockContextState>();
+        auto state           = std::make_shared<MockContextState>();
+        auto opening_message = std::make_unique<testing::NiceMock<MockOpeningCallMessageBuilder>>();
+        const auto* expected_opening_message = opening_message.get();
         EXPECT_CALL(state->accept_call_mock(), Call()).WillOnce([] {
             return interface::Result<std::uint64_t>::failure(interface::OperationStatus::Cancelled);
         });
         EXPECT_CALL(state->open_call_mock(), Call(testing::_))
-            .WillOnce([](std::unique_ptr<interface::OpeningCallMessageBuilder> opening_message) {
-                EXPECT_EQ(opening_message, nullptr);
+            .WillOnce([expected_opening_message](
+                          std::unique_ptr<interface::OpeningCallMessageBuilder> received_message) {
+                EXPECT_EQ(received_message.get(), expected_opening_message);
                 return interface::Result<std::uint64_t>::failure(
                     interface::OperationStatus::InvalidArgument);
             });
 
         ContextImpl context{state};
         EXPECT_EQ(context.accept_call().status, interface::OperationStatus::Cancelled);
-        EXPECT_EQ(context.open_call(nullptr).status, interface::OperationStatus::InvalidArgument);
+        EXPECT_EQ(context.open_call(std::move(opening_message)).status,
+                  interface::OperationStatus::InvalidArgument);
     }
 
     TEST(ContextImplTest, OpenCallCreatesHandleBoundToStreamReturnedByState)
     {
-        auto state = std::make_shared<MockContextState>();
+        auto state           = std::make_shared<MockContextState>();
+        auto opening_message = std::make_unique<testing::NiceMock<MockOpeningCallMessageBuilder>>();
+        const auto* expected_opening_message = opening_message.get();
         EXPECT_CALL(state->open_call_mock(), Call(testing::_))
-            .WillOnce([](std::unique_ptr<interface::OpeningCallMessageBuilder> opening_message) {
-                EXPECT_EQ(opening_message, nullptr);
+            .WillOnce([expected_opening_message](
+                          std::unique_ptr<interface::OpeningCallMessageBuilder> received_message) {
+                EXPECT_EQ(received_message.get(), expected_opening_message);
                 return interface::Result<std::uint64_t>::success(
                     test_support::k_first_client_stream_id);
             });
@@ -92,7 +103,7 @@ namespace
             .WillOnce(testing::Return(interface::MessageStatus::NoMessage));
 
         ContextImpl context{state};
-        auto result = context.open_call(nullptr);
+        auto result = context.open_call(std::move(opening_message));
         ASSERT_TRUE(result);
         EXPECT_EQ((*result.value)->receive_status(), interface::MessageStatus::NoMessage);
     }

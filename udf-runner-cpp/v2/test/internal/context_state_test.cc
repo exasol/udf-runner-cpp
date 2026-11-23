@@ -1,5 +1,6 @@
 #include <exasol/udf/v2/internal/context_state.hpp>
 
+#include "../common/interface_mocks.hpp"
 #include "stream_management_test_utils.hpp"
 
 #include <chrono>
@@ -347,18 +348,30 @@ namespace
     {
         ContextState state{EndpointRole::Client,
                            std::make_unique<testing::NiceMock<MockBackgroundThread>>()};
+        std::unique_ptr<interface::OpeningCallMessageBuilder> opening_message =
+            std::make_unique<testing::NiceMock<test::MockOpeningCallMessageBuilder>>();
+        std::unique_ptr<interface::CallMessageBuilder> call_message =
+            std::make_unique<testing::NiceMock<test::MockCallMessageBuilder>>();
+        std::unique_ptr<interface::ControlMessageBuilder> control_message =
+            std::make_unique<testing::NiceMock<test::MockControlMessageBuilder>>();
         state.shutdown();
 
         EXPECT_EQ(state.create_opening_call_message_builder(), nullptr);
         EXPECT_EQ(state.create_call_message_builder(k_first_client_stream_id), nullptr);
         EXPECT_EQ(state.create_control_message_builder(), nullptr);
         EXPECT_EQ(state.accept_call().status, interface::OperationStatus::ContextClosed);
-        EXPECT_EQ(state.open_call(nullptr).status, interface::OperationStatus::ContextClosed);
+        EXPECT_EQ(state.open_call(std::move(opening_message)).status,
+                  interface::OperationStatus::ContextClosed);
+        EXPECT_NE(opening_message, nullptr);
         EXPECT_EQ(state.wait_for_message(std::nullopt), interface::MessageStatus::ContextClosed);
-        EXPECT_EQ(state.send_call_message(k_first_client_stream_id, nullptr, std::nullopt).status,
+        EXPECT_EQ(
+            state.send_call_message(k_first_client_stream_id, std::move(call_message), std::nullopt)
+                .status,
+            interface::OperationStatus::ContextClosed);
+        EXPECT_NE(call_message, nullptr);
+        EXPECT_EQ(state.send_control_message(std::move(control_message)).status,
                   interface::OperationStatus::ContextClosed);
-        EXPECT_EQ(state.send_control_message(nullptr).status,
-                  interface::OperationStatus::ContextClosed);
+        EXPECT_NE(control_message, nullptr);
     }
 
     TEST(ContextStateTest, MapsBackgroundShutdownToCancelled)
