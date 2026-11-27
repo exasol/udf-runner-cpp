@@ -213,7 +213,9 @@ cc_test(
     includes = ["protocol/arrow_types"],
     deps = [
         ":arrow_core",
-        ":arrow_types",
+        ":arrow_types__protocol_arrow_types_range_run_cc",
+        ":arrow_types__protocol_arrow_types_run_array_view_cc",
+        ":arrow_types__protocol_arrow_types_run_end_encoded_cc",
         "@googletest//:gtest_main",
     ],
 )
@@ -653,7 +655,8 @@ cc_test(
     srcs = ["internal/standard_thread_factory_test.cc"],
     copts = ["-std=c++23"],
     deps = [
-        ":thread_factory",
+        ":thread_factory__internal_native_thread_cc",
+        ":thread_factory__internal_standard_thread_factory_cc",
         "@googletest//:gtest_main",
     ],
 )
@@ -674,7 +677,8 @@ cc_test(
     srcs = ["internal/connection_acceptor_test.cc"],
     copts = ["-std=c++23"],
     deps = [
-        ":connection_acceptor",
+        ":connection_acceptor__internal_caller_thread_socket_connection_acceptor_cc",
+        ":connection_acceptor__internal_connection_cc",
         ":logging_utils_test_cases",
         ":recording_logging_provider_test_utils",
         "@googletest//:gtest_main",
@@ -796,7 +800,9 @@ cc_test(
     srcs = ["linux_epoll_test.cc"],
     copts = ["-std=c++23"],
     deps = [
-        ":linux_epoll",
+        ":linux_epoll__linux_epoll_cc",
+        ":linux_epoll__linux_epoll_registration_cc",
+        ":linux_epoll__linux_epoll_state_cc",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
@@ -947,6 +953,7 @@ cc_test(
     name = "logging_utils_test",
     copts = ["-std=c++23"],
     deps = [
+        ":logging_utils",
         ":logging_utils_test_cases",
         "@googletest//:gtest_main",
     ],

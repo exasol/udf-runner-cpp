@@ -34,6 +34,19 @@ def _select_mull_sources(paths: tuple[str, ...], target: str) -> tuple[str, ...]
     return matching_sources or paths
 
 
+def _render_include_paths(paths: tuple[str, ...]) -> str:
+    include_paths = "includePaths:\n"
+    if paths:
+        include_paths += "".join(
+            f"  - {json.dumps(r'(^|.*/)' + re.escape(path) + r'$')}\n" for path in paths
+        )
+    else:
+        # Keep Mull from falling back to scanning every file when a target has
+        # no Mull-compatible production source after filtering.
+        include_paths += "  - \"^$\"\n"
+    return include_paths
+
+
 def _query_target_sources(
     bazel: str, output_user_root: Path, v2_root: Path, targets: tuple[str, ...]
 ) -> tuple[str, ...]:
@@ -78,18 +91,8 @@ def main() -> None:
         args.v2_root,
         tuple(args.target),
     )
-    include_paths = "includePaths:\n"
-    if paths:
-        include_paths += "".join(
-            f"  - {json.dumps(r'(^|.*/)' + re.escape(path) + r'$')}\n"
-            for path in paths
-        )
-    else:
-        # Keep Mull from falling back to scanning every file when a target has
-        # no Mull-compatible production source after filtering.
-        include_paths += "  - \"(?!)\"\n"
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(include_paths + "\n" + args.template.read_text())
+    args.output.write_text(_render_include_paths(paths) + "\n" + args.template.read_text())
 
 
 if __name__ == "__main__":

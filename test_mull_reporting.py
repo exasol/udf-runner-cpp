@@ -12,7 +12,11 @@ from noxfile import (
     _parse_mull_mutation_result,
     _warn_about_zero_mutants,
 )
-from tools.generate_mull_config import _select_mull_sources, _source_paths
+from tools.generate_mull_config import (
+    _render_include_paths,
+    _select_mull_sources,
+    _source_paths,
+)
 
 
 class MullMutationReportingTest(unittest.TestCase):
@@ -175,6 +179,15 @@ class MullSourceSelectionTest(unittest.TestCase):
                 "//test/internal:context_state_test",
             ),
             ("internal/context_state.cc",),
+        )
+
+    def test_empty_source_set_uses_a_valid_never_match_expression(self):
+        self.assertEqual(_render_include_paths(()), 'includePaths:\n  - "^$"\n')
+
+    def test_source_path_is_escaped_as_an_exact_match(self):
+        self.assertEqual(
+            _render_include_paths(("internal/context_state.cc",)),
+            'includePaths:\n  - "(^|.*/)internal/context_state\\\\.cc$"\n',
         )
 
 
