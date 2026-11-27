@@ -1,0 +1,12 @@
+flowchart LR
+    P[Producer thread] --> S[Thread-local ostream]
+    S --> B[QueueStreamBuf<br/>pending text]
+    B -->|newline or flush| F{LogFilter<br/>allows?}
+    F -->|enabled| Q[LogState<br/>BlockingMpmcQueue]
+    F -->|disabled| D[Discard record]
+    Q --> W[Single writer thread]
+    W --> E[stderr]
+    L[LoggingProvider] --> ST[shared LogState]
+    ST --> B
+    ST --> Q
+    ST --> W
