@@ -14,7 +14,7 @@ cc_library(
         "//:arrow_core",
         "//:exception",
         "//:udf_protocol",
-        "//:interface",
+        "//:interface_api",
         "@googletest//:gtest",
     ],
 )

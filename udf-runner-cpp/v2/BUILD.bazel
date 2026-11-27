@@ -1,3 +1,4 @@
+load(":source_library.bzl", "cc_source_group")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
@@ -183,7 +184,7 @@ alias(
     tags = ["noclangtidy"],
 )
 
-cc_library(
+cc_source_group(
     name = "arrow_types",
     srcs = [
         "protocol/arrow_types/range_run.cc",
@@ -307,7 +308,7 @@ cc_library(
     visibility = ["//:__pkg__"],
 )
 
-cc_library(
+cc_source_group(
     name = "interface_api",
     srcs = [
         "interface/call.cc",
@@ -346,7 +347,7 @@ cc_library(
     ],
 )
 
-cc_library(
+cc_source_group(
     name = "interface_impl",
     srcs = [
         "interface/call_message_builder.cc",
@@ -397,7 +398,7 @@ cc_library(
     ],
 )
 
-cc_library(
+cc_source_group(
     name = "interface_internal",
     srcs = [
         "internal/call_impl.cc",
@@ -584,7 +585,7 @@ cc_library(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
-cc_library(
+cc_source_group(
     name = "socket",
     srcs = [
         "socket/owned_file_descriptor.cc",
@@ -607,7 +608,7 @@ cc_library(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
-cc_library(
+cc_source_group(
     name = "connection_acceptor",
     srcs = [
         "internal/caller_thread_socket_connection_acceptor.cc",
@@ -631,7 +632,7 @@ cc_library(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
-cc_library(
+cc_source_group(
     name = "thread_factory",
     srcs = [
         "internal/native_thread.cc",
@@ -770,7 +771,7 @@ cc_library(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
-cc_library(
+cc_source_group(
     name = "linux_epoll",
     srcs = [
         "linux_epoll.cc",
