@@ -12,6 +12,7 @@ from noxfile import (
     _parse_mull_mutation_result,
     _warn_about_zero_mutants,
 )
+from tools.generate_mull_config import _select_mull_sources, _source_paths
 
 
 class MullMutationReportingTest(unittest.TestCase):
@@ -144,6 +145,36 @@ class MullTargetDiscoveryTest(unittest.TestCase):
         self.assertEqual(
             _mull_target_binary_path("//:mutation_smoke_test"),
             Path("bazel-bin/mutation_smoke_test"),
+        )
+
+
+class MullSourceSelectionTest(unittest.TestCase):
+    def test_selects_only_direct_production_translation_units(self):
+        sources = _source_paths(
+            [
+                "//:internal/context_state.cc",
+                "//:interface/call_message_builder.cc",
+                "//test/internal:context_state_test.cc",
+                "//test/internal:stream_management_test_utils.hpp",
+                "@googletest//:gtest.cc",
+            ]
+        )
+
+        self.assertEqual(
+            sources,
+            (
+                "interface/call_message_builder.cc",
+                "internal/context_state.cc",
+            ),
+        )
+
+    def test_measures_the_implementation_matching_a_focused_test_target(self):
+        self.assertEqual(
+            _select_mull_sources(
+                ("internal/context_state.cc", "internal/stream_registry.cc"),
+                "//test/internal:context_state_test",
+            ),
+            ("internal/context_state.cc",),
         )
 
 

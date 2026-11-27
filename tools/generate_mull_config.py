@@ -5,69 +5,46 @@ import re
 import subprocess
 
 
-SOURCE_SUFFIXES = {".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx"}
 EXCLUDED_PATH_PARTS = {"external", "bazel-out", "third_party"}
 
 
-def _artifact_path(path_fragments: dict[int, dict], fragment_id: int) -> str:
-    parts = []
-    while fragment_id:
-        fragment = path_fragments[fragment_id]
-        parts.append(fragment["label"])
-        fragment_id = fragment.get("parentId", 0)
-    return "/".join(reversed(parts))
-
-
-def _source_paths(query_result: dict) -> tuple[str, ...]:
-    path_fragments = {
-        fragment["id"]: fragment for fragment in query_result.get("pathFragments", [])
-    }
-    artifacts = {
-        artifact["id"]: _artifact_path(path_fragments, artifact["pathFragmentId"])
-        for artifact in query_result.get("artifacts", [])
-    }
-    dep_sets = {
-        dep_set["id"]: dep_set for dep_set in query_result.get("depSetOfFiles", [])
-    }
-
-    def artifact_ids(dep_set_id: int, seen: set[int]) -> set[int]:
-        if dep_set_id in seen:
-            return set()
-        seen.add(dep_set_id)
-        dep_set = dep_sets[dep_set_id]
-        result = set(dep_set.get("directArtifactIds", []))
-        for transitive_id in dep_set.get("transitiveDepSetIds", []):
-            result.update(artifact_ids(transitive_id, seen))
-        return result
-
-    input_ids = set()
-    for action in query_result.get("actions", []):
-        for dep_set_id in action.get("inputDepSetIds", []):
-            input_ids.update(artifact_ids(dep_set_id, set()))
-
+def _source_paths(labels: list[str]) -> tuple[str, ...]:
     paths = set()
-    for artifact_id in input_ids:
-        path = artifacts[artifact_id]
+    for label in labels:
+        if not label.startswith("//"):
+            continue
+        package, separator, target = label[2:].partition(":")
+        path = "/".join(part for part in (package, target if separator else "") if part)
         path_parts = set(PurePosixPath(path).parts)
         if path_parts & EXCLUDED_PATH_PARTS:
             continue
-        if re.search(r"(?:_test|_benchmark)\.(?:c|cc|cpp|cxx|h|hh|hpp|hxx)$", path):
+        if Path(path).suffix not in {".c", ".cc", ".cpp", ".cxx"}:
             continue
-        if Path(path).suffix in SOURCE_SUFFIXES:
-            paths.add(path)
+        if re.search(r"(?:_test|_benchmark)\.(?:c|cc|cpp|cxx)$", path):
+            continue
+        paths.add(path)
     return tuple(sorted(paths))
 
 
-def _query_compile_inputs(
+def _select_mull_sources(paths: tuple[str, ...], target: str) -> tuple[str, ...]:
+    """Use the implementation matching a focused test target when available."""
+    target_name = target.rsplit(":", 1)[-1]
+    test_component = Path(target_name).stem.removesuffix("_test")
+    matching_sources = tuple(path for path in paths if Path(path).stem == test_component)
+    return matching_sources or paths
+
+
+def _query_target_sources(
     bazel: str, output_user_root: Path, v2_root: Path, targets: tuple[str, ...]
 ) -> tuple[str, ...]:
     target_set = " ".join(targets)
-    query = f'mnemonic("CppCompile", deps(set({target_set})))'
+    query = f"labels(srcs, deps(set({target_set}), 1))"
     command = [
         bazel,
+        "--batch",
         f"--output_user_root={output_user_root}",
-        "aquery",
-        "--output=jsonproto",
+        "query",
+        "--output=label",
         query,
     ]
     result = subprocess.run(
@@ -78,8 +55,11 @@ def _query_compile_inputs(
         check=False,
     )
     if result.returncode != 0:
-        raise RuntimeError(result.stderr.strip() or "Bazel aquery failed")
-    return _source_paths(json.loads(result.stdout))
+        raise RuntimeError(result.stderr.strip() or "Bazel query failed")
+    paths = _source_paths(result.stdout.splitlines())
+    if len(targets) == 1:
+        return _select_mull_sources(paths, targets[0])
+    return paths
 
 
 def main() -> None:
@@ -92,7 +72,7 @@ def main() -> None:
     parser.add_argument("--target", action="append", required=True)
     args = parser.parse_args()
 
-    paths = _query_compile_inputs(
+    paths = _query_target_sources(
         args.bazel,
         args.output_user_root,
         args.v2_root,
