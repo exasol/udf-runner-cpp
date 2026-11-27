@@ -106,7 +106,8 @@ public:
     {
         ON_CALL(*this, wait_until(testing::_))
             .WillByDefault(
-                [deadline_wait_count = 0U, blocking_wait_count = 0U](const auto deadline) mutable {
+                [deadline_wait_count = std::size_t{},
+                 blocking_wait_count = std::size_t{}](const auto deadline) mutable {
                     return default_wait_result(deadline_wait_count, blocking_wait_count, deadline);
                 });
         ON_CALL(*this, enqueue_outbound_messages(testing::_))
