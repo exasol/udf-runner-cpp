@@ -36,6 +36,21 @@ namespace
         return std::make_unique<RecordBatchSendQueueImpl>();
     }
 
+    arrow::Status enqueue_batch(RecordBatchSendQueueInterface& queue,
+                                const std::shared_ptr<const arrow::RecordBatch>& batch,
+                                const std::vector<std::uint64_t>& row_buffer_bytes,
+                                const bool is_end_of_group,
+                                const std::uint64_t consumed_budget_bytes = 0)
+    {
+        std::uint64_t serialized_buffer_bytes = 0;
+        for (const auto row_bytes : row_buffer_bytes)
+        {
+            serialized_buffer_bytes += row_bytes;
+        }
+        return queue.enqueue_batch(batch, serialized_buffer_bytes, consumed_budget_bytes,
+                                   row_buffer_bytes, is_end_of_group);
+    }
+
     struct LargeBatchBudgetScenario
     {
         const char* name;
@@ -60,8 +75,8 @@ TEST(RecordBatchSendQueueTest, FirstBatchCanBeSlicedWithoutCreditAndKeepsGroupEn
     const std::vector<std::uint64_t> row_buffer_bytes{3, 4, 5};
     auto queue = make_queue();
 
-    queue->add_send_budget(2);
-    ASSERT_TRUE(queue->enqueue_batch(batch, row_buffer_bytes, true).ok());
+    EXPECT_EQ(queue->add_send_budget(2), 2);
+    ASSERT_TRUE(enqueue_batch(*queue, batch, row_buffer_bytes, true).ok());
     auto first_slice = queue->dequeue_slice(6);
     ASSERT_TRUE(first_slice.has_value());
     EXPECT_EQ(first_slice->record_batch->num_rows(), 2);
@@ -90,14 +105,14 @@ TEST(RecordBatchSendQueueTest, LaterBatchWaitsForCreditAndIncludesAtMostOneCross
     auto initial_batch_result = make_record_batch(1);
     ASSERT_TRUE(initial_batch_result.ok()) << initial_batch_result.status();
     auto initial_batch = std::move(initial_batch_result).ValueOrDie();
-    ASSERT_TRUE(queue->enqueue_batch(initial_batch, initial_row_bytes, false).ok());
+    ASSERT_TRUE(enqueue_batch(*queue, initial_batch, initial_row_bytes, false).ok());
     ASSERT_TRUE(queue->dequeue_slice(64).has_value());
 
     const std::vector<std::uint64_t> row_buffer_bytes{4, 4, 4};
-    ASSERT_TRUE(queue->enqueue_batch(batch, row_buffer_bytes, true).ok());
+    ASSERT_TRUE(enqueue_batch(*queue, batch, row_buffer_bytes, true).ok());
     EXPECT_FALSE(queue->dequeue_slice(64).has_value());
 
-    queue->add_send_budget(5);
+    EXPECT_EQ(queue->add_send_budget(5), 0);
     auto first_credit_slice = queue->dequeue_slice(64);
     ASSERT_TRUE(first_credit_slice.has_value());
     EXPECT_EQ(first_credit_slice->record_batch->num_rows(), 2);
@@ -106,7 +121,7 @@ TEST(RecordBatchSendQueueTest, LaterBatchWaitsForCreditAndIncludesAtMostOneCross
     EXPECT_EQ(queue->available_budget(), 0);
     EXPECT_FALSE(queue->dequeue_slice(64).has_value());
 
-    queue->add_send_budget(4);
+    EXPECT_EQ(queue->add_send_budget(4), 0);
     auto final_slice = queue->dequeue_slice(64);
     ASSERT_TRUE(final_slice.has_value());
     EXPECT_EQ(final_slice->record_batch->num_rows(), 1);
@@ -122,7 +137,7 @@ TEST(RecordBatchSendQueueTest, ZeroRowBatchCanBeDequeuedWithoutCredit)
     auto batch = std::move(batch_result).ValueOrDie();
     auto queue = make_queue();
 
-    ASSERT_TRUE(queue->enqueue_batch(batch, {}, true).ok());
+    ASSERT_TRUE(enqueue_batch(*queue, batch, {}, true).ok());
     auto slice = queue->dequeue_slice(64);
     ASSERT_TRUE(slice.has_value());
     EXPECT_EQ(slice->record_batch->num_rows(), 0);
@@ -139,7 +154,7 @@ TEST(RecordBatchSendQueueTest, RejectsMismatchedRowByteCountsWithoutRetainingBat
     const std::vector<std::uint64_t> row_buffer_bytes{1};
     auto queue = make_queue();
 
-    const auto status = queue->enqueue_batch(batch, row_buffer_bytes, false);
+    const auto status = queue->enqueue_batch(batch, 2, 0, row_buffer_bytes, false);
 
     EXPECT_FALSE(status.ok());
     EXPECT_TRUE(queue->empty());
@@ -149,10 +164,79 @@ TEST(RecordBatchSendQueueTest, RejectsMismatchedRowByteCountsWithoutRetainingBat
 TEST(RecordBatchSendQueueTest, AccumulatesSendBudget)
 {
     auto queue = make_queue();
-    queue->add_send_budget(10);
-    queue->add_send_budget(20);
+    EXPECT_EQ(queue->add_send_budget(10), 10);
+    EXPECT_EQ(queue->add_send_budget(20), 20);
 
     EXPECT_EQ(queue->available_budget(), 30);
+}
+
+TEST(RecordBatchSendQueueTest, PeerCreditPaysBatchDebtBeforeBecomingContextBudget)
+{
+    auto queue = make_queue();
+
+    auto initial_batch_result = make_record_batch(1);
+    ASSERT_TRUE(initial_batch_result.ok()) << initial_batch_result.status();
+    auto initial_batch = std::move(initial_batch_result).ValueOrDie();
+    ASSERT_TRUE(enqueue_batch(*queue, initial_batch, {1}, false).ok());
+    ASSERT_TRUE(queue->dequeue_slice(64).has_value());
+
+    EXPECT_EQ(queue->add_send_budget(5), 5);
+
+    auto batch_result = make_record_batch(3);
+    ASSERT_TRUE(batch_result.ok()) << batch_result.status();
+    auto batch = std::move(batch_result).ValueOrDie();
+    const std::vector<std::uint64_t> row_buffer_bytes{4, 4, 4};
+    ASSERT_TRUE(queue->enqueue_batch(batch, 12, 5, row_buffer_bytes, true).ok());
+    EXPECT_EQ(queue->available_budget(), 0);
+
+    EXPECT_EQ(queue->add_send_budget(6), 0);
+    EXPECT_EQ(queue->available_budget(), 0);
+
+    const auto slice = queue->dequeue_slice(64);
+    ASSERT_TRUE(slice.has_value());
+    EXPECT_EQ(slice->buffer_bytes, 12);
+    EXPECT_TRUE(slice->is_end_of_group);
+    EXPECT_TRUE(queue->empty());
+}
+
+TEST(RecordBatchSendQueueTest, ReturnsOnlyCreditThatRemainsAfterBatchDebt)
+{
+    auto queue = make_queue();
+
+    auto initial_batch_result = make_record_batch(1);
+    ASSERT_TRUE(initial_batch_result.ok()) << initial_batch_result.status();
+    auto initial_batch = std::move(initial_batch_result).ValueOrDie();
+    ASSERT_TRUE(enqueue_batch(*queue, initial_batch, {1}, false).ok());
+    ASSERT_TRUE(queue->dequeue_slice(64).has_value());
+
+    EXPECT_EQ(queue->add_send_budget(10), 10);
+
+    auto batch_result = make_record_batch(2);
+    ASSERT_TRUE(batch_result.ok()) << batch_result.status();
+    auto batch = std::move(batch_result).ValueOrDie();
+    const std::vector<std::uint64_t> row_buffer_bytes{10, 10};
+    ASSERT_TRUE(queue->enqueue_batch(batch, 20, 10, row_buffer_bytes, true).ok());
+    EXPECT_EQ(queue->available_budget(), 0);
+
+    EXPECT_EQ(queue->add_send_budget(7), 0);
+    EXPECT_EQ(queue->add_send_budget(5), 2);
+    EXPECT_EQ(queue->available_budget(), 2);
+}
+
+TEST(RecordBatchSendQueueTest, RejectsBudgetConsumptionNotPreviouslyGranted)
+{
+    auto batch_result = make_record_batch(1);
+    ASSERT_TRUE(batch_result.ok()) << batch_result.status();
+    auto batch = std::move(batch_result).ValueOrDie();
+    auto queue = make_queue();
+    const std::vector<std::uint64_t> row_buffer_bytes{1};
+
+    const auto status = queue->enqueue_batch(batch, 1, 1, row_buffer_bytes, false);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_TRUE(queue->empty());
+    EXPECT_EQ(queue->available_budget(), 0);
+    EXPECT_EQ(batch.use_count(), 1);
 }
 
 TEST_P(LargeBatchBudgetTest, DrainsLargeBatchAcrossBudgetGrantsWithoutLosingRows)
@@ -164,14 +248,14 @@ TEST_P(LargeBatchBudgetTest, DrainsLargeBatchAcrossBudgetGrantsWithoutLosingRows
     ASSERT_TRUE(initial_batch_result.ok()) << initial_batch_result.status();
     auto initial_batch = std::move(initial_batch_result).ValueOrDie();
     const std::vector<std::uint64_t> initial_row_buffer_bytes{8};
-    ASSERT_TRUE(queue->enqueue_batch(initial_batch, initial_row_buffer_bytes, false).ok());
+    ASSERT_TRUE(enqueue_batch(*queue, initial_batch, initial_row_buffer_bytes, false).ok());
     ASSERT_TRUE(queue->dequeue_slice(64).has_value());
 
     auto batch_result = make_record_batch(10);
     ASSERT_TRUE(batch_result.ok()) << batch_result.status();
     auto batch = std::move(batch_result).ValueOrDie();
     const std::vector<std::uint64_t> row_buffer_bytes(10, 8);
-    ASSERT_TRUE(queue->enqueue_batch(batch, row_buffer_bytes, true).ok());
+    ASSERT_TRUE(enqueue_batch(*queue, batch, row_buffer_bytes, true).ok());
 
     std::vector<std::uint64_t> observed_slice_bytes;
     std::vector<std::int64_t> observed_rows;
@@ -190,15 +274,15 @@ TEST_P(LargeBatchBudgetTest, DrainsLargeBatchAcrossBudgetGrantsWithoutLosingRows
         }
     };
 
-    queue->add_send_budget(scenario.budget_bytes);
+    static_cast<void>(queue->add_send_budget(scenario.budget_bytes));
     drain_available_slices(scenario.frame_target_bytes);
     ASSERT_EQ(observed_slice_bytes, scenario.expected_first_slice_bytes);
     EXPECT_EQ(queue->empty(), scenario.should_empty_after_first_grant);
 
     if (!queue->empty())
     {
-        queue->add_send_budget(40);
-        queue->add_send_budget(40);
+        static_cast<void>(queue->add_send_budget(40));
+        static_cast<void>(queue->add_send_budget(40));
         drain_available_slices(scenario.frame_target_bytes);
     }
 

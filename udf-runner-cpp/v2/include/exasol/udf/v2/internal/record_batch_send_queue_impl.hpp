@@ -14,9 +14,11 @@ class RecordBatchSendQueueImpl final : public RecordBatchSendQueueInterface
 public:
     [[nodiscard]] arrow::Status enqueue_batch(
         const std::shared_ptr<const arrow::RecordBatch>& record_batch,
+        std::uint64_t serialized_buffer_bytes,
+        std::uint64_t consumed_budget_bytes,
         std::span<const std::uint64_t> row_buffer_bytes,
         bool is_end_of_group) override;
-    void add_send_budget(std::uint32_t budget_bytes) noexcept override;
+    [[nodiscard]] std::uint32_t add_send_budget(std::uint32_t budget_bytes) noexcept override;
     [[nodiscard]] std::optional<RecordBatchSlice> dequeue_slice(
         std::uint64_t max_frame_buffer_bytes) override;
     [[nodiscard]] bool empty() const noexcept override;
@@ -28,6 +30,8 @@ private:
         std::shared_ptr<const arrow::RecordBatch> record_batch;
         std::vector<std::uint64_t> row_buffer_bytes;
         std::uint64_t remaining_buffer_bytes{};
+        std::uint64_t remaining_batch_budget{};
+        std::uint64_t remaining_debt{};
         std::int64_t next_row{};
         bool is_end_of_group{};
         bool is_first_batch{};
