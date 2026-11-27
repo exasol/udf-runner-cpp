@@ -30,6 +30,14 @@ inline constexpr std::uint64_t k_second_server_stream_id = 4;
 inline constexpr std::uint64_t k_third_server_stream_id  = 6;
 inline constexpr std::uint64_t k_unknown_stream_id       = 999;
 
+class UnexpectedBackgroundThreadWait final : public std::runtime_error
+{
+public:
+    explicit UnexpectedBackgroundThreadWait(const char* message) : std::runtime_error(message)
+    {
+    }
+};
+
 /// Strict interaction tests use this mock to assert queue-boundary calls.
 class AcceptedOutboundMessageQueue
 {
@@ -71,19 +79,30 @@ public:
         ON_CALL(*this, wait_until(testing::_))
             .WillByDefault(
                 [deadline_wait_count = 0U, blocking_wait_count = 0U](const auto deadline) mutable {
-                    if (deadline && ++deadline_wait_count == 1)
+                    using enum Event;
+
+                    if (deadline)
                     {
-                        return BackgroundThreadResult{.event = Event::DeadlineExpired};
+                        ++deadline_wait_count;
+                        if (deadline_wait_count == 1)
+                        {
+                            return BackgroundThreadResult{.event = DeadlineExpired};
+                        }
+                        if (deadline_wait_count == 2)
+                        {
+                            return BackgroundThreadResult{.event = ShutdownRequested};
+                        }
                     }
-                    if (deadline && deadline_wait_count == 2)
+                    else
                     {
-                        return BackgroundThreadResult{.event = Event::ShutdownRequested};
+                        ++blocking_wait_count;
+                        if (blocking_wait_count == 1)
+                        {
+                            return BackgroundThreadResult{.event = ShutdownRequested};
+                        }
                     }
-                    if (!deadline && ++blocking_wait_count == 1)
-                    {
-                        return BackgroundThreadResult{.event = Event::ShutdownRequested};
-                    }
-                    throw std::runtime_error("Unexpected repeated wait in background-thread mock");
+                    throw UnexpectedBackgroundThreadWait(
+                        "Unexpected repeated wait in background-thread mock");
                 });
         ON_CALL(*this, enqueue_outbound_messages(testing::_))
             .WillByDefault([this](OutboundBatch& messages) {
@@ -284,7 +303,8 @@ public:
             {
                 if (shutdown_returned_)
                 {
-                    throw std::runtime_error("Unexpected repeated deadline wait in fake");
+                    throw UnexpectedBackgroundThreadWait(
+                        "Unexpected repeated deadline wait in fake");
                 }
                 shutdown_returned_ = true;
                 return {.event = ShutdownRequested};
@@ -294,7 +314,7 @@ public:
         }
         if (shutdown_returned_)
         {
-            throw std::runtime_error("Unexpected repeated blocking wait in fake");
+            throw UnexpectedBackgroundThreadWait("Unexpected repeated blocking wait in fake");
         }
         shutdown_returned_ = true;
         return {.event = ShutdownRequested};
