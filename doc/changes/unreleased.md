@@ -27,6 +27,7 @@ n/a
 
 ## Refactorings
 
+* #153: V2: Restricted the `//:interface` cc_library to Arrow C Data Interface dependencies
 * #125: Added a Lima-derived Podman build container for reproducible v2 Bazel builds
 * #121: Replaced direct FlatBuffer types in v2 message views with mockable, serialization-independent typed view wrappers
 * #111: Simplified v2 message-view presence APIs, split flow-control reset from send budget, removed builder encoding views, and retained control capabilities and call/control payloads in builder messages
@@ -35,6 +36,7 @@ n/a
 
 ## Internal
 
+* #143: Added a repository skill for writing design specifications with diagrams and focused C++ sketches
 * #111: Added parallel v2 regular-test Nox and CI runs for ASan, UBSan, and Valgrind
 * #111: Added independent Nox and CI jobs for v2 clang-tidy, clang-format, coverage, and Sonar analysis
 * #111: Split v1 and v2 Bazel checks into dedicated CI workflows
