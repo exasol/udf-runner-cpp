@@ -183,6 +183,12 @@ alias(
     tags = ["noclangtidy"],
 )
 
+alias(
+    name = "arrow_c_data_interface",
+    actual = "@v2_arrow//:arrow_c_data_interface",
+    tags = ["noclangtidy"],
+)
+
 cc_library(
     name = "arrow_types",
     srcs = [
@@ -334,7 +340,7 @@ cc_library(
     ],
     copts = ["-std=c++23"],
     deps = [
-        ":arrow_core",
+        ":arrow_c_data_interface",
         ":exception",
         ":udf_protocol",
     ],
