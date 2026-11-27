@@ -2,6 +2,15 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 package(default_visibility = ["//visibility:public"])
 
+# Keep the Arrow C Data Interface available without depending on Arrow's C++
+# core library. Consumers that only exchange ArrowArray/ArrowSchema should not
+# pull the full Arrow implementation into their dependency graph.
+cc_library(
+    name = "arrow_c_data_interface",
+    hdrs = ["cpp/src/arrow/c/abi.h"],
+    strip_include_prefix = "cpp/src",
+)
+
 CORE_COMPUTE_SRCS = [
     "cpp/src/arrow/compute/api_aggregate.cc",
     "cpp/src/arrow/compute/api_scalar.cc",
