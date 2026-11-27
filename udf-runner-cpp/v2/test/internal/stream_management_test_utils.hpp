@@ -12,6 +12,7 @@
 #include <iterator>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -67,10 +68,23 @@ public:
 
     MockBackgroundThread()
     {
-        ON_CALL(*this, wait_until(testing::_)).WillByDefault([](const auto deadline) {
-            return BackgroundThreadResult{.event = deadline ? Event::DeadlineExpired
-                                                            : Event::ShutdownRequested};
-        });
+        ON_CALL(*this, wait_until(testing::_))
+            .WillByDefault(
+                [deadline_wait_count = 0U, blocking_wait_count = 0U](const auto deadline) mutable {
+                    if (deadline && ++deadline_wait_count == 1)
+                    {
+                        return BackgroundThreadResult{.event = Event::DeadlineExpired};
+                    }
+                    if (deadline && deadline_wait_count == 2)
+                    {
+                        return BackgroundThreadResult{.event = Event::ShutdownRequested};
+                    }
+                    if (!deadline && ++blocking_wait_count == 1)
+                    {
+                        return BackgroundThreadResult{.event = Event::ShutdownRequested};
+                    }
+                    throw std::runtime_error("Unexpected repeated wait in background-thread mock");
+                });
         ON_CALL(*this, enqueue_outbound_messages(testing::_))
             .WillByDefault([this](OutboundBatch& messages) {
                 return this->accept_outbound_messages(messages);
@@ -266,8 +280,23 @@ public:
         }
         if (deadline)
         {
+            if (deadline_expired_returned_)
+            {
+                if (shutdown_returned_)
+                {
+                    throw std::runtime_error("Unexpected repeated deadline wait in fake");
+                }
+                shutdown_returned_ = true;
+                return {.event = ShutdownRequested};
+            }
+            deadline_expired_returned_ = true;
             return {.event = DeadlineExpired};
         }
+        if (shutdown_returned_)
+        {
+            throw std::runtime_error("Unexpected repeated blocking wait in fake");
+        }
+        shutdown_returned_ = true;
         return {.event = ShutdownRequested};
     }
     bool enqueue_outbound_messages(OutboundBatch& messages) override
@@ -305,6 +334,8 @@ private:
     std::optional<BackgroundThreadResult> next_wait_result_;
     InboundBatch inbound_;
     OutboundBatch outbound_;
+    bool deadline_expired_returned_{};
+    bool shutdown_returned_{};
 };
 
 } // namespace exasol::udf::v2::internal::test_support
