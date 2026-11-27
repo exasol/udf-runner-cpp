@@ -34,6 +34,8 @@ Arrow C Data Interface.
 - [epoll_design.md](epoll_design.md) defines the Linux epoll abstraction and its registration ownership model.
 - [connection_acceptor_design.md](connection_acceptor_design.md) defines transport-neutral connection acceptance
   and socket ownership handoff.
+- [logging_provider_design.md](logging_provider_design.md) defines concurrent, grouped, asynchronously written
+  v2 logging records and their filtering and shutdown behavior.
 
 Mermaid `.mmd` files are the diagram sources of truth. Matching `.svg` files are rendered views linked from the
 documents.
