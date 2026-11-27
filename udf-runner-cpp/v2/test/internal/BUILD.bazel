@@ -1,0 +1,120 @@
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "context_state_test_support",
+    testonly = True,
+    hdrs = ["context_state_mock.hpp", "stream_management_test_utils.hpp"],
+    copts = ["-std=c++23"],
+    deps = [
+        "//:interface_internal_headers",
+        "//test/common:test_common",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "stream_registry_test",
+    srcs = [
+        "stream_registry_test.cc",
+    ],
+    copts = ["-std=c++23"],
+    deps = [
+        "//:interface_internal__internal_stream_registry_cc",
+        "//:interface_internal_headers",
+        ":context_state_test_support",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "context_state_test",
+    srcs = [
+        "context_state_test.cc",
+    ],
+    copts = ["-std=c++23"],
+    deps = [
+        "//:interface_internal__internal_context_state_cc",
+        "//:interface_internal__internal_stream_registry_cc",
+        "//:interface_impl__interface_call_message_builder_cc",
+        "//:interface_impl__interface_control_message_builder_cc",
+        "//:interface_internal_headers",
+        ":context_state_test_support",
+        "//test/common:test_common",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "context_impl_test",
+    srcs = [
+        "context_impl_test.cc",
+    ],
+    copts = ["-std=c++23"],
+    deps = [
+        "//:interface_internal__internal_context_impl_cc",
+        "//:interface_internal__internal_call_impl_cc",
+        "//:interface_internal__internal_control_stream_impl_cc",
+        "//:interface_internal_headers",
+        ":context_state_test_support",
+        "//test/common:test_common",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "call_impl_test",
+    srcs = [
+        "call_impl_test.cc",
+    ],
+    copts = ["-std=c++23"],
+    deps = [
+        "//:interface_internal__internal_call_impl_cc",
+        "//:interface_internal_headers",
+        ":context_state_test_support",
+        "//test/common:test_common",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "control_stream_impl_test",
+    srcs = [
+        "control_stream_impl_test.cc",
+    ],
+    copts = ["-std=c++23"],
+    deps = [
+        "//:interface_internal__internal_control_stream_impl_cc",
+        "//:interface_internal_headers",
+        "//test/common:test_common",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "context_handle_integration_test",
+    srcs = [
+        "context_handle_integration_test.cc",
+    ],
+    copts = ["-std=c++23"],
+    tags = ["no-mull"],
+    deps = [
+        "//:interface_internal__internal_context_impl_cc",
+        "//:interface_internal__internal_call_impl_cc",
+        "//:interface_internal__internal_control_stream_impl_cc",
+        "//:interface_internal__internal_context_state_cc",
+        "//:interface_internal__internal_stream_registry_cc",
+        "//:interface_impl__interface_call_message_builder_cc",
+        "//:interface_impl__interface_control_message_builder_cc",
+        "//:interface_internal_headers",
+        ":context_state_test_support",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)

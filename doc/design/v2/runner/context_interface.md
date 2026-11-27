@@ -61,11 +61,18 @@ Result<T> {
 }
 ```
 
+`ContextClosed` means the connection context is no longer available to the operation, including when a `Call` or
+`ControlStream` handle outlives its context.
+
 `Result<void>` represents an operation that has no value on success. A successful result has `status == Ok` and a
 value where applicable. A failed result has no value and may include an error code and message.
 
 All timeout parameters use the conceptual type `optional<Duration>`. An absent timeout waits indefinitely; a zero
 duration performs no blocking wait.
+
+For a finite timeout, the operation derives one absolute deadline when it starts and reuses that deadline for every
+wait and retry. Dispatching messages, receiving unrelated notifications, or waking spuriously does not restart the
+timeout.
 
 A successful operation returns its value. A failed operation returns no value and may include an error code and message.
 Timeout is distinct from protocol and transport failure and does not consume or discard a later message.
@@ -80,7 +87,7 @@ Context {
     wait_for_message(optional<Duration> timeout) -> MessageStatus
     accept_call() -> Result<unique_ptr<Call>>
     create_opening_call_message_builder() -> unique_ptr<OpeningCallMessageBuilder>
-    open_call(unique_ptr<OpeningCallMessageBuilder>) -> Result<unique_ptr<Call>>
+    open_call(unique_ptr<OpeningCallMessageBuilder>&&) -> Result<unique_ptr<Call>>
     control_stream() -> ControlStream&
 }
 ```
@@ -115,6 +122,9 @@ response. The peer's response is received through that call's `receive()` operat
 bound to it. The worker adds the required `open_call` field and passes that builder to `open_call()`. A reserved stream
 ID is not reused if its builder is abandoned or `open_call()` fails.
 
+`Context::open_call()` transfers builder ownership only when the opening message is accepted. On failure, the caller's
+`unique_ptr` remains non-null and retains the builder and any Arrow objects it owns.
+
 ## Call interface
 
 The conceptual call contract is:
@@ -130,9 +140,11 @@ Call {
 
 `Call::receive_status()` is non-blocking, observes only this call's stream, and never consumes a message.
 
-`Call::receive(timeout)` waits only for this call's stream. An omitted timeout means wait indefinitely. It returns the
-next complete call message, returns `TimedOut` when the timeout expires, and returns a terminal result for
-cancellation, peer closure, or connection failure.
+`Call::receive()` waits indefinitely for this call's next message or a terminal result. The timeout overload,
+`Call::receive(timeout)`, waits only for this call's stream for at most the supplied timeout. An empty timeout means
+wait indefinitely; a zero timeout polls and returns `TimedOut` when no message is ready. The operation returns the next
+complete call message, or a terminal result for cancellation, peer closure, or connection failure. Use
+`Call::receive_status()` to check readiness without consuming a message.
 
 The first successful `Call::receive()` returns the opening `CallMessageView`, including its `open_call` field and any
 payloads, `DataSchema`, `Reset`, `RecordBatch`, error, or close fields carried in the same protocol message. Subsequent
@@ -285,8 +297,10 @@ ControlMessage {
 }
 ```
 
-The control stream supports capabilities, keepalive, connection-level payloads, errors, and connection close. It must
-not expose `OpenCall`, `CloseCall`, `Reset`, `ArrowSchemaPtr`, or `ArrowArrayPtr` objects.
+The control stream supports capabilities, keepalive, connection-level payloads, errors, and connection close. A
+received `CloseConnection` message is returned by `ControlStream::receive()` exactly once, in FIFO order after any
+earlier pending control messages. After it is consumed, subsequent operations return the terminal `ContextClosed`
+status. It must not expose `OpenCall`, `CloseCall`, `Reset`, `ArrowSchemaPtr`, or `ArrowArrayPtr` objects.
 
 An error without `close_connection` is a non-terminal diagnostic. `CloseConnection` starts or acknowledges connection
 shutdown and may be combined with an error or other permitted connection-level fields.

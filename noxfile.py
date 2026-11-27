@@ -267,6 +267,7 @@ def _get_mull_targets(session: nox.Session) -> tuple[str, ...]:
     with session.chdir(v2_root):
         labels = session.run(
             bazel,
+            "--batch",
             *bazel_startup_args,
             "query",
             'kind("cc_test rule", //...) except attr("tags", "no-mull", //...)',
@@ -584,29 +585,29 @@ def run_mull(session: nox.Session):
         else list(_get_mull_targets(session))
     )
     bazel_startup_args = [f"--output_user_root={bazel_output_root}"]
-    generated_config = report_dir / "mull.yml"
-    run_env = os.environ.copy()
-    run_env["MULL_CONFIG"] = str(generated_config)
-
     with session.chdir(v2_root):
-        _generate_mull_config(
-            session,
-            toolchain,
-            targets,
-            v2_root,
-            bazel_output_root,
-            generated_config,
-        )
-        bazel_bin = _build_mull_targets(
-            session,
-            toolchain,
-            targets,
-            bazel_startup_args,
-            generated_config,
-            run_env,
-        )
-        library_search_args = _get_mull_library_search_args(bazel_bin)
         for target in targets:
+            target_name = _mull_target_report_name(target)
+            generated_config = report_dir / f"{target_name}.mull.yml"
+            run_env = os.environ.copy()
+            run_env["MULL_CONFIG"] = str(generated_config)
+            _generate_mull_config(
+                session,
+                toolchain,
+                [target],
+                v2_root,
+                bazel_output_root,
+                generated_config,
+            )
+            bazel_bin = _build_mull_targets(
+                session,
+                toolchain,
+                [target],
+                bazel_startup_args,
+                generated_config,
+                run_env,
+            )
+            library_search_args = _get_mull_library_search_args(bazel_bin)
             _run_mull_target(
                 session,
                 toolchain,
@@ -735,6 +736,7 @@ def run_v2_coverage(session: nox.Session):
         "test",
         "--verbose_failures",
         "--collect_code_coverage",
+        "--instrument_test_targets",
         "--combined_report=lcov",
         "--coverage_report_generator=@bazel_sonarqube//:sonarqube_coverage_generator",
         "--build_tag_filters=-fuzz-test",

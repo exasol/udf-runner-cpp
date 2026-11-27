@@ -1,3 +1,4 @@
+load(":source_library.bzl", "cc_source_group")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
@@ -118,7 +119,7 @@ cc_test(
     tags = ["no-mull"],
     deps = [
         ":interface",
-        ":interface_internal",
+        ":interface_impl",
         ":udf_protocol",
         "@googletest//:gtest_main",
     ],
@@ -189,7 +190,7 @@ alias(
     tags = ["noclangtidy"],
 )
 
-cc_library(
+cc_source_group(
     name = "arrow_types",
     srcs = [
         "protocol/arrow_types/range_run.cc",
@@ -218,7 +219,9 @@ cc_test(
     includes = ["protocol/arrow_types"],
     deps = [
         ":arrow_core",
-        ":arrow_types",
+        ":arrow_types__protocol_arrow_types_range_run_cc",
+        ":arrow_types__protocol_arrow_types_run_array_view_cc",
+        ":arrow_types__protocol_arrow_types_run_end_encoded_cc",
         "@googletest//:gtest_main",
     ],
 )
@@ -287,32 +290,38 @@ cc_library(
 )
 
 cc_library(
-    name = "interface",
-    srcs = [
-        "interface/call.cc",
-        "interface/context.cc",
-        "interface/control_stream.cc",
-        "interface/call_message_builder.cc",
-        "interface/control_message_builder.cc",
-        "interface/control_message_view_impl.cc",
-        "interface/data_schema_view_impl.cc",
-        "interface/call_message_flatbuffer_view_impl.cc",
-        "interface/common_flatbuffer_view_impl.cc",
-        "interface/control_message_flatbuffer_view_impl.cc",
-        "interface/record_batch_view_impl.cc",
-        "interface/message_view.cc",
+    name = "interface_impl_headers",
+    hdrs = [
         "include/exasol/udf/v2/internal/background_thread_interface.hpp",
+        "include/exasol/udf/v2/internal/builder_owner_token.hpp",
         "include/exasol/udf/v2/internal/call_message_builder_impl.hpp",
         "include/exasol/udf/v2/internal/call_message_view_impl.hpp",
         "include/exasol/udf/v2/internal/control_message_builder_impl.hpp",
         "include/exasol/udf/v2/internal/control_message_view_impl.hpp",
-        "include/exasol/udf/v2/internal/data_schema_view_impl.hpp",
         "include/exasol/udf/v2/internal/call_message_flatbuffer_view_impl.hpp",
         "include/exasol/udf/v2/internal/common_flatbuffer_view_impl.hpp",
         "include/exasol/udf/v2/internal/control_message_flatbuffer_view_impl.hpp",
+        "include/exasol/udf/v2/internal/data_schema_view_impl.hpp",
         "include/exasol/udf/v2/internal/record_batch_view_impl.hpp",
-        "include/exasol/udf/v2/internal/message_builder_factory.hpp",
         "include/exasol/udf/v2/internal/payload.hpp",
+    ],
+    copts = ["-std=c++23"],
+    includes = ["include"],
+    deps = [
+        ":arrow_core",
+        ":exception",
+        ":interface_api",
+        ":udf_protocol",
+    ],
+    visibility = ["//:__pkg__"],
+)
+
+cc_source_group(
+    name = "interface_api",
+    srcs = [
+        "interface/call.cc",
+        "interface/context.cc",
+        "interface/control_stream.cc",
     ],
     hdrs = [
         "include/exasol/udf/v2/interface/call.hpp",
@@ -346,25 +355,74 @@ cc_library(
     ],
 )
 
-# Internal headers are available only through this implementation-facing
-# target. Keeping them out of :interface prevents the worker-facing Bazel
-# target from exporting implementation details to its dependents.
+cc_source_group(
+    name = "interface_impl",
+    srcs = [
+        "interface/call_message_builder.cc",
+        "interface/control_message_builder.cc",
+        "interface/control_message_view_impl.cc",
+        "interface/data_schema_view_impl.cc",
+        "interface/call_message_flatbuffer_view_impl.cc",
+        "interface/common_flatbuffer_view_impl.cc",
+        "interface/control_message_flatbuffer_view_impl.cc",
+        "interface/record_batch_view_impl.cc",
+        "interface/message_view.cc",
+    ],
+    includes = [
+        "include",
+    ],
+    copts = ["-std=c++23"],
+    deps = [
+        ":interface_api",
+        ":interface_impl_headers",
+        ":arrow_core",
+        ":exception",
+        ":udf_protocol",
+    ],
+)
+
 cc_library(
-    name = "interface_internal",
+    name = "interface",
+    copts = ["-std=c++23"],
+    deps = [":interface_api"],
+    implementation_deps = [":interface_impl"],
+)
+
+cc_library(
+    name = "interface_internal_headers",
     hdrs = [
-        "include/exasol/udf/v2/internal/background_thread_interface.hpp",
-        "include/exasol/udf/v2/internal/call_message_builder_impl.hpp",
-        "include/exasol/udf/v2/internal/call_message_view_impl.hpp",
-        "include/exasol/udf/v2/internal/control_message_builder_impl.hpp",
-        "include/exasol/udf/v2/internal/control_message_view_impl.hpp",
-        "include/exasol/udf/v2/internal/data_schema_view_impl.hpp",
-        "include/exasol/udf/v2/internal/record_batch_view_impl.hpp",
-        "include/exasol/udf/v2/internal/message_builder_factory.hpp",
-        "include/exasol/udf/v2/internal/payload.hpp",
+        "include/exasol/udf/v2/internal/call_impl.hpp",
+        "include/exasol/udf/v2/internal/control_stream_impl.hpp",
+        "include/exasol/udf/v2/internal/context_impl.hpp",
+        "include/exasol/udf/v2/internal/context_state.hpp",
+        "include/exasol/udf/v2/internal/context_state_interface.hpp",
+        "include/exasol/udf/v2/internal/stream_registry.hpp",
     ],
     includes = ["include"],
     copts = ["-std=c++23"],
-    deps = [":interface"],
+    deps = [
+        ":interface_api",
+        ":interface_impl_headers",
+    ],
+)
+
+cc_source_group(
+    name = "interface_internal",
+    srcs = [
+        "internal/call_impl.cc",
+        "internal/context_impl.cc",
+        "internal/context_state.cc",
+        "internal/control_stream_impl.cc",
+        "internal/stream_registry.cc",
+    ],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":interface",
+        ":interface_impl_headers",
+        ":interface_internal_headers",
+        ":interface_impl",
+    ],
 )
 
 cc_test(
@@ -535,7 +593,7 @@ cc_library(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
-cc_library(
+cc_source_group(
     name = "socket",
     srcs = [
         "socket/owned_file_descriptor.cc",
@@ -558,7 +616,7 @@ cc_library(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
-cc_library(
+cc_source_group(
     name = "connection_acceptor",
     srcs = [
         "internal/caller_thread_socket_connection_acceptor.cc",
@@ -582,7 +640,7 @@ cc_library(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
-cc_library(
+cc_source_group(
     name = "thread_factory",
     srcs = [
         "internal/native_thread.cc",
@@ -603,7 +661,8 @@ cc_test(
     srcs = ["internal/standard_thread_factory_test.cc"],
     copts = ["-std=c++23"],
     deps = [
-        ":thread_factory",
+        ":thread_factory__internal_native_thread_cc",
+        ":thread_factory__internal_standard_thread_factory_cc",
         "@googletest//:gtest_main",
     ],
 )
@@ -624,7 +683,8 @@ cc_test(
     srcs = ["internal/connection_acceptor_test.cc"],
     copts = ["-std=c++23"],
     deps = [
-        ":connection_acceptor",
+        ":connection_acceptor__internal_caller_thread_socket_connection_acceptor_cc",
+        ":connection_acceptor__internal_connection_cc",
         ":logging_utils_test_cases",
         ":recording_logging_provider_test_utils",
         "@googletest//:gtest_main",
@@ -721,7 +781,7 @@ cc_library(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
-cc_library(
+cc_source_group(
     name = "linux_epoll",
     srcs = [
         "linux_epoll.cc",
@@ -746,7 +806,9 @@ cc_test(
     srcs = ["linux_epoll_test.cc"],
     copts = ["-std=c++23"],
     deps = [
-        ":linux_epoll",
+        ":linux_epoll__linux_epoll_cc",
+        ":linux_epoll__linux_epoll_registration_cc",
+        ":linux_epoll__linux_epoll_state_cc",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
@@ -897,6 +959,7 @@ cc_test(
     name = "logging_utils_test",
     copts = ["-std=c++23"],
     deps = [
+        ":logging_utils",
         ":logging_utils_test_cases",
         "@googletest//:gtest_main",
     ],

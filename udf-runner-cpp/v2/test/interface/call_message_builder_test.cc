@@ -1,9 +1,9 @@
 #include <exasol/udf/v2/internal/background_thread_interface.hpp>
 #include <exasol/udf/v2/internal/call_message_builder_impl.hpp>
-#include <exasol/udf/v2/internal/message_builder_factory.hpp>
 
 #include <gtest/gtest.h>
 
+#include <memory>
 #include <type_traits>
 #include <variant>
 
@@ -14,7 +14,7 @@ static_assert(std::is_abstract_v<interface::CallMessageBuilder>);
 
 TEST(CallMessageBuilderTest, StoresTextAndBinaryPayloadsInOrder)
 {
-    auto builder = MessageBuilderFactory::create_call_builder(2);
+    auto builder = std::make_unique<CallMessageBuilderImpl>(2);
     builder->add_payload("text", "value")
         .add_payload("binary", std::string{static_cast<char>(1), static_cast<char>(2)}, true);
 
@@ -34,7 +34,7 @@ TEST(CallMessageBuilderTest, BuildsCompositeMessage)
 {
     auto* schema = new ArrowSchema{};
     auto* array  = new ArrowArray{};
-    auto builder = MessageBuilderFactory::create_opening_call_builder(2);
+    auto builder = std::make_unique<OpeningCallMessageBuilderImpl>(2);
     builder->open_call("nested")
         .add_payload("request", "{}")
         .data_schema(interface::ArrowSchemaPtr(schema), true, true)
@@ -63,7 +63,7 @@ TEST(CallMessageBuilderTest, BuildsMessageWithDefaultOptions)
 {
     auto* schema = new ArrowSchema{};
     auto* array  = new ArrowArray{};
-    auto builder = MessageBuilderFactory::create_call_builder(7);
+    auto builder = std::make_unique<CallMessageBuilderImpl>(7);
     builder->data_schema(interface::ArrowSchemaPtr(schema))
         .data_schema(interface::ArrowSchemaPtr(new ArrowSchema{}), true)
         .reset(0)
@@ -90,9 +90,9 @@ TEST(CallMessageBuilderTest, BuildsMessageWithDefaultOptions)
 TEST(CallMessageBuilderTest, OutboundMessageAcceptsAllCallBuilderKinds)
 {
     std::unique_ptr<interface::CallMessageBuilderBase> call_builder =
-        MessageBuilderFactory::create_call_builder(1);
+        std::make_unique<CallMessageBuilderImpl>(1);
     std::unique_ptr<interface::CallMessageBuilderBase> opening_builder =
-        MessageBuilderFactory::create_opening_call_builder(1);
+        std::make_unique<OpeningCallMessageBuilderImpl>(1);
 
     OutboundMessage call_message(std::move(call_builder));
     OutboundMessage opening_message(std::move(opening_builder));
