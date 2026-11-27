@@ -43,25 +43,14 @@ inline BackgroundThreadResult default_wait_result(
 {
     using enum Event;
 
-    if (deadline.has_value())
+    const auto wait_count = deadline.has_value() ? ++deadline_wait_count : ++blocking_wait_count;
+    if (wait_count == 1)
     {
-        ++deadline_wait_count;
-        if (deadline_wait_count == 1)
-        {
-            return {.event = DeadlineExpired};
-        }
-        if (deadline_wait_count == 2)
-        {
-            return {.event = ShutdownRequested};
-        }
+        return {.event = deadline.has_value() ? DeadlineExpired : ShutdownRequested};
     }
-    else
+    if (deadline.has_value() && wait_count == 2)
     {
-        ++blocking_wait_count;
-        if (blocking_wait_count == 1)
-        {
-            return {.event = ShutdownRequested};
-        }
+        return {.event = ShutdownRequested};
     }
     throw UnexpectedBackgroundThreadWait("Unexpected repeated wait in background-thread mock");
 }
@@ -105,11 +94,10 @@ public:
     MockBackgroundThread()
     {
         ON_CALL(*this, wait_until(testing::_))
-            .WillByDefault(
-                [deadline_wait_count = std::size_t{},
-                 blocking_wait_count = std::size_t{}](const auto deadline) mutable {
-                    return default_wait_result(deadline_wait_count, blocking_wait_count, deadline);
-                });
+            .WillByDefault([deadline_wait_count = std::size_t{},
+                            blocking_wait_count = std::size_t{}](const auto deadline) mutable {
+                return default_wait_result(deadline_wait_count, blocking_wait_count, deadline);
+            });
         ON_CALL(*this, enqueue_outbound_messages(testing::_))
             .WillByDefault([this](OutboundBatch& messages) {
                 return this->accept_outbound_messages(messages);
