@@ -2,19 +2,20 @@
 # ---- DO NOT EDIT MANUALLY, BUT USE PYTHON MODULE "exasol.slc_ci_setup" ----
 # ---- from https://github.com/exasol/script-languages-container-ci-setup TO UPDATE ----
 
+
 name: SLC-CI-Build-Flavor
 
 on:
   workflow_call:
     inputs:
       flavor:
-        description: 'A flavor'
-        required: true
-        type: string
+          description: 'A flavor'
+          required: true
+          type: string
       build-mode:
-        description: 'Build mode: possible values: "normal", "rebuild", "release".'
-        required: true
-        type: string
+          description: 'Build mode: possible values: "normal", "rebuild", "release".'
+          required: true
+          type: string
 
     secrets:
       CI4_DOCKERHUB_USERNAME:
@@ -22,32 +23,30 @@ on:
       CI4_DOCKERHUB_TOKEN:
         required: true
 
-permissions:
-  contents: read
-
 jobs:
+
   detect-runner:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          submodules: 'recursive'
+     - uses: actions/checkout@v6
+       with:
           persist-credentials: false
+          submodules: 'recursive'
 
-      - name: Setup Python & Poetry Environment
-        uses: exasol/python-toolbox/.github/actions/python-environment@8b2cd1ebe7e8ad923be55a95ec5da6f4867d1a8e # v11
-        with:
-          python-version: "3.10"
+     - name: Setup Python & Poetry Environment
+       uses: exasol/python-toolbox/.github/actions/python-environment@v12
+       with:
+          python-version: "3.11"
           poetry-version: "2.3.0"
 
-      - name: Detect runner
-        id: detect-runner
-        run: poetry run -- exaslc-ci get-build-runners --flavor "$FLAVOR" --github-output-var runner-matrix
-        env:
-          FLAVOR: ${{ inputs.flavor }}
+     - name: Detect runner
+       id: detect-runner
+       run: poetry run -- exaslc-ci get-build-runners --flavor "$FLAVOR" --github-output-var runner-matrix
+       env:
+         FLAVOR: ${{ inputs.flavor }}
 
     outputs:
-      runner-matrix: ${{ steps.detect-runner.outputs.runner-matrix }}
+     runner-matrix: ${{ steps.detect-runner.outputs.runner-matrix }}
 
   build:
     needs: detect-runner
@@ -57,16 +56,10 @@ jobs:
     runs-on:
       labels: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v6
         with:
-          submodules: 'recursive'
-          persist-credentials: false
-
-      - name: Free disk space
-        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
-        with:
-          preinstalled-runtimes: true
-          large-packages: false
+            persist-credentials: false
+            submodules: 'recursive'
 
       - name: Free disk space by removing large directories
         run: |
@@ -76,11 +69,13 @@ jobs:
           sudo rm -rf /usr/local/share/chromium
           sudo rm -rf /usr/local/lib/node_modules
           sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/share/dotnet
 
       - name: Setup Python & Poetry Environment
-        uses: exasol/python-toolbox/.github/actions/python-environment@8b2cd1ebe7e8ad923be55a95ec5da6f4867d1a8e # v11
+        uses: exasol/python-toolbox/.github/actions/python-environment@v12
         with:
-          python-version: "3.10"
+          python-version: "3.11"
           poetry-version: "2.3.0"
 
       - name: Detect Platform
@@ -95,35 +90,35 @@ jobs:
         env:
           DOCKER_USERNAME: ${{ secrets.CI4_DOCKERHUB_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.CI4_DOCKERHUB_TOKEN }}
-          BRANCH_NAME: ${{ github.head_ref || github.ref }}
-          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          FLAVOR: ${{ inputs.flavor }}
-          BUILD_MODE: ${{ inputs.build-mode }}
+          BRANCH_NAME: ${{github.head_ref || github.ref}}
+          COMMIT_SHA: ${{github.sha}}
+          FLAVOR: ${{inputs.flavor}}
+          BUILD_MODE: ${{inputs.build-mode}}
 
       - name: Check for password
         run: grep -rq ${{ secrets.CI4_DOCKERHUB_TOKEN }} .build_output && exit 1 || exit 0
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@v6
         if: ${{ always() }}
         name: Upload log artifacts
         with:
-          name: logs_build_${{ inputs.flavor }}_${{ matrix.runner }}
+          name: logs_build_${{inputs.flavor}}_${{ matrix.runner }}
           path: |
             .build_output/jobs/**/*
             .build_output/security_scan/**/*
             .build_output/meta_data/**/*
           retention-days: 30
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        name: Upload release SLC for flavor ${{ inputs.flavor }}
+      - uses: actions/upload-artifact@v6
+        name: Upload release SLC for flavor ${{inputs.flavor}}
         with:
           name: slc-${{ inputs.flavor }}-${{ fromJson(steps.build-slc.outputs.slc_paths).slc_release.goal }}-${{ steps.detect-platform.outputs.platform_machine }}
           path: "${{ fromJson(steps.build-slc.outputs.slc_paths).slc_release.path }}"
           compression-level: 0
           retention-days: 1
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        name: Upload test SLC for flavor ${{ inputs.flavor }}
+      - uses: actions/upload-artifact@v6
+        name: Upload test SLC for flavor ${{inputs.flavor}}
         with:
           name: slc-${{ inputs.flavor }}-${{ fromJson(steps.build-slc.outputs.slc_paths).slc_test.goal }}-${{ steps.detect-platform.outputs.platform_machine }}
           path: "${{ fromJson(steps.build-slc.outputs.slc_paths).slc_test.path }}"

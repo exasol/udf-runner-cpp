@@ -150,6 +150,11 @@ UnixSocket UnixSocketListener::accept(const int flags) const
         OwnedFileDescriptor::adopt_native_handle(accepted_fd, this->posix_pointer));
 }
 
+std::unique_ptr<Socket> UnixSocketListener::accept_socket()
+{
+    return std::make_unique<UnixSocket>(this->accept());
+}
+
 void UnixSocketListener::unlink_path() noexcept
 {
     if (!this->bound_path.empty())

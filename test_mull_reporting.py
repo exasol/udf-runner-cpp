@@ -5,6 +5,10 @@ from unittest.mock import patch
 
 from noxfile import (
     _MullMutationResult,
+    _mull_target_binary_path,
+    _mull_target_labels,
+    _mull_target_report_name,
+    _normalize_mull_target,
     _parse_mull_mutation_result,
     _warn_about_zero_mutants,
 )
@@ -82,6 +86,65 @@ class MullMutationReportingTest(unittest.TestCase):
 
         self.assertEqual(print_mock.call_count, 2)
         self.assertTrue(print_mock.call_args.args[0].startswith("::warning"))
+
+
+class MullTargetDiscoveryTest(unittest.TestCase):
+    def test_discovers_root_and_internal_targets_with_full_labels(self):
+        targets = _mull_target_labels(
+            "\n".join(
+                (
+                    "//:event_fd_test",
+                    "//test/internal:call_impl_test",
+                    "//test/internal:context_handle_integration_test",
+                    "//test/internal:context_impl_test",
+                    "//test/internal:context_state_test",
+                    "//test/internal:control_stream_impl_test",
+                    "//test/internal:stream_registry_test",
+                    "//test/interface:interface_test",
+                )
+            )
+        )
+
+        self.assertEqual(
+            targets,
+            (
+                "//:event_fd_test",
+                "//test/internal:call_impl_test",
+                "//test/internal:context_handle_integration_test",
+                "//test/internal:context_impl_test",
+                "//test/internal:context_state_test",
+                "//test/internal:control_stream_impl_test",
+                "//test/internal:stream_registry_test",
+            ),
+        )
+
+    def test_normalizes_full_package_and_legacy_short_targets(self):
+        self.assertEqual(
+            _normalize_mull_target("//test/internal:stream_registry_test"),
+            "//test/internal:stream_registry_test",
+        )
+        self.assertEqual(
+            _normalize_mull_target("test/internal:stream_registry_test"),
+            "//test/internal:stream_registry_test",
+        )
+        self.assertEqual(_normalize_mull_target("event_fd_test"), "//:event_fd_test")
+
+    def test_builds_package_aware_paths_and_report_names(self):
+        target = "//test/internal:context_state_test"
+
+        self.assertEqual(
+            _mull_target_binary_path(target),
+            Path("bazel-bin/test/internal/context_state_test"),
+        )
+        self.assertEqual(
+            _mull_target_report_name(target), "test_internal_context_state_test"
+        )
+
+    def test_builds_binary_path_for_root_package_target(self):
+        self.assertEqual(
+            _mull_target_binary_path("//:mutation_smoke_test"),
+            Path("bazel-bin/mutation_smoke_test"),
+        )
 
 
 if __name__ == "__main__":

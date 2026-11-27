@@ -3,7 +3,7 @@
 ## Startup
 
 1. The runner user transfers ownership of a `WorkerFactory` to the production factory.
-2. The production factory creates a `Runner` with that factory, transport configuration, limits, a `SocketAcceptor`,
+2. The production factory creates a `Runner` with that factory, transport configuration, limits, a `ConnectionAcceptor`,
    a reusable worker pool, and a `ContextManager`.
 3. The runner validates and connects its owned components, then the acceptor binds and listens on the configured
    Unix-domain endpoint.
@@ -20,17 +20,17 @@ Related diagrams:
 - [descriptor_ownership.svg](descriptor_ownership.svg)
 
 ```text
-SocketAcceptor
-    | accept()
+ConnectionAcceptor
+    | get_next_connection(timeout)
     v
-owned connected fd
+owned Connection
     | enqueue
     v
 reusable worker-pool resource
     | invoke Runner-owned WorkerFactory product
     v
-Worker(fd)
-    | ContextManager.create(fd)
+Worker(connection)
+    | ContextManager.create(connection)
     v
 Context(connection)
     | initialize control stream and run protocol
@@ -42,8 +42,8 @@ The descriptor has exactly one owner at each handoff:
 
 - the acceptor owns it until successful submission;
 - the worker owns it while creating the context;
-- the context owns it after successful creation;
-- the context closes or transfers it during final teardown.
+- the context owns its socket after successful creation;
+- the context closes or transfers its socket during final teardown.
 
 Failed queue submission, worker creation, or context creation must close the descriptor exactly once.
 
@@ -68,7 +68,8 @@ Worker-pool resources may be reused after the worker returns, but connection-sco
 
 Shutdown has three phases:
 
-1. Stop accepting new descriptors and wake a blocked accept operation.
+1. Mark the acceptor shut down and signal its eventfd. This wakes a blocked epoll wait; the listener remains owned
+   until the acceptor is destroyed after acceptance has stopped.
 2. Stop queueing work and request cancellation for queued and active workers.
 3. Wait for active contexts to close or reach the configured shutdown deadline, then reclaim remaining resources.
 

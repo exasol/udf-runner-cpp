@@ -242,7 +242,11 @@ def _write_mull_matrix(session: nox.Session):
     )
     args = parser.parse_args(session.posargs)
 
-    matrix = json.dumps({"target": list(_get_mull_targets(session))}, separators=(",", ":"))
+    matrix_targets = [
+        {"target": target, "artifact": _mull_target_report_name(target)}
+        for target in _get_mull_targets(session)
+    ]
+    matrix = json.dumps({"include": matrix_targets}, separators=(",", ":"))
     if args.github_output_var:
         github_output = os.environ.get("GITHUB_OUTPUT")
         if not github_output:
@@ -271,16 +275,38 @@ def _get_mull_targets(session: nox.Session) -> tuple[str, ...]:
             external=True,
         )
 
-    targets = tuple(
-        sorted(
-            label.rsplit(":", maxsplit=1)[1]
-            for label in labels.splitlines()
-            if label.startswith("//:") and ":" in label
-        )
-    )
+    targets = _mull_target_labels(labels)
     if not targets:
         session.error("No Bazel cc_test targets available for Mull were found")
     return targets
+
+
+def _mull_target_labels(query_output: str) -> tuple[str, ...]:
+    eligible_prefixes = ("//:", "//test/internal:")
+    return tuple(
+        sorted(
+            label
+            for label in query_output.splitlines()
+            if label.startswith(eligible_prefixes) and ":" in label
+        )
+    )
+
+
+def _normalize_mull_target(target: str) -> str:
+    if target.startswith("//"):
+        return target
+    if ":" in target:
+        return f"//{target}"
+    return f"//:{target}"
+
+
+def _mull_target_binary_path(target: str) -> Path:
+    target_path = target.removeprefix("//").replace(":", "/").lstrip("/")
+    return Path("bazel-bin") / target_path
+
+
+def _mull_target_report_name(target: str) -> str:
+    return target.removeprefix("//").replace("/", "_").replace(":", "_").lstrip("_")
 
 
 @dataclass(frozen=True)
@@ -489,8 +515,8 @@ def _run_mull_target(
     library_search_args: list[str],
     run_env: dict[str, str],
 ) -> None:
-    target_name = target.rsplit(":", maxsplit=1)[1]
-    executable = Path("bazel-bin") / target_name
+    target_name = _mull_target_report_name(target)
+    executable = _mull_target_binary_path(target)
     if not executable.exists():
         session.error(f"Bazel did not produce expected test binary: {executable}")
     mull_output = session.run(
@@ -552,8 +578,11 @@ def run_mull(session: nox.Session):
     toolchain = _get_mull_toolchain(session)
     v2_root, report_dir, bazel_output_root = _get_mull_paths()
 
-    target_names = (args.target,) if args.target else _get_mull_targets(session)
-    targets = [f"//:{target}" for target in target_names]
+    targets = (
+        [_normalize_mull_target(args.target)]
+        if args.target
+        else list(_get_mull_targets(session))
+    )
     bazel_startup_args = [f"--output_user_root={bazel_output_root}"]
     generated_config = report_dir / "mull.yml"
     run_env = os.environ.copy()

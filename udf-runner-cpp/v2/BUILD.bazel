@@ -183,6 +183,55 @@ alias(
     tags = ["noclangtidy"],
 )
 
+alias(
+    name = "arrow_c_data_interface",
+    actual = "@v2_arrow//:arrow_c_data_interface",
+    tags = ["noclangtidy"],
+)
+
+cc_library(
+    name = "arrow_types",
+    srcs = [
+        "protocol/arrow_types/range_run.cc",
+        "protocol/arrow_types/run_array_view.cc",
+        "protocol/arrow_types/run_end_encoded.cc",
+    ],
+    hdrs = [
+        "include/exasol/udf/v2/protocol/arrow_types/range_run.hpp",
+        "include/exasol/udf/v2/protocol/arrow_types/run_array_view.hpp",
+        "include/exasol/udf/v2/protocol/arrow_types/run_end_encoded.hpp",
+    ],
+    copts = ["-std=c++23"],
+    includes = ["include"],
+    deps = [":arrow_core"],
+)
+
+cc_test(
+    name = "arrow_types_test",
+    srcs = [
+        "protocol/arrow_types/arrow_types_test_helpers.hpp",
+        "protocol/arrow_types/range_run_test.cc",
+        "protocol/arrow_types/run_array_view_test.cc",
+        "protocol/arrow_types/run_end_encoded_test.cc",
+    ],
+    copts = ["-std=c++23"],
+    includes = ["protocol/arrow_types"],
+    deps = [
+        ":arrow_core",
+        ":arrow_types",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_fuzz_test(
+    name = "correlation_arrow_types_fuzz_test",
+    srcs = ["protocol/arrow_types/correlation_arrow_types_fuzz_test.cc"],
+    corpus = glob(["fuzz/corpus/correlation_arrow_types/**"]),
+    copts = ["-std=c++23"],
+    deps = [":arrow_types"],
+    tags = ["fuzz-test"],
+)
+
 filegroup(
     name = "arrow_c_data_demo_exports",
     srcs = ["arrow_c_data_demo.exports.map"],
@@ -291,7 +340,7 @@ cc_library(
     ],
     copts = ["-std=c++23"],
     deps = [
-        ":arrow_core",
+        ":arrow_c_data_interface",
         ":exception",
         ":udf_protocol",
     ],
@@ -453,11 +502,17 @@ cc_library(
 )
 
 cc_library(
-    name = "posix",
-    srcs = ["posix/posix.cc"],
+    name = "posix_interface",
     hdrs = ["include/exasol/udf/v2/posix/posix.hpp"],
     includes = ["include"],
     copts = ["-std=c++23"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "posix",
+    srcs = ["posix/posix.cc"],
+    deps = [":posix_interface"],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
@@ -474,6 +529,19 @@ cc_test(
 )
 
 cc_library(
+    name = "socket_interface",
+    hdrs = [
+        "include/exasol/udf/v2/socket/owned_file_descriptor.hpp",
+        "include/exasol/udf/v2/socket/socket.hpp",
+        "include/exasol/udf/v2/socket/socket_listener.hpp",
+    ],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    deps = [":posix_interface"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
     name = "socket",
     srcs = [
         "socket/owned_file_descriptor.cc",
@@ -483,15 +551,90 @@ cc_library(
         "socket/unix_socket_listener.cc",
     ],
     hdrs = [
-        "include/exasol/udf/v2/socket/owned_file_descriptor.hpp",
-        "include/exasol/udf/v2/socket/socket.hpp",
         "include/exasol/udf/v2/socket/unix_socket.hpp",
         "include/exasol/udf/v2/socket/unix_socket_listener.hpp",
         "socket/unix_socket_detail.hpp",
     ],
     includes = ["include"],
     copts = ["-std=c++23"],
-    deps = [":posix"],
+    deps = [
+        ":posix",
+        ":socket_interface",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "connection_acceptor",
+    srcs = [
+        "internal/caller_thread_socket_connection_acceptor.cc",
+        "internal/connection.cc",
+    ],
+    hdrs = [
+        "include/exasol/udf/v2/internal/caller_thread_socket_connection_acceptor.hpp",
+        "include/exasol/udf/v2/internal/connection.hpp",
+        "include/exasol/udf/v2/internal/connection_acceptor.hpp",
+    ],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":event_fd",
+        ":exception",
+        ":linux_epoll_interface",
+        ":logging_utils",
+        ":providers",
+        ":socket_interface",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "thread_factory",
+    srcs = [
+        "internal/native_thread.cc",
+        "internal/standard_thread_factory.cc",
+    ],
+    hdrs = [
+        "include/exasol/udf/v2/internal/native_thread.hpp",
+        "include/exasol/udf/v2/internal/standard_thread_factory.hpp",
+        "include/exasol/udf/v2/internal/thread.hpp",
+        "include/exasol/udf/v2/internal/thread_factory.hpp",
+    ],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+)
+
+cc_test(
+    name = "standard_thread_factory_test",
+    srcs = ["internal/standard_thread_factory_test.cc"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":thread_factory",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "recording_logging_provider_test_utils",
+    testonly = True,
+    hdrs = ["test_utils/recording_logging_provider.hpp"],
+    copts = ["-std=c++23"],
+    includes = ["test_utils"],
+    deps = [":providers"],
+)
+
+cc_test(
+    name = "connection_acceptor_test",
+    # This binary links the logging implementation, to run its tests when Mull
+    # mutates the connection acceptor's transitive dependencies.
+    srcs = ["internal/connection_acceptor_test.cc"],
+    copts = ["-std=c++23"],
+    deps = [
+        ":connection_acceptor",
+        ":logging_utils_test_cases",
+        ":recording_logging_provider_test_utils",
+        "@googletest//:gtest_main",
+    ],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
@@ -517,6 +660,7 @@ cc_test(
     deps = [
         ":socket",
         ":posix",
+        ":providers",
         "@googletest//:gtest_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],
@@ -529,6 +673,7 @@ cc_fuzz_test(
     copts = ["-std=c++23"],
     deps = [
         ":posix",
+        ":providers",
         ":socket",
     ],
     tags = ["fuzz-test"],
@@ -574,6 +719,15 @@ cc_test(
 )
 
 cc_library(
+    name = "linux_epoll_interface",
+    hdrs = ["include/exasol/udf/v2/linux_epoll.hpp"],
+    includes = ["include"],
+    copts = ["-std=c++23"],
+    deps = [":posix_interface"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
     name = "linux_epoll",
     srcs = [
         "linux_epoll.cc",
@@ -581,13 +735,15 @@ cc_library(
         "linux_epoll_state.cc",
     ],
     hdrs = [
-        "include/exasol/udf/v2/linux_epoll.hpp",
         "linux_epoll_registration.hpp",
         "linux_epoll_state.hpp",
     ],
     includes = ["include"],
     copts = ["-std=c++23"],
-    deps = [":posix"],
+    deps = [
+        ":linux_epoll_interface",
+        ":posix",
+    ],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
@@ -709,4 +865,45 @@ cc_test(
         "@googletest//:gtest_main",
     ],
     target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "providers",
+    srcs = ["provider/logging_provider.cpp"],
+    hdrs = ["include/exasol/udf/v2/provider/logging_provider.h"],
+    copts = ["-std=c++23"],
+    includes = ["include"],
+)
+
+cc_library(
+    name = "logging_utils",
+    srcs = ["utils/log_utils.cpp"],
+    hdrs = ["include/exasol/udf/v2/utils/log_utils.h"],
+    copts = ["-std=c++23"],
+    includes = ["include"],
+    deps = [":providers"],
+)
+
+cc_library(
+    name = "logging_utils_test_cases",
+    testonly = True,
+    srcs = ["utils/log_utils_test.cpp"],
+    # GoogleTest registers cases during static initialization, without a
+    # symbol referenced directly by either test binary.
+    alwayslink = True,
+    copts = ["-std=c++23"],
+    deps = [
+        ":logging_utils",
+        ":providers",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "logging_utils_test",
+    copts = ["-std=c++23"],
+    deps = [
+        ":logging_utils_test_cases",
+        "@googletest//:gtest_main",
+    ],
 )

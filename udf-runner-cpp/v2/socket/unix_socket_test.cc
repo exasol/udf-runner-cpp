@@ -273,6 +273,22 @@ TEST_F(UnixSocketPathTest, ListenerConnectsAcceptsAndCleansUpPath)
     EXPECT_FALSE(std::filesystem::exists(path));
 }
 
+TEST_F(UnixSocketPathTest, ListenerAcceptSocketReturnsTransportNeutralSocket)
+{
+    const std::filesystem::path path = get_socket_path();
+    UnixSocketListener listener      = UnixSocketListener::bind(path, native_posix_facade());
+    UnixSocket client                = UnixSocket::connect(path, native_posix_facade());
+
+    std::unique_ptr<exasol::udf::v2::socket::Socket> server = listener.accept_socket();
+
+    ASSERT_TRUE(server->is_open());
+    const std::array<std::byte, 1> sent{std::byte{'x'}};
+    ASSERT_EQ(client.write_some(sent), sent.size());
+    std::array<std::byte, 1> received{};
+    ASSERT_EQ(server->read_some(received), received.size());
+    EXPECT_EQ(received, sent);
+}
+
 TEST_F(UnixSocketPathTest, RoutesAllSocketOperationsThroughInjectedPosix)
 {
     auto posix                       = std::make_shared<RecordingPosix>();
