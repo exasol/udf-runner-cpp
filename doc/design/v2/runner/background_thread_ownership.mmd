@@ -1,0 +1,27 @@
+flowchart LR
+    C[Context]
+    I[BackgroundThreadInterface]
+    B[BackgroundThreadImpl<br/>dedicated-thread mode]
+    E[EventLoop<br/>owns socket and both queues]
+    P[AllocatorPool<br/>unique to Context]
+    A[Allocator<br/>one per message]
+    K[MessageBufferReleaser<br/>Free(...)]
+    M[arrow::MemoryPool]
+    T[Thread from ThreadFactory]
+    D[Dedicated scheduler]
+    W[Future thread-pool scheduler]
+
+    C -->|uses| I
+    I -->|delegates to| B
+    B -->|owns| E
+    B -->|owns| T
+    T -->|runs| D
+    D -->|accesses directly| E
+    W -->|schedules directly| E
+    P -->|returns per message| A
+    E -->|uses for all message buffers| A
+    A -->|implements| K
+    A -->|implements| M
+
+    G[Non-RecordBatch buffers use shared Free; RecordBatch may use MemoryPool.]
+    P -.-> G

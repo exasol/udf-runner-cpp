@@ -1,0 +1,17 @@
+sequenceDiagram
+    participant C as Context
+    participant O as Outbound WaitableQueue
+    participant B as BackgroundThreadImpl
+    participant T as ThreadFactory Thread
+    participant E as EventLoop
+    participant S as Socket
+    participant I as Inbound Blocking SPSC Queue
+    C->>O: enqueue outbound message
+    O-->>T: queue eventfd becomes readable
+    T->>E: dispatch queue readiness
+    E->>O: drain FIFO messages
+    E->>S: write framed bytes
+    S-->>E: readable socket bytes
+    E->>I: publish verified inbound messages
+    I-->>C: blocking dequeue returns
+    C->>I: dequeue available messages

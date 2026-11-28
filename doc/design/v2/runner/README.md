@@ -23,8 +23,12 @@ Arrow C Data Interface.
 - [lifecycle.md](lifecycle.md) defines connection, worker, context, and shutdown lifecycles.
 - [context_interface.md](context_interface.md) defines the worker-facing low-level context, call, and control-stream
   contract.
-- [context_implementation.md](context_implementation.md) defines the internal queues, background I/O thread,
-  notification, batching, and shutdown design.
+- [context_implementation.md](context_implementation.md) defines Context state, stream dispatch, and worker-visible
+  send, receive, and close behavior.
+- [background_thread_design.md](background_thread_design.md) defines the event loop, its waitable descriptors, and
+  the initial dedicated-thread implementation of `BackgroundThreadInterface`.
+- [allocator_pool_design.md](allocator_pool_design.md) defines the per-Context allocator pool, allocator interfaces,
+  and message-buffer release ownership used by the event loop.
 - [thread_factory_design.md](thread_factory_design.md) defines the internal thread abstraction used for background
   execution and its standard-library implementations.
 - [stream_management.md](stream_management.md) defines low-level context stream IDs, routing, pending-message

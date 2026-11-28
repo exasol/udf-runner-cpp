@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="450" viewBox="0 0 1120 450" role="img" aria-labelledby="title desc">
+  <title id="title">Background thread message interaction</title>
+  <desc id="desc">Context enqueues to a waitable outbound queue, the dedicated thread dispatches readiness to the event loop, socket I/O occurs, and Context blocks on a Moodycamel inbound SPSC queue.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 z" fill="#344054"/></marker>
+    <style>
+      text { font-family: Arial, sans-serif; fill: #101828; }
+      .box { fill: #f2f4f7; stroke: #667085; stroke-width: 1.5; rx: 8; }
+      .life { stroke: #98a2b3; stroke-dasharray: 5 5; }
+      .msg { stroke: #344054; stroke-width: 1.7; marker-end: url(#arrow); }
+      .return { stroke: #475467; stroke-width: 1.7; stroke-dasharray: 6 4; marker-end: url(#arrow); }
+      .label { font-size: 14px; }
+      .name { font-size: 15px; font-weight: 600; }
+    </style>
+  </defs>
+  <rect class="box" x="20" y="20" width="130" height="42"/><text class="name" x="85" y="46" text-anchor="middle">Context</text>
+  <rect class="box" x="175" y="20" width="150" height="42"/><text class="name" x="250" y="46" text-anchor="middle">Outbound Queue</text>
+  <rect class="box" x="350" y="20" width="150" height="42"/><text class="name" x="425" y="46" text-anchor="middle">Thread</text>
+  <rect class="box" x="525" y="20" width="150" height="42"/><text class="name" x="600" y="46" text-anchor="middle">Event Loop</text>
+  <rect class="box" x="700" y="20" width="130" height="42"/><text class="name" x="765" y="46" text-anchor="middle">Socket</text>
+  <rect class="box" x="855" y="20" width="180" height="42"/><text class="name" x="945" y="46" text-anchor="middle">Inbound Blocking SPSC</text>
+  <path class="life" d="M85 62 V420 M250 62 V420 M425 62 V420 M600 62 V420 M765 62 V420 M945 62 V420"/>
+  <path class="msg" d="M85 105 H250"/><text class="label" x="167" y="96" text-anchor="middle">enqueue outbound</text>
+  <path class="return" d="M250 145 H425"/><text class="label" x="337" y="136" text-anchor="middle">eventfd readable</text>
+  <path class="msg" d="M425 185 H600"/><text class="label" x="512" y="176" text-anchor="middle">dispatch readiness</text>
+  <path class="msg" d="M600 225 H250"/><text class="label" x="420" y="216" text-anchor="middle">drain FIFO messages</text>
+  <path class="msg" d="M600 265 H765"/><text class="label" x="682" y="256" text-anchor="middle">write frames</text>
+  <path class="return" d="M765 305 H600"/><text class="label" x="682" y="296" text-anchor="middle">readable bytes</text>
+  <path class="msg" d="M600 345 H945"/><text class="label" x="772" y="336" text-anchor="middle">publish verified messages</text>
+  <path class="return" d="M945 385 H85"/><text class="label" x="515" y="376" text-anchor="middle">blocking dequeue returns; drain batch</text>
+</svg>
