@@ -2,8 +2,15 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_fuzzing//fuzzing:cc_defs.bzl", "cc_fuzz_test")
+load("@hedron_compile_commands//:refresh_compile_commands.bzl", "refresh_compile_commands")
 
 package(default_visibility = ["//visibility:public"])
+
+refresh_compile_commands(
+    name = "refresh_compile_commands",
+    targets = ["//..."],
+    exclude_external_sources = True,
+)
 
 # Keep this list synchronized with @flatbuffers//:public_headers. The private
 # runtime below needs a separate copy of every public header so its include

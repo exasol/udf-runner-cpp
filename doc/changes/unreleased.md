@@ -35,6 +35,8 @@ n/a
 
 ## Internal
 
+* #150: Added Hedron's Bazel compile commands extractor to v2 and documented
+  generating `compile_commands.json`
 * #143: Added a repository skill for writing design specifications with diagrams and focused C++ sketches
 * #111: Added parallel v2 regular-test Nox and CI runs for ASan, UBSan, and Valgrind
 * #111: Added independent Nox and CI jobs for v2 clang-tidy, clang-format, coverage, and Sonar analysis

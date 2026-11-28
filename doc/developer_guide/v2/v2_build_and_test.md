@@ -89,6 +89,20 @@ The Sonar session expects the coverage report from `v2-coverage` to already
 exist and requires a locally installed `sonar-scanner` (or a path supplied via
 the `SONAR_SCANNER` environment variable).
 
+## Compilation database
+
+Generate a `compile_commands.json` file for the v2 Bazel workspace with Hedron's
+compile commands extractor:
+
+```bash
+cd udf-runner-cpp/v2
+bazel run //:refresh_compile_commands
+```
+
+The file is written to the v2 workspace root. The target includes v2 compile
+actions and filters external dependency actions. Rerun the command after
+changing Bazel build targets or their configuration.
+
 The test suite covers the FlatBuffers protocol, Arrow support, JSON schemas,
 queue implementations, and fuzz-target regression tests. For fuzzing-specific
 commands, see the [v2 fuzzing guide](v2_fuzzing.md).
